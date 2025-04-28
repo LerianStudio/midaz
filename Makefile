@@ -465,7 +465,7 @@ all-components:
 #-------------------------------------------------------
 
 .PHONY: generate-docs
-generate-docs-all:
+generate-docs:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
 	@echo "Verifying API documentation coverage..."

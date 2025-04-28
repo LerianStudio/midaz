@@ -6,6 +6,24 @@ import "time"
 //
 // swagger:model CreateOrganizationInput
 // @Description Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
+// @example {
+//   "legalName": "Lerian Financial Services Ltd.",
+//   "legalDocument": "123456789012345",
+//   "doingBusinessAs": "Lerian FS",
+//   "address": {
+//     "line1": "123 Financial Avenue",
+//     "line2": "Suite 1500",
+//     "zipCode": "10001",
+//     "city": "New York",
+//     "state": "NY",
+//     "country": "US"
+//   },
+//   "metadata": {
+//     "industry": "Financial Services",
+//     "founded": 2020,
+//     "employees": 150
+//   }
+// }
 type CreateOrganizationInput struct {
 	// Official legal name of the organization
 	// required: true
@@ -15,9 +33,8 @@ type CreateOrganizationInput struct {
 	
 	// UUID of the parent organization if this is a child organization
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" format:"uuid"`
 	
 	// Trading or brand name of the organization, if different from legal name
 	// required: false
@@ -49,6 +66,25 @@ type CreateOrganizationInput struct {
 //
 // swagger:model UpdateOrganizationInput
 // @Description Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+// @example {
+//   "legalName": "Lerian Financial Group Ltd.",
+//   "doingBusinessAs": "Lerian Group",
+//   "address": {
+//     "line1": "456 Corporate Plaza",
+//     "line2": "Floor 20",
+//     "zipCode": "10002",
+//     "city": "New York",
+//     "state": "NY",
+//     "country": "US"
+//   },
+//   "status": "ACTIVE",
+//   "metadata": {
+//     "industry": "Financial Technology",
+//     "founded": 2020,
+//     "employees": 200,
+//     "headquarters": "New York"
+//   }
+// }
 type UpdateOrganizationInput struct {
 	// Updated legal name of the organization
 	// required: false
@@ -58,9 +94,8 @@ type UpdateOrganizationInput struct {
 	
 	// Updated UUID of the parent organization if this is a child organization
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentOrganizationID *string `json:"parentOrganizationId" validate:"omitempty,uuid" format:"uuid"`
 	
 	// Updated trading or brand name of the organization
 	// required: false
@@ -86,6 +121,28 @@ type UpdateOrganizationInput struct {
 //
 // swagger:model Organization
 // @Description Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
+// @example {
+//   "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//   "legalName": "Lerian Financial Services Ltd.",
+//   "doingBusinessAs": "Lerian FS",
+//   "legalDocument": "123456789012345",
+//   "address": {
+//     "line1": "123 Financial Avenue",
+//     "line2": "Suite 1500",
+//     "zipCode": "10001",
+//     "city": "New York",
+//     "state": "NY",
+//     "country": "US"
+//   },
+//   "status": "ACTIVE",
+//   "createdAt": "2022-04-15T09:30:00Z",
+//   "updatedAt": "2022-04-15T09:30:00Z",
+//   "metadata": {
+//     "industry": "Financial Services",
+//     "founded": 2020,
+//     "employees": 150
+//   }
+// }
 type Organization struct {
 	// Unique identifier for the organization (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -95,7 +152,7 @@ type Organization struct {
 	// Reference to the parent organization, if this is a child organization
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	ParentOrganizationID *string `json:"parentOrganizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentOrganizationID *string `json:"parentOrganizationId" format:"uuid"`
 	
 	// Official legal name of the organization
 	// example: Lerian Financial Services Ltd.
@@ -186,6 +243,30 @@ func (a Address) IsEmpty() bool {
 //
 // swagger:model Organizations
 // @Description Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
+// @example {
+//   "items": [
+//     {
+//       "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//       "legalName": "Lerian Financial Services Ltd.",
+//       "doingBusinessAs": "Lerian FS",
+//       "legalDocument": "123456789012345",
+//       "status": "ACTIVE",
+//       "createdAt": "2022-04-15T09:30:00Z",
+//       "updatedAt": "2022-04-15T09:30:00Z"
+//     },
+//     {
+//       "id": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
+//       "legalName": "Global Finance Partners",
+//       "doingBusinessAs": "GFP",
+//       "legalDocument": "987654321012345",
+//       "status": "ACTIVE",
+//       "createdAt": "2022-03-10T14:15:00Z",
+//       "updatedAt": "2022-03-10T14:15:00Z"
+//     }
+//   ],
+//   "page": 1,
+//   "limit": 10
+// }
 type Organizations struct {
 	// Array of organization records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","legalName":"Lerian Financial Services Ltd.","status":"ACTIVE"}]
@@ -225,6 +306,14 @@ type OrganizationsResponse struct {
 //
 // swagger:response OrganizationErrorResponse
 // @Description Error response for organization operations with error code and message.
+// @example {
+//   "code": 400001,
+//   "message": "Invalid input: field 'legalName' is required",
+//   "details": {
+//     "field": "legalName",
+//     "violation": "required"
+//   }
+// }
 type OrganizationErrorResponse struct {
 	// in: body
 	Body struct {

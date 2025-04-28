@@ -268,7 +268,7 @@ run:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger API documentation")
+	$(call title1,"Generating Swagger API documentation - Onboarding")
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \

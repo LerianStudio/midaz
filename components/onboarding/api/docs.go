@@ -3365,10 +3365,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "description": "UUID of the parent organization if this is a child organization\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "UUID of the parent organization if this is a child organization\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Current operating status of the organization (defaults to ACTIVE if not specified)\nrequired: false",
@@ -3593,8 +3592,7 @@ const docTemplate = `{
                 "parentOrganizationId": {
                     "description": "Reference to the parent organization, if this is a child organization\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Current operating status of the organization",
@@ -3900,10 +3898,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "description": "Updated UUID of the parent organization if this is a child organization\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "Updated UUID of the parent organization if this is a child organization\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Updated status of the organization\nrequired: false",

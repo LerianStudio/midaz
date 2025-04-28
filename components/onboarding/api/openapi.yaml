@@ -2929,7 +2929,7 @@ components:
         address: '{}'
         doingBusinessAs: Lerian FS
         legalDocument: "123456789012345"
-        parentOrganizationId: 00000000-0000-0000-0000-000000000000
+        parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         status: '{}'
       properties:
         address:
@@ -2978,9 +2978,7 @@ components:
           description: |-
             UUID of the parent organization if this is a child organization
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         status:
@@ -3200,7 +3198,7 @@ components:
         doingBusinessAs: Lerian FS
         id: 00000000-0000-0000-0000-000000000000
         legalDocument: "123456789012345"
-        parentOrganizationId: 00000000-0000-0000-0000-000000000000
+        parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -3269,7 +3267,6 @@ components:
             Reference to the parent organization, if this is a child organization
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         status:
@@ -3586,7 +3583,7 @@ components:
           key: '{}'
         address: '{}'
         doingBusinessAs: Lerian Group
-        parentOrganizationId: 00000000-0000-0000-0000-000000000000
+        parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         status: '{}'
       properties:
         address:
@@ -3626,9 +3623,7 @@ components:
           description: |-
             Updated UUID of the parent organization if this is a child organization
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         status:
@@ -3720,7 +3715,7 @@ components:
           doingBusinessAs: Lerian FS
           id: 00000000-0000-0000-0000-000000000000
           legalDocument: "123456789012345"
-          parentOrganizationId: 00000000-0000-0000-0000-000000000000
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - legalName: Lerian Financial Services Ltd.
@@ -3732,7 +3727,7 @@ components:
           doingBusinessAs: Lerian FS
           id: 00000000-0000-0000-0000-000000000000
           legalDocument: "123456789012345"
-          parentOrganizationId: 00000000-0000-0000-0000-000000000000
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:

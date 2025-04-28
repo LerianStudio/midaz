@@ -449,9 +449,7 @@ definitions:
         description: |-
           UUID of the parent organization if this is a child organization
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:
@@ -696,7 +694,6 @@ definitions:
           Reference to the parent organization, if this is a child organization
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:
@@ -984,9 +981,7 @@ definitions:
         description: |-
           Updated UUID of the parent organization if this is a child organization
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:

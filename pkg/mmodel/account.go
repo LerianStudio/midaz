@@ -9,6 +9,20 @@ import (
 //
 // swagger:model CreateAccountInput
 // @Description Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.
+// @example {
+//   "name": "Corporate Checking Account",
+//   "assetCode": "USD",
+//   "portfolioId": "00000000-0000-0000-0000-000000000000",
+//   "segmentId": "00000000-0000-0000-0000-000000000000",
+//   "status": "ACTIVE",
+//   "alias": "@treasury_checking",
+//   "type": "checking",
+//   "metadata": {
+//     "department": "Treasury", 
+//     "purpose": "Operating Expenses", 
+//     "region": "Global"
+//   }
+// }
 type CreateAccountInput struct {
 	// Human-readable name of the account
 	// required: false
@@ -71,6 +85,17 @@ type CreateAccountInput struct {
 //
 // swagger:model UpdateAccountInput
 // @Description Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.
+// @example {
+//   "name": "Primary Corporate Checking Account",
+//   "portfolioId": "11111111-1111-1111-1111-111111111111",
+//   "segmentId": "22222222-2222-2222-2222-222222222222",
+//   "status": "ACTIVE",
+//   "metadata": {
+//     "department": "Global Treasury", 
+//     "purpose": "Primary Operations", 
+//     "region": "Global"
+//   }
+// }
 type UpdateAccountInput struct {
 	// Updated name of the account
 	// required: false
@@ -104,6 +129,25 @@ type UpdateAccountInput struct {
 //
 // swagger:model Account
 // @Description Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.
+// @example {
+//   "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//   "name": "Corporate Checking Account",
+//   "assetCode": "USD",
+//   "organizationId": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
+//   "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
+//   "portfolioId": "d4e5f6a1-b2c3-7890-defg-4567890123ef",
+//   "segmentId": "e5f6a1b2-c3d4-7890-efgh-5678901234fg",
+//   "status": "ACTIVE",
+//   "alias": "@treasury_checking",
+//   "type": "checking",
+//   "createdAt": "2022-04-15T09:30:00Z",
+//   "updatedAt": "2022-04-15T09:30:00Z",
+//   "metadata": {
+//     "department": "Treasury",
+//     "purpose": "Operating Expenses",
+//     "region": "Global"
+//   }
+// }
 type Account struct {
 	// Unique identifier for the account (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -193,6 +237,34 @@ func (a *Account) IDtoUUID() uuid.UUID {
 //
 // swagger:model Accounts
 // @Description Paginated list of accounts with metadata about the current page, limit, and the account items themselves. Used for list operations.
+// @example {
+//   "items": [
+//     {
+//       "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+//       "name": "Corporate Checking Account",
+//       "assetCode": "USD",
+//       "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
+//       "status": "ACTIVE",
+//       "alias": "@treasury_checking",
+//       "type": "checking",
+//       "createdAt": "2022-04-15T09:30:00Z",
+//       "updatedAt": "2022-04-15T09:30:00Z"
+//     },
+//     {
+//       "id": "f6a1b2c3-d4e5-7890-fghi-6789012345gh",
+//       "name": "Operating Expenses",
+//       "assetCode": "USD",
+//       "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
+//       "status": "ACTIVE",
+//       "alias": "@operating_expenses",
+//       "type": "expense",
+//       "createdAt": "2022-04-16T10:15:00Z",
+//       "updatedAt": "2022-04-16T10:15:00Z"
+//     }
+//   ],
+//   "page": 1,
+//   "limit": 10
+// }
 type Accounts struct {
 	// Array of account records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Corporate Checking Account","assetCode":"USD","status":"ACTIVE"}]
@@ -232,6 +304,14 @@ type AccountsResponse struct {
 //
 // swagger:response AccountErrorResponse
 // @Description Error response for account operations with error code and message.
+// @example {
+//   "code": 400001,
+//   "message": "Invalid input: field 'assetCode' is required",
+//   "details": {
+//     "field": "assetCode",
+//     "violation": "required"
+//   }
+// }
 type AccountErrorResponse struct {
 	// in: body
 	Body struct {
