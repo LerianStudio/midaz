@@ -1,3 +1,46 @@
+## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
+
+
+### Bug Fixes
+
+* improve transaction processing tracing, code quality and idempotency; ([fd377d9](https://github.com/LerianStudio/midaz/commit/fd377d9364e103dee5bcb8239810c7102b55137c))
+* update go mod and go sum and update lib-auth method newauthclient with new parameter logger; ([13c751d](https://github.com/LerianStudio/midaz/commit/13c751d0e8b465da1ded90ff99d8c2c5f689d7cb))
+
+## [2.2.0-beta.4](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.3...v2.2.0-beta.4) (2025-04-23)
+
+
+### Bug Fixes
+
+* **pipeline:** execute console integration tests in right directory during release workflow execution ([0c840d1](https://github.com/LerianStudio/midaz/commit/0c840d1999e0298b4edf3edcbc4c21acfb5638a4))
+
+## [2.2.0-beta.3](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.2...v2.2.0-beta.3) (2025-04-17)
+
+## [2.2.0-beta.2](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.1...v2.2.0-beta.2) (2025-04-15)
+
+
+### Features
+
+* Update workflows to use latest versions of dependencies and tools. ([6511248](https://github.com/LerianStudio/midaz/commit/6511248ef2b7a2c116c846675f96a8fb748d224b))
+
+
+### Bug Fixes
+
+* **pipeline:** enable pushing of Docker images in CI workflow ([ffeeb3b](https://github.com/LerianStudio/midaz/commit/ffeeb3b8b6274ce859c912c065eefb5e12fc1abe))
+* **workflow:** update github-actions-changed-paths action to use main branch instead of develop ([fe08d78](https://github.com/LerianStudio/midaz/commit/fe08d789e31d558cec82bd496beb2d12b122d767))
+
+## [2.2.0-beta.1](https://github.com/LerianStudio/midaz/compare/v2.1.0...v2.2.0-beta.1) (2025-04-10)
+
+
+### Features
+
+* **transaction:** adding accountAlias field to keep backward compatibility ([7c6875c](https://github.com/LerianStudio/midaz/commit/7c6875cf407da06456f5645390b61388f94c9a4b))
+* define gorelease version on pipeline flow ([c845fe1](https://github.com/LerianStudio/midaz/commit/c845fe15ff5af0d562a554b44d6612820589208e))
+* remove discord beta releases flow ([3e050eb](https://github.com/LerianStudio/midaz/commit/3e050eb863b694734c18ee32eb02547eec713056))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([2e5a1ca](https://github.com/LerianStudio/midaz/commit/2e5a1ca0744362524bbf89fa1f189764a789d87f))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([c674fde](https://github.com/LerianStudio/midaz/commit/c674fde681a6077af03462c59e094e5786aaa265))
+* **transaction:** removing get-all-metadata-operations.go is not being used ([8a5014c](https://github.com/LerianStudio/midaz/commit/8a5014c0383cd0fddfc8f31625011d086723fb03))
+* **transaction:** upgrading lib-commons to 1.5.0 versionwith new accountAlias field ([e6bb757](https://github.com/LerianStudio/midaz/commit/e6bb757a94c34ddfb39d3d3f2110daa565db7e1c))
+
 ## [2.1.0](https://github.com/LerianStudio/midaz/compare/v2.0.0...v2.1.0) (2025-04-08)
 
 

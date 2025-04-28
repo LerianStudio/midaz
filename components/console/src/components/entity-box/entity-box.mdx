@@ -1,0 +1,19 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './entity-box.stories'
+
+<Meta of={Story} />
+
+# Entity Box
+
+Component used to show what entity the user is handling along side a data-table.
+
+<Canvas of={Story.Primary} />
+
+### Collapsible
+
+Collapsible version to allow filter options.
+
+<Canvas of={Story.Collapsible} />
+
+<Primary />
+<Controls />

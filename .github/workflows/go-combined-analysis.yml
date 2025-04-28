@@ -10,13 +10,16 @@ on:
       - edited
       - synchronize
       - reopened
+    paths:
+      - 'components/onboarding/**'
+      - 'components/transaction/**'
 
 permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
-  actions: read
-  security-events: write
+  id-token: write        # Needed for authentication
+  contents: read         # Needed to read repository contents
+  pull-requests: write   # Needed to comment on PRs
+  actions: read          # Needed to read workflow information
+  security-events: write # Needed to write security scanning results
 
 jobs:
   CodeQL:
@@ -30,19 +33,23 @@ jobs:
           - language: go
             build-mode: autobuild
     steps:
+      # Checkout the repository code
       - uses: actions/checkout@v4
 
+      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
+      # Initialize CodeQL analysis tool
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
+      # Run the CodeQL analysis
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
@@ -52,6 +59,7 @@ jobs:
     name: Run GolangCI-Lint to Midaz
     runs-on: ubuntu-24.04
     steps:
+      # Checkout the repository code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -65,21 +73,24 @@ jobs:
           lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
           lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: '1.23'  # Versão do Go, se necessário alterar
+          go_version: '1.23'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: 'v2.0.2'  # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+          golangci_lint_version: 'v2.0.2'
 
   GoSec:
     name: Run GoSec to Midaz
     runs-on: ubuntu-24.04
     steps:
+      # Checkout the repository code
       - uses: actions/checkout@v4
 
+      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
+      # Run Gosec security scanner
       - name: Gosec Scanner
         uses: securego/gosec@master
         with:
@@ -89,41 +100,16 @@ jobs:
     name: Run Unit Tests to Midaz
     runs-on: ubuntu-24.04
     steps:
+      # Checkout the repository code
       - uses: actions/checkout@v4
 
+      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
+      # Run unit tests using make
       - name: Unit Tests
         shell: bash
         run: make test
-
-#  integration-tests:
-#    name: Run Integrations Tests to MDZ
-#    runs-on: ubuntu-24.04
-#    steps:
-#      - name: Checkout repository
-#        uses: actions/checkout@v3
-#
-#      - name: Install Docker Compose
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install -y docker-compose
-#
-#      - name: Setup .env files
-#        run: make set-env
-#
-#      - name: Start Docker Compose Services
-#        run: make up
-#
-#      - name: Install CLI
-#        run: cd components/mdz && make install-local && cd -
-#
-#      - name: Wait for services to be ready
-#        run: sleep 10
-#        timeout-minutes: 2
-#
-#      - name: Run Integration Tests
-#        run: make test_integration_cli

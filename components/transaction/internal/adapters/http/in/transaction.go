@@ -1,6 +1,9 @@
 package in
 
 import (
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -18,8 +21,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"reflect"
-	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -528,24 +529,20 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
-	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
+	defer spanValidateDSL.End()
 
-	ts, _ := libCommons.StructToJSONString(parserDSL)
-	hash := libCommons.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
-
-	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
-
-		logger.Infof("Redis idempotency key: %v", err.Error())
-
-		return http.WithError(c, err)
+	//Helper function to handle account and accountAlias fields - accountAlias is deprecated
+	handleAccountFields := func(entries []libTransaction.FromTo) {
+		for i := range entries {
+			if entries[i].Account == "" && entries[i].AccountAlias != "" {
+				entries[i].Account = entries[i].AccountAlias
+			}
+		}
 	}
 
-	spanIdempotency.End()
-
-	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
+	handleAccountFields(parserDSL.Send.Source.From)
+	handleAccountFields(parserDSL.Send.Distribute.To)
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
@@ -562,9 +559,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	spanValidateDSL.End()
-
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	defer spanGetBalances.End()
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate)
 	if err != nil {
@@ -575,9 +571,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	spanGetBalances.End()
-
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+	defer spanValidateBalances.End()
 
 	blcs := mmodel.ConvertBalancesToLibBalances(balances)
 
@@ -588,7 +583,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	spanValidateBalances.End()
+	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	defer spanIdempotency.End()
+
+	ts, _ := libCommons.StructToJSONString(parserDSL)
+	hash := libCommons.HashSHA256(ts)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+
+	err = handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+
+		logger.Infof("Redis idempotency key: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	description := constant.CREATED
 	status := transaction.Status{
