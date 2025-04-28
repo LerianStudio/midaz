@@ -16,7 +16,7 @@ import (
 //   "segmentId": "00000000-0000-0000-0000-000000000000",
 //   "status": "ACTIVE",
 //   "alias": "@treasury_checking",
-//   "type": "checking",
+//   "type": "deposit",
 //   "metadata": {
 //     "department": "Treasury", 
 //     "purpose": "Operating Expenses", 
@@ -70,10 +70,11 @@ type CreateAccountInput struct {
 	// maxLength: 100
 	Alias *string `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@treasury_checking" maxLength:"100"`
 	
-	// Type of the account (e.g., checking, savings, creditCard, expense)
+	// Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
 	// required: true
-	// example: checking
-	Type string `json:"type" validate:"required" example:"checking"`
+	// example: deposit
+	// enum: [deposit, savings, loans, marketplace, creditCard, external]
+	Type string `json:"type" validate:"required" example:"deposit" enum:"deposit,savings,loans,marketplace,creditCard,external"`
 	
 	// Custom key-value pairs for extending the account information
 	// required: false
@@ -139,7 +140,7 @@ type UpdateAccountInput struct {
 //   "segmentId": "e5f6a1b2-c3d4-7890-efgh-5678901234fg",
 //   "status": "ACTIVE",
 //   "alias": "@treasury_checking",
-//   "type": "checking",
+//   "type": "deposit",
 //   "createdAt": "2022-04-15T09:30:00Z",
 //   "updatedAt": "2022-04-15T09:30:00Z",
 //   "metadata": {
@@ -202,9 +203,9 @@ type Account struct {
 	// maxLength: 100
 	Alias *string `json:"alias" example:"@treasury_checking" maxLength:"100"`
 	
-	// Type of the account (e.g., checking, savings, creditCard, expense)
-	// example: checking
-	Type string `json:"type" example:"checking"`
+	// Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+	// example: deposit
+	Type string `json:"type" example:"deposit"`
 	
 	// Timestamp when the account was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
@@ -246,7 +247,7 @@ func (a *Account) IDtoUUID() uuid.UUID {
 //       "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
 //       "status": "ACTIVE",
 //       "alias": "@treasury_checking",
-//       "type": "checking",
+//       "type": "deposit",
 //       "createdAt": "2022-04-15T09:30:00Z",
 //       "updatedAt": "2022-04-15T09:30:00Z"
 //     },

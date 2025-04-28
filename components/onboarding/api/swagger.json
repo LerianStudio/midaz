@@ -3054,9 +3054,9 @@
                     ]
                 },
                 "type": {
-                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)\nexample: checking",
+                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nexample: deposit",
                     "type": "string",
-                    "example": "checking"
+                    "example": "deposit"
                 },
                 "updatedAt": {
                     "description": "Timestamp when the account was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -3245,9 +3245,9 @@
                     ]
                 },
                 "type": {
-                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)\nrequired: true\nexample: checking",
+                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nrequired: true\nexample: deposit\nenum: [deposit, savings, loans, marketplace, creditCard, external]",
                     "type": "string",
-                    "example": "checking"
+                    "example": "deposit"
                 }
             }
         },

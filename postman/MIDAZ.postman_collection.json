@@ -1279,7 +1279,7 @@
             "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"checking\"\n}",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -115,9 +115,9 @@ definitions:
         description: Current operating status of the account
       type:
         description: |-
-          Type of the account (e.g., checking, savings, creditCard, expense)
-          example: checking
-        example: checking
+          Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+          example: deposit
+        example: deposit
         type: string
       updatedAt:
         description: |-
@@ -327,10 +327,11 @@ definitions:
           required: false
       type:
         description: |-
-          Type of the account (e.g., checking, savings, creditCard, expense)
+          Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
           required: true
-          example: checking
-        example: checking
+          example: deposit
+          enum: [deposit, savings, loans, marketplace, creditCard, external]
+        example: deposit
         type: string
     required:
     - assetCode

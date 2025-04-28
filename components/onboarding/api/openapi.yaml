@@ -2462,7 +2462,7 @@ components:
           key: '{}'
         assetCode: USD
         entityId: EXT-ACC-12345
-        type: checking
+        type: deposit
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         parentAccountId: 00000000-0000-0000-0000-000000000000
@@ -2586,9 +2586,9 @@ components:
           type: object
         type:
           description: |-
-            Type of the account (e.g., checking, savings, creditCard, expense)
-            example: checking
-          example: checking
+            Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+            example: deposit
+          example: deposit
           type: string
         updatedAt:
           description: |-
@@ -2744,7 +2744,7 @@ components:
         name: Corporate Checking Account
         alias: '@treasury_checking'
         entityId: EXT-ACC-12345
-        type: checking
+        type: deposit
         status: '{}'
       properties:
         alias:
@@ -2827,10 +2827,11 @@ components:
           type: object
         type:
           description: |-
-            Type of the account (e.g., checking, savings, creditCard, expense)
+            Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
             required: true
-            example: checking
-          example: checking
+            example: deposit
+            enum: [deposit, savings, loans, marketplace, creditCard, external]
+          example: deposit
           type: string
       required:
       - assetCode
@@ -3798,7 +3799,7 @@ components:
             key: '{}'
           assetCode: USD
           entityId: EXT-ACC-12345
-          type: checking
+          type: deposit
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           parentAccountId: 00000000-0000-0000-0000-000000000000
@@ -3815,7 +3816,7 @@ components:
             key: '{}'
           assetCode: USD
           entityId: EXT-ACC-12345
-          type: checking
+          type: deposit
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           parentAccountId: 00000000-0000-0000-0000-000000000000
