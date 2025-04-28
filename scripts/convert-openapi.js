@@ -1306,7 +1306,8 @@ function createEnvironmentTemplate(spec) {
     "portfolioId", 
     "segmentId", 
     "assetRateId", 
-    "balanceId"
+    "balanceId",
+    "accountAlias"
   ];
   
   // Add additional variables
