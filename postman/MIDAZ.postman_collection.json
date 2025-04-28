@@ -9034,7 +9034,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"PIX_TRANSACTIONS\",\n  \"description\": \"Initial funding from external source\",\n  \"metadata\": {\n    \"reference\": \"FUNDING-001\",\n    \"source\": \"e2e-test\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": 1000,\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Debit Operation - External Funding\",\n          \"chartOfAccounts\": \"EXTERNAL_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountId}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Credit Operation - Account Funding\",\n          \"chartOfAccounts\": \"ACCOUNT_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"PIX_TRANSACTIONS\",\n  \"description\": \"Initial funding from external source\",\n  \"metadata\": {\n    \"reference\": \"FUNDING-001\",\n    \"source\": \"e2e-test\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": 1000,\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Debit Operation - External Funding\",\n          \"chartOfAccounts\": \"EXTERNAL_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Credit Operation - Account Funding\",\n          \"chartOfAccounts\": \"ACCOUNT_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -9104,6 +9104,8 @@
                   "  var jsonData = pm.response.json();",
                   "  if (jsonData && jsonData.id) {",
                   "    pm.environment.set(\"transactionId\", jsonData.id);",
+                  "    // Also save to transaction_id for path params that use snake_case",
+                  "    pm.environment.set(\"transaction_id\", jsonData.id);",
                   "    console.log(\"transactionId set to: \" + jsonData.id);",
                   "  }",
                   "} catch (error) {",
@@ -9112,6 +9114,238 @@
                   "",
                   "// Set next request in workflow",
                   "pm.execution.setNextRequest(\"28. Get Transaction\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "28. Get Transaction",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "{{transaction_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "{{transactionId}}",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Get a Transaction with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"29. Update Transaction\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "29. Update Transaction",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "{{transaction_id}}",
+                "operations",
+                "{{operation_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "{{transactionId}}",
+                  "description": "Transaction ID"
+                },
+                {
+                  "key": "operation_id",
+                  "value": "",
+                  "description": "Operation ID"
+                }
+              ]
+            },
+            "description": "Update an Operation with the input payload",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"30. Commit Transaction\");"
                 ]
               }
             }
@@ -9163,7 +9397,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -9513,7 +9747,524 @@
           ]
         },
         {
-          "name": "38. Create Transaction Template",
+          "name": "33. Get Balance by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "balances",
+                "{{balance_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "{{balanceId}}",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Get a Balance with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "// Save the balance ID to use in subsequent requests",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.id);",
+                  "    // Also save to balance_id for path params that use snake_case",
+                  "    pm.environment.set(\"balance_id\", jsonData.id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"34. Update Balance\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34. Update Balance",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "balances",
+                "{{balance_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "{{balanceId}}",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Update a Balance with the input payload",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"35. List Account Operations\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "35. List Account Operations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "accounts",
+                "{{accountId}}",
+                "operations"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "{{accountId}}",
+                  "description": "Account ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Operations with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "// Save the first operation ID to use in subsequent requests, if needed",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.items && jsonData.items.length > 0 && jsonData.items[0].id) {",
+                  "    pm.environment.set(\"operationId\", jsonData.items[0].id);",
+                  "    // Also save to operation_id for path params that use snake_case",
+                  "    pm.environment.set(\"operation_id\", jsonData.items[0].id);",
+                  "    console.log(\"operationId set to: \" + jsonData.items[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "}",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"36. Get Account Operation\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36. Get Account Operation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "accounts",
+                "{{accountId}}",
+                "operations",
+                "{{operation_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "{{accountId}}",
+                  "description": "Account ID"
+                },
+                {
+                  "key": "operation_id",
+                  "value": "{{operationId}}",
+                  "description": "Operation ID"
+                }
+              ]
+            },
+            "description": "Get an Operation with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "// Save the operation ID to use in subsequent requests",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"operationId\", jsonData.id);",
+                  "    // Also save to operation_id for path params that use snake_case",
+                  "    pm.environment.set(\"operation_id\", jsonData.id);",
+                  "    console.log(\"operationId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "}",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"37. Create Transaction Template\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "37. Create Transaction Template",
           "request": {
             "method": "POST",
             "header": [
@@ -9618,14 +10369,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"39. Revert Transaction\");"
+                  "pm.execution.setNextRequest(\"38. Revert Transaction\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "39. Revert Transaction",
+          "name": "38. Revert Transaction",
           "request": {
             "method": "POST",
             "header": [
@@ -9670,7 +10421,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -9727,14 +10478,122 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"40. Delete Balance\");"
+                  "pm.execution.setNextRequest(\"39. Delete Balance\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "41. Delete Account",
+          "name": "39. Delete Balance",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "balances",
+                "{{balance_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "{{balanceId}}",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Delete a Balance with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "pm.test(\"Status code is successful\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "});",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "",
+                  "// Set next request in workflow",
+                  "pm.execution.setNextRequest(\"40. Delete Account\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "40. Delete Account",
           "request": {
             "method": "DELETE",
             "header": [
@@ -9835,14 +10694,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"42. Delete Segment\");"
+                  "pm.execution.setNextRequest(\"41. Delete Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "42. Delete Segment",
+          "name": "41. Delete Segment",
           "request": {
             "method": "DELETE",
             "header": [
@@ -9943,14 +10802,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"43. Delete Portfolio\");"
+                  "pm.execution.setNextRequest(\"42. Delete Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "43. Delete Portfolio",
+          "name": "42. Delete Portfolio",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10051,14 +10910,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"44. Delete Asset\");"
+                  "pm.execution.setNextRequest(\"43. Delete Asset\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "44. Delete Asset",
+          "name": "43. Delete Asset",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10159,14 +11018,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"45. Delete Ledger\");"
+                  "pm.execution.setNextRequest(\"44. Delete Ledger\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "45. Delete Ledger",
+          "name": "44. Delete Ledger",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10260,14 +11119,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"46. Delete Organization\");"
+                  "pm.execution.setNextRequest(\"45. Delete Organization\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "46. Delete Organization",
+          "name": "45. Delete Organization",
           "request": {
             "method": "DELETE",
             "header": [

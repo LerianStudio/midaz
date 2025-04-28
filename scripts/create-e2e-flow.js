@@ -29,6 +29,23 @@ let collection;
 try {
   const fileContent = fs.readFileSync(collectionFile, 'utf8');
   collection = JSON.parse(fileContent);
+  
+  // Remove any existing E2E Flow folders or duplicates
+  if (collection.item) {
+    // Filter out any E2E Flow folders
+    collection.item = collection.item.filter(item => item.name !== "E2E Flow");
+    
+    // Also look for and remove duplicate entries with numeric prefixes in the folder names
+    for (let i = 0; i < collection.item.length; i++) {
+      if (collection.item[i].item) {
+        // For each folder, filter out items with numbered names that might be E2E flow duplicates
+        collection.item[i].item = collection.item[i].item.filter(item => {
+          // Keep items that don't match the pattern "XX. Name" 
+          return !(item.name && /^\d+\.\s+/.test(item.name));
+        });
+      }
+    }
+  }
 } catch (error) {
   console.error(`Error reading/parsing collection file: ${error.message}`);
   process.exit(1);
@@ -76,33 +93,32 @@ const workflowSequence = [
   // Transaction flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "28. Get Transaction" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit", name: "30. Commit Transaction" },
   
   // Balance flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "31. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "32. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "34. Update Balance" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Get Balance by ID" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "34. Update Balance" },
   
-  // Operation flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations", name: "35. List Operations" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "36. Get Operation" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "37. Update Operation" },
+  // Account-scoped Operations flow (since global operations endpoints don't exist)
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "35. List Account Operations" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}", name: "36. Get Account Operation" },
   
   // Additional transaction types
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "38. Create Transaction Template" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "39. Revert Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "37. Create Transaction Template" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "38. Revert Transaction" },
   
   // Delete flow (reverse order of creation to handle dependencies properly)
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "40. Delete Balance" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "41. Delete Account" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "42. Delete Segment" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "43. Delete Portfolio" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "44. Delete Asset" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "45. Delete Ledger" },
-  { operation: "DELETE", path: "/v1/organizations/{id}", name: "46. Delete Organization" }
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "39. Delete Balance" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "40. Delete Account" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "41. Delete Segment" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "42. Delete Portfolio" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "43. Delete Asset" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "44. Delete Ledger" },
+  { operation: "DELETE", path: "/v1/organizations/{id}", name: "45. Delete Organization" }
 ];
 
 const workflowFolder = {
@@ -359,6 +375,105 @@ pm.request.timeout = 60000; // 60 seconds
         }
       }
     }
+    
+    // Special case for transaction endpoints using transaction_id
+    if (step.name === "28. Get Transaction" || step.name === "29. Update Transaction" || 
+        step.name === "30. Commit Transaction" || step.name === "38. Revert Transaction") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing transaction endpoint: ${step.name}`);
+        
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Look for the transaction_id in the path
+            if (clonedRequest.request.url.path[i] === "{transaction_id}") {
+              clonedRequest.request.url.path[i] = "{{transactionId}}";
+              console.log("  Fixed transaction_id param in URL path");
+            }
+          }
+        }
+        
+        // Fix URL variables
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "transaction_id") {
+              clonedRequest.request.url.variable[i].value = "{{transactionId}}";
+              console.log("  Fixed transaction_id in URL variables");
+            }
+          }
+        }
+      }
+    }
+    
+    // Special case for balance endpoints using balance_id
+    if (step.name === "33. Get Balance by ID" || step.name === "34. Update Balance" || 
+        step.name === "39. Delete Balance") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing balance endpoint: ${step.name}`);
+        
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Look for the balance_id in the path
+            if (clonedRequest.request.url.path[i] === "{balance_id}") {
+              clonedRequest.request.url.path[i] = "{{balanceId}}";
+              console.log("  Fixed balance_id param in URL path");
+            }
+          }
+        }
+        
+        // Fix URL variables
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "balance_id") {
+              clonedRequest.request.url.variable[i].value = "{{balanceId}}";
+              console.log("  Fixed balance_id in URL variables");
+            }
+          }
+        }
+      }
+    }
+    
+    // Special case for account operations endpoints
+    if (step.name === "35. List Account Operations" || step.name === "36. Get Account Operation") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing account operations endpoint: ${step.name}`);
+        
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Look for the account_id in the path
+            if (clonedRequest.request.url.path[i] === "{account_id}") {
+              clonedRequest.request.url.path[i] = "{{accountId}}";
+              console.log("  Fixed account_id param in URL path");
+            }
+            
+            // If this is the specific operation endpoint, handle operation_id too
+            if (step.name === "36. Get Account Operation" && 
+                clonedRequest.request.url.path[i] === "{operation_id}") {
+              clonedRequest.request.url.path[i] = "{{operationId}}";
+              console.log("  Fixed operation_id param in URL path");
+            }
+          }
+        }
+        
+        // Fix URL variables
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "account_id") {
+              clonedRequest.request.url.variable[i].value = "{{accountId}}";
+              console.log("  Fixed account_id in URL variables");
+            }
+            
+            if (step.name === "36. Get Account Operation" && 
+                clonedRequest.request.url.variable[i].key === "operation_id") {
+              clonedRequest.request.url.variable[i].value = "{{operationId}}";
+              console.log("  Fixed operation_id in URL variables");
+            }
+          }
+        }
+      }
+    }
 
     
     // Special case for create account to fix parent account ID issue
@@ -544,6 +659,8 @@ try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("transactionId", jsonData.id);
+    // Also save to transaction_id for path params that use snake_case
+    pm.environment.set("transaction_id", jsonData.id);
     console.log("transactionId set to: " + jsonData.id);
   }
 } catch (error) {
@@ -568,18 +685,36 @@ try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("balanceId", jsonData.id);
+    // Also save to balance_id for path params that use snake_case
+    pm.environment.set("balance_id", jsonData.id);
     console.log("balanceId set to: " + jsonData.id);
   }
 } catch (error) {
   console.error("Failed to extract balanceId: ", error);
 }`;
-        } else if (step.name === "36. Get Operation") {
+        } else if (step.name === "35. List Account Operations") {
+          testScript += `
+// Save the first operation ID to use in subsequent requests, if needed
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && jsonData.items && jsonData.items.length > 0 && jsonData.items[0].id) {
+    pm.environment.set("operationId", jsonData.items[0].id);
+    // Also save to operation_id for path params that use snake_case
+    pm.environment.set("operation_id", jsonData.items[0].id);
+    console.log("operationId set to: " + jsonData.items[0].id);
+  }
+} catch (error) {
+  console.error("Failed to extract operationId: ", error);
+}`;
+        } else if (step.name === "36. Get Account Operation") {
           testScript += `
 // Save the operation ID to use in subsequent requests
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("operationId", jsonData.id);
+    // Also save to operation_id for path params that use snake_case
+    pm.environment.set("operation_id", jsonData.id);
     console.log("operationId set to: " + jsonData.id);
   }
 } catch (error) {
