@@ -625,6 +625,13 @@ pm.test("Status code is successful", function () {
 
 // Validate response has the expected format
 pm.test("Response has the correct structure", function() {
+  // For DELETE operations that return 204 No Content, the body is empty by design
+  if (pm.response.code === 204) {
+    pm.expect(true).to.be.true; // Always pass for 204 responses
+    return;
+  }
+  
+  // For responses with content, validate JSON structure
   pm.response.to.be.json;
   
   // Add specific validation based on response schema here
