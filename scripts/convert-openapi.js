@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Enhanced OpenAPI to Postman Converter
+ * OpenAPI to Postman Converter
  * 
- * This script combines the functionality of both enhance-openapi.js and convert-openapi.js
- * to provide a single tool that:
+ * This script provides a comprehensive tool that:
  * 1. Enhances OpenAPI specs with better examples and descriptions
  * 2. Converts the enhanced specs to Postman collections
  * 
- * Usage: node enhanced-convert-openapi.js <input-file> <output-file> [--env <env-output-file>]
+ * Usage: node convert-openapi.js <input-file> <output-file> [--env <env-output-file>]
  */
 
 const fs = require('fs');
@@ -1206,7 +1205,10 @@ function createPostmanCollection(spec) {
                     }
                     // For status, construct based on common values
                     else if (propName === 'status' && !prop.example) {
-                      example[propName] = "active";
+                      example[propName] = {
+                        "code": "ACTIVE",
+                        "description": "Active status"
+                      };
                     }
                     // Default values for common properties
                     else if (!prop.example) {
@@ -1232,7 +1234,10 @@ function createPostmanCollection(spec) {
                   "legalName": "Lerian Financial Services Ltd.",
                   "legalDocument": "123456789012345",
                   "doingBusinessAs": "Lerian FS",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "address": {
                     "line1": "123 Financial Avenue",
                     "line2": "Suite 1500",
@@ -1282,7 +1287,10 @@ function createPostmanCollection(spec) {
                   "name": "Treasury Operations",
                   "code": "TR-OPS",
                   "description": "Ledger for treasury operations and cash management",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "department": "finance",
                     "purpose": "operational",
@@ -1294,7 +1302,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Treasury Operations Global",
                   "description": "Updated ledger for global treasury operations",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "department": "finance",
                     "purpose": "operational",
@@ -1313,7 +1324,10 @@ function createPostmanCollection(spec) {
                   "name": "United States Dollar",
                   "code": "USD",
                   "type": "currency",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "decimalPlaces": 2,
                     "isFiat": true,
@@ -1324,7 +1338,10 @@ function createPostmanCollection(spec) {
                 // Example for updating an asset
                 example = {
                   "name": "United States Dollar",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "decimalPlaces": 2,
                     "isFiat": true,
@@ -1344,7 +1361,10 @@ function createPostmanCollection(spec) {
                   "alias": "@treasury_checking",
                   "type": "checking",
                   "assetCode": "USD",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "purpose": "operations",
                     "accountGroup": "banking"
@@ -1355,7 +1375,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Corporate Checking Account - Primary",
                   "alias": "@primary_checking",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "purpose": "operations",
                     "accountGroup": "banking",
@@ -1372,7 +1395,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Growth Portfolio",
                   "description": "Portfolio focused on growth assets",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "riskProfile": "moderate",
                     "strategy": "growth",
@@ -1384,7 +1410,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Growth Portfolio - Aggressive",
                   "description": "Updated portfolio with aggressive growth strategy",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "riskProfile": "high",
                     "strategy": "aggressive_growth",
@@ -1401,7 +1430,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Corporate Banking",
                   "description": "Segment for corporate banking services",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "clientType": "corporate",
                     "region": "global"
@@ -1412,7 +1444,10 @@ function createPostmanCollection(spec) {
                 example = {
                   "name": "Corporate Banking - Enterprise",
                   "description": "Updated segment for enterprise corporate banking",
-                  "status": "active",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
                   "metadata": {
                     "clientType": "enterprise",
                     "region": "global",
@@ -1489,7 +1524,10 @@ transaction {
               } else if (method === 'patch' || method === 'put') {
                 // Example for updating a transaction
                 example = {
-                  "status": "completed",
+                  "status": {
+                    "code": "COMPLETED",
+                    "description": "Transaction has been completed"
+                  },
                   "metadata": {
                     "reference": "TRANSFER-REF-001-UPDATED",
                     "description": "Updated fund transfer between accounts",
@@ -1567,7 +1605,10 @@ transaction {
                   "assetCode": "USD",
                   "amount": 100.00,
                   "type": "credit",
-                  "status": "pending",
+                  "status": {
+                    "code": "PENDING",
+                    "description": "Operation is pending processing"
+                  },
                   "metadata": {
                     "source": "payment_gateway",
                     "reference": "OP-001"
@@ -1576,7 +1617,10 @@ transaction {
               } else if (method === 'patch' || method === 'put') {
                 // Example for updating an operation
                 example = {
-                  "status": "completed",
+                  "status": {
+                    "code": "COMPLETED",
+                    "description": "Operation has been completed"
+                  },
                   "metadata": {
                     "processedAt": "2023-04-01T12:30:00Z",
                     "notes": "Operation processed successfully"

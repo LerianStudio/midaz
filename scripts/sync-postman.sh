@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Enhanced script to sync Postman collection with OpenAPI documentation
-# This script uses a unified approach to improve documentation and generate Postman collections
+# Script to sync Postman collection with OpenAPI documentation
+# This script converts OpenAPI specs to Postman collections with improved examples and descriptions
 
 # Function to install Node.js
 install_nodejs() {
@@ -116,7 +116,7 @@ TRANSACTION_API="${MIDAZ_ROOT}/components/transaction/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
-ENHANCED_CONVERTER="${SCRIPTS_DIR}/enhanced-convert-openapi.js"
+CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 
 # Create necessary directories
 mkdir -p "${TEMP_DIR}"
@@ -145,12 +145,12 @@ if [ -f "${SCRIPTS_DIR}/package.json" ]; then
 fi
 
 # Convert OpenAPI specs to Postman collections with environment templates
-echo "Converting OpenAPI specs to Postman collections with enhanced examples..."
+echo "Converting OpenAPI specs to Postman collections with improved examples..."
 
 # Process onboarding component
 if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     echo "Processing onboarding component..."
-    node "${ENHANCED_CONVERTER}" "${ONBOARDING_API}/swagger.json" "${TEMP_DIR}/onboarding.postman_collection.json" --env "${TEMP_DIR}/onboarding.environment.json"
+    node "${CONVERTER}" "${ONBOARDING_API}/swagger.json" "${TEMP_DIR}/onboarding.postman_collection.json" --env "${TEMP_DIR}/onboarding.environment.json"
     if [ $? -ne 0 ]; then
         echo "Failed to convert onboarding API spec to Postman collection."
         echo "Continuing with other components..."
@@ -162,7 +162,7 @@ fi
 # Process transaction component
 if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     echo "Processing transaction component..."
-    node "${ENHANCED_CONVERTER}" "${TRANSACTION_API}/swagger.json" "${TEMP_DIR}/transaction.postman_collection.json" --env "${TEMP_DIR}/transaction.environment.json"
+    node "${CONVERTER}" "${TRANSACTION_API}/swagger.json" "${TEMP_DIR}/transaction.postman_collection.json" --env "${TEMP_DIR}/transaction.environment.json"
     if [ $? -ne 0 ]; then
         echo "Failed to convert transaction API spec to Postman collection."
         echo "Continuing with other components..."
@@ -247,7 +247,7 @@ fi
 echo "Cleaning up temporary files..."
 rm -rf "${TEMP_DIR}"
 
-echo "[ok] Postman collection and environment synced successfully with enhanced OpenAPI documentation ✔️"
+echo "[ok] Postman collection and environment synced successfully with improved OpenAPI documentation ✔️"
 echo "Note: The synced collection is available at ${POSTMAN_COLLECTION}"
 echo "The environment template is available at ${POSTMAN_ENVIRONMENT}"
 echo "Backups of previous files are available in ${BACKUP_DIR}"
