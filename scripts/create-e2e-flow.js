@@ -95,30 +95,28 @@ const workflowSequence = [
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "28. Get Transaction" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit", name: "30. Commit Transaction" },
   
   // Balance flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "31. Get Account Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "32. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "34. Update Balance" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "32. Get Balance by ID" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance" },
   
   // Account-scoped Operations flow (since global operations endpoints don't exist)
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "35. List Account Operations" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}", name: "36. Get Account Operation" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}", name: "35. Get Account Operation" },
   
   // Additional transaction types
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "37. Create Transaction Template" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "38. Revert Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "36. Revert Transaction" },
   
   // Delete flow (reverse order of creation to handle dependencies properly)
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "39. Delete Balance" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "40. Delete Account" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "41. Delete Segment" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "42. Delete Portfolio" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "43. Delete Asset" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "44. Delete Ledger" },
-  { operation: "DELETE", path: "/v1/organizations/{id}", name: "45. Delete Organization" }
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "37. Delete Balance" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "38. Delete Account" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "39. Delete Segment" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "40. Delete Portfolio" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "41. Delete Asset" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "42. Delete Ledger" },
+  { operation: "DELETE", path: "/v1/organizations/{id}", name: "43. Delete Organization" }
 ];
 
 const workflowFolder = {
@@ -378,7 +376,7 @@ pm.request.timeout = 60000; // 60 seconds
     
     // Special case for transaction endpoints using transaction_id
     if (step.name === "28. Get Transaction" || step.name === "29. Update Transaction" || 
-        step.name === "30. Commit Transaction" || step.name === "38. Revert Transaction") {
+        step.name === "36. Revert Transaction") {
       if (clonedRequest.request && clonedRequest.request.url) {
         console.log(`Processing transaction endpoint: ${step.name}`);
         
@@ -406,8 +404,8 @@ pm.request.timeout = 60000; // 60 seconds
     }
     
     // Special case for balance endpoints using balance_id
-    if (step.name === "33. Get Balance by ID" || step.name === "34. Update Balance" || 
-        step.name === "39. Delete Balance") {
+    if (step.name === "32. Get Balance by ID" || step.name === "33. Update Balance" || 
+        step.name === "37. Delete Balance") {
       if (clonedRequest.request && clonedRequest.request.url) {
         console.log(`Processing balance endpoint: ${step.name}`);
         
@@ -435,7 +433,7 @@ pm.request.timeout = 60000; // 60 seconds
     }
     
     // Special case for account operations endpoints
-    if (step.name === "35. List Account Operations" || step.name === "36. Get Account Operation") {
+    if (step.name === "34. List Account Operations" || step.name === "35. Get Account Operation") {
       if (clonedRequest.request && clonedRequest.request.url) {
         console.log(`Processing account operations endpoint: ${step.name}`);
         
@@ -449,7 +447,7 @@ pm.request.timeout = 60000; // 60 seconds
             }
             
             // If this is the specific operation endpoint, handle operation_id too
-            if (step.name === "36. Get Account Operation" && 
+            if (step.name === "35. Get Account Operation" && 
                 clonedRequest.request.url.path[i] === "{operation_id}") {
               clonedRequest.request.url.path[i] = "{{operationId}}";
               console.log("  Fixed operation_id param in URL path");
@@ -465,10 +463,51 @@ pm.request.timeout = 60000; // 60 seconds
               console.log("  Fixed account_id in URL variables");
             }
             
-            if (step.name === "36. Get Account Operation" && 
+            if (step.name === "35. Get Account Operation" && 
                 clonedRequest.request.url.variable[i].key === "operation_id") {
               clonedRequest.request.url.variable[i].value = "{{operationId}}";
               console.log("  Fixed operation_id in URL variables");
+            }
+          }
+        }
+      }
+    }
+    
+    // Special case for portfolio and segment deletion endpoints
+    if (step.name === "39. Delete Segment" || step.name === "40. Delete Portfolio") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing ${step.name === "39. Delete Segment" ? "segment" : "portfolio"} deletion endpoint: ${step.name}`);
+        
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Look for the last id parameter in the path and replace with the correct ID
+            if (i === clonedRequest.request.url.path.length - 1 && 
+                (clonedRequest.request.url.path[i] === "{id}" || 
+                 clonedRequest.request.url.path[i] === "{{ledgerId}}")) {
+              
+              if (step.name === "39. Delete Segment") {
+                clonedRequest.request.url.path[i] = "{{segmentId}}";
+                console.log("  Fixed segment_id param in URL path");
+              } else if (step.name === "40. Delete Portfolio") {
+                clonedRequest.request.url.path[i] = "{{portfolioId}}";
+                console.log("  Fixed portfolio_id param in URL path");
+              }
+            }
+          }
+        }
+        
+        // Fix URL variables if they exist
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "id") {
+              if (step.name === "39. Delete Segment") {
+                clonedRequest.request.url.variable[i].value = "{{segmentId}}";
+                console.log("  Fixed segment_id in URL variables");
+              } else if (step.name === "40. Delete Portfolio") {
+                clonedRequest.request.url.variable[i].value = "{{portfolioId}}";
+                console.log("  Fixed portfolio_id in URL variables");
+              }
             }
           }
         }
@@ -573,6 +612,44 @@ pm.request.timeout = 60000; // 60 seconds
       if (testEvent && testEvent.script) {
         let testScript = testEvent.script.exec.join("\n");
         
+        // Custom status code test based on operation type
+        if (testScript.includes("pm.test(\"Status code is successful\"")) {
+          // Replace the generic status code test with a more specific one
+          const statusCodeTest = (() => {
+            if (step.operation === "GET") {
+              return `pm.test("Status code is 200 OK", function () {
+  pm.response.to.have.status(200);
+});`;
+            } else if (step.operation === "POST") {
+              if (step.path.includes("/revert") || step.path.includes("/commit")) {
+                return `pm.test("Status code is 200 OK", function () {
+  pm.response.to.have.status(200);
+});`;
+              } else {
+                return `pm.test("Status code is 200/201", function () {
+  pm.response.to.be.oneOf([200, 201]);
+});`;
+              }
+            } else if (step.operation === "PATCH") {
+              return `pm.test("Status code is 200 OK", function () {
+  pm.response.to.have.status(200);
+});`;
+            } else if (step.operation === "DELETE") {
+              return `pm.test("Status code is 204 No Content", function () {
+  pm.response.to.have.status(204);
+});`;
+            } else {
+              // Fallback to original test
+              return `pm.test("Status code is successful", function () {
+  pm.response.to.be.oneOf([200, 201, 202, 204]);
+});`;
+            }
+          })();
+          
+          // Replace the generic status code test
+          testScript = testScript.replace(/pm\.test\("Status code is successful"[^}]+}\);/, statusCodeTest);
+        }
+        
         // Special case for saving IDs in variables for use in subsequent tests
         if (step.name === "2. Create Organization") {
           testScript += `
@@ -659,8 +736,7 @@ try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("transactionId", jsonData.id);
-    // Also save to transaction_id for path params that use snake_case
-    pm.environment.set("transaction_id", jsonData.id);
+    // Use only camelCase for consistency
     console.log("transactionId set to: " + jsonData.id);
   }
 } catch (error) {
@@ -678,43 +754,40 @@ try {
 } catch (error) {
   console.error("Failed to extract account alias: ", error);
 }`;
-        } else if (step.name === "33. Get Balance by ID") {
+        } else if (step.name === "32. Get Balance by ID") {
           testScript += `
 // Save the balance ID to use in subsequent requests
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("balanceId", jsonData.id);
-    // Also save to balance_id for path params that use snake_case
-    pm.environment.set("balance_id", jsonData.id);
+    // Use only camelCase for consistency
     console.log("balanceId set to: " + jsonData.id);
   }
 } catch (error) {
   console.error("Failed to extract balanceId: ", error);
 }`;
-        } else if (step.name === "35. List Account Operations") {
+        } else if (step.name === "34. List Account Operations") {
           testScript += `
 // Save the first operation ID to use in subsequent requests, if needed
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.items && jsonData.items.length > 0 && jsonData.items[0].id) {
     pm.environment.set("operationId", jsonData.items[0].id);
-    // Also save to operation_id for path params that use snake_case
-    pm.environment.set("operation_id", jsonData.items[0].id);
+    // Use only camelCase for consistency
     console.log("operationId set to: " + jsonData.items[0].id);
   }
 } catch (error) {
   console.error("Failed to extract operationId: ", error);
 }`;
-        } else if (step.name === "36. Get Account Operation") {
+        } else if (step.name === "35. Get Account Operation") {
           testScript += `
 // Save the operation ID to use in subsequent requests
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("operationId", jsonData.id);
-    // Also save to operation_id for path params that use snake_case
-    pm.environment.set("operation_id", jsonData.id);
+    // Use only camelCase for consistency
     console.log("operationId set to: " + jsonData.id);
   }
 } catch (error) {

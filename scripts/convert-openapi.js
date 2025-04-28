@@ -801,19 +801,32 @@ function createPostmanCollection(spec) {
               raw: `${baseUrlVariable}${path}`,
               host: [`${baseUrlVariable}`],
               path: path.split('/').filter(p => p).map(p => {
-                // Handle path parameters to use environment variables
+                // Handle path parameters to use environment variables (camelCase)
                 if (p.startsWith('{') && p.endsWith('}')) {
                   const paramName = p.slice(1, -1);
                   if (paramName === 'organization_id') return '{{organizationId}}';
                   if (paramName === 'ledger_id') return '{{ledgerId}}';
                   if (paramName === 'account_id') return '{{accountId}}';
                   if (paramName === 'asset_id') return '{{assetId}}';
+                  if (paramName === 'transaction_id') return '{{transactionId}}';
+                  if (paramName === 'operation_id') return '{{operationId}}';
+                  if (paramName === 'balance_id') return '{{balanceId}}';
                   if (paramName === 'id') {
                     // Try to determine the entity type from the path
                     if (path.includes('/organizations/') && !path.includes('/ledgers/')) return '{{organizationId}}';
                     if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/')) return '{{ledgerId}}';
                     if (path.includes('/accounts/') && !path.includes('/balances/')) return '{{accountId}}';
                     if (path.includes('/assets/')) return '{{assetId}}';
+                    if (path.includes('/portfolios/')) return '{{portfolioId}}';
+                    if (path.includes('/segments/')) return '{{segmentId}}';
+                    if (path.includes('/operations/')) return '{{operationId}}';
+                    if (path.includes('/transactions/')) return '{{transactionId}}';
+                    if (path.includes('/balances/')) return '{{balanceId}}';
+                  }
+                  // Convert snake_case to camelCase for other parameters
+                  if (paramName.includes('_')) {
+                    const camelCaseParam = paramName.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
+                    return `{{${camelCaseParam}}}`;
                   }
                   return `{{${paramName}}}`;
                 }
@@ -849,18 +862,31 @@ function createPostmanCollection(spec) {
           const pathParams = operation.parameters.filter(p => p.in === 'path');
           if (pathParams.length > 0) {
             requestItem.request.url.variable = pathParams.map(p => {
-              // Map common parameter names to environment variables
+              // Map common parameter names to environment variables using camelCase
               let value = '';
               if (p.name === 'organization_id') value = '{{organizationId}}';
               else if (p.name === 'ledger_id') value = '{{ledgerId}}';
               else if (p.name === 'account_id') value = '{{accountId}}';
               else if (p.name === 'asset_id') value = '{{assetId}}';
+              else if (p.name === 'transaction_id') value = '{{transactionId}}';
+              else if (p.name === 'operation_id') value = '{{operationId}}';
+              else if (p.name === 'balance_id') value = '{{balanceId}}';
               else if (p.name === 'id') {
                 // Try to determine the entity type from the path
                 if (path.includes('/organizations/') && !path.includes('/ledgers/')) value = '{{organizationId}}';
                 if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/')) value = '{{ledgerId}}';
                 if (path.includes('/accounts/') && !path.includes('/balances/')) value = '{{accountId}}';
                 if (path.includes('/assets/')) value = '{{assetId}}';
+                if (path.includes('/portfolios/')) value = '{{portfolioId}}';
+                if (path.includes('/segments/')) value = '{{segmentId}}';
+                if (path.includes('/operations/')) value = '{{operationId}}';
+                if (path.includes('/transactions/')) value = '{{transactionId}}';
+                if (path.includes('/balances/')) value = '{{balanceId}}';
+              }
+              // Convert any other snake_case params to camelCase
+              else if (p.name.includes('_')) {
+                const camelCaseParam = p.name.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
+                value = `{{${camelCaseParam}}}`;
               }
               
               return {

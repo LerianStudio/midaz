@@ -2699,7 +2699,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -2804,7 +2804,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -2909,7 +2909,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -3273,7 +3273,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -3378,7 +3378,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -3483,7 +3483,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -3867,7 +3867,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -3882,7 +3882,7 @@
                 },
                 {
                   "key": "balance_id",
-                  "value": "",
+                  "value": "{{balanceId}}",
                   "description": "Balance ID"
                 }
               ]
@@ -3972,7 +3972,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -3987,7 +3987,7 @@
                 },
                 {
                   "key": "balance_id",
-                  "value": "",
+                  "value": "{{balanceId}}",
                   "description": "Balance ID"
                 }
               ]
@@ -4077,7 +4077,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -4092,7 +4092,7 @@
                 },
                 {
                   "key": "balance_id",
-                  "value": "",
+                  "value": "{{balanceId}}",
                   "description": "Balance ID"
                 }
               ]
@@ -4336,7 +4336,7 @@
                 "accounts",
                 "{{accountId}}",
                 "operations",
-                "{{operation_id}}"
+                "{{operationId}}"
               ],
               "variable": [
                 {
@@ -4356,7 +4356,7 @@
                 },
                 {
                   "key": "operation_id",
-                  "value": "",
+                  "value": "{{operationId}}",
                   "description": "Operation ID"
                 }
               ]
@@ -4446,9 +4446,9 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}",
+                "{{transactionId}}",
                 "operations",
-                "{{operation_id}}"
+                "{{operationId}}"
               ],
               "variable": [
                 {
@@ -4463,12 +4463,12 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 },
                 {
                   "key": "operation_id",
-                  "value": "",
+                  "value": "{{operationId}}",
                   "description": "Operation ID"
                 }
               ]
@@ -4681,7 +4681,7 @@
                 "{{ledgerId}}",
                 "asset-rates",
                 "from",
-                "{{asset_code}}"
+                "{{assetCode}}"
               ],
               "variable": [
                 {
@@ -4696,7 +4696,7 @@
                 },
                 {
                   "key": "asset_code",
-                  "value": "",
+                  "value": "{{assetCode}}",
                   "description": "From Asset Code"
                 }
               ],
@@ -4824,7 +4824,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "asset-rates",
-                "{{external_id}}"
+                "{{externalId}}"
               ],
               "variable": [
                 {
@@ -4839,7 +4839,7 @@
                 },
                 {
                   "key": "external_id",
-                  "value": "",
+                  "value": "{{externalId}}",
                   "description": "External ID"
                 }
               ]
@@ -5392,7 +5392,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}"
+                "{{transactionId}}"
               ],
               "variable": [
                 {
@@ -5407,7 +5407,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -5497,7 +5497,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}"
+                "{{transactionId}}"
               ],
               "variable": [
                 {
@@ -5512,7 +5512,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -5611,7 +5611,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}",
+                "{{transactionId}}",
                 "commit"
               ],
               "variable": [
@@ -5627,7 +5627,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -5717,7 +5717,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}",
+                "{{transactionId}}",
                 "revert"
               ],
               "variable": [
@@ -5733,7 +5733,7 @@
                 },
                 {
                   "key": "transaction_id",
-                  "value": "",
+                  "value": "{{transactionId}}",
                   "description": "Transaction ID"
                 }
               ]
@@ -5904,8 +5904,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -5999,8 +5999,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6119,8 +6119,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6222,8 +6222,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6355,8 +6355,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6464,8 +6464,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6594,8 +6594,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6704,8 +6704,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6844,8 +6844,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -6963,8 +6963,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7103,8 +7103,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7220,8 +7220,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7360,8 +7360,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7479,8 +7479,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7625,8 +7625,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7744,8 +7744,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -7861,8 +7861,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8001,8 +8001,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8112,8 +8112,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8230,8 +8230,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8347,8 +8347,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8487,8 +8487,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8598,8 +8598,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8716,8 +8716,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8833,8 +8833,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -8967,8 +8967,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9088,8 +9088,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200/201\", function () {",
+                  "  pm.response.to.be.oneOf([200, 201]);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9104,8 +9104,7 @@
                   "  var jsonData = pm.response.json();",
                   "  if (jsonData && jsonData.id) {",
                   "    pm.environment.set(\"transactionId\", jsonData.id);",
-                  "    // Also save to transaction_id for path params that use snake_case",
-                  "    pm.environment.set(\"transaction_id\", jsonData.id);",
+                  "    // Use only camelCase for consistency",
                   "    console.log(\"transactionId set to: \" + jsonData.id);",
                   "  }",
                   "} catch (error) {",
@@ -9149,7 +9148,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}"
+                "{{transactionId}}"
               ],
               "variable": [
                 {
@@ -9208,8 +9207,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9257,9 +9256,9 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}",
+                "{{transactionId}}",
                 "operations",
-                "{{operation_id}}"
+                "{{operationId}}"
               ],
               "variable": [
                 {
@@ -9279,7 +9278,7 @@
                 },
                 {
                   "key": "operation_id",
-                  "value": "",
+                  "value": "{{operationId}}",
                   "description": "Operation ID"
                 }
               ]
@@ -9332,8 +9331,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9345,123 +9344,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"30. Commit Transaction\");"
+                  "pm.execution.setNextRequest(\"30. Get Account Balances\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "30. Commit Transaction",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
-              "host": [
-                "{{transactionUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "transactions",
-                "{{transaction_id}}",
-                "commit"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "transaction_id",
-                  "value": "{{transactionId}}",
-                  "description": "Transaction ID"
-                }
-              ]
-            },
-            "description": "Commit a previously created transaction"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
-                  "});",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "",
-                  "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"31. Get Account Balances\");"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "31. Get Account Balances",
+          "name": "30. Get Account Balances",
           "request": {
             "method": "GET",
             "header": [
@@ -9593,8 +9483,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9606,14 +9496,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"32. List All Balances\");"
+                  "pm.execution.setNextRequest(\"31. List All Balances\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "32. List All Balances",
+          "name": "31. List All Balances",
           "request": {
             "method": "GET",
             "header": [
@@ -9727,8 +9617,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9740,14 +9630,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"33. Get Balance by ID\");"
+                  "pm.execution.setNextRequest(\"32. Get Balance by ID\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "33. Get Balance by ID",
+          "name": "32. Get Balance by ID",
           "request": {
             "method": "GET",
             "header": [
@@ -9776,7 +9666,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -9835,8 +9725,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9851,8 +9741,7 @@
                   "  var jsonData = pm.response.json();",
                   "  if (jsonData && jsonData.id) {",
                   "    pm.environment.set(\"balanceId\", jsonData.id);",
-                  "    // Also save to balance_id for path params that use snake_case",
-                  "    pm.environment.set(\"balance_id\", jsonData.id);",
+                  "    // Use only camelCase for consistency",
                   "    console.log(\"balanceId set to: \" + jsonData.id);",
                   "  }",
                   "} catch (error) {",
@@ -9860,14 +9749,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"34. Update Balance\");"
+                  "pm.execution.setNextRequest(\"33. Update Balance\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "34. Update Balance",
+          "name": "33. Update Balance",
           "request": {
             "method": "PATCH",
             "header": [
@@ -9896,7 +9785,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -9964,8 +9853,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -9977,14 +9866,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"35. List Account Operations\");"
+                  "pm.execution.setNextRequest(\"34. List Account Operations\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "35. List Account Operations",
+          "name": "34. List Account Operations",
           "request": {
             "method": "GET",
             "header": [
@@ -10105,8 +9994,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10121,8 +10010,7 @@
                   "  var jsonData = pm.response.json();",
                   "  if (jsonData && jsonData.items && jsonData.items.length > 0 && jsonData.items[0].id) {",
                   "    pm.environment.set(\"operationId\", jsonData.items[0].id);",
-                  "    // Also save to operation_id for path params that use snake_case",
-                  "    pm.environment.set(\"operation_id\", jsonData.items[0].id);",
+                  "    // Use only camelCase for consistency",
                   "    console.log(\"operationId set to: \" + jsonData.items[0].id);",
                   "  }",
                   "} catch (error) {",
@@ -10130,14 +10018,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"36. Get Account Operation\");"
+                  "pm.execution.setNextRequest(\"35. Get Account Operation\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "36. Get Account Operation",
+          "name": "35. Get Account Operation",
           "request": {
             "method": "GET",
             "header": [
@@ -10168,7 +10056,7 @@
                 "accounts",
                 "{{accountId}}",
                 "operations",
-                "{{operation_id}}"
+                "{{operationId}}"
               ],
               "variable": [
                 {
@@ -10232,8 +10120,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10248,8 +10136,7 @@
                   "  var jsonData = pm.response.json();",
                   "  if (jsonData && jsonData.id) {",
                   "    pm.environment.set(\"operationId\", jsonData.id);",
-                  "    // Also save to operation_id for path params that use snake_case",
-                  "    pm.environment.set(\"operation_id\", jsonData.id);",
+                  "    // Use only camelCase for consistency",
                   "    console.log(\"operationId set to: \" + jsonData.id);",
                   "  }",
                   "} catch (error) {",
@@ -10257,126 +10144,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"37. Create Transaction Template\");"
+                  "pm.execution.setNextRequest(\"36. Revert Transaction\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "37. Create Transaction Template",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates",
-              "host": [
-                "{{transactionUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "transactions",
-                "templates"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                }
-              ]
-            },
-            "description": "Create a Transaction with the input template",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transactionType\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTypeCode\": \"Example transactionTypeCode\",\n  \"variables\": {}\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
-                  "});",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "",
-                  "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"38. Revert Transaction\");"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "38. Revert Transaction",
+          "name": "36. Revert Transaction",
           "request": {
             "method": "POST",
             "header": [
@@ -10405,7 +10180,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transaction_id}}",
+                "{{transactionId}}",
                 "revert"
               ],
               "variable": [
@@ -10465,8 +10240,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "  pm.response.to.have.status(200);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10478,14 +10253,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"39. Delete Balance\");"
+                  "pm.execution.setNextRequest(\"37. Delete Balance\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "39. Delete Balance",
+          "name": "37. Delete Balance",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10514,7 +10289,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "balances",
-                "{{balance_id}}"
+                "{{balanceId}}"
               ],
               "variable": [
                 {
@@ -10573,8 +10348,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10586,14 +10361,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"40. Delete Account\");"
+                  "pm.execution.setNextRequest(\"38. Delete Account\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "40. Delete Account",
+          "name": "38. Delete Account",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10681,8 +10456,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10694,14 +10469,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"41. Delete Segment\");"
+                  "pm.execution.setNextRequest(\"39. Delete Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "41. Delete Segment",
+          "name": "39. Delete Segment",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10730,7 +10505,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -10745,7 +10520,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -10789,8 +10564,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10802,14 +10577,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"42. Delete Portfolio\");"
+                  "pm.execution.setNextRequest(\"40. Delete Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "42. Delete Portfolio",
+          "name": "40. Delete Portfolio",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10838,7 +10613,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -10853,7 +10628,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -10897,8 +10672,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -10910,14 +10685,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"43. Delete Asset\");"
+                  "pm.execution.setNextRequest(\"41. Delete Asset\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "43. Delete Asset",
+          "name": "41. Delete Asset",
           "request": {
             "method": "DELETE",
             "header": [
@@ -11005,8 +10780,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -11018,14 +10793,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"44. Delete Ledger\");"
+                  "pm.execution.setNextRequest(\"42. Delete Ledger\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "44. Delete Ledger",
+          "name": "42. Delete Ledger",
           "request": {
             "method": "DELETE",
             "header": [
@@ -11106,8 +10881,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
@@ -11119,14 +10894,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"45. Delete Organization\");"
+                  "pm.execution.setNextRequest(\"43. Delete Organization\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "45. Delete Organization",
+          "name": "43. Delete Organization",
           "request": {
             "method": "DELETE",
             "header": [
@@ -11200,8 +10975,8 @@
                 "exec": [
                   "",
                   "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "  pm.response.to.have.status(204);",
                   "});",
                   "",
                   "// Validate response has the expected format",
