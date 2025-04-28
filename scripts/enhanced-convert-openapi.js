@@ -977,26 +977,6 @@ function createPostmanCollection(spec) {
         key: "baseUrl",
         value: spec.servers && spec.servers.length > 0 ? spec.servers[0].url : "http://localhost",
         type: "string"
-      },
-      {
-        key: "onboardingPort",
-        value: "3000",
-        type: "string"
-      },
-      {
-        key: "transactionPort",
-        value: "3001",
-        type: "string"
-      },
-      {
-        key: "onboardingUrl",
-        value: "{{baseUrl}}:{{onboardingPort}}",
-        type: "string"
-      },
-      {
-        key: "transactionUrl",
-        value: "{{baseUrl}}:{{transactionPort}}",
-        type: "string"
       }
     ],
     item: []
@@ -1022,7 +1002,8 @@ function createPostmanCollection(spec) {
         
         // Determine which service this endpoint belongs to
         let baseUrlVariable = "{{baseUrl}}";
-        if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances')) {
+        if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') || 
+            path.includes('/assetrates') || path.includes('/balance')) {
           baseUrlVariable = "{{transactionUrl}}";
         } else {
           baseUrlVariable = "{{onboardingUrl}}";
@@ -1036,7 +1017,7 @@ function createPostmanCollection(spec) {
             header: [],
             url: {
               raw: `${baseUrlVariable}${path}`,
-              host: [baseUrlVariable],
+              host: [`${baseUrlVariable}`],
               path: path.split('/').filter(p => p).map(p => {
                 // Handle path parameters to use environment variables
                 if (p.startsWith('{') && p.endsWith('}')) {
@@ -1144,7 +1125,7 @@ function createPostmanCollection(spec) {
           }
         }
         
-        // Add request body if present
+        // Add request body if present in OpenAPI 3.0 format
         if (operation.requestBody) {
           const content = operation.requestBody.content || {};
           const jsonContent = content['application/json'];
@@ -1161,6 +1142,447 @@ function createPostmanCollection(spec) {
             if (jsonContent.examples && Object.keys(jsonContent.examples).length > 0) {
               const firstExampleKey = Object.keys(jsonContent.examples)[0];
               example = jsonContent.examples[firstExampleKey].value;
+            }
+            
+            requestItem.request.body = {
+              mode: 'raw',
+              raw: JSON.stringify(example, null, 2),
+              options: {
+                raw: {
+                  language: 'json'
+                }
+              }
+            };
+          }
+        } 
+        // Handle body parameter in Swagger 2.0 format
+        else if (operation.parameters) {
+          const bodyParam = operation.parameters.find(p => p.in === 'body');
+          if (bodyParam && bodyParam.schema) {
+            let example = {};
+            
+            // Try to extract example from schema reference
+            if (bodyParam.schema.$ref) {
+              const schemaName = bodyParam.schema.$ref.split('/').pop();
+              
+              // Look for the schema definition in the spec
+              if (spec.definitions && spec.definitions[schemaName]) {
+                const schema = spec.definitions[schemaName];
+                
+                // Build example from schema properties
+                if (schema.properties) {
+                  example = {};
+                  Object.keys(schema.properties).forEach(propName => {
+                    const prop = schema.properties[propName];
+                    
+                    // Check if there's an explicit example for this property
+                    if (prop.example !== undefined) {
+                      example[propName] = prop.example;
+                    } 
+                    // For refs, try to resolve them as well
+                    else if (prop.allOf && prop.allOf[0] && prop.allOf[0].$ref) {
+                      const refName = prop.allOf[0].$ref.split('/').pop();
+                      if (spec.definitions && spec.definitions[refName]) {
+                        const refSchema = spec.definitions[refName];
+                        
+                        // Create nested object examples
+                        if (refSchema.properties) {
+                          example[propName] = {};
+                          Object.keys(refSchema.properties).forEach(refProp => {
+                            if (refSchema.properties[refProp].example !== undefined) {
+                              example[propName][refProp] = refSchema.properties[refProp].example;
+                            }
+                          });
+                        }
+                      }
+                    }
+                    // Handle metadata with a realistic example
+                    else if (propName === 'metadata' && prop.additionalProperties !== undefined) {
+                      example[propName] = {
+                        "department": "finance",
+                        "region": "north_america",
+                        "type": "corporate"
+                      };
+                    }
+                    // For status, construct based on common values
+                    else if (propName === 'status' && !prop.example) {
+                      example[propName] = "active";
+                    }
+                    // Default values for common properties
+                    else if (!prop.example) {
+                      if (prop.type === 'string') {
+                        if (prop.format === 'uuid') example[propName] = '00000000-0000-0000-0000-000000000000';
+                        else example[propName] = `Example ${propName}`;
+                      }
+                      else if (prop.type === 'number' || prop.type === 'integer') example[propName] = 123;
+                      else if (prop.type === 'boolean') example[propName] = true;
+                      else if (prop.type === 'array') example[propName] = [];
+                      else if (prop.type === 'object') example[propName] = {};
+                    }
+                  });
+                }
+              }
+            }
+            
+            // Organization examples
+            if (path.includes('/organizations')) {
+              if (method === 'post' && !path.includes('organizations/')) {
+                // Example for creating a new organization
+                example = {
+                  "legalName": "Lerian Financial Services Ltd.",
+                  "legalDocument": "123456789012345",
+                  "doingBusinessAs": "Lerian FS",
+                  "status": "active",
+                  "address": {
+                    "line1": "123 Financial Avenue",
+                    "line2": "Suite 1500",
+                    "city": "New York",
+                    "state": "NY",
+                    "country": "US",
+                    "zipCode": "10001"
+                  },
+                  "metadata": {
+                    "industry": "financial_services",
+                    "region": "north_america",
+                    "tier": "enterprise"
+                  }
+                };
+              } else if ((method === 'patch' || method === 'put') && path.includes('organizations/')) {
+                // Example for updating an organization
+                example = {
+                  "legalName": "Lerian Financial Group Ltd.",
+                  "doingBusinessAs": "Lerian Group",
+                  "status": {
+                    "code": "ACTIVE",
+                    "description": "Active status"
+                  },
+                  "address": {
+                    "line1": "123 Financial Avenue",
+                    "line2": "Suite 1500",
+                    "city": "New York",
+                    "state": "NY",
+                    "country": "US",
+                    "zipCode": "10001"
+                  },
+                  "metadata": {
+                    "industry": "financial_services",
+                    "region": "north_america",
+                    "tier": "enterprise",
+                    "lastUpdated": "2023-04-15"
+                  }
+                };
+              }
+            }
+            
+            // Ledger examples
+            if (path.includes('/ledgers') && !path.includes('/accounts') && !path.includes('/assets')) {
+              if (method === 'post') {
+                // Example for creating a ledger
+                example = {
+                  "name": "Treasury Operations",
+                  "code": "TR-OPS",
+                  "description": "Ledger for treasury operations and cash management",
+                  "status": "active",
+                  "metadata": {
+                    "department": "finance",
+                    "purpose": "operational",
+                    "currency": "USD"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating a ledger
+                example = {
+                  "name": "Treasury Operations Global",
+                  "description": "Updated ledger for global treasury operations",
+                  "status": "active",
+                  "metadata": {
+                    "department": "finance",
+                    "purpose": "operational",
+                    "currency": "USD",
+                    "scope": "global"
+                  }
+                };
+              }
+            }
+            
+            // Asset examples
+            if (path.includes('/assets')) {
+              if (method === 'post') {
+                // Example for creating an asset
+                example = {
+                  "name": "United States Dollar",
+                  "code": "USD",
+                  "type": "currency",
+                  "status": "active",
+                  "metadata": {
+                    "decimalPlaces": 2,
+                    "isFiat": true,
+                    "region": "north_america"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating an asset
+                example = {
+                  "name": "United States Dollar",
+                  "status": "active",
+                  "metadata": {
+                    "decimalPlaces": 2,
+                    "isFiat": true,
+                    "region": "north_america",
+                    "lastUpdated": "2023-04-15"
+                  }
+                };
+              }
+            }
+            
+            // Account examples
+            if (path.includes('/accounts')) {
+              if (method === 'post') {
+                // Example for creating an account
+                example = {
+                  "name": "Corporate Checking Account",
+                  "alias": "@treasury_checking",
+                  "type": "checking",
+                  "assetCode": "USD",
+                  "status": "active",
+                  "metadata": {
+                    "purpose": "operations",
+                    "accountGroup": "banking"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating an account
+                example = {
+                  "name": "Corporate Checking Account - Primary",
+                  "alias": "@primary_checking",
+                  "status": "active",
+                  "metadata": {
+                    "purpose": "operations",
+                    "accountGroup": "banking",
+                    "priority": "high"
+                  }
+                };
+              }
+            }
+            
+            // Portfolio examples
+            if (path.includes('/portfolios')) {
+              if (method === 'post') {
+                // Example for creating a portfolio
+                example = {
+                  "name": "Growth Portfolio",
+                  "description": "Portfolio focused on growth assets",
+                  "status": "active",
+                  "metadata": {
+                    "riskProfile": "moderate",
+                    "strategy": "growth",
+                    "targetReturn": "8-10%"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating a portfolio
+                example = {
+                  "name": "Growth Portfolio - Aggressive",
+                  "description": "Updated portfolio with aggressive growth strategy",
+                  "status": "active",
+                  "metadata": {
+                    "riskProfile": "high",
+                    "strategy": "aggressive_growth",
+                    "targetReturn": "12-15%"
+                  }
+                };
+              }
+            }
+            
+            // Segment examples
+            if (path.includes('/segments')) {
+              if (method === 'post') {
+                // Example for creating a segment
+                example = {
+                  "name": "Corporate Banking",
+                  "description": "Segment for corporate banking services",
+                  "status": "active",
+                  "metadata": {
+                    "clientType": "corporate",
+                    "region": "global"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating a segment
+                example = {
+                  "name": "Corporate Banking - Enterprise",
+                  "description": "Updated segment for enterprise corporate banking",
+                  "status": "active",
+                  "metadata": {
+                    "clientType": "enterprise",
+                    "region": "global",
+                    "minimumRevenue": "$500M"
+                  }
+                };
+              }
+            }
+            
+            // Transaction examples
+            if (path.includes('/transactions')) {
+              if (method === 'post') {
+                // Check if this is the DSL endpoint
+                if (path.includes('/dsl') || path.endsWith('/dsl')) {
+                  console.log('DSL endpoint detected, adding text body example');
+                  
+                  // Create a transaction DSL example
+                  const dslExample = `// Transaction DSL Example
+// This is a simple transfer between two accounts
+
+transaction {
+  description "Fund transfer between accounts"
+  reference "TRANSFER-REF-001"
+  
+  // Account debited $100
+  debit {
+    account "{{accountId}}"
+    amount 100.00
+    asset "USD"
+  }
+  
+  // Account credited $100
+  credit {
+    account "00000000-0000-0000-0000-000000000002"
+    amount 100.00
+    asset "USD"
+  }
+}`;
+
+                  // For DSL endpoint, set body directly
+                  requestItem.request.body = {
+                    mode: 'raw',
+                    raw: dslExample,
+                    options: {
+                      raw: {
+                        language: 'text'
+                      }
+                    }
+                  };
+                  
+                  // Skip the normal JSON body creation for this endpoint
+                  return;
+                }
+                
+                // Standard JSON transaction
+                example = {
+                  "entries": [
+                    {
+                      "accountId": "{{accountId}}",
+                      "amount": -100.00,
+                      "assetCode": "USD"
+                    },
+                    {
+                      "accountId": "00000000-0000-0000-0000-000000000002",
+                      "amount": 100.00,
+                      "assetCode": "USD"
+                    }
+                  ],
+                  "metadata": {
+                    "reference": "TRANSFER-REF-001",
+                    "description": "Fund transfer between accounts"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating a transaction
+                example = {
+                  "status": "completed",
+                  "metadata": {
+                    "reference": "TRANSFER-REF-001-UPDATED",
+                    "description": "Updated fund transfer between accounts",
+                    "processedBy": "settlement-service",
+                    "notes": "Transaction processed successfully"
+                  }
+                };
+              }
+            }
+            
+            // Balance examples
+            if (path.includes('/balances')) {
+              if (method === 'post') {
+                // Example for creating a balance
+                example = {
+                  "accountId": "{{accountId}}",
+                  "assetCode": "USD",
+                  "amount": 1000.00,
+                  "metadata": {
+                    "source": "initial_deposit",
+                    "reference": "INIT-BAL-001"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating a balance
+                example = {
+                  "amount": 1500.00,
+                  "metadata": {
+                    "source": "manual_adjustment",
+                    "reference": "ADJ-001",
+                    "reason": "Balance correction",
+                    "approvedBy": "finance-manager"
+                  }
+                };
+              }
+            }
+            
+            // Asset Rate examples
+            if (path.includes('/assetrates')) {
+              if (method === 'post') {
+                // Example for creating an asset rate
+                example = {
+                  "fromAssetCode": "USD",
+                  "toAssetCode": "EUR",
+                  "rate": 0.93,
+                  "effectiveAt": "2023-04-01T00:00:00Z",
+                  "expiresAt": "2023-04-02T00:00:00Z",
+                  "metadata": {
+                    "source": "central_bank",
+                    "type": "daily_fixing"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating an asset rate
+                example = {
+                  "rate": 0.94,
+                  "expiresAt": "2023-04-03T00:00:00Z",
+                  "metadata": {
+                    "source": "central_bank",
+                    "type": "daily_fixing",
+                    "updated": true,
+                    "notes": "Rate adjusted based on market conditions"
+                  }
+                };
+              }
+            }
+            
+            // Operation examples
+            if (path.includes('/operations')) {
+              if (method === 'post') {
+                // Example for creating an operation
+                example = {
+                  "transactionId": "{{transactionId}}",
+                  "accountId": "{{accountId}}",
+                  "assetCode": "USD",
+                  "amount": 100.00,
+                  "type": "credit",
+                  "status": "pending",
+                  "metadata": {
+                    "source": "payment_gateway",
+                    "reference": "OP-001"
+                  }
+                };
+              } else if (method === 'patch' || method === 'put') {
+                // Example for updating an operation
+                example = {
+                  "status": "completed",
+                  "metadata": {
+                    "processedAt": "2023-04-01T12:30:00Z",
+                    "notes": "Operation processed successfully"
+                  }
+                };
+              }
             }
             
             requestItem.request.body = {
@@ -1326,9 +1748,66 @@ function createEnvironmentTemplate(spec) {
 // Convert the OpenAPI spec to a Postman collection
 const postmanCollection = createPostmanCollection(enhancedSpec);
 
+// Post-process the collection
+function postProcessCollection(collection) {
+  // Add DSL example for transaction DSL endpoint
+  if (collection.item) {
+    collection.item.forEach(folder => {
+      if (folder.item) {
+        folder.item.forEach(item => {
+          if (item.name && item.name.includes('DSL') && 
+              item.request && item.request.url && 
+              item.request.url.path && 
+              Array.isArray(item.request.url.path) && 
+              item.request.url.path.includes('dsl')) {
+            
+            console.log('Post-processing: Adding DSL body to DSL endpoint');
+            
+            // Force set body for DSL endpoint
+            item.request.body = {
+              mode: 'raw',
+              raw: `// Transaction DSL Example
+// This is a simple transfer between two accounts
+
+transaction {
+  description "Fund transfer between accounts"
+  reference "TRANSFER-REF-001"
+  
+  // Account debited $100
+  debit {
+    account "{{accountId}}"
+    amount 100.00
+    asset "USD"
+  }
+  
+  // Account credited $100
+  credit {
+    account "00000000-0000-0000-0000-000000000002"
+    amount 100.00
+    asset "USD"
+  }
+}`,
+              options: {
+                raw: {
+                  language: 'text'
+                }
+              }
+            };
+          }
+        });
+      }
+    });
+  }
+  
+  return collection;
+}
+
+// Process the collection before writing
+const processedCollection = postProcessCollection(postmanCollection);
+
 // Write the Postman collection to the output file
 try {
-  fs.writeFileSync(outputFile, JSON.stringify(postmanCollection, null, 2));
+  fs.writeFileSync(outputFile, JSON.stringify(processedCollection, null, 2));
   console.log(`Successfully converted ${inputFile} to ${outputFile}`);
 } catch (error) {
   console.error(`Error writing output file: ${error.message}`);
