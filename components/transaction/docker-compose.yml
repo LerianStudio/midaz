@@ -1,6 +1,7 @@
 services:
   transaction:
     container_name: midaz-transaction
+    image: midaz-transaction
     restart: always
     build:
       context: ../../
@@ -32,4 +33,3 @@ networks:
   plugin-auth-network:
     name: plugin-auth-network
     driver: bridge
-  

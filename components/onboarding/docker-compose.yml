@@ -1,6 +1,7 @@
 services:
   onboarding:
     container_name: midaz-onboarding
+    image: midaz-onboarding
     restart: always
     build:
       context: ../../
