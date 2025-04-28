@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * This script adds an E2E Flow folder to a Postman collection
- * It implements a comprehensive workflow that tests all API endpoints
+ * E2E Flow Generator for Postman Collections
+ * 
+ * This script creates a comprehensive end-to-end testing workflow by:
+ * 1. Adding an "E2E Flow" folder to a Postman collection
+ * 2. Organizing API endpoints in a logical sequence for complete system testing
+ * 3. Customizing request parameters and test scripts for proper execution
  * 
  * Usage: node create-e2e-flow.js <collection-file>
  */
 
 const fs = require('fs');
 
-// Check arguments
+// Parse command line arguments
 const args = process.argv.slice(2);
 if (args.length < 1) {
   console.error('Usage: node create-e2e-flow.js <collection-file>');
@@ -18,29 +22,28 @@ if (args.length < 1) {
 
 const collectionFile = args[0];
 
-// Check if collection file exists
+// Validate collection file exists
 if (!fs.existsSync(collectionFile)) {
   console.error(`Collection file not found: ${collectionFile}`);
   process.exit(1);
 }
 
-// Read the collection file
+// Load and parse the Postman collection
 let collection;
 try {
   const fileContent = fs.readFileSync(collectionFile, 'utf8');
   collection = JSON.parse(fileContent);
   
-  // Remove any existing E2E Flow folders or duplicates
+  // Clean up any existing E2E Flow content to avoid duplicates
   if (collection.item) {
-    // Filter out any E2E Flow folders
+    // Remove any folders named "E2E Flow"
     collection.item = collection.item.filter(item => item.name !== "E2E Flow");
     
-    // Also look for and remove duplicate entries with numeric prefixes in the folder names
+    // Remove any numbered requests that might be from previous E2E flow generations
+    // (Requests with pattern "XX. Name" are considered E2E flow items)
     for (let i = 0; i < collection.item.length; i++) {
       if (collection.item[i].item) {
-        // For each folder, filter out items with numbered names that might be E2E flow duplicates
         collection.item[i].item = collection.item[i].item.filter(item => {
-          // Keep items that don't match the pattern "XX. Name" 
           return !(item.name && /^\d+\.\s+/.test(item.name));
         });
       }
@@ -51,65 +54,66 @@ try {
   process.exit(1);
 }
 
-// Defines the complete E2E flow of API requests in a specific order
+// Define the complete E2E testing workflow sequence
+// Each step includes the HTTP method, API path, display name, and optional path pattern for matching
 const workflowSteps = [
-  // Onboarding flow
+  // Organization management flow
   { operation: "GET", path: "/v1/organizations", name: "1. List Organizations" },
   { operation: "POST", path: "/v1/organizations", name: "2. Create Organization" },
   { operation: "GET", path: "/v1/organizations/{id}", name: "3. Get Organization" },
   { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization", pathPattern: "/organizations/{id}$" },
   
-  // Ledger flow
+  // Ledger management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers", name: "5. List Ledgers" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers", name: "6. Create Ledger" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "7. Get Ledger" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger", pathPattern: "/ledgers/{id}$" },
   
-  // Asset flow
+  // Asset management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "9. List Assets" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "10. Create BRL Asset" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "11. Get Asset" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset", pathPattern: "/assets/{id}$" },
   
-  // Account flow
+  // Account management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "13. List Accounts" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "14. Create Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "15. Get Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "16. Get Account by Alias" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account", pathPattern: "/accounts/{id}$" },
   
-  // Portfolio flow
+  // Portfolio management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "18. List Portfolios" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "19. Create Portfolio" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "20. Get Portfolio" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio", pathPattern: "/portfolios/{id}$" },
   
-  // Segment flow
+  // Segment management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "22. List Segments" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "23. Create Segment" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "24. Get Segment" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment", pathPattern: "/segments/{id}$" },
   
-  // Transaction flow
+  // Transaction management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction", pathPattern: "/transactions/{transaction_id}$" },
   
-  // Balance flow
+  // Balance management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "32. Get Balance by ID" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance", pathPattern: "/balances/{balance_id}$" },
   
-  // Account-scoped Operations flow (since global operations endpoints don't exist)
+  // Operations flow (account-scoped since global operations endpoints aren't available)
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}", name: "35. Get Account Operation" },
   
-  // Additional transaction types
+  // Special transaction operations
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "36. Revert Transaction" },
   
-  // Delete flow (reverse order of creation to handle dependencies properly)
+  // Resource cleanup flow (in reverse dependency order)
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "37. Delete Balance" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "38. Delete Account" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "39. Delete Segment" },
@@ -119,15 +123,16 @@ const workflowSteps = [
   { operation: "DELETE", path: "/v1/organizations/{id}", name: "43. Delete Organization" }
 ];
 
+// Define the container folder for the E2E workflow
 const workflowFolder = {
   name: "E2E Flow",
   description: "Complete workflow that demonstrates the entire API flow from creating an organization to funding an account and cleaning up resources",
   item: []
 };
 
-// Endpoint-specific examples and customizations
+// Sample request bodies and examples for specific endpoints
 const endpointExamples = {
-  // Transaction JSON example
+  // Transaction JSON example with source and destination accounts
   transactionJsonExample: {
     "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
     "description": "New Transaction",
@@ -178,7 +183,7 @@ const endpointExamples = {
     }
   },
   
-  // AssetRate example
+  // Asset rate definition example with timestamp
   assetRateExample: {
     "externalId": "USD-{{$timestamp}}",
     "sourceAssetCode": "USD",
@@ -186,7 +191,7 @@ const endpointExamples = {
     "effectiveDate": new Date().toISOString()
   },
   
-  // Simple funding transaction example
+  // Simple funding transaction example for quick account funding
   fundingTransactionExample: {
     "description": "Initial funding from external source",
     "reference": "FUNDING-001",
@@ -202,7 +207,12 @@ const endpointExamples = {
 };
 
 /**
- * Customize the DSL transaction endpoint
+ * Customizes DSL transaction endpoints in the Postman collection
+ * 
+ * Modifies the request to use proper file upload format for DSL endpoints,
+ * replacing any existing body with a formdata structure that includes
+ * a file upload field for the transaction DSL file.
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeDslEndpoint(request) {
@@ -225,7 +235,11 @@ function customizeDslEndpoint(request) {
 }
 
 /**
- * Customize the Transaction JSON endpoint
+ * Customizes JSON transaction endpoints in the Postman collection
+ * 
+ * Updates the request body with a complete transaction example that includes
+ * source and destination accounts with proper metadata.
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeTransactionJsonEndpoint(request) {
@@ -240,7 +254,13 @@ function customizeTransactionJsonEndpoint(request) {
 }
 
 /**
- * Customize the Account creation endpoint
+ * Customizes account creation endpoints in the Postman collection
+ * 
+ * Makes several important modifications to account creation requests:
+ * 1. Changes asset code from USD to BRL if needed
+ * 2. Removes invalid zero UUIDs for parent account, portfolio, and segment
+ * 3. Adds test scripts to extract and store account alias for later use
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeAccountEndpoint(request) {
@@ -311,7 +331,11 @@ try {
 }
 
 /**
- * Customize the Account update endpoint
+ * Customizes account update endpoints in the Postman collection
+ * 
+ * Removes invalid zero UUIDs for portfolio and segment IDs from
+ * account update requests to prevent API errors.
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeAccountUpdateEndpoint(request) {
@@ -345,7 +369,13 @@ function customizeAccountUpdateEndpoint(request) {
 }
 
 /**
- * Customize the Portfolio update endpoint
+ * Customizes portfolio update endpoints in the Postman collection
+ * 
+ * Fixes several common issues with portfolio update requests:
+ * 1. Ensures URL path uses the correct ID parameter format
+ * 2. Adds pre-request script to set the ID variable from portfolioId environment variable
+ * 3. Corrects path components that might use incorrect variable references
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizePortfolioUpdateEndpoint(request) {
@@ -430,7 +460,13 @@ console.log("Set id path parameter to use portfolioId value: " + pm.environment.
 }
 
 /**
- * Customize the Segment update endpoint
+ * Customizes segment update endpoints in the Postman collection
+ * 
+ * Similar to portfolio updates, this function fixes common issues with segment updates:
+ * 1. Ensures URL path uses the correct ID parameter format
+ * 2. Adds pre-request script to set the ID variable from segmentId environment variable
+ * 3. Corrects path components that might use incorrect variable references
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeSegmentUpdateEndpoint(request) {
@@ -515,7 +551,11 @@ console.log("Set id path parameter to use segmentId value: " + pm.environment.ge
 }
 
 /**
- * Customize the Transaction update endpoint
+ * Customizes transaction update endpoints in the Postman collection
+ * 
+ * Ensures transaction update requests use the correct transaction_id parameter
+ * by adding a pre-request script that sets it from the transactionId environment variable.
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeTransactionUpdateEndpoint(request) {
@@ -557,7 +597,11 @@ console.log("Set transaction_id path parameter to use transactionId value: " + p
 }
 
 /**
- * Customize the Balance update endpoint
+ * Customizes balance update endpoints in the Postman collection
+ * 
+ * Ensures balance update requests use the correct balance_id parameter
+ * by adding a pre-request script that sets it from the balanceId environment variable.
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeBalanceUpdateEndpoint(request) {
@@ -599,7 +643,13 @@ console.log("Set balance_id path parameter to use balanceId value: " + pm.enviro
 }
 
 /**
- * Customize the Get Account by Alias endpoint
+ * Customizes "Get Account by Alias" endpoints in the Postman collection
+ * 
+ * Updates the request to properly use the accountAlias environment variable:
+ * 1. Replaces any {alias} or {{alias}} references with {{accountAlias}}
+ * 2. Updates URL path components to use the correct variable
+ * 3. Adds a pre-request script to set a default alias if none exists
+ * 
  * @param {object} request - The Postman request object to customize
  */
 function customizeGetAccountByAliasEndpoint(request) {
@@ -659,7 +709,11 @@ if (!pm.environment.get("accountAlias")) {
 }
 
 /**
- * Process all items in a collection recursively and apply endpoint-specific customizations
+ * Recursively processes all items in a collection and applies endpoint-specific customizations
+ * 
+ * This function walks through the entire collection structure and applies the appropriate
+ * customization function to each request based on its type and name.
+ * 
  * @param {Array} items - The collection items to process
  */
 function customizeEndpoints(items) {
@@ -757,7 +811,19 @@ function customizeEndpoints(items) {
   }
 }
 
-// Helper function to find a request in the collection by path and method
+/**
+ * Finds a request in the collection that matches a specific path and HTTP method
+ * 
+ * This function searches through all folders and requests in the collection to find
+ * a request that matches the specified path pattern and HTTP method. It handles
+ * special cases for different endpoint types and uses regex pattern matching
+ * to accommodate variations in path parameter names.
+ * 
+ * @param {object} collection - The Postman collection to search
+ * @param {string} path - The API path to match
+ * @param {string} method - The HTTP method to match
+ * @returns {object|null} The matching request or null if not found
+ */
 function findRequestByPathAndMethod(collection, path, method) {
   let result = null;
   console.log(`Searching for endpoint with method=${method}, path=${path}`);
@@ -848,7 +914,18 @@ function findRequestByPathAndMethod(collection, path, method) {
   return result;
 }
 
-// Create E2E workflow from existing requests in the collection
+/**
+ * Creates a complete E2E workflow folder from existing requests in the collection
+ * 
+ * This function:
+ * 1. Creates a new "E2E Flow" folder in the collection
+ * 2. Finds matching requests for each step in the workflow
+ * 3. Clones and renames the requests according to the workflow sequence
+ * 4. Adds all requests to the workflow folder in the proper order
+ * 
+ * @param {object} collection - The Postman collection to process
+ * @returns {object} The updated collection with the E2E workflow folder
+ */
 function createE2EWorkflow(collection) {
   // Safety check
   if (!collection) {
