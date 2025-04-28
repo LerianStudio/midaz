@@ -7233,391 +7233,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"13. Create AssetRate\");"
+                  "pm.execution.setNextRequest(\"13. List Accounts\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "13. Create AssetRate",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates",
-              "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "asset-rates"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                }
-              ]
-            },
-            "description": "Create or Update an AssetRate with the input details",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"externalId\": \"USD-{{$timestamp}}\",\n  \"sourceAssetCode\": \"USD\",\n  \"rate\": 1,\n  \"effectiveDate\": \"2025-04-28T14:27:43.137Z\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
-                  "});",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "// Save the asset rate external ID to use in subsequent requests",
-                  "try {",
-                  "  // Extract the external ID from the request body",
-                  "  var requestBody = JSON.parse(pm.request.body.raw);",
-                  "  if (requestBody && requestBody.externalId) {",
-                  "    pm.environment.set(\"assetRateId\", requestBody.externalId);",
-                  "    console.log(\"assetRateId set to: \" + requestBody.externalId);",
-                  "  }",
-                  "} catch (error) {",
-                  "  console.error(\"Failed to extract assetRateId: \", error);",
-                  "}",
-                  "",
-                  "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"14. Get AssetRate by Code\");"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "14. Get AssetRate by Code",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}",
-              "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "asset-rates",
-                "from",
-                "{{asset_code}}"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "asset_code",
-                  "value": "",
-                  "description": "From Asset Code"
-                }
-              ],
-              "query": [
-                {
-                  "key": "to",
-                  "value": "",
-                  "description": "To Asset Codes",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Get an AssetRate by the Asset Code with the input details"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
-                  "});",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "",
-                  "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"15. Get AssetRate by ExternalID\");"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "15. Get AssetRate by ExternalID",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}",
-              "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "asset-rates",
-                "{{external_id}}"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "external_id",
-                  "value": "",
-                  "description": "External ID"
-                }
-              ]
-            },
-            "description": "Get an AssetRate by External ID with the input details"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "pm.test(\"Status code is successful\", function () {",
-                  "  pm.response.to.be.oneOf([200, 201, 202, 204]);",
-                  "});",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "",
-                  "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"16. List Accounts\");"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "16. List Accounts",
+          "name": "13. List Accounts",
           "request": {
             "method": "GET",
             "header": [
@@ -7750,14 +7373,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"17. Create Account\");"
+                  "pm.execution.setNextRequest(\"14. Create Account\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "17. Create Account",
+          "name": "14. Create Account",
           "request": {
             "method": "POST",
             "header": [
@@ -7803,7 +7426,7 @@
             "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"deposit\"\n}",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7890,14 +7513,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"18. Get Account\");"
+                  "pm.execution.setNextRequest(\"15. Get Account\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "18. Get Account",
+          "name": "15. Get Account",
           "request": {
             "method": "GET",
             "header": [
@@ -8009,14 +7632,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"19. Get Account by Alias\");"
+                  "pm.execution.setNextRequest(\"16. Get Account by Alias\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "19. Get Account by Alias",
+          "name": "16. Get Account by Alias",
           "request": {
             "method": "GET",
             "header": [
@@ -8118,14 +7741,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"20. Update Account\");"
+                  "pm.execution.setNextRequest(\"17. Update Account\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "20. Update Account",
+          "name": "17. Update Account",
           "request": {
             "method": "PATCH",
             "header": [
@@ -8235,14 +7858,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"21. List Portfolios\");"
+                  "pm.execution.setNextRequest(\"18. List Portfolios\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "21. List Portfolios",
+          "name": "18. List Portfolios",
           "request": {
             "method": "GET",
             "header": [
@@ -8375,14 +7998,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"22. Create Portfolio\");"
+                  "pm.execution.setNextRequest(\"19. Create Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "22. Create Portfolio",
+          "name": "19. Create Portfolio",
           "request": {
             "method": "POST",
             "header": [
@@ -8496,14 +8119,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"23. Get Portfolio\");"
+                  "pm.execution.setNextRequest(\"20. Get Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "23. Get Portfolio",
+          "name": "20. Get Portfolio",
           "request": {
             "method": "GET",
             "header": [
@@ -8604,14 +8227,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"24. Update Portfolio\");"
+                  "pm.execution.setNextRequest(\"21. Update Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "24. Update Portfolio",
+          "name": "21. Update Portfolio",
           "request": {
             "method": "PATCH",
             "header": [
@@ -8721,14 +8344,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"25. List Segments\");"
+                  "pm.execution.setNextRequest(\"22. List Segments\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "25. List Segments",
+          "name": "22. List Segments",
           "request": {
             "method": "GET",
             "header": [
@@ -8861,14 +8484,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"26. Create Segment\");"
+                  "pm.execution.setNextRequest(\"23. Create Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "26. Create Segment",
+          "name": "23. Create Segment",
           "request": {
             "method": "POST",
             "header": [
@@ -8982,14 +8605,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"27. Get Segment\");"
+                  "pm.execution.setNextRequest(\"24. Get Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "27. Get Segment",
+          "name": "24. Get Segment",
           "request": {
             "method": "GET",
             "header": [
@@ -9090,14 +8713,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"28. Update Segment\");"
+                  "pm.execution.setNextRequest(\"25. Update Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "28. Update Segment",
+          "name": "25. Update Segment",
           "request": {
             "method": "PATCH",
             "header": [
@@ -9207,14 +8830,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"29. List Transactions\");"
+                  "pm.execution.setNextRequest(\"26. List Transactions\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "29. List Transactions",
+          "name": "26. List Transactions",
           "request": {
             "method": "GET",
             "header": [
@@ -9341,14 +8964,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"30. Create Transaction using JSON\");"
+                  "pm.execution.setNextRequest(\"27. Create Transaction using JSON\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "30. Create Transaction using JSON",
+          "name": "27. Create Transaction using JSON",
           "request": {
             "method": "POST",
             "header": [
@@ -9463,14 +9086,14 @@
                   "}",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"31. Get Transaction\");"
+                  "pm.execution.setNextRequest(\"28. Get Transaction\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "33. Commit Transaction",
+          "name": "30. Commit Transaction",
           "request": {
             "method": "POST",
             "header": [
@@ -9572,14 +9195,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"34. Get Account Balances\");"
+                  "pm.execution.setNextRequest(\"31. Get Account Balances\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "34. Get Account Balances",
+          "name": "31. Get Account Balances",
           "request": {
             "method": "GET",
             "header": [
@@ -9724,14 +9347,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"35. List All Balances\");"
+                  "pm.execution.setNextRequest(\"32. List All Balances\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "35. List All Balances",
+          "name": "32. List All Balances",
           "request": {
             "method": "GET",
             "header": [
@@ -9858,14 +9481,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"36. Get Balance by ID\");"
+                  "pm.execution.setNextRequest(\"33. Get Balance by ID\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "41. Create Transaction Template",
+          "name": "38. Create Transaction Template",
           "request": {
             "method": "POST",
             "header": [
@@ -9970,14 +9593,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"42. Revert Transaction\");"
+                  "pm.execution.setNextRequest(\"39. Revert Transaction\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "42. Revert Transaction",
+          "name": "39. Revert Transaction",
           "request": {
             "method": "POST",
             "header": [
@@ -10079,14 +9702,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"43. Delete Balance\");"
+                  "pm.execution.setNextRequest(\"40. Delete Balance\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "44. Delete Account",
+          "name": "41. Delete Account",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10187,14 +9810,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"45. Delete Segment\");"
+                  "pm.execution.setNextRequest(\"42. Delete Segment\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "45. Delete Segment",
+          "name": "42. Delete Segment",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10295,14 +9918,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"46. Delete Portfolio\");"
+                  "pm.execution.setNextRequest(\"43. Delete Portfolio\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "46. Delete Portfolio",
+          "name": "43. Delete Portfolio",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10403,14 +10026,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"47. Delete Asset\");"
+                  "pm.execution.setNextRequest(\"44. Delete Asset\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "47. Delete Asset",
+          "name": "44. Delete Asset",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10511,14 +10134,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"48. Delete Ledger\");"
+                  "pm.execution.setNextRequest(\"45. Delete Ledger\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "48. Delete Ledger",
+          "name": "45. Delete Ledger",
           "request": {
             "method": "DELETE",
             "header": [
@@ -10612,14 +10235,14 @@
                   "",
                   "",
                   "// Set next request in workflow",
-                  "pm.execution.setNextRequest(\"49. Delete Organization\");"
+                  "pm.execution.setNextRequest(\"46. Delete Organization\");"
                 ]
               }
             }
           ]
         },
         {
-          "name": "49. Delete Organization",
+          "name": "46. Delete Organization",
           "request": {
             "method": "DELETE",
             "header": [

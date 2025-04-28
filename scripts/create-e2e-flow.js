@@ -54,60 +54,55 @@ const workflowSequence = [
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "11. Get Asset" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset" },
   
-  // Asset Rate flow
-  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates", name: "13. Create AssetRate" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}", name: "14. Get AssetRate by Code" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}", name: "15. Get AssetRate by ExternalID" },
-  
   // Account flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "16. List Accounts" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "17. Create Account" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "18. Get Account" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "19. Get Account by Alias" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "20. Update Account" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "13. List Accounts" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "14. Create Account" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "15. Get Account" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "16. Get Account by Alias" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account" },
   
   // Portfolio flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "21. List Portfolios" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "22. Create Portfolio" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "23. Get Portfolio" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "24. Update Portfolio" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "18. List Portfolios" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "19. Create Portfolio" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "20. Get Portfolio" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio" },
   
   // Segment flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "25. List Segments" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "26. Create Segment" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "27. Get Segment" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "28. Update Segment" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "22. List Segments" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "23. Create Segment" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "24. Get Segment" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment" },
   
   // Transaction flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "29. List Transactions" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "30. Create Transaction using JSON" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "31. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "32. Update Transaction" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit", name: "33. Commit Transaction" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit", name: "30. Commit Transaction" },
   
   // Balance flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "34. Get Account Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "35. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "36. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "37. Update Balance" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "31. Get Account Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "32. List All Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Get Balance by ID" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "34. Update Balance" },
   
   // Operation flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations", name: "38. List Operations" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "39. Get Operation" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "40. Update Operation" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations", name: "35. List Operations" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "36. Get Operation" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "37. Update Operation" },
   
   // Additional transaction types
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "41. Create Transaction Template" },
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "42. Revert Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "38. Create Transaction Template" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "39. Revert Transaction" },
   
   // Delete flow (reverse order of creation to handle dependencies properly)
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "43. Delete Balance" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "44. Delete Account" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "45. Delete Segment" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "46. Delete Portfolio" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "47. Delete Asset" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "48. Delete Ledger" },
-  { operation: "DELETE", path: "/v1/organizations/{id}", name: "49. Delete Organization" }
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "40. Delete Balance" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "41. Delete Account" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "42. Delete Segment" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "43. Delete Portfolio" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "44. Delete Asset" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "45. Delete Ledger" },
+  { operation: "DELETE", path: "/v1/organizations/{id}", name: "46. Delete Organization" }
 ];
 
 const workflowFolder = {
@@ -169,7 +164,7 @@ workflowSequence.forEach((step, index) => {
     }
     
     // Special case for creating a transaction to fund account
-    if (step.name === "30. Create Transaction using JSON") {
+    if (step.name === "27. Create Transaction using JSON") {
       if (clonedRequest.request && clonedRequest.request.body) {
         // Set transaction body for funding from external source
         const fundingTxBody = {
@@ -188,27 +183,32 @@ workflowSequence.forEach((step, index) => {
       }
     }
 
-    // Special case for creating AssetRate with USD
-    if (step.name === "13. Create AssetRate") {
+    
+    // Special case for create account to fix parent account ID issue
+    if (step.name === "14. Create Account") {
       if (clonedRequest.request && clonedRequest.request.body) {
-        // Set asset rate body for USD
-        const assetRateBody = {
-          "externalId": "USD-{{$timestamp}}",
-          "sourceAssetCode": "USD",
-          "rate": 1.0,
-          "effectiveDate": new Date().toISOString()
-        };
-        
         try {
-          clonedRequest.request.body.raw = JSON.stringify(assetRateBody, null, 2);
+          const bodyObj = JSON.parse(clonedRequest.request.body.raw);
+          // Remove parentAccountId if it's set to all zeros
+          if (bodyObj.parentAccountId === "00000000-0000-0000-0000-000000000000") {
+            delete bodyObj.parentAccountId;
+          }
+          // If portfolioId and segmentId are zeros, remove them too
+          if (bodyObj.portfolioId === "00000000-0000-0000-0000-000000000000") {
+            delete bodyObj.portfolioId;
+          }
+          if (bodyObj.segmentId === "00000000-0000-0000-0000-000000000000") {
+            delete bodyObj.segmentId;
+          }
+          clonedRequest.request.body.raw = JSON.stringify(bodyObj, null, 2);
         } catch (e) {
-          console.log("Could not set body for AssetRate");
+          console.log("Could not parse body for Account");
         }
       }
     }
     
     // Special case for create portfolio with relevant values
-    if (step.name === "22. Create Portfolio") {
+    if (step.name === "19. Create Portfolio") {
       if (clonedRequest.request && clonedRequest.request.body) {
         try {
           const bodyObj = JSON.parse(clonedRequest.request.body.raw);
@@ -222,7 +222,7 @@ workflowSequence.forEach((step, index) => {
     }
 
     // Special case for create segment with relevant values
-    if (step.name === "26. Create Segment") {
+    if (step.name === "23. Create Segment") {
       if (clonedRequest.request && clonedRequest.request.body) {
         try {
           const bodyObj = JSON.parse(clonedRequest.request.body.raw);
@@ -278,20 +278,7 @@ try {
 } catch (error) {
   console.error("Failed to extract assetId: ", error);
 }`;
-        } else if (step.name === "13. Create AssetRate") {
-          testScript += `
-// Save the asset rate external ID to use in subsequent requests
-try {
-  // Extract the external ID from the request body
-  var requestBody = JSON.parse(pm.request.body.raw);
-  if (requestBody && requestBody.externalId) {
-    pm.environment.set("assetRateId", requestBody.externalId);
-    console.log("assetRateId set to: " + requestBody.externalId);
-  }
-} catch (error) {
-  console.error("Failed to extract assetRateId: ", error);
-}`;
-        } else if (step.name === "17. Create Account") {
+        } else if (step.name === "14. Create Account") {
           testScript += `
 // Save the created account ID to use in subsequent requests
 try {
@@ -303,7 +290,7 @@ try {
 } catch (error) {
   console.error("Failed to extract accountId: ", error);
 }`;
-        } else if (step.name === "22. Create Portfolio") {
+        } else if (step.name === "19. Create Portfolio") {
           testScript += `
 // Save the created portfolio ID to use in subsequent requests
 try {
@@ -315,7 +302,7 @@ try {
 } catch (error) {
   console.error("Failed to extract portfolioId: ", error);
 }`;
-        } else if (step.name === "26. Create Segment") {
+        } else if (step.name === "23. Create Segment") {
           testScript += `
 // Save the created segment ID to use in subsequent requests
 try {
@@ -327,7 +314,7 @@ try {
 } catch (error) {
   console.error("Failed to extract segmentId: ", error);
 }`;
-        } else if (step.name === "30. Create Transaction using JSON") {
+        } else if (step.name === "27. Create Transaction using JSON") {
           testScript += `
 // Save the created transaction ID to use in subsequent requests
 try {
@@ -339,7 +326,7 @@ try {
 } catch (error) {
   console.error("Failed to extract transactionId: ", error);
 }`;
-        } else if (step.name === "36. Get Balance by ID") {
+        } else if (step.name === "33. Get Balance by ID") {
           testScript += `
 // Save the balance ID to use in subsequent requests
 try {
@@ -351,7 +338,7 @@ try {
 } catch (error) {
   console.error("Failed to extract balanceId: ", error);
 }`;
-        } else if (step.name === "39. Get Operation") {
+        } else if (step.name === "36. Get Operation") {
           testScript += `
 // Save the operation ID to use in subsequent requests
 try {
