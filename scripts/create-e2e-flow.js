@@ -163,23 +163,200 @@ workflowSequence.forEach((step, index) => {
       }
     }
     
+    // Special case for Get Account by Alias to ensure it uses the accountAlias variable
+    if (step.name === "16. Get Account by Alias") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        // Make sure we're using the accountAlias variable in the URL
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            if (clonedRequest.request.url.path[i] === "alias" && 
+                i+1 < clonedRequest.request.url.path.length && 
+                (clonedRequest.request.url.path[i+1] === "{alias}" || clonedRequest.request.url.path[i+1] === "{{alias}}")) {
+              clonedRequest.request.url.path[i+1] = "{{accountAlias}}";
+            }
+          }
+        }
+        
+        // Update the raw URL as well
+        if (clonedRequest.request.url.raw) {
+          clonedRequest.request.url.raw = clonedRequest.request.url.raw.replace(
+            /\{alias\}|\{\{alias\}\}/g, 
+            "{{accountAlias}}"
+          );
+        }
+      }
+    }
+    
+    // Fix the Get Portfolio request to use portfolioId instead of ledgerId
+    if (step.name === "20. Get Portfolio" || step.name === "21. Update Portfolio") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Replace the last parameter with portfolioId
+            if (i === clonedRequest.request.url.path.length - 1 && 
+                (clonedRequest.request.url.path[i] === "{id}" || 
+                 clonedRequest.request.url.path[i] === "{{ledgerId}}")) {
+              clonedRequest.request.url.path[i] = "{{portfolioId}}";
+            }
+          }
+        }
+        
+        // Update the raw URL as well
+        if (clonedRequest.request.url.raw) {
+          clonedRequest.request.url.raw = clonedRequest.request.url.raw.replace(
+            /\/portfolios\/\{id\}$|\/portfolios\/\{\{ledgerId\}\}$/,
+            "/portfolios/{{portfolioId}}"
+          );
+        }
+        
+        // Update variables if they exist
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "id") {
+              clonedRequest.request.url.variable[i].value = "{{portfolioId}}";
+            }
+          }
+        }
+      }
+    }
+    
+    // Fix the Get Segment request to use segmentId instead of ledgerId
+    if (step.name === "24. Get Segment" || step.name === "25. Update Segment") {
+      if (clonedRequest.request && clonedRequest.request.url) {
+        // Fix URL path parameters
+        if (clonedRequest.request.url.path) {
+          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
+            // Replace the last parameter with segmentId
+            if (i === clonedRequest.request.url.path.length - 1 && 
+                (clonedRequest.request.url.path[i] === "{id}" || 
+                 clonedRequest.request.url.path[i] === "{{ledgerId}}")) {
+              clonedRequest.request.url.path[i] = "{{segmentId}}";
+            }
+          }
+        }
+        
+        // Update the raw URL as well
+        if (clonedRequest.request.url.raw) {
+          clonedRequest.request.url.raw = clonedRequest.request.url.raw.replace(
+            /\/segments\/\{id\}$|\/segments\/\{\{ledgerId\}\}$/,
+            "/segments/{{segmentId}}"
+          );
+        }
+        
+        // Update variables if they exist
+        if (clonedRequest.request.url.variable) {
+          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
+            if (clonedRequest.request.url.variable[i].key === "id") {
+              clonedRequest.request.url.variable[i].value = "{{segmentId}}";
+            }
+          }
+        }
+      }
+    }
+    
     // Special case for creating a transaction to fund account
     if (step.name === "27. Create Transaction using JSON") {
       if (clonedRequest.request && clonedRequest.request.body) {
-        // Set transaction body for funding from external source
+        // Set transaction body for funding from external source using the correct schema
         const fundingTxBody = {
+          "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
           "description": "Initial funding from external source",
-          "reference": "FUNDING-001",
-          "operations": [
-            {
-              "sourceAccountId": "@external/USD",
-              "destinationAccountId": "{{accountId}}",
-              "amount": "1000.00",
-              "assetCode": "USD"
+          "metadata": {
+            "reference": "FUNDING-001",
+            "source": "e2e-test"
+          },
+          "send": {
+            "asset": "USD",
+            "value": 1000,
+            "scale": 2,
+            "source": {
+              "from": [
+                {
+                  "account": "@external/USD",
+                  "amount": {
+                    "asset": "USD",
+                    "value": 1000,
+                    "scale": 2
+                  },
+                  "description": "Debit Operation - External Funding",
+                  "chartOfAccounts": "EXTERNAL_DEBIT",
+                  "metadata": {
+                    "operation": "funding",
+                    "type": "external"
+                  }
+                }
+              ]
+            },
+            "distribute": {
+              "to": [
+                {
+                  "account": "{{accountId}}",
+                  "amount": {
+                    "asset": "USD",
+                    "value": 1000,
+                    "scale": 2
+                  },
+                  "description": "Credit Operation - Account Funding",
+                  "chartOfAccounts": "ACCOUNT_CREDIT",
+                  "metadata": {
+                    "operation": "funding",
+                    "type": "account"
+                  }
+                }
+              ]
             }
-          ]
+          }
         };
         clonedRequest.request.body.raw = JSON.stringify(fundingTxBody, null, 2);
+        
+        // Add a timeout settings to the request
+        if (!clonedRequest.request.timeout) {
+          clonedRequest.request.timeout = 60000; // 60 seconds timeout
+        }
+      }
+      
+      // Add pre-request script to validate input values before sending
+      if (clonedRequest.event) {
+        let hasPrerequest = false;
+        for (const event of clonedRequest.event) {
+          if (event.listen === "prerequest") {
+            hasPrerequest = true;
+            let script = event.script.exec.join("\n");
+            
+            // Add validation to ensure accountId is available
+            script += `
+// Validate that accountId is set before sending
+if (!pm.environment.get("accountId")) {
+  console.error("ERROR: accountId is not set in the environment. This request will fail.");
+}
+
+// Set a reasonable timeout for this request
+pm.request.timeout = 60000; // 60 seconds
+`;
+            event.script.exec = script.split("\n");
+            break;
+          }
+        }
+        
+        // If no prerequest script exists, create one
+        if (!hasPrerequest) {
+          clonedRequest.event.push({
+            listen: "prerequest",
+            script: {
+              type: "text/javascript",
+              exec: [
+                "// Validate that accountId is set before sending",
+                "if (!pm.environment.get(\"accountId\")) {",
+                "  console.error(\"ERROR: accountId is not set in the environment. This request will fail.\");",
+                "}",
+                "",
+                "// Set a reasonable timeout for this request",
+                "pm.request.timeout = 60000; // 60 seconds"
+              ]
+            }
+          });
+        }
       }
     }
 
@@ -207,14 +384,48 @@ workflowSequence.forEach((step, index) => {
       }
     }
     
+    // Special case for update account to fix portfolio ID issue
+    if (step.name === "17. Update Account") {
+      if (clonedRequest.request && clonedRequest.request.body) {
+        try {
+          const bodyObj = JSON.parse(clonedRequest.request.body.raw);
+          // Remove portfolioId and segmentId to avoid validation errors
+          if (bodyObj.portfolioId) {
+            delete bodyObj.portfolioId;
+          }
+          if (bodyObj.segmentId) {
+            delete bodyObj.segmentId;
+          }
+          // Make sure we only include valid fields for update
+          const validUpdateFields = ["name", "alias", "status", "metadata"];
+          const updatedBody = {};
+          validUpdateFields.forEach(field => {
+            if (bodyObj[field]) {
+              updatedBody[field] = bodyObj[field];
+            }
+          });
+          clonedRequest.request.body.raw = JSON.stringify(updatedBody, null, 2);
+        } catch (e) {
+          console.log("Could not parse body for Update Account");
+        }
+      }
+    }
+    
     // Special case for create portfolio with relevant values
     if (step.name === "19. Create Portfolio") {
       if (clonedRequest.request && clonedRequest.request.body) {
         try {
           const bodyObj = JSON.parse(clonedRequest.request.body.raw);
-          bodyObj.name = "Test Portfolio";
-          bodyObj.description = "Portfolio created during E2E test";
-          clonedRequest.request.body.raw = JSON.stringify(bodyObj, null, 2);
+          // Keep only the fields that are expected by the API
+          const validPortfolioFields = ["name", "metadata"];
+          const updatedBody = {
+            name: "Test Portfolio"
+          };
+          // Retain original metadata if present
+          if (bodyObj.metadata) {
+            updatedBody.metadata = bodyObj.metadata;
+          }
+          clonedRequest.request.body.raw = JSON.stringify(updatedBody, null, 2);
         } catch (e) {
           console.log("Could not parse body for Portfolio");
         }
@@ -226,9 +437,15 @@ workflowSequence.forEach((step, index) => {
       if (clonedRequest.request && clonedRequest.request.body) {
         try {
           const bodyObj = JSON.parse(clonedRequest.request.body.raw);
-          bodyObj.name = "Test Segment";
-          bodyObj.description = "Segment created during E2E test";
-          clonedRequest.request.body.raw = JSON.stringify(bodyObj, null, 2);
+          // Keep only the fields that are expected by the API
+          const updatedBody = {
+            name: "Test Segment"
+          };
+          // Retain original metadata if present
+          if (bodyObj.metadata) {
+            updatedBody.metadata = bodyObj.metadata;
+          }
+          clonedRequest.request.body.raw = JSON.stringify(updatedBody, null, 2);
         } catch (e) {
           console.log("Could not parse body for Segment");
         }
@@ -287,6 +504,12 @@ try {
     pm.environment.set("accountId", jsonData.id);
     console.log("accountId set to: " + jsonData.id);
   }
+  
+  // Also save the alias for "Get Account by Alias" step
+  if (jsonData && jsonData.alias) {
+    pm.environment.set("accountAlias", jsonData.alias);
+    console.log("accountAlias set to: " + jsonData.alias);
+  }
 } catch (error) {
   console.error("Failed to extract accountId: ", error);
 }`;
@@ -325,6 +548,18 @@ try {
   }
 } catch (error) {
   console.error("Failed to extract transactionId: ", error);
+}`;
+        } else if (step.name === "15. Get Account") {
+          testScript += `
+// Save the account alias to use in subsequent requests, particularly for Get Account by Alias
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && jsonData.alias) {
+    pm.environment.set("accountAlias", jsonData.alias);
+    console.log("accountAlias set to: " + jsonData.alias);
+  }
+} catch (error) {
+  console.error("Failed to extract account alias: ", error);
 }`;
         } else if (step.name === "33. Get Balance by ID") {
           testScript += `

@@ -7508,6 +7508,12 @@
                   "    pm.environment.set(\"accountId\", jsonData.id);",
                   "    console.log(\"accountId set to: \" + jsonData.id);",
                   "  }",
+                  "  ",
+                  "  // Also save the alias for \"Get Account by Alias\" step",
+                  "  if (jsonData && jsonData.alias) {",
+                  "    pm.environment.set(\"accountAlias\", jsonData.alias);",
+                  "    console.log(\"accountAlias set to: \" + jsonData.alias);",
+                  "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract accountId: \", error);",
                   "}",
@@ -7630,6 +7636,16 @@
                   "  // Add specific validation based on response schema here",
                   "});",
                   "",
+                  "// Save the account alias to use in subsequent requests, particularly for Get Account by Alias",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.alias) {",
+                  "    pm.environment.set(\"accountAlias\", jsonData.alias);",
+                  "    console.log(\"accountAlias set to: \" + jsonData.alias);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract account alias: \", error);",
+                  "}",
                   "",
                   "// Set next request in workflow",
                   "pm.execution.setNextRequest(\"16. Get Account by Alias\");"
@@ -7657,7 +7673,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{{accountAlias}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -7669,7 +7685,7 @@
                 "{{ledgerId}}",
                 "accounts",
                 "alias",
-                "{{alias}}"
+                "{{accountAlias}}"
               ],
               "variable": [
                 {
@@ -7800,7 +7816,7 @@
             "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"name\": \"Primary Corporate Checking Account\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8051,7 +8067,7 @@
             "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Test Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"description\": \"Portfolio created during E2E test\"\n}",
+              "raw": "{\n  \"name\": \"Test Portfolio\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8144,7 +8160,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{{portfolioId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -8155,7 +8171,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -8170,7 +8186,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -8252,7 +8268,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{{portfolioId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -8263,7 +8279,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -8278,7 +8294,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
                 }
               ]
@@ -8537,7 +8553,7 @@
             "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Test Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"description\": \"Segment created during E2E test\"\n}",
+              "raw": "{\n  \"name\": \"Test Segment\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8630,7 +8646,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{{segmentId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -8641,7 +8657,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -8656,7 +8672,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -8738,7 +8754,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{{segmentId}}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -8749,7 +8765,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -8764,7 +8780,7 @@
                 },
                 {
                   "key": "id",
-                  "value": "{{ledgerId}}",
+                  "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
                 }
               ]
@@ -9018,13 +9034,14 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Initial funding from external source\",\n  \"reference\": \"FUNDING-001\",\n  \"operations\": [\n    {\n      \"sourceAccountId\": \"@external/USD\",\n      \"destinationAccountId\": \"{{accountId}}\",\n      \"amount\": \"1000.00\",\n      \"assetCode\": \"USD\"\n    }\n  ]\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"PIX_TRANSACTIONS\",\n  \"description\": \"Initial funding from external source\",\n  \"metadata\": {\n    \"reference\": \"FUNDING-001\",\n    \"source\": \"e2e-test\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": 1000,\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Debit Operation - External Funding\",\n          \"chartOfAccounts\": \"EXTERNAL_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountId}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 1000,\n            \"scale\": 2\n          },\n          \"description\": \"Credit Operation - Account Funding\",\n          \"chartOfAccounts\": \"ACCOUNT_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "timeout": 60000
           },
           "response": [],
           "event": [
@@ -9052,6 +9069,14 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
+                  "",
+                  "// Validate that accountId is set before sending",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.error(\"ERROR: accountId is not set in the environment. This request will fail.\");",
+                  "}",
+                  "",
+                  "// Set a reasonable timeout for this request",
+                  "pm.request.timeout = 60000; // 60 seconds",
                   ""
                 ]
               }
