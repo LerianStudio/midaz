@@ -99,7 +99,7 @@ const workflowSequence = [
   // Balance flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "32. Get Balance by ID" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "32. Get Balance by ID" },
   { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance" },
   
   // Account-scoped Operations flow (since global operations endpoints don't exist)
@@ -684,30 +684,30 @@ pm.request.timeout = 60000; // 60 seconds
           const statusCodeTest = (() => {
             if (step.operation === "GET") {
               return `pm.test("Status code is 200 OK", function () {
-  pm.response.to.have.status(200);
+  pm.expect(pm.response.code).to.equal(200);
 });`;
             } else if (step.operation === "POST") {
               if (step.path.includes("/revert") || step.path.includes("/commit")) {
                 return `pm.test("Status code is 200 or 201", function () {
-  pm.response.to.be.oneOf([200, 201]);
+  pm.expect(pm.response.code).to.be.oneOf([200, 201]);
 });`;
               } else {
                 return `pm.test("Status code is 200 or 201", function () {
-  pm.response.to.be.oneOf([200, 201]);
+  pm.expect(pm.response.code).to.be.oneOf([200, 201]);
 });`;
               }
             } else if (step.operation === "PATCH") {
               return `pm.test("Status code is 200 OK", function () {
-  pm.response.to.have.status(200);
+  pm.expect(pm.response.code).to.equal(200);
 });`;
             } else if (step.operation === "DELETE") {
               return `pm.test("Status code is 204 No Content", function () {
-  pm.response.to.have.status(204);
+  pm.expect(pm.response.code).to.equal(204);
 });`;
             } else {
               // Fallback to original test
               return `pm.test("Status code is successful", function () {
-  pm.response.to.be.oneOf([200, 201, 202, 204]);
+  pm.expect(pm.response.code).to.be.oneOf([200, 201, 202, 204]);
 });`;
             }
           })();
@@ -820,19 +820,27 @@ try {
 } catch (error) {
   console.error("Failed to extract account alias: ", error);
 }`;
+        } else if (step.name === "31. List All Balances") {
+          testScript += `
+// Save the first balance ID to use in subsequent requests
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && Array.isArray(jsonData.items) && jsonData.items.length > 0 && jsonData.items[0].id) {
+    pm.environment.set("balanceId", jsonData.items[0].id);
+    console.log("balanceId set to: " + jsonData.items[0].id);
+  }
+} catch (error) {
+  console.error("Failed to extract balanceId: ", error);
+}`;
         } else if (step.name === "32. Get Balance by ID") {
           testScript += `
-// Save the balance ID to use in subsequent requests
+// Confirm that we have a balance with this ID
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("balanceId", jsonData.id);
     // Use only camelCase for consistency
-    console.log("balanceId set to: " + jsonData.id);
-  } else if (Array.isArray(jsonData.items) && jsonData.items.length > 0 && jsonData.items[0].id) {
-    // In case the response is a list of balances, use the first one
-    pm.environment.set("balanceId", jsonData.items[0].id);
-    console.log("balanceId set to: " + jsonData.items[0].id);
+    console.log("balanceId confirmed: " + jsonData.id);
   }
 } catch (error) {
   console.error("Failed to extract balanceId: ", error);

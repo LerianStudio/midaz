@@ -619,9 +619,19 @@ function generateTestScript(operation, path, method) {
   // Basic status code validation
   script += `
 // Test for successful response status
-pm.test("Status code is successful", function () {
-  pm.response.to.be.oneOf([200, 201, 202, 204]);
-});
+if (pm.request.method === "POST") {
+  pm.test("Status code is 200 or 201", function () {
+    pm.expect(pm.response.code).to.be.oneOf([200, 201]);
+  });
+} else if (pm.request.method === "DELETE") {
+  pm.test("Status code is 204 No Content", function () {
+    pm.expect(pm.response.code).to.equal(204);
+  });
+} else {
+  pm.test("Status code is 200 OK", function () {
+    pm.expect(pm.response.code).to.equal(200);
+  });
+}
 
 // Validate response has the expected format
 pm.test("Response has the correct structure", function() {
