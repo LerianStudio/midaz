@@ -41,7 +41,7 @@ type TransactionHandler struct {
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

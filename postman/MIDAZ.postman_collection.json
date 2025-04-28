@@ -5940,7 +5940,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"code\",\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"pending\": true,\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"scale\": 2,\n    \"value\": 1000\n  }\n}",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"

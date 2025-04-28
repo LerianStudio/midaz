@@ -1371,13 +1371,13 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/CreateTransactionInput"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
@@ -1937,28 +1937,20 @@ const docTemplate = `{
     },
     "definitions": {
         "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation.",
+            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
             "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "operation": {
-                    "type": "string"
+                "amount": {
+                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 1500
                 },
                 "scale": {
+                    "description": "Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)\nexample: 2\nminimum: 0",
                     "type": "integer",
                     "minimum": 0,
                     "example": 2
-                },
-                "value": {
-                    "type": "integer",
-                    "example": 1000
                 }
             }
         },
@@ -2129,68 +2121,6 @@ const docTemplate = `{
                 }
             }
         },
-        "CreateTransactionInput": {
-            "description": "CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.",
-            "type": "object",
-            "required": [
-                "send"
-            ],
-            "properties": {
-                "chartOfAccountsGroupName": {
-                    "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "code": {
-                    "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "code"
-                },
-                "description": {
-                    "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
-                    "type": "string",
-                    "maxLength": 256,
-                    "example": "Transaction description"
-                },
-                "metadata": {
-                    "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "pending": {
-                    "description": "Whether the transaction should be created in pending state\nexample: true",
-                    "type": "boolean",
-                    "example": true
-                },
-                "send": {
-                    "description": "Send operation details including source and distribution\nrequired: true",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/Send"
-                        }
-                    ]
-                }
-            }
-        },
-        "Distribute": {
-            "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
-            "type": "object",
-            "required": [
-                "to"
-            ],
-            "properties": {
-                "remaining": {
-                    "type": "string"
-                },
-                "to": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/FromTo"
-                    }
-                }
-            }
-        },
         "Error": {
             "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
             "type": "object",
@@ -2228,49 +2158,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "Bad Request"
-                }
-            }
-        },
-        "FromTo": {
-            "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
-            "type": "object",
-            "properties": {
-                "account": {
-                    "type": "string",
-                    "example": "@person1"
-                },
-                "accountAlias": {
-                    "type": "string",
-                    "example": "@person1"
-                },
-                "amount": {
-                    "$ref": "#/definitions/Amount"
-                },
-                "chartOfAccounts": {
-                    "type": "string",
-                    "example": "1000"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "description"
-                },
-                "isFrom": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "rate": {
-                    "$ref": "#/definitions/Rate"
-                },
-                "remaining": {
-                    "type": "string",
-                    "example": "remaining"
-                },
-                "share": {
-                    "$ref": "#/definitions/Share"
                 }
             }
         },
@@ -2424,104 +2311,6 @@ const docTemplate = `{
                     "type": "string",
                     "x-omitempty": true,
                     "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                }
-            }
-        },
-        "Rate": {
-            "description": "Rate is the struct designed to represent the rate fields of an operation.",
-            "type": "object",
-            "required": [
-                "externalId",
-                "from",
-                "to",
-                "value"
-            ],
-            "properties": {
-                "externalId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "from": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "scale": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
-                },
-                "to": {
-                    "type": "string",
-                    "example": "USDe"
-                },
-                "value": {
-                    "type": "integer",
-                    "example": 1000
-                }
-            }
-        },
-        "Send": {
-            "description": "Send is the struct designed to represent the sending fields of an operation.",
-            "type": "object",
-            "required": [
-                "asset",
-                "distribute",
-                "source",
-                "value"
-            ],
-            "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "distribute": {
-                    "$ref": "#/definitions/Distribute"
-                },
-                "scale": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
-                },
-                "source": {
-                    "$ref": "#/definitions/Source"
-                },
-                "value": {
-                    "type": "integer",
-                    "example": 1000
-                }
-            }
-        },
-        "Share": {
-            "description": "Share is the struct designed to represent the sharing fields of an operation.",
-            "type": "object",
-            "required": [
-                "percentage"
-            ],
-            "properties": {
-                "percentage": {
-                    "type": "integer"
-                },
-                "percentageOfPercentage": {
-                    "type": "integer"
-                }
-            }
-        },
-        "Source": {
-            "description": "Source is the struct designed to represent the source fields of an operation.",
-            "type": "object",
-            "required": [
-                "from"
-            ],
-            "properties": {
-                "from": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/FromTo"
-                    }
-                },
-                "remaining": {
-                    "type": "string",
-                    "example": "remaining"
                 }
             }
         },
@@ -2717,6 +2506,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 }
             }
+        },
+        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput": {
+            "type": "object"
         },
         "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL": {
             "description": "Template-based transaction input for creating transactions from predefined templates with variable substitution.",

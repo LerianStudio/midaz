@@ -1037,16 +1037,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionInput'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput'
         description: Transaction Input
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
-          description: OK
+          description: Created
         "400":
           content:
             application/json:
@@ -1528,22 +1528,24 @@ components:
   schemas:
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
+        Contains the value and scale (decimal places) of an operation amount.
       properties:
-        asset:
-          example: BRL
-          type: string
-        operation:
-          type: string
+        amount:
+          description: |-
+            The amount value in the smallest unit of the asset (e.g., cents)
+            example: 1500
+            minimum: 0
+          example: 1500
+          minimum: 0
+          type: integer
         scale:
+          description: |-
+            Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
+            example: 2
+            minimum: 0
           example: 2
           minimum: 0
           type: integer
-        value:
-          example: 1000
-          type: integer
-      required:
-      - asset
-      - value
       type: object
     AssetRate:
       description: AssetRate is a struct designed to store asset rate data. Represents
@@ -1788,78 +1790,6 @@ components:
       - rate
       - to
       type: object
-    CreateTransactionInput:
-      description: CreateTransactionInput is the input payload to create a transaction.
-        Contains all necessary fields to create a financial transaction, including
-        source and destination information.
-      example:
-        metadata:
-          key: '{}'
-        code: code
-        pending: true
-        description: Transaction description
-        chartOfAccountsGroupName: chartOfAccountsGroupName
-        send: '{}'
-      properties:
-        chartOfAccountsGroupName:
-          description: |-
-            Chart of accounts group name for accounting purposes
-            example: Chart of accounts group name
-            maxLength: 256
-          maxLength: 256
-          type: string
-        code:
-          description: |-
-            Transaction code for reference
-            example: TR12345
-            maxLength: 100
-          example: code
-          maxLength: 100
-          type: string
-        description:
-          description: |-
-            Human-readable description of the transaction
-            example: Transaction description
-            maxLength: 256
-          example: Transaction description
-          maxLength: 256
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional custom attributes
-            example: {"purpose": "Monthly payment", "category": "Utility"}
-          type: object
-        pending:
-          description: |-
-            Whether the transaction should be created in pending state
-            example: true
-          example: true
-          type: boolean
-        send:
-          allOf:
-          - $ref: '#/components/schemas/Send'
-          description: |-
-            Send operation details including source and distribution
-            required: true
-          type: object
-      required:
-      - send
-      type: object
-    Distribute:
-      description: Distribute is the struct designed to represent the distribution
-        fields of an operation.
-      properties:
-        remaining:
-          type: string
-        to:
-          items:
-            $ref: '#/components/schemas/FromTo'
-          type: array
-      required:
-      - to
-      type: object
     Error:
       description: Standardized error response format used across all API endpoints
         for error situations. Provides structured information about errors including
@@ -1907,39 +1837,6 @@ components:
           example: Bad Request
           maxLength: 100
           type: string
-      type: object
-    FromTo:
-      description: FromTo is the struct designed to represent the from/to fields of
-        an operation.
-      properties:
-        account:
-          example: '@person1'
-          type: string
-        accountAlias:
-          example: '@person1'
-          type: string
-        amount:
-          $ref: '#/components/schemas/Amount'
-        chartOfAccounts:
-          example: "1000"
-          type: string
-        description:
-          example: description
-          type: string
-        isFrom:
-          example: true
-          type: boolean
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        rate:
-          $ref: '#/components/schemas/Rate'
-        remaining:
-          example: remaining
-          type: string
-        share:
-          $ref: '#/components/schemas/Share'
       type: object
     Operation:
       description: Operation is a struct designed to store operation data. Represents
@@ -2135,81 +2032,6 @@ components:
           example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
           type: string
           x-omitempty: true
-      type: object
-    Rate:
-      description: Rate is the struct designed to represent the rate fields of an
-        operation.
-      properties:
-        externalId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        from:
-          example: BRL
-          type: string
-        scale:
-          example: 2
-          minimum: 0
-          type: integer
-        to:
-          example: USDe
-          type: string
-        value:
-          example: 1000
-          type: integer
-      required:
-      - externalId
-      - from
-      - to
-      - value
-      type: object
-    Send:
-      description: Send is the struct designed to represent the sending fields of
-        an operation.
-      properties:
-        asset:
-          example: BRL
-          type: string
-        distribute:
-          $ref: '#/components/schemas/Distribute'
-        scale:
-          example: 2
-          minimum: 0
-          type: integer
-        source:
-          $ref: '#/components/schemas/Source'
-        value:
-          example: 1000
-          type: integer
-      required:
-      - asset
-      - distribute
-      - source
-      - value
-      type: object
-    Share:
-      description: Share is the struct designed to represent the sharing fields of
-        an operation.
-      properties:
-        percentage:
-          type: integer
-        percentageOfPercentage:
-          type: integer
-      required:
-      - percentage
-      type: object
-    Source:
-      description: Source is the struct designed to represent the source fields of
-        an operation.
-      properties:
-        from:
-          items:
-            $ref: '#/components/schemas/FromTo'
-          type: array
-        remaining:
-          example: remaining
-          type: string
-      required:
-      - from
       type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
@@ -2512,6 +2334,8 @@ components:
             Additional custom attributes
             example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
+      type: object
+    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput:
       type: object
     github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
       description: Template-based transaction input for creating transactions from

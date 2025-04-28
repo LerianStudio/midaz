@@ -60,31 +60,32 @@ func (s Status) IsEmpty() bool {
 // @Description CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.
 type CreateTransactionInput struct {
 	// Chart of accounts group name for accounting purposes
-	// example: Chart of accounts group name
+	// example: PIX_TRANSACTIONS
 	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"PIX_TRANSACTIONS"`
 	
 	// Human-readable description of the transaction
-	// example: Transaction description
+	// example: New Transaction
 	// maxLength: 256
-	Description string `json:"description,omitempty" validate:"max=256" example:"Transaction description" maxLength:"256"`
+	Description string `json:"description,omitempty" validate:"max=256" example:"New Transaction" maxLength:"256"`
 	
 	// Transaction code for reference
 	// example: TR12345
 	// maxLength: 100
-	Code string `json:"code,omitempty" validate:"max=100" example:"code" maxLength:"100"`
+	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 	
 	// Whether the transaction should be created in pending state
-	// example: true
-	Pending bool `json:"pending,omitempty" example:"true"`
+	// example: false
+	Pending bool `json:"pending,omitempty" example:"false"`
 	
 	// Additional custom attributes
-	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{"reference": "TRANSACTION-001", "source": "api"}"`
 	
 	// Send operation details including source and distribution
 	// required: true
-	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
+	// example: {"asset":"BRL","value":100,"scale":2,"source":{"from":[{"account":"@external/BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Debit Operation","chartOfAccounts":"PIX_DEBIT","metadata":{"operation":"funding","type":"external"}}]},"distribute":{"to":[{"account":"@account1_BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Credit Operation","chartOfAccounts":"PIX_CREDIT","metadata":{"operation":"funding","type":"account"}}]}}
+	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive" example:"{"asset":"BRL","value":100,"scale":2,"source":{"from":[{"account":"@external/BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Debit Operation","chartOfAccounts":"PIX_DEBIT","metadata":{"operation":"funding","type":"external"}}]},"distribute":{"to":[{"account":"@account1_BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Credit Operation","chartOfAccounts":"PIX_CREDIT","metadata":{"operation":"funding","type":"account"}}]}}"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.

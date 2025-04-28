@@ -107,6 +107,8 @@ help:
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo "  make sync-postman                - Sync Postman collection with OpenAPI documentation"
+	@echo "  make test-postman                - Run all tests in the Postman collection"
+	@echo "  make test-postman-e2e            - Run only the E2E flow tests in the Postman collection"
 	@echo ""
 	@echo ""
 
@@ -485,6 +487,20 @@ sync-postman:
 	$(call check_command,jq,"brew install jq")
 	@sh ./scripts/sync-postman.sh
 	@echo "[ok] Postman collection synced successfully with OpenAPI documentation"
+
+.PHONY: test-postman
+test-postman:
+	$(call title1,"Running Postman tests")
+	$(call check_command,node,"Install Node.js from https://nodejs.org/")
+	@cd $(MIDAZ_ROOT)/scripts && npm run test:postman
+	@echo "[ok] Postman tests completed successfully"
+
+.PHONY: test-postman-e2e
+test-postman-e2e:
+	$(call title1,"Running Postman E2E flow tests")
+	$(call check_command,node,"Install Node.js from https://nodejs.org/")
+	@cd $(MIDAZ_ROOT)/scripts && npm run test:postman:e2e
+	@echo "[ok] Postman E2E flow tests completed successfully"
 
 #-------------------------------------------------------
 # Developer Helper Commands
