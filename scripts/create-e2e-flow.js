@@ -131,8 +131,6 @@ const endpointExamples = {
   transactionJsonExample: {
     "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
     "description": "New Transaction",
-    "code": "TR12345",
-    "pending": false,
     "metadata": {
       "reference": "TRANSACTION-001", 
       "source": "api"
@@ -162,7 +160,7 @@ const endpointExamples = {
       "distribute": {
         "to": [
           {
-            "account": "@account1_BRL",
+            "account": "{{accountAlias}}",
             "amount": {
               "asset": "BRL",
               "value": 100,
@@ -310,6 +308,128 @@ function findRequestByPathAndMethod(collection, path, method) {
   return result;
 }
 
+// Create E2E workflow from existing requests in the collection
+function createE2EWorkflow(collection) {
+  // Safety check
+  if (!collection) {
+    console.warn("Collection is undefined, skipping E2E workflow creation");
+    return {};
+  }
+  
+  // Ensure collection has an item array
+  if (!collection.item) {
+    collection.item = [];
+  }
+  
+  // Use the existing function but make it handle null/undefined collection
+  let workflowCollection = Object.assign({}, collection);
+  
+  // Create a copy of the workflow folder to avoid modifying the original
+  let workflowFolderCopy = JSON.parse(JSON.stringify(workflowFolder));
+  workflowFolderCopy.item = [];
+  
+  // Do the actual processing to add requests
+  for (const step of workflowSteps) {
+    // Find matching request and add to workflow folder
+    const matchingRequest = findRequestByPathAndMethod(collection, step.path, step.operation);
+    if (matchingRequest) {
+      console.log(`Found matching request for: ${step.name}`);
+      workflowFolderCopy.item.push(matchingRequest);
+    } else {
+      console.warn(`Warning: Could not find request for workflow step: ${step.name}`);
+    }
+  }
+  
+  // Add the workflow folder to the collection
+  workflowCollection.item.push(workflowFolderCopy);
+  
+  return workflowCollection;
+}
+
+/**
+ * Customize endpoints with specific examples
+ */
+function customizeEndpoints(items) {
+  if (!items) return;
+  
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    
+    // Process folders recursively
+    if (item.item) {
+      customizeEndpoints(item.item);
+    }
+    
+    // Process requests
+    if (item.request) {
+      // JSON Transaction example
+      if (item.name && item.name.includes('Transaction') && 
+          item.name.includes('JSON') && 
+          item.request.method === 'POST') {
+        console.log('Customizing: Transaction JSON example');
+        
+        if (item.request.body && item.request.body.mode === 'raw') {
+          item.request.body.raw = JSON.stringify(endpointExamples.transactionJsonExample, null, 2);
+        }
+      }
+      
+      // DSL example
+      if (item.name && item.name.includes('DSL') && item.request.method === 'POST') {
+        console.log('Customizing: DSL example');
+        
+        item.request.body = {
+          mode: 'formdata',
+          formdata: [
+            {
+              key: 'transaction',
+              type: 'file',
+              src: null,
+              description: 'DSL file containing transaction definition'
+            }
+          ]
+        };
+      }
+    }
+  }
+}
+
+// Export functions for use in other modules
+module.exports = {
+  createE2EWorkflow,
+  customizeEndpoints,
+  endpointExamples
+};
+
+// When this file is run directly, it processes a collection file
+if (require.main === module) {
+  // Read the collection file
+  let collection;
+  try {
+    const fileContent = fs.readFileSync(collectionFile, 'utf8');
+    collection = JSON.parse(fileContent);
+  } catch (error) {
+    console.error(`Error reading/parsing collection file: ${error.message}`);
+    process.exit(1);
+  }
+
+  // Create the workflow using the directly defined function
+  collection = createE2EWorkflow(collection);
+
+  // Write the updated collection with the workflow folder
+  try {
+    if (collection) {
+      fs.writeFileSync(collectionFile, JSON.stringify(collection, null, 2), 'utf8');
+      console.log(`E2E Flow folder added to collection at ${collectionFile}`);
+    } else {
+      console.error("Failed to create E2E workflow: collection is undefined");
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`Error writing collection file: ${error.message}`);
+    process.exit(1);
+  }
+}
+
 // Find and clone the requests for each step in the workflow
 workflowSteps.forEach((step, index) => {
   const matchingRequest = findRequestByPathAndMethod(collection, step.path, step.operation);
@@ -365,6 +485,8 @@ workflowSteps.forEach((step, index) => {
     // Fix the Get Portfolio request to use portfolioId instead of ledgerId
     if (step.name === "20. Get Portfolio" || step.name === "21. Update Portfolio") {
       if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing portfolio endpoint: ${step.name}`);
+        
         // Fix URL path parameters
         if (clonedRequest.request.url.path) {
           for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
@@ -399,6 +521,8 @@ workflowSteps.forEach((step, index) => {
     // Fix the Get Segment request to use segmentId instead of ledgerId
     if (step.name === "24. Get Segment" || step.name === "25. Update Segment") {
       if (clonedRequest.request && clonedRequest.request.url) {
+        console.log(`Processing segment endpoint: ${step.name}`);
+        
         // Fix URL path parameters
         if (clonedRequest.request.url.path) {
           for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
@@ -426,111 +550,6 @@ workflowSteps.forEach((step, index) => {
               clonedRequest.request.url.variable[i].value = "{{segmentId}}";
             }
           }
-        }
-      }
-    }
-    
-    // Special case for creating a transaction to fund account
-    if (step.name === "27. Create Transaction using JSON") {
-      if (clonedRequest.request && clonedRequest.request.body) {
-        // Set transaction body for funding from external source using the correct schema
-        const fundingTxBody = {
-          "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
-          "description": "Initial funding from external source",
-          "metadata": {
-            "reference": "FUNDING-001",
-            "source": "e2e-test"
-          },
-          "send": {
-            "asset": "USD",
-            "value": 1000,
-            "scale": 2,
-            "source": {
-              "from": [
-                {
-                  "account": "@external/USD",
-                  "amount": {
-                    "asset": "USD",
-                    "value": 1000,
-                    "scale": 2
-                  },
-                  "description": "Debit Operation - External Funding",
-                  "chartOfAccounts": "EXTERNAL_DEBIT",
-                  "metadata": {
-                    "operation": "funding",
-                    "type": "external"
-                  }
-                }
-              ]
-            },
-            "distribute": {
-              "to": [
-                {
-                  "account": "{{accountAlias}}",
-                  "amount": {
-                    "asset": "USD",
-                    "value": 1000,
-                    "scale": 2
-                  },
-                  "description": "Credit Operation - Account Funding",
-                  "chartOfAccounts": "ACCOUNT_CREDIT",
-                  "metadata": {
-                    "operation": "funding",
-                    "type": "account"
-                  }
-                }
-              ]
-            }
-          }
-        };
-        clonedRequest.request.body.raw = JSON.stringify(fundingTxBody, null, 2);
-        
-        // Add a timeout settings to the request
-        if (!clonedRequest.request.timeout) {
-          clonedRequest.request.timeout = 60000; // 60 seconds timeout
-        }
-      }
-      
-      // Add pre-request script to validate input values before sending
-      if (clonedRequest.event) {
-        let hasPrerequest = false;
-        for (const event of clonedRequest.event) {
-          if (event.listen === "prerequest") {
-            hasPrerequest = true;
-            let script = event.script.exec.join("\n");
-            
-            // Add validation to ensure accountId is available
-            script += `
-// Validate that accountId is set before sending
-if (!pm.environment.get("accountId")) {
-  console.error("ERROR: accountId is not set in the environment. This request will fail.");
-}
-
-// Set a reasonable timeout for this request
-pm.request.timeout = 60000; // 60 seconds
-`;
-            event.script.exec = script.split("\n");
-            break;
-          }
-        }
-        
-        // If no prerequest script exists, create one
-        if (!hasPrerequest) {
-          clonedRequest.event.push({
-            listen: "prerequest",
-            script: {
-              type: "text/javascript",
-              exec: [
-                "// Validate that accountId is set before sending",
-                "if (!pm.environment.get(\"accountId\")) {",
-                "  console.error(\"ERROR: accountId is not set in the environment. This request will fail.\");",
-                "}",
-                "",
-                "// Set a reasonable timeout for this request",
-                "pm.request.timeout = 60000; // 60 seconds"
-              ]
-            }
-          });
         }
       }
     }
@@ -1054,13 +1073,7 @@ try {
 });
 
 // Add the workflow folder to the collection
-collection.item.push(workflowFolder);
-
-// Write the modified collection back to the file
-try {
-  fs.writeFileSync(collectionFile, JSON.stringify(collection, null, 2));
-  console.log(`E2E Flow folder added to collection at ${collectionFile}`);
-} catch (error) {
-  console.error(`Error writing collection file: ${error.message}`);
-  process.exit(1);
+if (!collection.item) {
+  collection.item = [];
 }
+collection.item.push(workflowFolder);
