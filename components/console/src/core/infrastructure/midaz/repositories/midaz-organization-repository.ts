@@ -1,16 +1,14 @@
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { injectable, inject } from 'inversify'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazOrganizationRepository implements OrganizationRepository {
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   private baseUrl: string = process.env.MIDAZ_BASE_PATH + '/organizations'
@@ -18,12 +16,12 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   async create(
     organizationData: OrganizationEntity
   ): Promise<OrganizationEntity> {
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url: this.baseUrl,
-        method: HttpMethods.POST,
+    const response = await this.httpService.post<OrganizationEntity>(
+      this.baseUrl,
+      {
         body: JSON.stringify(organizationData)
-      })
+      }
+    )
 
     return response
   }
@@ -38,12 +36,8 @@ export class MidazOrganizationRepository implements OrganizationRepository {
     })
     const url = `${this.baseUrl}?${params.toString()}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<OrganizationEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<OrganizationEntity>>(url)
 
     return response
   }
@@ -51,11 +45,7 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   async fetchById(id: string): Promise<OrganizationEntity> {
     const url = `${this.baseUrl}/${id}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url,
-        method: HttpMethods.GET
-      })
+    const response = await this.httpService.get<OrganizationEntity>(url)
 
     return response
   }
@@ -66,12 +56,9 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   ): Promise<OrganizationEntity> {
     const url = `${this.baseUrl}/${organizationId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(organization)
-      })
+    const response = await this.httpService.patch<OrganizationEntity>(url, {
+      body: JSON.stringify(organization)
+    })
 
     return response
   }
@@ -79,9 +66,6 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   async delete(id: string): Promise<void> {
     const url = `${this.baseUrl}/${id}`
 
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    await this.httpService.delete(url)
   }
 }

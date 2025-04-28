@@ -4,16 +4,14 @@ import {
 } from '@/core/domain/entities/transaction-entity'
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazTransactionRepository implements TransactionRepository {
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   private baseUrl: string = process.env.MIDAZ_TRANSACTION_BASE_PATH as string
@@ -24,12 +22,9 @@ export class MidazTransactionRepository implements TransactionRepository {
   ): Promise<TransactionEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<TransactionEntity>({
-        url,
-        method: HttpMethods.POST,
-        body: JSON.stringify(transaction)
-      })
+    const response = await this.httpService.post<TransactionEntity>(url, {
+      body: JSON.stringify(transaction)
+    })
 
     return response
   }
@@ -42,12 +37,8 @@ export class MidazTransactionRepository implements TransactionRepository {
   ): Promise<PaginationEntity<TransactionEntity>> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?limit=${limit}&page=${page}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<TransactionEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<TransactionEntity>>(url)
 
     return response
   }
@@ -59,11 +50,7 @@ export class MidazTransactionRepository implements TransactionRepository {
   ): Promise<TransactionEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<TransactionEntity>({
-        url,
-        method: HttpMethods.GET
-      })
+    const response = await this.httpService.get<TransactionEntity>(url)
 
     return response
   }
@@ -76,12 +63,9 @@ export class MidazTransactionRepository implements TransactionRepository {
   ): Promise<TransactionEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<TransactionEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(transaction)
-      })
+    const response = await this.httpService.patch<TransactionEntity>(url, {
+      body: JSON.stringify(transaction)
+    })
 
     return response
   }

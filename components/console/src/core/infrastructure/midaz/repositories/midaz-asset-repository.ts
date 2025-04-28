@@ -1,18 +1,16 @@
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { injectable, inject } from 'inversify'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazAssetRepository implements AssetRepository {
   private baseUrl: string = process.env.MIDAZ_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   async create(
@@ -22,13 +20,9 @@ export class MidazAssetRepository implements AssetRepository {
   ): Promise<AssetEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<AssetEntity>(
-      {
-        url,
-        method: HttpMethods.POST,
-        body: JSON.stringify(asset)
-      }
-    )
+    const response = await this.httpService.post<AssetEntity>(url, {
+      body: JSON.stringify(asset)
+    })
 
     return response
   }
@@ -50,12 +44,8 @@ export class MidazAssetRepository implements AssetRepository {
     })
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets?${params.toString()}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<AssetEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<AssetEntity>>(url)
 
     return response
   }
@@ -67,12 +57,7 @@ export class MidazAssetRepository implements AssetRepository {
   ): Promise<AssetEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<AssetEntity>(
-      {
-        url,
-        method: HttpMethods.GET
-      }
-    )
+    const response = await this.httpService.get<AssetEntity>(url)
 
     return response
   }
@@ -85,13 +70,9 @@ export class MidazAssetRepository implements AssetRepository {
   ): Promise<AssetEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<AssetEntity>(
-      {
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(asset)
-      }
-    )
+    const response = await this.httpService.patch<AssetEntity>(url, {
+      body: JSON.stringify(asset)
+    })
 
     return response
   }
@@ -103,10 +84,7 @@ export class MidazAssetRepository implements AssetRepository {
   ): Promise<void> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
 
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    await this.httpService.delete(url)
 
     return
   }

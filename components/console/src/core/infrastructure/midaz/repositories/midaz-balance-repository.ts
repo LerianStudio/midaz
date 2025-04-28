@@ -1,18 +1,16 @@
 import { BalanceEntity } from '@/core/domain/entities/balance-entity'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { inject, injectable } from 'inversify'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazBalanceRepository implements BalanceRepository {
   private baseUrl: string = process.env.MIDAZ_TRANSACTION_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   async getByAccountId(
@@ -22,12 +20,8 @@ export class MidazBalanceRepository implements BalanceRepository {
   ): Promise<PaginationEntity<BalanceEntity>> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}/balances`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<BalanceEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<BalanceEntity>>(url)
 
     return response
   }
@@ -46,12 +40,9 @@ export class MidazBalanceRepository implements BalanceRepository {
 
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/balances/${balanceResponse?.items[0]?.id}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<BalanceEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(balance)
-      })
+    const response = await this.httpService.patch<BalanceEntity>(url, {
+      body: JSON.stringify(balance)
+    })
 
     return response
   }

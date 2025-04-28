@@ -1,18 +1,17 @@
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { injectable, inject } from 'inversify'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazAccountRepository implements AccountRepository {
   private baseUrl: string = process.env.MIDAZ_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   async create(
@@ -22,12 +21,9 @@ export class MidazAccountRepository implements AccountRepository {
   ): Promise<AccountEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<AccountEntity>({
-        url,
-        method: HttpMethods.POST,
-        body: JSON.stringify(account)
-      })
+    const response = await this.httpService.post<AccountEntity>(url, {
+      body: JSON.stringify(account)
+    })
 
     return response
   }
@@ -40,10 +36,9 @@ export class MidazAccountRepository implements AccountRepository {
   ): Promise<PaginationEntity<AccountEntity>> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts?limit=${limit}&page=${page}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
+    const response = await this.httpService.get<
       PaginationEntity<AccountEntity>
-    >({
-      url,
+    >(url, {
       method: HttpMethods.GET
     })
 
@@ -57,11 +52,9 @@ export class MidazAccountRepository implements AccountRepository {
   ): Promise<AccountEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<AccountEntity>({
-        url,
-        method: HttpMethods.GET
-      })
+    const response = await this.httpService.get<AccountEntity>(url, {
+      method: HttpMethods.GET
+    })
 
     return response
   }
@@ -74,12 +67,10 @@ export class MidazAccountRepository implements AccountRepository {
   ): Promise<AccountEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<AccountEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(account)
-      })
+    const response = await this.httpService.patch<AccountEntity>(url, {
+      method: HttpMethods.PATCH,
+      body: JSON.stringify(account)
+    })
 
     return response
   }
@@ -90,8 +81,7 @@ export class MidazAccountRepository implements AccountRepository {
     accountId: string
   ): Promise<void> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
+    await this.httpService.delete(url, {
       method: HttpMethods.DELETE
     })
 
