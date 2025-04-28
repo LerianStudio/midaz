@@ -136,15 +136,15 @@ const endpointExamples = {
       "source": "api"
     },
     "send": {
-      "asset": "BRL",
+      "asset": "USD",
       "value": 100,
       "scale": 2,
       "source": {
         "from": [
           {
-            "account": "@external/BRL",
+            "account": "@external/USD",
             "amount": {
-              "asset": "BRL",
+              "asset": "USD",
               "value": 100,
               "scale": 2
             },
@@ -162,7 +162,7 @@ const endpointExamples = {
           {
             "account": "{{accountAlias}}",
             "amount": {
-              "asset": "BRL",
+              "asset": "USD",
               "value": 100,
               "scale": 2
             },
