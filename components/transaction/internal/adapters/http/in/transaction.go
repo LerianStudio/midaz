@@ -40,7 +40,7 @@ type TransactionHandler struct {
 //	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
+//	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
 //	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

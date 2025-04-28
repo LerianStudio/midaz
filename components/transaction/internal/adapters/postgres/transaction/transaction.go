@@ -85,10 +85,198 @@ type CreateTransactionInput struct {
 	
 	// Send operation details including source and distribution
 	// required: true
-	// example: {"asset":"BRL","value":100,"scale":2,"source":{"from":[{"account":"@external/BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Debit Operation","chartOfAccounts":"PIX_DEBIT","metadata":{"operation":"funding","type":"external"}}]},"distribute":{"to":[{"account":"@account1_BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Credit Operation","chartOfAccounts":"PIX_CREDIT","metadata":{"operation":"funding","type":"account"}}]}}
 	// swagger:type object
-	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive" example:"{\"asset\":\"BRL\",\"value\":100,\"scale\":2,\"source\":{\"from\":[{\"account\":\"@external/BRL\",\"amount\":{\"asset\":\"BRL\",\"value\":100,\"scale\":2},\"description\":\"Debit Operation\",\"chartOfAccounts\":\"PIX_DEBIT\",\"metadata\":{\"operation\":\"funding\",\"type\":\"external\"}}]},\"distribute\":{\"to\":[{\"account\":\"@account1_BRL\",\"amount\":{\"asset\":\"BRL\",\"value\":100,\"scale\":2},\"description\":\"Credit Operation\",\"chartOfAccounts\":\"PIX_CREDIT\",\"metadata\":{\"operation\":\"funding\",\"type\":\"account\"}}]}}"`
+	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
+
+// @example {
+//   "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
+//   "description": "New Transaction",
+//   "code": "TR12345",
+//   "pending": false,
+//   "metadata": {
+//     "reference": "TRANSACTION-001", 
+//     "source": "api"
+//   },
+//   "send": {
+//     "asset": "BRL",
+//     "value": 100,
+//     "scale": 2,
+//     "source": {
+//       "from": [
+//         {
+//           "account": "@external/BRL",
+//           "amount": {
+//             "asset": "BRL",
+//             "value": 100,
+//             "scale": 2
+//           },
+//           "description": "Debit Operation",
+//           "chartOfAccounts": "PIX_DEBIT",
+//           "metadata": {
+//             "operation": "funding",
+//             "type": "external"
+//           }
+//         }
+//       ]
+//     },
+//     "distribute": {
+//       "to": [
+//         {
+//           "account": "@account1_BRL",
+//           "amount": {
+//             "asset": "BRL",
+//             "value": 100,
+//             "scale": 2
+//           },
+//           "description": "Credit Operation",
+//           "chartOfAccounts": "PIX_CREDIT",
+//           "metadata": {
+//             "operation": "funding",
+//             "type": "account"
+//           }
+//         }
+//       ]
+//     }
+//   }
+// }
+
+// CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
+// This is only used for Swagger documentation generation
+//
+// swagger:model CreateTransactionSwaggerModel
+// @Description Schema for creating transaction with the complete Send operation structure defined inline
+type CreateTransactionSwaggerModel struct {
+	// Chart of accounts group name for accounting purposes
+	// example: PIX_TRANSACTIONS
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+	
+	// Human-readable description of the transaction
+	// example: New Transaction
+	// maxLength: 256
+	Description string `json:"description,omitempty"`
+	
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty"`
+	
+	// Whether the transaction should be created in pending state
+	// example: false
+	Pending bool `json:"pending,omitempty"`
+	
+	// Additional custom attributes
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	
+	// Send operation details including source and distribution
+	// required: true
+	Send struct {
+		// Asset code for the transaction
+		// example: BRL
+		// required: true
+		Asset string `json:"asset"`
+		
+		// Transaction amount value in smallest unit of the asset
+		// example: 100
+		// required: true
+		Value int64 `json:"value"`
+		
+		// Decimal places for the transaction amount
+		// example: 2
+		// required: true
+		Scale int64 `json:"scale"`
+		
+		// Source accounts and amounts for the transaction
+		// required: true
+		Source struct {
+			// List of source operations
+			// required: true
+			From []struct {
+				// Account identifier or alias
+				// example: @external/BRL
+				// required: true
+				Account string `json:"account"`
+				
+				// Amount details for the operation
+				// required: true
+				Amount struct {
+					// Asset code
+					// example: BRL
+					// required: true
+					Asset string `json:"asset"`
+					
+					// Amount value in smallest unit
+					// example: 100
+					// required: true
+					Value int64 `json:"value"`
+					
+					// Decimal places
+					// example: 2
+					// required: true
+					Scale int64 `json:"scale"`
+				} `json:"amount"`
+				
+				// Operation description
+				// example: Debit Operation
+				Description string `json:"description,omitempty"`
+				
+				// Chart of accounts code
+				// example: PIX_DEBIT
+				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+				
+				// Additional metadata
+				// example: {"operation": "funding", "type": "external"}
+				Metadata map[string]interface{} `json:"metadata,omitempty"`
+			} `json:"from"`
+		} `json:"source"`
+		
+		// Destination accounts and amounts for the transaction
+		// required: true
+		Distribute struct {
+			// List of destination operations
+			// required: true
+			To []struct {
+				// Account identifier or alias
+				// example: @account1_BRL
+				// required: true
+				Account string `json:"account"`
+				
+				// Amount details for the operation
+				// required: true
+				Amount struct {
+					// Asset code
+					// example: BRL
+					// required: true
+					Asset string `json:"asset"`
+					
+					// Amount value in smallest unit
+					// example: 100
+					// required: true 
+					Value int64 `json:"value"`
+					
+					// Decimal places
+					// example: 2
+					// required: true
+					Scale int64 `json:"scale"`
+				} `json:"amount"`
+				
+				// Operation description
+				// example: Credit Operation
+				Description string `json:"description,omitempty"`
+				
+				// Chart of accounts code
+				// example: PIX_CREDIT
+				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+				
+				// Additional metadata
+				// example: {"operation": "funding", "type": "account"}
+				Metadata map[string]interface{} `json:"metadata,omitempty"`
+			} `json:"to"`
+		} `json:"distribute"`
+	} `json:"send"`
+}
 
 // InputDSL is a struct design to encapsulate payload data.
 //

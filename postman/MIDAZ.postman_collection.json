@@ -5813,13 +5813,15 @@
             },
             "description": "Create a Transaction with the input DSL file",
             "body": {
-              "mode": "raw",
-              "raw": "// Transaction DSL Example\n// This is a simple transfer between two accounts\n\ntransaction {\n  description \"Fund transfer between accounts\"\n  reference \"TRANSFER-REF-001\"\n  \n  // Account debited $100\n  debit {\n    account \"{{accountId}}\"\n    amount 100.00\n    asset \"USD\"\n  }\n  \n  // Account credited $100\n  credit {\n    account \"00000000-0000-0000-0000-000000000002\"\n    amount 100.00\n    asset \"USD\"\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "text"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "transaction",
+                  "type": "file",
+                  "src": null,
+                  "description": "DSL file containing transaction definition"
                 }
-              }
+              ]
             }
           },
           "response": [],
@@ -5940,7 +5942,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"PIX_TRANSACTIONS\",\n  \"description\": \"New Transaction\",\n  \"code\": \"TR12345\",\n  \"pending\": false,\n  \"metadata\": {\n    \"reference\": \"TRANSACTION-001\",\n    \"source\": \"api\"\n  },\n  \"send\": {\n    \"asset\": \"BRL\",\n    \"value\": 100,\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/BRL\",\n          \"amount\": {\n            \"asset\": \"BRL\",\n            \"value\": 100,\n            \"scale\": 2\n          },\n          \"description\": \"Debit Operation\",\n          \"chartOfAccounts\": \"PIX_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@account1_BRL\",\n          \"amount\": {\n            \"asset\": \"BRL\",\n            \"value\": 100,\n            \"scale\": 2\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"PIX_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

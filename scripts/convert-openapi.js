@@ -719,15 +719,42 @@ try {
 }
 
 // Generate an example based on the schema definition
-function generateExampleFromSchema(schema) {
+function generateExampleFromSchema(schema, depth = 0) {
   if (!schema) return {};
+  if (depth > 10) return {}; // Prevent infinite recursion
   
-  // If there's already an example, use it
-  if (schema.example) return schema.example;
+  // If there's already an example at the top level, use it
+  if (schema.example !== undefined) {
+    // If example is a string that looks like JSON, try parsing it
+    if (typeof schema.example === 'string' && 
+        (schema.example.startsWith('{') || schema.example.startsWith('['))) {
+      try {
+        return JSON.parse(schema.example);
+      } catch (e) {
+        return schema.example;
+      }
+    }
+    return schema.example;
+  }
   
   // If there's a provided example in the specification, use it
   if (schema.examples && schema.examples.length > 0) {
     return schema.examples[0].value;
+  }
+  
+  // If this is a reference, try to follow it
+  if (schema.$ref) {
+    // Extract the reference name
+    const refName = schema.$ref.split('/').pop();
+    // Check if the referenced schema is available
+    if (openApiSpec.components && openApiSpec.components.schemas && 
+        openApiSpec.components.schemas[refName]) {
+      return generateExampleFromSchema(openApiSpec.components.schemas[refName], depth + 1);
+    }
+    // For Swagger 2.0
+    if (openApiSpec.definitions && openApiSpec.definitions[refName]) {
+      return generateExampleFromSchema(openApiSpec.definitions[refName], depth + 1);
+    }
   }
   
   // Handle different types
@@ -735,20 +762,51 @@ function generateExampleFromSchema(schema) {
     const example = {};
     if (schema.properties) {
       for (const prop in schema.properties) {
-        example[prop] = generateExampleFromSchema(schema.properties[prop]);
+        const propExample = generateExampleFromSchema(schema.properties[prop], depth + 1);
+        
+        // Only include non-empty objects or values in examples
+        if (propExample !== undefined && 
+            (typeof propExample !== 'object' || 
+             Object.keys(propExample).length > 0)) {
+          example[prop] = propExample;
+        }
       }
     }
+    
+    // Handle additionalProperties for maps
+    if (schema.additionalProperties) {
+      if (schema.additionalProperties === true) {
+        // For generic additionalProperties, add examples
+        if (Object.keys(example).length === 0) {
+          example.key1 = "value1";
+          example.key2 = "value2";
+        }
+      } else if (typeof schema.additionalProperties === 'object') {
+        // For typed additionalProperties, add typed examples
+        if (Object.keys(example).length === 0) {
+          const propExample = generateExampleFromSchema(schema.additionalProperties, depth + 1);
+          example.key1 = propExample;
+          example.key2 = propExample;
+        }
+      }
+    }
+    
     return example;
   } else if (schema.type === 'array') {
     if (schema.items) {
-      return [generateExampleFromSchema(schema.items)];
+      const itemExample = generateExampleFromSchema(schema.items, depth + 1);
+      // Only include non-empty objects in array examples
+      if (typeof itemExample === 'object' && Object.keys(itemExample).length > 0 || 
+          typeof itemExample !== 'object') {
+        return [itemExample];
+      }
     }
     return [];
   } else if (schema.type === 'string') {
     if (schema.format === 'uuid') return '00000000-0000-0000-0000-000000000000';
     if (schema.format === 'date-time') return new Date().toISOString();
     if (schema.format === 'date') return new Date().toISOString().split('T')[0];
-    if (schema.enum) return schema.enum[0];
+    if (schema.enum && schema.enum.length > 0) return schema.enum[0];
     return 'string';
   } else if (schema.type === 'number' || schema.type === 'integer') {
     return 0;
@@ -1384,36 +1442,61 @@ function createE2EWorkflow(collection) {
         if (clonedRequest.request && clonedRequest.request.body) {
           // Set transaction body for funding from external source
           const fundingTxBody = {
-            "description": "Initial funding from external source",
-            "reference": "FUNDING-001",
-            "operations": [
-              {
-                "sourceAccountId": "@external/USD",
-                "destinationAccountId": "{{accountId}}",
-                "amount": "1000.00",
-                "assetCode": "USD"
+            "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
+            "description": "New Transaction",
+            "code": "TR12345",
+            "pending": false,
+            "metadata": {
+              "reference": "TRANSACTION-001", 
+              "source": "api"
+            },
+            "send": {
+              "asset": "BRL",
+              "value": 100,
+              "scale": 2,
+              "source": {
+                "from": [
+                  {
+                    "account": "@external/BRL",
+                    "amount": {
+                      "asset": "BRL",
+                      "value": 100,
+                      "scale": 2
+                    },
+                    "description": "Debit Operation",
+                    "chartOfAccounts": "PIX_DEBIT",
+                    "metadata": {
+                      "operation": "funding",
+                      "type": "external"
+                    }
+                  }
+                ]
+              },
+              "distribute": {
+                "to": [
+                  {
+                    "account": "@account1_BRL",
+                    "amount": {
+                      "asset": "BRL",
+                      "value": 100,
+                      "scale": 2
+                    },
+                    "description": "Credit Operation",
+                    "chartOfAccounts": "PIX_CREDIT",
+                    "metadata": {
+                      "operation": "funding",
+                      "type": "account"
+                    }
+                  }
+                ]
               }
-            ]
-          };
-          clonedRequest.request.body.raw = JSON.stringify(fundingTxBody, null, 2);
-        }
-      }
-
-      // Special case for creating AssetRate with USD
-      if (step.name === "13. Create AssetRate") {
-        if (clonedRequest.request && clonedRequest.request.body) {
-          // Set asset rate body for USD
-          const assetRateBody = {
-            "externalId": "USD-{{$timestamp}}",
-            "sourceAssetCode": "USD",
-            "rate": 1.0,
-            "effectiveDate": new Date().toISOString()
+            }
           };
           
           try {
-            clonedRequest.request.body.raw = JSON.stringify(assetRateBody, null, 2);
+            clonedRequest.request.body.raw = JSON.stringify(fundingTxBody, null, 2);
           } catch (e) {
-            console.log("Could not set body for AssetRate");
+            console.log("Could not set body for funding transaction");
           }
         }
       }
@@ -1627,60 +1710,110 @@ function findRequestByPathAndMethod(collection, path, method) {
 
 // Post-process the collection
 function postProcessCollection(collection) {
-  // Add DSL example for transaction DSL endpoint
-  if (collection.item) {
-    collection.item.forEach(folder => {
-      if (folder.item) {
-        folder.item.forEach(item => {
-          if (item.name && item.name.includes('DSL') && 
-              item.request && item.request.url && 
-              item.request.url.path && 
-              Array.isArray(item.request.url.path) && 
-              item.request.url.path.includes('dsl')) {
-            
-            console.log('Post-processing: Adding DSL body to DSL endpoint');
-            
-            // Force set body for DSL endpoint
-            item.request.body = {
-              mode: 'raw',
-              raw: `// Transaction DSL Example
-// This is a simple transfer between two accounts
-
-transaction {
-  description "Fund transfer between accounts"
-  reference "TRANSFER-REF-001"
-  
-  // Account debited $100
-  debit {
-    account "{{accountId}}"
-    amount 100.00
-    asset "USD"
-  }
-  
-  // Account credited $100
-  credit {
-    account "00000000-0000-0000-0000-000000000002"
-    amount 100.00
-    asset "USD"
-  }
-}`,
-              options: {
-                raw: {
-                  language: 'text'
-                }
-              }
-            };
-          }
-        });
+  // Process all items recursively
+  function processItems(items) {
+    if (!items) return;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // If this is a folder with subitems, process them
+      if (item.item) {
+        processItems(item.item);
       }
-    });
+      
+      // If this is a request, process it
+      if (item.request) {
+        // Fix specific endpoints
+        
+        // Post-process DSL endpoints to add DSL file upload example
+        if (item.name === 'Create a Transaction using DSL' || 
+            item.name.includes('DSL') && item.request.method === 'POST') {
+          console.log('Post-processing: Adding DSL body to DSL endpoint');
+          
+          // Add proper file upload for DSL endpoints
+          item.request.body = {
+            mode: 'formdata',
+            formdata: [
+              {
+                key: 'transaction',
+                type: 'file',
+                src: null,
+                description: 'DSL file containing transaction definition'
+              }
+            ]
+          };
+        }
+        
+        // Post-process Transaction JSON endpoint to add a comprehensive example
+        if (item.name === 'Create a Transaction using JSON' || 
+            (item.name.includes('Transaction') && item.name.includes('JSON') && item.request.method === 'POST')) {
+          console.log('Post-processing: Adding complete send example to Transaction JSON endpoint');
+          
+          // Add a complete transaction example
+          const fullTransactionExample = {
+            "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
+            "description": "New Transaction",
+            "code": "TR12345",
+            "pending": false,
+            "metadata": {
+              "reference": "TRANSACTION-001", 
+              "source": "api"
+            },
+            "send": {
+              "asset": "BRL",
+              "value": 100,
+              "scale": 2,
+              "source": {
+                "from": [
+                  {
+                    "account": "@external/BRL",
+                    "amount": {
+                      "asset": "BRL",
+                      "value": 100,
+                      "scale": 2
+                    },
+                    "description": "Debit Operation",
+                    "chartOfAccounts": "PIX_DEBIT",
+                    "metadata": {
+                      "operation": "funding",
+                      "type": "external"
+                    }
+                  }
+                ]
+              },
+              "distribute": {
+                "to": [
+                  {
+                    "account": "@account1_BRL",
+                    "amount": {
+                      "asset": "BRL",
+                      "value": 100,
+                      "scale": 2
+                    },
+                    "description": "Credit Operation",
+                    "chartOfAccounts": "PIX_CREDIT",
+                    "metadata": {
+                      "operation": "funding",
+                      "type": "account"
+                    }
+                  }
+                ]
+              }
+            }
+          };
+          
+          // Update the request body with the full example
+          if (item.request.body && item.request.body.mode === 'raw') {
+            item.request.body.raw = JSON.stringify(fullTransactionExample, null, 2);
+          }
+        }
+      }
+    }
   }
   
-  // Check if this is the merged collection from sync-postman.sh
-  if (collection.info && collection.info.name === "MIDAZ") {
-    // Add E2E workflow folder only for the merged collection
-    collection = createE2EWorkflow(collection);
-  }
+  // Start processing from the top level
+  processItems(collection.item);
   
   return collection;
 }

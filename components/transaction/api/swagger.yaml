@@ -672,7 +672,183 @@ definitions:
           example: {"purpose": "Monthly payment", "category": "Utility"}
         type: object
     type: object
-  github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput:
+  github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+    description: Schema for creating transaction with the complete Send operation
+      structure defined inline
+    properties:
+      chartOfAccountsGroupName:
+        description: |-
+          Chart of accounts group name for accounting purposes
+          example: PIX_TRANSACTIONS
+          maxLength: 256
+        type: string
+      code:
+        description: |-
+          Transaction code for reference
+          example: TR12345
+          maxLength: 100
+        type: string
+      description:
+        description: |-
+          Human-readable description of the transaction
+          example: New Transaction
+          maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: true
+        description: |-
+          Additional custom attributes
+          example: {"reference": "TRANSACTION-001", "source": "api"}
+        type: object
+      pending:
+        description: |-
+          Whether the transaction should be created in pending state
+          example: false
+        type: boolean
+      send:
+        description: |-
+          Send operation details including source and distribution
+          required: true
+        properties:
+          asset:
+            description: |-
+              Asset code for the transaction
+              example: BRL
+              required: true
+            type: string
+          distribute:
+            description: |-
+              Destination accounts and amounts for the transaction
+              required: true
+            properties:
+              to:
+                description: |-
+                  List of destination operations
+                  required: true
+                items:
+                  properties:
+                    account:
+                      description: |-
+                        Account identifier or alias
+                        example: @account1_BRL
+                        required: true
+                      type: string
+                    amount:
+                      description: |-
+                        Amount details for the operation
+                        required: true
+                      properties:
+                        asset:
+                          description: |-
+                            Asset code
+                            example: BRL
+                            required: true
+                          type: string
+                        scale:
+                          description: |-
+                            Decimal places
+                            example: 2
+                            required: true
+                          type: integer
+                        value:
+                          description: |-
+                            Amount value in smallest unit
+                            example: 100
+                            required: true
+                          type: integer
+                      type: object
+                    chartOfAccounts:
+                      description: |-
+                        Chart of accounts code
+                        example: PIX_CREDIT
+                      type: string
+                    description:
+                      description: |-
+                        Operation description
+                        example: Credit Operation
+                      type: string
+                    metadata:
+                      additionalProperties: true
+                      description: |-
+                        Additional metadata
+                        example: {"operation": "funding", "type": "account"}
+                      type: object
+                  type: object
+                type: array
+            type: object
+          scale:
+            description: |-
+              Decimal places for the transaction amount
+              example: 2
+              required: true
+            type: integer
+          source:
+            description: |-
+              Source accounts and amounts for the transaction
+              required: true
+            properties:
+              from:
+                description: |-
+                  List of source operations
+                  required: true
+                items:
+                  properties:
+                    account:
+                      description: |-
+                        Account identifier or alias
+                        example: @external/BRL
+                        required: true
+                      type: string
+                    amount:
+                      description: |-
+                        Amount details for the operation
+                        required: true
+                      properties:
+                        asset:
+                          description: |-
+                            Asset code
+                            example: BRL
+                            required: true
+                          type: string
+                        scale:
+                          description: |-
+                            Decimal places
+                            example: 2
+                            required: true
+                          type: integer
+                        value:
+                          description: |-
+                            Amount value in smallest unit
+                            example: 100
+                            required: true
+                          type: integer
+                      type: object
+                    chartOfAccounts:
+                      description: |-
+                        Chart of accounts code
+                        example: PIX_DEBIT
+                      type: string
+                    description:
+                      description: |-
+                        Operation description
+                        example: Debit Operation
+                      type: string
+                    metadata:
+                      additionalProperties: true
+                      description: |-
+                        Additional metadata
+                        example: {"operation": "funding", "type": "external"}
+                      type: object
+                  type: object
+                type: array
+            type: object
+          value:
+            description: |-
+              Transaction amount value in smallest unit of the asset
+              example: 100
+              required: true
+            type: integer
+        type: object
     type: object
   github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
     description: Template-based transaction input for creating transactions from predefined
@@ -2051,7 +2227,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:

@@ -51,56 +51,56 @@ try {
   process.exit(1);
 }
 
-// Define the workflow sequence
-const workflowSequence = [
-  // Organization flow
+// Defines the complete E2E flow of API requests in a specific order
+const workflowSteps = [
+  // Onboarding flow
   { operation: "GET", path: "/v1/organizations", name: "1. List Organizations" },
   { operation: "POST", path: "/v1/organizations", name: "2. Create Organization" },
   { operation: "GET", path: "/v1/organizations/{id}", name: "3. Get Organization" },
-  { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization" },
+  { operation: "PUT", path: "/v1/organizations/{id}", name: "4. Update Organization" },
   
   // Ledger flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers", name: "5. List Ledgers" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers", name: "6. Create Ledger" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "7. Get Ledger" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger" },
   
   // Asset flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "9. List Assets" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "10. Create USD Asset" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "11. Get Asset" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset" },
   
   // Account flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "13. List Accounts" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "14. Create Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "15. Get Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "16. Get Account by Alias" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account" },
   
   // Portfolio flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "18. List Portfolios" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "19. Create Portfolio" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "20. Get Portfolio" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio" },
   
   // Segment flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "22. List Segments" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "23. Create Segment" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "24. Get Segment" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment" },
   
   // Transaction flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "28. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
   
   // Balance flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "32. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "32. Get Balance by ID" },
+  { operation: "PUT", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Update Balance" },
   
   // Account-scoped Operations flow (since global operations endpoints don't exist)
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
@@ -115,7 +115,7 @@ const workflowSequence = [
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "39. Delete Segment" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "40. Delete Portfolio" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "41. Delete Asset" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "42. Delete Ledger" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "42. Delete Ledger" },
   { operation: "DELETE", path: "/v1/organizations/{id}", name: "43. Delete Organization" }
 ];
 
@@ -124,6 +124,167 @@ const workflowFolder = {
   description: "Complete workflow that demonstrates the entire API flow from creating an organization to funding an account and cleaning up resources",
   item: []
 };
+
+// Endpoint-specific examples and customizations
+const endpointExamples = {
+  // Transaction JSON example
+  transactionJsonExample: {
+    "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
+    "description": "New Transaction",
+    "code": "TR12345",
+    "pending": false,
+    "metadata": {
+      "reference": "TRANSACTION-001", 
+      "source": "api"
+    },
+    "send": {
+      "asset": "BRL",
+      "value": 100,
+      "scale": 2,
+      "source": {
+        "from": [
+          {
+            "account": "@external/BRL",
+            "amount": {
+              "asset": "BRL",
+              "value": 100,
+              "scale": 2
+            },
+            "description": "Debit Operation",
+            "chartOfAccounts": "PIX_DEBIT",
+            "metadata": {
+              "operation": "funding",
+              "type": "external"
+            }
+          }
+        ]
+      },
+      "distribute": {
+        "to": [
+          {
+            "account": "@account1_BRL",
+            "amount": {
+              "asset": "BRL",
+              "value": 100,
+              "scale": 2
+            },
+            "description": "Credit Operation",
+            "chartOfAccounts": "PIX_CREDIT",
+            "metadata": {
+              "operation": "funding",
+              "type": "account"
+            }
+          }
+        ]
+      }
+    }
+  },
+  
+  // AssetRate example
+  assetRateExample: {
+    "externalId": "USD-{{$timestamp}}",
+    "sourceAssetCode": "USD",
+    "rate": 1.0,
+    "effectiveDate": new Date().toISOString()
+  },
+  
+  // Simple funding transaction example
+  fundingTransactionExample: {
+    "description": "Initial funding from external source",
+    "reference": "FUNDING-001",
+    "operations": [
+      {
+        "sourceAccountId": "@external/USD",
+        "destinationAccountId": "{{accountId}}",
+        "amount": "1000.00",
+        "assetCode": "USD"
+      }
+    ]
+  }
+};
+
+/**
+ * Customize the DSL transaction endpoint
+ * @param {object} request - The Postman request object to customize
+ */
+function customizeDslEndpoint(request) {
+  if (!request) return;
+  
+  console.log('Customizing: Adding DSL body to DSL endpoint');
+  
+  // Add proper file upload for DSL endpoints
+  request.body = {
+    mode: 'formdata',
+    formdata: [
+      {
+        key: 'transaction',
+        type: 'file',
+        src: null,
+        description: 'DSL file containing transaction definition'
+      }
+    ]
+  };
+}
+
+/**
+ * Customize the Transaction JSON endpoint
+ * @param {object} request - The Postman request object to customize
+ */
+function customizeTransactionJsonEndpoint(request) {
+  if (!request || !request.body) return;
+  
+  console.log('Customizing: Adding complete send example to Transaction JSON endpoint');
+  
+  // Update the request body with the full example
+  if (request.body.mode === 'raw') {
+    request.body.raw = JSON.stringify(endpointExamples.transactionJsonExample, null, 2);
+  }
+}
+
+/**
+ * Process all items in a collection recursively and apply endpoint-specific customizations
+ * @param {Array} items - The collection items to process
+ */
+function customizeEndpoints(items) {
+  if (!items) return;
+  
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    
+    // If this is a folder with subitems, process them
+    if (item.item) {
+      customizeEndpoints(item.item);
+    }
+    
+    // If this is a request, process it
+    if (item.request) {
+      // Fix specific endpoints
+      
+      // Post-process DSL endpoints
+      if (item.name === 'Create a Transaction using DSL' || 
+          (item.name.includes('DSL') && item.request.method === 'POST')) {
+        customizeDslEndpoint(item.request);
+      }
+      
+      // Post-process Transaction JSON endpoint
+      if (item.name === 'Create a Transaction using JSON' || 
+          (item.name.includes('Transaction') && item.name.includes('JSON') && item.request.method === 'POST')) {
+        customizeTransactionJsonEndpoint(item.request);
+      }
+      
+      // Special case for creating AssetRate with USD
+      if (item.name === "13. Create AssetRate") {
+        if (item.request.body && item.request.body.mode === 'raw') {
+          try {
+            item.request.body.raw = JSON.stringify(endpointExamples.assetRateExample, null, 2);
+          } catch (e) {
+            console.log("Could not set body for AssetRate");
+          }
+        }
+      }
+    }
+  }
+}
 
 // Helper function to find a request in the collection by path and method
 function findRequestByPathAndMethod(collection, path, method) {
@@ -150,7 +311,7 @@ function findRequestByPathAndMethod(collection, path, method) {
 }
 
 // Find and clone the requests for each step in the workflow
-workflowSequence.forEach((step, index) => {
+workflowSteps.forEach((step, index) => {
   const matchingRequest = findRequestByPathAndMethod(collection, step.path, step.operation);
   
   if (matchingRequest) {
@@ -696,7 +857,7 @@ pm.request.timeout = 60000; // 60 seconds
   pm.expect(pm.response.code).to.be.oneOf([200, 201]);
 });`;
               }
-            } else if (step.operation === "PATCH") {
+            } else if (step.operation === "PUT") {
               return `pm.test("Status code is 200 OK", function () {
   pm.expect(pm.response.code).to.equal(200);
 });`;
@@ -874,9 +1035,9 @@ try {
         }
         
         // Add execution control for workflow
-        if (index < workflowSequence.length - 1) {
+        if (index < workflowSteps.length - 1) {
           // Set next request if not the last step
-          testScript += `\n\n// Set next request in workflow\npm.execution.setNextRequest("${workflowSequence[index + 1].name}");`;
+          testScript += `\n\n// Set next request in workflow\npm.execution.setNextRequest("${workflowSteps[index + 1].name}");`;
         } else {
           // End the workflow on the last step
           testScript += `\n\n// This is the last step in the workflow\nconsole.log("E2E workflow completed successfully!");`;

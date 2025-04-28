@@ -1037,7 +1037,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
         description: Transaction Input
         required: true
       responses:
@@ -2335,7 +2335,41 @@ components:
             example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
       type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput:
+    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+      description: Schema for creating transaction with the complete Send operation
+        structure defined inline
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: PIX_TRANSACTIONS
+            maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Transaction
+            maxLength: 256
+          type: string
+        metadata:
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+          properties: {}
+          type: object
+        pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            example: false
+          type: boolean
+        send:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
       type: object
     github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
       description: Template-based transaction input for creating transactions from
@@ -2860,5 +2894,137 @@ components:
           type: object
         prev_cursor:
           type: string
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount
+    : description: |-
+        Amount details for the operation
+        required: true
+      properties:
+        asset:
+          description: |-
+            Asset code
+            example: BRL
+            required: true
+          type: string
+        scale:
+          description: |-
+            Decimal places
+            example: 2
+            required: true
+          type: integer
+        value:
+          description: |-
+            Amount value in smallest unit
+            example: 100
+            required: true
+          type: integer
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to
+    : properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: @account1_BRL
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: PIX_CREDIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Credit Operation
+          type: string
+        metadata:
+          description: |-
+            Additional metadata
+            example: {"operation": "funding", "type": "account"}
+          properties: {}
+          type: object
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
+    : description: |-
+        Destination accounts and amounts for the transaction
+        required: true
+      properties:
+        to:
+          description: |-
+            List of destination operations
+            required: true
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to'
+          type: array
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
+    : properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: @external/BRL
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: PIX_DEBIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Debit Operation
+          type: string
+        metadata:
+          description: |-
+            Additional metadata
+            example: {"operation": "funding", "type": "external"}
+          properties: {}
+          type: object
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
+    : description: |-
+        Source accounts and amounts for the transaction
+        required: true
+      properties:
+        from:
+          description: |-
+            List of source operations
+            required: true
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
+          type: array
+      type: object
+    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
+      description: |-
+        Send operation details including source and distribution
+        required: true
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: BRL
+            required: true
+          type: string
+        distribute:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute'
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        source:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
+        value:
+          description: |-
+            Transaction amount value in smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
       type: object
 x-original-swagger-version: "2.0"

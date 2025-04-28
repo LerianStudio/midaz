@@ -1371,7 +1371,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -2507,8 +2507,150 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionInput": {
-            "type": "object"
+        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+            "description": "Schema for creating transaction with the complete Send operation structure defined inline",
+            "type": "object",
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "description": "Chart of accounts group name for accounting purposes\nexample: PIX_TRANSACTIONS\nmaxLength: 256",
+                    "type": "string"
+                },
+                "code": {
+                    "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "Human-readable description of the transaction\nexample: New Transaction\nmaxLength: 256",
+                    "type": "string"
+                },
+                "metadata": {
+                    "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "pending": {
+                    "description": "Whether the transaction should be created in pending state\nexample: false",
+                    "type": "boolean"
+                },
+                "send": {
+                    "description": "Send operation details including source and distribution\nrequired: true",
+                    "type": "object",
+                    "properties": {
+                        "asset": {
+                            "description": "Asset code for the transaction\nexample: BRL\nrequired: true",
+                            "type": "string"
+                        },
+                        "distribute": {
+                            "description": "Destination accounts and amounts for the transaction\nrequired: true",
+                            "type": "object",
+                            "properties": {
+                                "to": {
+                                    "description": "List of destination operations\nrequired: true",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "account": {
+                                                "description": "Account identifier or alias\nexample: @account1_BRL\nrequired: true",
+                                                "type": "string"
+                                            },
+                                            "amount": {
+                                                "description": "Amount details for the operation\nrequired: true",
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "description": "Asset code\nexample: BRL\nrequired: true",
+                                                        "type": "string"
+                                                    },
+                                                    "scale": {
+                                                        "description": "Decimal places\nexample: 2\nrequired: true",
+                                                        "type": "integer"
+                                                    },
+                                                    "value": {
+                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
+                                                        "type": "integer"
+                                                    }
+                                                }
+                                            },
+                                            "chartOfAccounts": {
+                                                "description": "Chart of accounts code\nexample: PIX_CREDIT",
+                                                "type": "string"
+                                            },
+                                            "description": {
+                                                "description": "Operation description\nexample: Credit Operation",
+                                                "type": "string"
+                                            },
+                                            "metadata": {
+                                                "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
+                                                "type": "object",
+                                                "additionalProperties": true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "scale": {
+                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
+                            "type": "integer"
+                        },
+                        "source": {
+                            "description": "Source accounts and amounts for the transaction\nrequired: true",
+                            "type": "object",
+                            "properties": {
+                                "from": {
+                                    "description": "List of source operations\nrequired: true",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "account": {
+                                                "description": "Account identifier or alias\nexample: @external/BRL\nrequired: true",
+                                                "type": "string"
+                                            },
+                                            "amount": {
+                                                "description": "Amount details for the operation\nrequired: true",
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "description": "Asset code\nexample: BRL\nrequired: true",
+                                                        "type": "string"
+                                                    },
+                                                    "scale": {
+                                                        "description": "Decimal places\nexample: 2\nrequired: true",
+                                                        "type": "integer"
+                                                    },
+                                                    "value": {
+                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
+                                                        "type": "integer"
+                                                    }
+                                                }
+                                            },
+                                            "chartOfAccounts": {
+                                                "description": "Chart of accounts code\nexample: PIX_DEBIT",
+                                                "type": "string"
+                                            },
+                                            "description": {
+                                                "description": "Operation description\nexample: Debit Operation",
+                                                "type": "string"
+                                            },
+                                            "metadata": {
+                                                "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"external\"}",
+                                                "type": "object",
+                                                "additionalProperties": true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "value": {
+                            "description": "Transaction amount value in smallest unit of the asset\nexample: 100\nrequired: true",
+                            "type": "integer"
+                        }
+                    }
+                }
+            }
         },
         "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL": {
             "description": "Template-based transaction input for creating transactions from predefined templates with variable substitution.",
