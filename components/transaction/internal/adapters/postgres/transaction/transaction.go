@@ -2,12 +2,13 @@ package transaction
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"time"
 )
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
@@ -42,7 +43,7 @@ type Status struct {
 	// example: ACTIVE
 	// maxLength: 100
 	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100"`
-	
+
 	// Optional descriptive text explaining the status
 	// example: Active status
 	// maxLength: 256
@@ -60,29 +61,29 @@ func (s Status) IsEmpty() bool {
 // @Description CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.
 type CreateTransactionInput struct {
 	// Chart of accounts group name for accounting purposes
-	// example: PIX_TRANSACTIONS
+	// example: FUNDING
 	// maxLength: 256
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"PIX_TRANSACTIONS"`
-	
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"FUNDING"`
+
 	// Human-readable description of the transaction
 	// example: New Transaction
 	// maxLength: 256
 	Description string `json:"description,omitempty" validate:"max=256" example:"New Transaction" maxLength:"256"`
-	
+
 	// Transaction code for reference
 	// example: TR12345
 	// maxLength: 100
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
-	
+
 	// Whether the transaction should be created in pending state
 	// example: false
 	Pending bool `json:"pending,omitempty" example:"false"`
-	
+
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
-	
+
 	// Send operation details including source and distribution
 	// required: true
 	// swagger:type object
@@ -90,29 +91,29 @@ type CreateTransactionInput struct {
 } // @name CreateTransactionInput
 
 // @example {
-//   "chartOfAccountsGroupName": "PIX_TRANSACTIONS",
+//   "chartOfAccountsGroupName": "FUNDING",
 //   "description": "New Transaction",
 //   "code": "TR12345",
 //   "pending": false,
 //   "metadata": {
-//     "reference": "TRANSACTION-001", 
+//     "reference": "TRANSACTION-001",
 //     "source": "api"
 //   },
 //   "send": {
-//     "asset": "BRL",
+//     "asset": "USD",
 //     "value": 100,
 //     "scale": 2,
 //     "source": {
 //       "from": [
 //         {
-//           "account": "@external/BRL",
+//           "account": "@external/USD",
 //           "amount": {
-//             "asset": "BRL",
+//             "asset": "USD",
 //             "value": 100,
 //             "scale": 2
 //           },
 //           "description": "Debit Operation",
-//           "chartOfAccounts": "PIX_DEBIT",
+//           "chartOfAccounts": "FUNDING_DEBIT",
 //           "metadata": {
 //             "operation": "funding",
 //             "type": "external"
@@ -123,14 +124,14 @@ type CreateTransactionInput struct {
 //     "distribute": {
 //       "to": [
 //         {
-//           "account": "@account1_BRL",
+//           "account": "{{accountAlias}}",
 //           "amount": {
-//             "asset": "BRL",
+//             "asset": "USD",
 //             "value": 100,
 //             "scale": 2
 //           },
 //           "description": "Credit Operation",
-//           "chartOfAccounts": "PIX_CREDIT",
+//           "chartOfAccounts": "FUNDING_CREDIT",
 //           "metadata": {
 //             "operation": "funding",
 //             "type": "account"
@@ -148,46 +149,46 @@ type CreateTransactionInput struct {
 // @Description Schema for creating transaction with the complete Send operation structure defined inline
 type CreateTransactionSwaggerModel struct {
 	// Chart of accounts group name for accounting purposes
-	// example: PIX_TRANSACTIONS
+	// example: FUNDING
 	// maxLength: 256
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-	
+
 	// Human-readable description of the transaction
 	// example: New Transaction
 	// maxLength: 256
 	Description string `json:"description,omitempty"`
-	
+
 	// Transaction code for reference
 	// example: TR12345
 	// maxLength: 100
 	Code string `json:"code,omitempty"`
-	
+
 	// Whether the transaction should be created in pending state
 	// example: false
 	Pending bool `json:"pending,omitempty"`
-	
+
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
-	
+
 	// Send operation details including source and distribution
 	// required: true
 	Send struct {
 		// Asset code for the transaction
-		// example: BRL
+		// example: USD
 		// required: true
 		Asset string `json:"asset"`
-		
+
 		// Transaction amount value in smallest unit of the asset
 		// example: 100
 		// required: true
 		Value int64 `json:"value"`
-		
+
 		// Decimal places for the transaction amount
 		// example: 2
 		// required: true
 		Scale int64 `json:"scale"`
-		
+
 		// Source accounts and amounts for the transaction
 		// required: true
 		Source struct {
@@ -195,43 +196,43 @@ type CreateTransactionSwaggerModel struct {
 			// required: true
 			From []struct {
 				// Account identifier or alias
-				// example: @external/BRL
+				// example: @external/USD
 				// required: true
 				Account string `json:"account"`
-				
+
 				// Amount details for the operation
 				// required: true
 				Amount struct {
 					// Asset code
-					// example: BRL
+					// example: USD
 					// required: true
 					Asset string `json:"asset"`
-					
+
 					// Amount value in smallest unit
 					// example: 100
 					// required: true
 					Value int64 `json:"value"`
-					
+
 					// Decimal places
 					// example: 2
 					// required: true
 					Scale int64 `json:"scale"`
 				} `json:"amount"`
-				
+
 				// Operation description
 				// example: Debit Operation
 				Description string `json:"description,omitempty"`
-				
+
 				// Chart of accounts code
-				// example: PIX_DEBIT
+				// example: FUNDING_DEBIT
 				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-				
+
 				// Additional metadata
 				// example: {"operation": "funding", "type": "external"}
 				Metadata map[string]any `json:"metadata,omitempty"`
 			} `json:"from"`
 		} `json:"source"`
-		
+
 		// Destination accounts and amounts for the transaction
 		// required: true
 		Distribute struct {
@@ -239,37 +240,37 @@ type CreateTransactionSwaggerModel struct {
 			// required: true
 			To []struct {
 				// Account identifier or alias
-				// example: @account1_BRL
+				// example: {{accountAlias}}
 				// required: true
 				Account string `json:"account"`
-				
+
 				// Amount details for the operation
 				// required: true
 				Amount struct {
 					// Asset code
-					// example: BRL
+					// example: USD
 					// required: true
 					Asset string `json:"asset"`
-					
+
 					// Amount value in smallest unit
 					// example: 100
-					// required: true 
+					// required: true
 					Value int64 `json:"value"`
-					
+
 					// Decimal places
 					// example: 2
 					// required: true
 					Scale int64 `json:"scale"`
 				} `json:"amount"`
-				
+
 				// Operation description
 				// example: Credit Operation
 				Description string `json:"description,omitempty"`
-				
+
 				// Chart of accounts code
-				// example: PIX_CREDIT
+				// example: FUNDING_CREDIT
 				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-				
+
 				// Additional metadata
 				// example: {"operation": "funding", "type": "account"}
 				Metadata map[string]any `json:"metadata,omitempty"`
@@ -287,12 +288,12 @@ type InputDSL struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	TransactionType uuid.UUID `json:"transactionType" format:"uuid"`
-	
+
 	// Transaction type code for reference
 	// example: PAYMENT
 	// maxLength: 50
 	TransactionTypeCode string `json:"transactionTypeCode" maxLength:"50"`
-	
+
 	// Variables to substitute in the transaction template
 	// example: {"amount": 1000, "recipient": "@person2"}
 	Variables map[string]any `json:"variables,omitempty"`
@@ -307,7 +308,7 @@ type UpdateTransactionInput struct {
 	// example: Transaction description
 	// maxLength: 256
 	Description string `json:"description" validate:"max=256" example:"Transaction description" maxLength:"256"`
-	
+
 	// Additional custom attributes
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
@@ -547,13 +548,13 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 type TransactionQueue struct {
 	// Validation responses from the transaction processing
 	Validate *libTransaction.Responses `json:"validate"`
-	
+
 	// Account balances affected by the transaction
 	Balances []*mmodel.Balance `json:"balances"`
-	
+
 	// The transaction being processed
 	Transaction *Transaction `json:"transaction"`
-	
+
 	// Parsed transaction DSL
 	ParseDSL *libTransaction.Transaction `json:"parseDSL"`
 }
