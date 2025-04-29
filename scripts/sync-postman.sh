@@ -116,7 +116,6 @@ TRANSACTION_API="${MIDAZ_ROOT}/components/transaction/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
-CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 
 # Create necessary directories
 mkdir -p "${TEMP_DIR}"
@@ -197,10 +196,6 @@ if [ -f "${TEMP_DIR}/onboarding.postman_collection.json" ] && [ -f "${TEMP_DIR}/
         # Return the merged collection
         .[0]
     ' "${TEMP_DIR}/onboarding.postman_collection.json" "${TEMP_DIR}/transaction.postman_collection.json" > "${POSTMAN_COLLECTION}"
-    
-    # Add a post-processing step to create the E2E Flow folder
-    echo "Creating E2E Flow in the merged collection..."
-    node "${SCRIPTS_DIR}/create-e2e-flow.js" "${POSTMAN_COLLECTION}"
     
     # Merge environment templates
     if [ -f "${TEMP_DIR}/onboarding.environment.json" ] && [ -f "${TEMP_DIR}/transaction.environment.json" ]; then

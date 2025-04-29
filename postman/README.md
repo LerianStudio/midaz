@@ -1,81 +1,54 @@
-# Midaz API Postman Collection
+# Postman Collection Generation Process
 
-This directory contains the Postman collection and environment files for the Midaz API. The collection is generated from the OpenAPI/Swagger documentation in the `components/onboarding/api` and `components/transaction/api` directories.
+This document outlines the automated process for generating and updating the `MIDAZ.postman_collection.json` and `MIDAZ.postman_environment.json` files located in this directory.
 
-## Collection Structure
+The process is triggered by running the following command from the project root:
 
-The collection is organized into the following sections:
-
-- **Organizations**: API endpoints for managing organizations
-- **Ledgers**: API endpoints for managing ledgers
-- **Assets**: API endpoints for managing assets
-- **Accounts**: API endpoints for managing accounts
-- **Portfolios**: API endpoints for managing portfolios
-- **Segments**: API endpoints for managing segments
-- **Transactions**: API endpoints for managing transactions
-- **Balances**: API endpoints for managing balances
-- **Operations**: API endpoints for managing operations
-- **E2E Flow**: A sequential flow of API calls that demonstrate a complete end-to-end workflow
-
-## Running Tests
-
-You can run the Postman tests in several ways:
-
-### Using Make Commands
-
-Run all tests in the collection:
-```
-make test-postman
+```bash
+make generate-docs
 ```
 
-Run only the E2E flow tests:
-```
-make test-postman-e2e
-```
+## Detailed Steps
 
-### Using NPM Scripts
+1.  **Initiation (`Makefile`):**
+    *   The `make generate-docs` target in the root `Makefile` starts the process.
+    *   **Prerequisites:** It first runs `make tidy` (dependency cleanup) and `make check-envs` (environment checks). It also verifies that the `swag` CLI and `node` are installed.
 
-Run all tests in the collection:
-```
-cd scripts && npm run test:postman
-```
+2.  **OpenAPI Specification Generation (`Makefile` + `swag`):
+    *   For each relevant service component (`mdz`, `onboarding`, `transaction`):
+        *   The command navigates into the component's directory (e.g., `components/onboarding`).
+        *   It executes `swag init -g cmd/server/main.go -o docs`.
+        *   The `swag` tool parses the Go source code, focusing on files reachable from `cmd/server/main.go`.
+        *   It identifies special [Swagger annotations](https://github.com/swaggo/swag#declarative-comments-format) (e.g., `@Summary`, `@Description`, `@Param`, `@Success`, `@Failure`, `@Router`) within Go code comments, typically placed above HTTP handler functions.
+        *   Based on these annotations and the code structure, `swag` generates OpenAPI v2 specification files (`swagger.json` and `swagger.yaml`) in the component's `docs/` subdirectory.
 
-Run only the E2E flow tests:
-```
-cd scripts && npm run test:postman:e2e
-```
+3.  **Postman Sync Script Execution (`Makefile`):
+    *   After generating OpenAPI specs for all components, the Makefile executes the `./scripts/sync-postman.sh` script.
 
-### Using Newman Directly
+4.  **Script Setup (`sync-postman.sh`):
+    *   **Dependency Checks:** The script ensures `node` and `jq` (JSON processor) are installed, attempting installation if necessary.
+    *   **Directory Setup:** Creates `postman/temp` for intermediate files and `postman/backups` for archiving.
+    *   **Backup:** Archives existing `MIDAZ.postman_collection.json` and `MIDAZ.postman_environment.json` to the `backups` directory with a timestamp.
+    *   **NPM Install:** Runs `npm install` in the `scripts/` directory to ensure Node.js dependencies required by the conversion script (`convert-openapi.js`) are present.
 
-Run all tests in the collection:
-```
-npx newman run ./postman/MIDAZ.postman_collection.json -e ./postman/MIDAZ.postman_environment.json
-```
+5.  **OpenAPI to Postman Conversion (`sync-postman.sh` + `convert-openapi.js`):
+    *   The script iterates through the component OpenAPI specs (`onboarding`, `transaction`).
+    *   It uses `node ./scripts/convert-openapi.js` to convert each component's `docs/swagger.json` into a temporary Postman collection (`postman/temp/<component>.postman_collection.json`) and potentially a temporary Postman environment file (`postman/temp/<component>.environment.json`).
+    *   The custom `convert-openapi.js` script handles the specific logic of translating OpenAPI definitions into the Postman collection format, potentially including enhanced descriptions, examples, or variable handling.
 
-Run only the E2E flow tests:
-```
-npx newman run ./postman/MIDAZ.postman_collection.json -e ./postman/MIDAZ.postman_environment.json --folder "E2E Flow"
-```
+6.  **Merging Collections & Environments (`sync-postman.sh` + `jq`):
+    *   **Collections:** Uses `jq` to merge the temporary Postman collections from the `temp/` directory into the final `postman/MIDAZ.postman_collection.json`.
+        *   Combines request items (folders/requests) from all components.
+        *   Filters out specific folders (e.g., "E2E Flow") if necessary.
+        *   Merges collection variables, ensuring uniqueness.
+        *   Sets the final collection name (`MIDAZ`) and a fixed Postman ID.
+    *   **Environments:** Similarly, uses `jq` to merge the temporary environment files into `postman/MIDAZ.postman_environment.json`.
+        *   Combines environment variables, ensuring unique keys.
+        *   Sets the final environment name (`MIDAZ Environment`) and a fixed Postman ID.
 
-## Maintaining the Collection
+7.  **Cleanup (`sync-postman.sh`):
+    *   Removes the temporary directory (`postman/temp`).
 
-The Postman collection is automatically generated from the OpenAPI/Swagger documentation. To update the collection after making changes to the API:
+## Result
 
-1. Generate the Swagger documentation:
-   ```
-   make generate-docs
-   ```
-
-2. Sync the Postman collection:
-   ```
-   make sync-postman
-   ```
-
-These commands will update both the OpenAPI documentation and the Postman collection.
-
-## Recent Fixes
-
-- Fixed test script syntax for POST endpoints to properly check for 200 or 201 status codes
-- Corrected the URL path for balance endpoints (Get Balance by ID, Update Balance, Delete Balance)
-- Enhanced JSON transaction payload swagger annotations to correctly document the expected structure
-- Added dedicated testing scripts and Makefile targets for running Postman tests
+The process results in updated `MIDAZ.postman_collection.json` and `MIDAZ.postman_environment.json` files in the `postman/` directory, reflecting the latest API definitions documented via Swagger annotations in the Go code.

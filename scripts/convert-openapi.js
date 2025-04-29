@@ -13,7 +13,6 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
-const { createE2EWorkflow, customizeEndpoints, endpointExamples } = require('./create-e2e-flow');
 
 // Check arguments
 const args = process.argv.slice(2);
@@ -478,6 +477,8 @@ function fixPathParameters(spec) {
       .replace(/:balance_id/g, '{balance_id}')
       .replace(/:external_id/g, '{external_id}')
       .replace(/:asset_code/g, '{asset_code}')
+      .replace(/:portfolio_id/g, '{portfolio_id}')
+      .replace(/:segment_id/g, '{segment_id}')
       .replace(/:id/g, '{id}')
       .replace(/:alias/g, '{alias}');
     
@@ -1329,26 +1330,9 @@ function createEnvironmentTemplate(spec) {
 // Convert the OpenAPI spec to a Postman collection
 const postmanCollection = createPostmanCollection(enhancedSpec);
 
-// Post-process the collection
-function postProcessCollection(collection) {
-  // Apply endpoint customizations recursively
-  customizeEndpoints(collection.item);
-  
-  // Check if this is the merged collection from sync-postman.sh
-  if (collection.info && collection.info.name === "MIDAZ") {
-    // Add E2E workflow folder only for the merged collection
-    collection = createE2EWorkflow(collection);
-  }
-  
-  return collection;
-}
-
-// Process the collection before writing
-const processedCollection = postProcessCollection(postmanCollection);
-
 // Write the Postman collection to the output file
 try {
-  fs.writeFileSync(outputFile, JSON.stringify(processedCollection, null, 2));
+  fs.writeFileSync(outputFile, JSON.stringify(postmanCollection, null, 2));
   console.log(`Successfully converted ${inputFile} to ${outputFile}`);
 } catch (error) {
   console.error(`Error writing output file: ${error.message}`);
