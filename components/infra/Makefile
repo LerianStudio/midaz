@@ -5,9 +5,6 @@ SERVICE_NAME := infra-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
-# Docker command with fallback
-DOCKER_CMD := $(shell command -v docker-compose || echo "docker compose")
-
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
 
