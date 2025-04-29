@@ -37,8 +37,6 @@ export class MidazHttpService extends HttpService {
       headers.Authorization = `${access_token}`
     }
 
-    console.log('MidazHttpService - Headers', headers)
-
     return { headers }
   }
 
