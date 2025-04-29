@@ -168,7 +168,7 @@ type CreateTransactionSwaggerModel struct {
 	
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 	
 	// Send operation details including source and distribution
 	// required: true
@@ -228,7 +228,7 @@ type CreateTransactionSwaggerModel struct {
 				
 				// Additional metadata
 				// example: {"operation": "funding", "type": "external"}
-				Metadata map[string]interface{} `json:"metadata,omitempty"`
+				Metadata map[string]any `json:"metadata,omitempty"`
 			} `json:"from"`
 		} `json:"source"`
 		
@@ -272,7 +272,7 @@ type CreateTransactionSwaggerModel struct {
 				
 				// Additional metadata
 				// example: {"operation": "funding", "type": "account"}
-				Metadata map[string]interface{} `json:"metadata,omitempty"`
+				Metadata map[string]any `json:"metadata,omitempty"`
 			} `json:"to"`
 		} `json:"distribute"`
 	} `json:"send"`
