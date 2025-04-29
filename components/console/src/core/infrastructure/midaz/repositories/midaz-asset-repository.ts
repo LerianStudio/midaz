@@ -3,6 +3,10 @@ import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazAssetMapper } from '../mappers/midaz-asset-mapper'
+import { MidazAssetDto } from '../dto/midaz-asset-dto'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { createQueryString } from '@/lib/search'
 
 @injectable()
 export class MidazAssetRepository implements AssetRepository {
@@ -18,13 +22,14 @@ export class MidazAssetRepository implements AssetRepository {
     ledgerId: string,
     asset: AssetEntity
   ): Promise<AssetEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets`
-
-    const response = await this.httpService.post<AssetEntity>(url, {
-      body: JSON.stringify(asset)
-    })
-
-    return response
+    const dto = MidazAssetMapper.toCreateDto(asset)
+    const response = await this.httpService.post<MidazAssetDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazAssetMapper.toEntity(response)
   }
 
   async fetchAll(
@@ -36,18 +41,20 @@ export class MidazAssetRepository implements AssetRepository {
     code?: string,
     metadata?: Record<string, string>
   ): Promise<PaginationEntity<AssetEntity>> {
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      page: page.toString(),
-      type: type || '',
-      code: code || ''
-    })
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets?${params.toString()}`
-
-    const response =
-      await this.httpService.get<PaginationEntity<AssetEntity>>(url)
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazAssetDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets${createQueryString(
+        {
+          page,
+          limit,
+          type,
+          code,
+          metadata
+        }
+      )}`
+    )
+    return MidazAssetMapper.toPaginationEntity(response)
   }
 
   async fetchById(
@@ -55,11 +62,10 @@ export class MidazAssetRepository implements AssetRepository {
     ledgerId: string,
     assetId: string
   ): Promise<AssetEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
-
-    const response = await this.httpService.get<AssetEntity>(url)
-
-    return response
+    const response = await this.httpService.get<MidazAssetDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
+    )
+    return MidazAssetMapper.toEntity(response)
   }
 
   async update(
@@ -68,13 +74,14 @@ export class MidazAssetRepository implements AssetRepository {
     assetId: string,
     asset: Partial<AssetEntity>
   ): Promise<AssetEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
-
-    const response = await this.httpService.patch<AssetEntity>(url, {
-      body: JSON.stringify(asset)
-    })
-
-    return response
+    const dto = MidazAssetMapper.toUpdateDto(asset)
+    const response = await this.httpService.patch<MidazAssetDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazAssetMapper.toEntity(response)
   }
 
   async delete(
@@ -82,10 +89,8 @@ export class MidazAssetRepository implements AssetRepository {
     ledgerId: string,
     assetId: string
   ): Promise<void> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
-
-    await this.httpService.delete(url)
-
-    return
+    await this.httpService.delete(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
+    )
   }
 }
