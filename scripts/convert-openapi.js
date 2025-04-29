@@ -209,8 +209,42 @@ const DEPENDENCY_MAP = {
   
   // Balance endpoints
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
-    provides: [],
+    provides: ["balanceId"],
     requires: ["organizationId", "ledgerId", "accountId"]
+  },
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "accountId", "balanceId"]
+  },
+  
+  // Asset Rate endpoints
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
+    provides: ["assetRateId"],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "assetRateId"]
+  },
+  
+  // Portfolio endpoints
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
+    provides: ["portfolioId"],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "portfolioId"]
+  },
+  
+  // Segment endpoints
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
+    provides: ["segmentId"],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "segmentId"]
   }
 };
 
@@ -332,7 +366,28 @@ try {
 } catch (error) {
   console.error("Failed to extract ${variable}: ", error);
 }`;
-      } else {
+      } 
+      // Special handling for balanceId which comes from a list response
+      else if (variable === 'balanceId') {
+        script += `
+try {
+  var jsonData = pm.response.json();
+  // Check if response is an array with at least one item
+  if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {
+    pm.environment.set("${variable}", jsonData[0].id);
+    console.log("${variable} set to: " + jsonData[0].id);
+  } 
+  // Check if response has a data array with at least one item
+  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {
+    pm.environment.set("${variable}", jsonData.data[0].id);
+    console.log("${variable} set to: " + jsonData.data[0].id);
+  }
+} catch (error) {
+  console.error("Failed to extract ${variable}: ", error);
+}`;
+      } 
+      // Default handling for other variables
+      else {
         script += `
 try {
   var jsonData = pm.response.json();
@@ -360,72 +415,120 @@ try {
  * @returns {Object} The Postman collection
  */
 function createPostmanCollection(spec) {
-  const info = spec.info || {};
-  const paths = spec.paths || {};
-  
-  // Create collection structure
+  // Create collection object
   const collection = {
     info: {
-      name: info.title || 'API Collection',
-      description: info.description || '',
-      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+      name: spec.info.title || 'MIDAZ API',
+      description: spec.info.description || 'API documentation for MIDAZ',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      version: spec.info.version || '1.0.0'
     },
+    item: [],
     variable: [
       {
-        key: "baseUrl",
-        value: spec.servers && spec.servers.length > 0 ? spec.servers[0].url : "http://localhost",
-        type: "string"
+        key: "environment",
+        value: "MIDAZ",
+        type: "string",
+        description: "This collection requires the MIDAZ environment to be selected for proper functionality."
       }
-    ],
-    item: []
+    ]
   };
   
-  // Group by tags
+  // Add description about required environment
+  if (collection.info.description) {
+    collection.info.description += `\n\n**IMPORTANT**: This collection requires the **MIDAZ Environment** to be selected for proper functionality. Please ensure you have imported and selected the MIDAZ environment before using this collection.`;
+  } else {
+    collection.info.description = `**IMPORTANT**: This collection requires the **MIDAZ Environment** to be selected for proper functionality. Please ensure you have imported and selected the MIDAZ environment before using this collection.`;
+  }
+
+  // Group endpoints by tags
   const tagGroups = {};
   
-  // Process each path
-  for (const path in paths) {
-    const pathItem = paths[path];
+  // Process all paths in the spec
+  for (const path in spec.paths) {
+    const pathItem = spec.paths[path];
     
-    // Process each method (GET, POST, etc.)
+    // Process all operations for this path
     for (const method in pathItem) {
-      if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
-        const operation = pathItem[method];
-        const tags = operation.tags || ['default'];
-        const tag = tags[0]; // Use the first tag for grouping
-        
+      if (method === 'parameters' || method === 'servers' || method === 'summary' || method === 'description') {
+        continue; // Skip non-operation properties
+      }
+      
+      const operation = pathItem[method];
+      
+      // Get tags for this operation
+      const tags = operation.tags || ['default'];
+      
+      // Add operation to each tag group
+      tags.forEach(tag => {
         if (!tagGroups[tag]) {
-          tagGroups[tag] = [];
+          tagGroups[tag] = {
+            name: tag,
+            description: getTagDescription(spec, tag),
+            item: []
+          };
         }
         
-        // Create request item
-        const requestItem = createRequestItem(path, method, operation, spec);
+        // Create request item for this operation
+        const requestItem = createRequestItem(operation, path, method, spec);
         
-        tagGroups[tag].push(requestItem);
-      }
+        // Add request item to tag group
+        tagGroups[tag].item.push(requestItem);
+      });
     }
   }
   
-  // Create folders for each tag
+  // Add tag groups to collection
   for (const tag in tagGroups) {
-    collection.item.push({
-      name: tag,
-      item: tagGroups[tag]
-    });
+    collection.item.push(tagGroups[tag]);
   }
   
   return collection;
 }
 
 /**
+ * Get the description for a tag from the OpenAPI spec
+ * @param {Object} spec - The OpenAPI spec
+ * @param {string} tagName - The name of the tag
+ * @returns {string} The description for the tag
+ */
+function getTagDescription(spec, tagName) {
+  // Default descriptions for common tags
+  const defaultDescriptions = {
+    'Organizations': 'Endpoints for managing organizations, which are the top-level entities in the MIDAZ system.',
+    'Ledgers': 'Endpoints for managing ledgers, which are financial record-keeping systems for tracking assets, accounts, and transactions within an organization.',
+    'Accounts': 'Endpoints for managing accounts, which represent individual financial entities like bank accounts, credit cards, or expense categories within a ledger.',
+    'Assets': 'Endpoints for managing assets, which represent the types of value that can be transferred between accounts.',
+    'Transactions': 'Endpoints for managing transactions, which represent the movement of value between accounts.',
+    'Operations': 'Endpoints for managing operations, which are the individual debit and credit entries that make up a transaction.',
+    'Balances': 'Endpoints for retrieving account balances, which represent the current value of an account.',
+    'Asset Rates': 'Endpoints for managing asset exchange rates, which are used to convert between different asset types.',
+    'Portfolios': 'Endpoints for managing portfolios, which are collections of accounts grouped for reporting or management purposes.',
+    'Segments': 'Endpoints for managing segments, which are used to categorize accounts for reporting or management purposes.',
+    'default': 'API endpoints for the MIDAZ financial system.'
+  };
+  
+  // Check if the tag has a description in the spec
+  if (spec.tags) {
+    const tag = spec.tags.find(t => t.name === tagName);
+    if (tag && tag.description) {
+      return tag.description;
+    }
+  }
+  
+  // Return default description if available, otherwise a generic description
+  return defaultDescriptions[tagName] || `Endpoints related to ${tagName}.`;
+}
+
+/**
  * Create a request item for the Postman collection
+ * @param {Object} operation - The operation object from the OpenAPI spec
  * @param {string} path - The path of the endpoint
  * @param {string} method - The HTTP method of the endpoint
- * @param {Object} operation - The operation object from the OpenAPI spec
  * @param {Object} spec - The full OpenAPI spec
  * @returns {Object} The request item
  */
-function createRequestItem(path, method, operation, spec) {
+function createRequestItem(operation, path, method, spec) {
   // Determine which service this endpoint belongs to
   let baseUrlVariable = "{{baseUrl}}";
   if (path.includes('/transactions') || path.includes('/operations') || path.includes('/balances') || 
@@ -743,85 +846,118 @@ function addResponseExamples(requestItem, operation, spec) {
  * @returns {Object} The environment template
  */
 function createEnvironmentTemplate(spec) {
-  // Create environment template
   const environment = {
-    id: "midaz-environment-id",
-    name: "MIDAZ Environment",
+    name: 'MIDAZ',
     values: [
+      // Authentication
       {
-        key: "baseUrl",
-        value: "http://localhost",
-        type: "default",
+        key: 'authToken',
+        value: '',
+        type: 'secret',
+        enabled: true
+      },
+      
+      // Base URLs
+      {
+        key: 'baseUrl',
+        value: 'http://localhost',
+        type: 'default',
         enabled: true
       },
       {
-        key: "onboardingPort",
-        value: "3000",
-        type: "default",
+        key: 'onboardingPort',
+        value: '3000',
+        type: 'default',
         enabled: true
       },
       {
-        key: "transactionPort",
-        value: "3001",
-        type: "default",
+        key: 'transactionPort',
+        value: '3001',
+        type: 'default',
         enabled: true
       },
       {
-        key: "onboardingUrl",
-        value: "{{baseUrl}}:{{onboardingPort}}",
-        type: "default",
+        key: 'onboardingUrl',
+        value: '{{baseUrl}}:{{onboardingPort}}',
+        type: 'default',
         enabled: true
       },
       {
-        key: "transactionUrl",
-        value: "{{baseUrl}}:{{transactionPort}}",
-        type: "default",
+        key: 'transactionUrl',
+        value: '{{baseUrl}}:{{transactionPort}}',
+        type: 'default',
+        enabled: true
+      },
+      
+      // Resource IDs
+      {
+        key: 'organizationId',
+        value: '',
+        type: 'default',
         enabled: true
       },
       {
-        key: "authToken",
-        value: "",
-        type: "secret",
+        key: 'ledgerId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'accountId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'accountAlias',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'assetId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'assetRateId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'balanceId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'operationId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'portfolioId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'segmentId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'transactionId',
+        value: '',
+        type: 'default',
         enabled: true
       }
     ]
   };
-  
-  // Add common variables from dependency map
-  const allVariables = new Set();
-  for (const endpoint in DEPENDENCY_MAP) {
-    const dependencies = DEPENDENCY_MAP[endpoint];
-    
-    if (dependencies.provides) {
-      dependencies.provides.forEach(variable => allVariables.add(variable));
-    }
-    
-    if (dependencies.requires) {
-      dependencies.requires.forEach(variable => allVariables.add(variable));
-    }
-  }
-  
-  // Additional variables not covered by the dependency map
-  const additionalVariables = [
-    "portfolioId", 
-    "segmentId", 
-    "assetRateId", 
-    "balanceId",
-    "accountAlias"
-  ];
-  
-  // Add additional variables
-  additionalVariables.forEach(variable => allVariables.add(variable));
-  
-  // Add all unique variables to the environment
-  allVariables.forEach(variable => {
-    environment.values.push({
-      key: variable,
-      value: "",
-      type: "default",
-      enabled: true
-    });
-  });
   
   return environment;
 }
@@ -1214,7 +1350,7 @@ function generateObjectExample(schema) {
     switch (propSchema.type) {
       case 'string':
         if (propSchema.format === 'uuid') {
-          example[propName] = '00000000-0000-0000-0000-000000000000';
+          example[propName] = null;
         } else if (propSchema.format === 'date-time') {
           example[propName] = new Date().toISOString();
         } else if (propName.toLowerCase().includes('status')) {
@@ -1223,6 +1359,8 @@ function generateObjectExample(schema) {
         } else if (propName.toLowerCase().includes('currency') || propName.toLowerCase().includes('asset')) {
           // Follow project standard for currency/asset examples
           example[propName] = "USD";
+        } else if (propName.toLowerCase() === 'account') {
+          example[propName] = "account_123";
         } else {
           example[propName] = `Example ${propName}`;
         }
@@ -1254,6 +1392,8 @@ function generateObjectExample(schema) {
         if (propSchema.$ref) {
           // Handle reference to another schema
           const refName = propSchema.$ref.split('/').pop();
+          
+          // Special handling for Send schema
           if (refName === 'Send') {
             example[propName] = generateSendExample();
           } else if (refName.toLowerCase().includes('status')) {
@@ -1263,7 +1403,7 @@ function generateObjectExample(schema) {
             // Generate detailed address example
             example[propName] = generateAddressExample();
           } else {
-            example[propName] = { id: '00000000-0000-0000-0000-000000000000' };
+            example[propName] = null;
           }
         } else if (propSchema.properties) {
           example[propName] = generateObjectExample(propSchema);
@@ -1311,7 +1451,7 @@ function generateArrayExample(schema) {
     switch (itemSchema.type) {
       case 'string':
         if (itemSchema.format === 'uuid') {
-          exampleItem = '00000000-0000-0000-0000-000000000000';
+          exampleItem = null;
         } else {
           exampleItem = 'Example string';
         }
@@ -1333,7 +1473,7 @@ function generateArrayExample(schema) {
           if (refName === 'Send') {
             exampleItem = generateSendExample();
           } else {
-            exampleItem = { id: '00000000-0000-0000-0000-000000000000' };
+            exampleItem = null;
           }
         } else {
           exampleItem = null;
@@ -1392,7 +1532,7 @@ function buildExampleFromProperties(properties, spec) {
     switch (propSchema.type) {
       case 'string':
         if (propSchema.format === 'uuid') {
-          example[propName] = '00000000-0000-0000-0000-000000000000';
+          example[propName] = null;
         } else if (propSchema.format === 'date-time') {
           example[propName] = new Date().toISOString();
         } else if (propName.toLowerCase().includes('status')) {
@@ -1432,6 +1572,8 @@ function buildExampleFromProperties(properties, spec) {
         if (propSchema.$ref) {
           // Handle reference to another schema
           const refName = propSchema.$ref.split('/').pop();
+          
+          // Special handling for Send schema
           if (refName === 'Send') {
             example[propName] = generateSendExample();
           } else if (refName.toLowerCase().includes('status')) {
@@ -1441,7 +1583,7 @@ function buildExampleFromProperties(properties, spec) {
             // Generate detailed address example
             example[propName] = generateAddressExample();
           } else {
-            example[propName] = { id: '00000000-0000-0000-0000-000000000000' };
+            example[propName] = null;
           }
         } else if (propSchema.properties) {
           example[propName] = generateObjectExample(propSchema);

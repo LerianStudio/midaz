@@ -1,20 +1,15 @@
 {
   "info": {
     "name": "MIDAZ",
-    "description": "This is a swagger documentation for the Midaz Ledger API",
+    "description": "This is a swagger documentation for the Midaz Ledger API\n\n**IMPORTANT**: This collection requires the **MIDAZ Environment** to be selected for proper functionality. Please ensure you have imported and selected the MIDAZ environment before using this collection.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "v1.48.0",
     "_postman_id": "00b3869d-895d-49b2-a6b5-68b193471560"
   },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost",
-      "type": "string"
-    }
-  ],
   "item": [
     {
       "name": "Organizations",
+      "description": "Endpoints for managing organizations, which are the top-level entities in the MIDAZ system.",
       "item": [
         {
           "name": "List all organizations",
@@ -185,7 +180,7 @@
             "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -534,7 +529,7 @@
             "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -616,6 +611,7 @@
     },
     {
       "name": "Ledgers",
+      "description": "Endpoints for managing ledgers, which are financial record-keeping systems for tracking assets, accounts, and transactions within an organization.",
       "item": [
         {
           "name": "List all ledgers",
@@ -1264,6 +1260,7 @@
     },
     {
       "name": "Accounts",
+      "description": "Endpoints for managing accounts, which represent individual financial entities like bank accounts, credit cards, or expense categories within a ledger.",
       "item": [
         {
           "name": "List all accounts",
@@ -1466,7 +1463,7 @@
             "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2003,7 +2000,7 @@
             "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2085,6 +2082,7 @@
     },
     {
       "name": "Assets",
+      "description": "Endpoints for managing assets, which represent the types of value that can be transferred between accounts.",
       "item": [
         {
           "name": "List all assets",
@@ -2774,6 +2772,7 @@
     },
     {
       "name": "Portfolios",
+      "description": "Endpoints for managing portfolios, which are collections of accounts grouped for reporting or management purposes.",
       "item": [
         {
           "name": "List all portfolios",
@@ -3010,7 +3009,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3048,7 +3055,18 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"portfolioId\", jsonData.id);",
+                  "    console.log(\"portfolioId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract portfolioId: \", error);",
+                  "}"
                 ]
               }
             }
@@ -3132,7 +3150,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"portfolioId\")) {",
+                  "  console.log(\"Warning: portfolioId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3433,6 +3462,7 @@
     },
     {
       "name": "Segments",
+      "description": "Endpoints for managing segments, which are used to categorize accounts for reporting or management purposes.",
       "item": [
         {
           "name": "List all segments",
@@ -3669,7 +3699,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3707,7 +3745,18 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"segmentId\", jsonData.id);",
+                  "    console.log(\"segmentId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract segmentId: \", error);",
+                  "}"
                 ]
               }
             }
@@ -3791,7 +3840,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"segmentId\")) {",
+                  "  console.log(\"Warning: segmentId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4092,6 +4152,7 @@
     },
     {
       "name": "Balances",
+      "description": "Endpoints for retrieving account balances, which represent the current value of an account.",
       "item": [
         {
           "name": "Get all balances by account id",
@@ -4253,7 +4314,24 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if response is an array with at least one item",
+                  "  if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
+                  "  } ",
+                  "  // Check if response has a data array with at least one item",
+                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}"
                 ]
               }
             }
@@ -4786,6 +4864,7 @@
     },
     {
       "name": "Operations",
+      "description": "Endpoints for managing operations, which are the individual debit and credit entries that make up a transaction.",
       "item": [
         {
           "name": "Get all Operations by account",
@@ -5213,6 +5292,7 @@
     },
     {
       "name": "Asset Rates",
+      "description": "Endpoints for managing asset exchange rates, which are used to convert between different asset types.",
       "item": [
         {
           "name": "Create or Update an AssetRate",
@@ -5626,6 +5706,7 @@
     },
     {
       "name": "Transactions",
+      "description": "Endpoints for managing transactions, which represent the movement of value between accounts.",
       "item": [
         {
           "name": "Get all Transactions",
@@ -5940,7 +6021,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"pending\": false,\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"Example account\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"Example account\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"pending\": false,\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"account_123\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"account_123\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6066,7 +6147,7 @@
             "description": "Create a Transaction with the input template",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionType\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTypeCode\": \"Example transactionTypeCode\",\n  \"variables\": {\n    \"key\": \"value\"\n  }\n}",
+              "raw": "{\n  \"transactionType\": null,\n  \"transactionTypeCode\": \"Example transactionTypeCode\",\n  \"variables\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6644,6 +6725,14 @@
           ]
         }
       ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "environment",
+      "value": "MIDAZ",
+      "type": "string",
+      "description": "This collection requires the MIDAZ environment to be selected for proper functionality."
     }
   ]
 }

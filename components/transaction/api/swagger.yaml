@@ -701,9 +701,7 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
-        description: |-
-          Whether the transaction should be created in pending state
-          example: false
+        description: Whether the transaction should be created in pending state
         type: boolean
       send:
         description: |-

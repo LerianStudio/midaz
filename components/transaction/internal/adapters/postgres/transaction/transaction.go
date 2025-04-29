@@ -94,7 +94,6 @@ type CreateTransactionInput struct {
 //	  "chartOfAccountsGroupName": "FUNDING",
 //	  "description": "New Transaction",
 //	  "code": "TR12345",
-//	  "pending": false,
 //	  "metadata": {
 //	    "reference": "TRANSACTION-001",
 //	    "source": "api"
@@ -164,7 +163,6 @@ type CreateTransactionSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
-	// example: false
 	Pending bool `json:"pending,omitempty"`
 
 	// Additional custom attributes

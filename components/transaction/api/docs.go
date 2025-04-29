@@ -2529,7 +2529,7 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nexample: false",
+                    "description": "Whether the transaction should be created in pending state",
                     "type": "boolean"
                 },
                 "send": {

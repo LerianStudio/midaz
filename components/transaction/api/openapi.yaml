@@ -2365,9 +2365,7 @@ components:
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
         pending:
-          description: |-
-            Whether the transaction should be created in pending state
-            example: false
+          description: Whether the transaction should be created in pending state
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
