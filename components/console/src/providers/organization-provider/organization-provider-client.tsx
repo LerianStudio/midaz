@@ -10,15 +10,15 @@ import {
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { usePathname, useRouter } from 'next/navigation'
 import { useListLedgers } from '@/client/ledgers'
-import { LedgerType } from '@/types/ledgers-type'
 import { useDefaultOrg } from './use-default-org'
 import { useDefaultLedger } from './use-default-ledger'
+import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
 
 type OrganizationContextProps = {
   currentOrganization: OrganizationEntity
   setOrganization: (organization: OrganizationEntity) => void
-  currentLedger: LedgerType
-  setLedger: (ledger: LedgerType) => void
+  currentLedger: LedgerResponseDto
+  setLedger: (ledger: LedgerResponseDto) => void
 }
 
 const OrganizationContext = createContext<OrganizationContextProps>(
@@ -44,8 +44,8 @@ export const OrganizationProviderClient = ({
     organizationsProp ?? []
   )
 
-  const [currentLedger, setCurrentLedger] = useState<LedgerType>(
-    {} as LedgerType
+  const [currentLedger, setCurrentLedger] = useState<LedgerResponseDto>(
+    {} as LedgerResponseDto
   )
   const { data: ledgers } = useListLedgers({
     organizationId: current?.id!,
