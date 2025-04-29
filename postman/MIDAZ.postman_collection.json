@@ -9223,7 +9223,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{portfolioId}}"
+                "{id}"
               ],
               "variable": [
                 {
@@ -9345,7 +9345,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{portfolioId}}"
+                "{id}"
               ],
               "variable": [
                 {
@@ -9755,7 +9755,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{segmentId}}"
+                "{id}"
               ],
               "variable": [
                 {
@@ -9877,7 +9877,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{segmentId}}"
+                "{id}"
               ],
               "variable": [
                 {
@@ -10393,7 +10393,7 @@
               }
             ],
             "url": {
-              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
               "host": [
                 "{{transactionUrl}}"
               ],
@@ -10404,9 +10404,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transactionId}}",
-                "operations",
-                "{{operationId}}"
+                "{{transactionId}}"
               ],
               "variable": [
                 {
@@ -10423,18 +10421,13 @@
                   "key": "transaction_id",
                   "value": "{{transactionId}}",
                   "description": "Transaction ID"
-                },
-                {
-                  "key": "operation_id",
-                  "value": "{{operationId}}",
-                  "description": "Operation ID"
                 }
               ]
             },
-            "description": "Update an Operation with the input payload",
+            "description": "Update a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
+              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

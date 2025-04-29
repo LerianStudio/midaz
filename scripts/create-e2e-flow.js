@@ -61,50 +61,50 @@ const workflowSteps = [
   { operation: "GET", path: "/v1/organizations", name: "1. List Organizations" },
   { operation: "POST", path: "/v1/organizations", name: "2. Create Organization" },
   { operation: "GET", path: "/v1/organizations/{id}", name: "3. Get Organization" },
-  { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization" },
+  { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization", pathPattern: "/organizations/{id}$" },
   
   // Ledger management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers", name: "5. List Ledgers" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers", name: "6. Create Ledger" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "7. Get Ledger" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger", pathPattern: "/ledgers/{id}$" },
   
   // Asset management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "9. List Assets" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "10. Create BRL Asset" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "11. Get Asset" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset", pathPattern: "/assets/{id}$" },
   
   // Account management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "13. List Accounts" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "14. Create Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "15. Get Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "16. Get Account by Alias" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account", pathPattern: "/accounts/{id}$" },
   
   // Portfolio management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "18. List Portfolios" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "19. Create Portfolio" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "20. Get Portfolio" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio", pathPattern: "/portfolios/{id}$" },
   
   // Segment management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "22. List Segments" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "23. Create Segment" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "24. Get Segment" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment", pathPattern: "/segments/{id}$" },
   
   // Transaction management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction", pathPattern: "/transactions/{transaction_id}$" },
   
   // Balance management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "32. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Update Balance" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Update Balance", pathPattern: "/balances/{balance_id}$" },
   
   // Operations flow (account-scoped since global operations endpoints aren't available)
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
@@ -189,6 +189,20 @@ const endpointExamples = {
     "sourceAssetCode": "USD",
     "rate": 1.0,
     "effectiveDate": new Date().toISOString()
+  },
+  
+  // Simple funding transaction example for quick account funding
+  fundingTransactionExample: {
+    "description": "Initial funding from external source",
+    "reference": "FUNDING-001",
+    "operations": [
+      {
+        "sourceAccountId": "@external/USD",
+        "destinationAccountId": "{{accountId}}",
+        "amount": "1000.00",
+        "assetCode": "USD"
+      }
+    ]
   }
 };
 
@@ -236,6 +250,31 @@ function customizeTransactionJsonEndpoint(request) {
   // Update the request body with the full example
   if (request.body.mode === 'raw') {
     request.body.raw = JSON.stringify(endpointExamples.transactionJsonExample, null, 2);
+  }
+  
+  // Add test script to extract transaction ID
+  if (request.event && request.event.length > 0) {
+    // Find the test script event
+    const testEvent = request.event.find(e => e.listen === 'test');
+    if (testEvent && testEvent.script) {
+      // Add script to extract transaction ID
+      const transactionIdScript = `
+// Extract transaction ID and store it in the environment
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && jsonData.id) {
+    pm.environment.set("transactionId", jsonData.id);
+    console.log("transactionId set to: " + jsonData.id);
+  }
+} catch (error) {
+  console.error("Failed to extract transactionId: ", error);
+}`;
+      
+      // Add the script to the end of the existing test script
+      if (Array.isArray(testEvent.script.exec)) {
+        testEvent.script.exec.push(...transactionIdScript.split('\n'));
+      }
+    }
   }
 }
 
@@ -300,12 +339,22 @@ try {
     pm.environment.set("accountAlias", jsonData.alias);
     console.log("accountAlias set to: " + jsonData.alias);
   }
+  // Also extract the accountId
+  if (jsonData && jsonData.id) {
+    pm.environment.set("accountId", jsonData.id);
+    console.log("accountId set to: " + jsonData.id);
+  }
 } catch (error) {
-  console.error("Failed to extract accountAlias: ", error);
+  console.error("Failed to extract account data: ", error);
 }`;
           
           // Add the script to the end of the existing test script
           if (Array.isArray(testEvent.script.exec)) {
+            // Remove any existing accountAlias extraction to avoid duplicates
+            testEvent.script.exec = testEvent.script.exec.filter(
+              line => !line.includes('accountAlias') && !line.includes('account alias')
+            );
+            // Add the new script
             testEvent.script.exec.push(...accountAliasScript.split('\n'));
           }
         }
@@ -355,6 +404,184 @@ function customizeAccountUpdateEndpoint(request) {
 }
 
 /**
+ * Customizes portfolio creation endpoints in the Postman collection
+ * 
+ * Adds test script to extract portfolioId for use in other requests
+ * 
+ * @param {object} request - The Postman request object to customize
+ */
+function customizePortfolioCreateEndpoint(request) {
+  if (!request) return;
+  
+  console.log('Customizing: Adding portfolioId extraction to Portfolio creation');
+  
+  // Add test script to extract portfolio ID
+  if (request.event && request.event.length > 0) {
+    // Find the test script event
+    const testEvent = request.event.find(e => e.listen === 'test');
+    if (testEvent && testEvent.script) {
+      // Add script to extract portfolio ID
+      const portfolioIdScript = `
+// Extract portfolio ID and store it in the environment
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && jsonData.id) {
+    pm.environment.set("portfolioId", jsonData.id);
+    console.log("portfolioId set to: " + jsonData.id);
+  }
+} catch (error) {
+  console.error("Failed to extract portfolioId: ", error);
+}`;
+      
+      // Add the script to the end of the existing test script
+      if (Array.isArray(testEvent.script.exec)) {
+        // Remove any existing portfolioId extraction to avoid duplicates
+        testEvent.script.exec = testEvent.script.exec.filter(
+          line => !line.includes('portfolioId') && !line.includes('portfolio ID')
+        );
+        // Add the new script
+        testEvent.script.exec.push(...portfolioIdScript.split('\n'));
+      }
+    }
+  }
+}
+
+/**
+ * Customizes segment creation endpoints in the Postman collection
+ * 
+ * Adds test script to extract segmentId for use in other requests
+ * 
+ * @param {object} request - The Postman request object to customize
+ */
+function customizeSegmentCreateEndpoint(request) {
+  if (!request) return;
+  
+  console.log('Customizing: Adding segmentId extraction to Segment creation');
+  
+  // Add test script to extract segment ID
+  if (request.event && request.event.length > 0) {
+    // Find the test script event
+    const testEvent = request.event.find(e => e.listen === 'test');
+    if (testEvent && testEvent.script) {
+      // Add script to extract segment ID
+      const segmentIdScript = `
+// Extract segment ID and store it in the environment
+try {
+  var jsonData = pm.response.json();
+  if (jsonData && jsonData.id) {
+    pm.environment.set("segmentId", jsonData.id);
+    console.log("segmentId set to: " + jsonData.id);
+  }
+} catch (error) {
+  console.error("Failed to extract segmentId: ", error);
+}`;
+      
+      // Add the script to the end of the existing test script
+      if (Array.isArray(testEvent.script.exec)) {
+        // Remove any existing segmentId extraction to avoid duplicates
+        testEvent.script.exec = testEvent.script.exec.filter(
+          line => !line.includes('segmentId') && !line.includes('segment ID')
+        );
+        // Add the new script
+        testEvent.script.exec.push(...segmentIdScript.split('\n'));
+      }
+    }
+  }
+}
+
+/**
+ * Customizes balance endpoints to extract balanceId
+ * 
+ * @param {object} request - The Postman request object to customize
+ */
+function customizeBalanceEndpoint(request) {
+  if (!request) return;
+  
+  console.log('Customizing: Adding balanceId extraction to balance endpoints');
+  
+  // Add test script to extract balance ID
+  if (request.event && request.event.length > 0) {
+    // Find the test script event
+    const testEvent = request.event.find(e => e.listen === 'test');
+    if (testEvent && testEvent.script) {
+      // Add script to extract balance ID
+      const balanceIdScript = `
+// Extract balance ID from the first item in the response if it's an array
+try {
+  var jsonData = pm.response.json();
+  if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {
+    pm.environment.set("balanceId", jsonData[0].id);
+    console.log("balanceId set to: " + jsonData[0].id);
+  } 
+  // For single balance response
+  else if (jsonData && jsonData.id) {
+    pm.environment.set("balanceId", jsonData.id);
+    console.log("balanceId set to: " + jsonData.id);
+  }
+} catch (error) {
+  console.error("Failed to extract balanceId: ", error);
+}`;
+      
+      // Add the script to the end of the existing test script
+      if (Array.isArray(testEvent.script.exec)) {
+        // Remove any existing balanceId extraction to avoid duplicates
+        testEvent.script.exec = testEvent.script.exec.filter(
+          line => !line.includes('balanceId') && !line.includes('balance ID')
+        );
+        // Add the new script
+        testEvent.script.exec.push(...balanceIdScript.split('\n'));
+      }
+    }
+  }
+}
+
+/**
+ * Customizes operation list endpoint to extract operationId
+ * 
+ * @param {object} request - The Postman request object to customize
+ */
+function customizeOperationEndpoint(request) {
+  if (!request) return;
+  
+  console.log('Customizing: Adding operationId extraction to operation list endpoint');
+  
+  // Add test script to extract operation ID
+  if (request.event && request.event.length > 0) {
+    // Find the test script event
+    const testEvent = request.event.find(e => e.listen === 'test');
+    if (testEvent && testEvent.script) {
+      // Add script to extract operation ID
+      const operationIdScript = `
+// Extract operation ID from the first item in the response if it's an array
+try {
+  var jsonData = pm.response.json();
+  if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {
+    pm.environment.set("operationId", jsonData[0].id);
+    console.log("operationId set to: " + jsonData[0].id);
+  } 
+  // For single operation response
+  else if (jsonData && jsonData.id) {
+    pm.environment.set("operationId", jsonData.id);
+    console.log("operationId set to: " + jsonData.id);
+  }
+} catch (error) {
+  console.error("Failed to extract operationId: ", error);
+}`;
+      
+      // Add the script to the end of the existing test script
+      if (Array.isArray(testEvent.script.exec)) {
+        // Remove any existing operationId extraction to avoid duplicates
+        testEvent.script.exec = testEvent.script.exec.filter(
+          line => !line.includes('operationId') && !line.includes('operation ID')
+        );
+        // Add the new script
+        testEvent.script.exec.push(...operationIdScript.split('\n'));
+      }
+    }
+  }
+}
+
+/**
  * Customizes portfolio update endpoints in the Postman collection
  * 
  * Fixes several common issues with portfolio update requests:
@@ -384,12 +611,12 @@ function customizePortfolioUpdateEndpoint(request) {
   if (request.url.raw) {
     // The API expects portfolios/{id} so keep it that way but set the value properly
     // Fix any instances where the path is wrong
-    request.url.raw = request.url.raw.replace(/portfolios\/\{\{portfolioId\}\}/g, "portfolios/{portfolioId}");
+    request.url.raw = request.url.raw.replace(/portfolios\/\{\{portfolioId\}\}/g, "portfolios/{id}");
     
     // Replace portfolios/{{ledgerId}} with portfolios/{id}
-    request.url.raw = request.url.raw.replace(/portfolios\/\{\{ledgerId\}\}/g, "portfolios/{portfolioId}");
+    request.url.raw = request.url.raw.replace(/portfolios\/\{\{ledgerId\}\}/g, "portfolios/{id}");
     
-    console.log('Updated raw URL to use correct format: portfolios/{portfolioId}');
+    console.log('Updated raw URL to use correct format: portfolios/{id}');
   }
   
   // Update path components - CRITICAL FIX
@@ -399,8 +626,16 @@ function customizePortfolioUpdateEndpoint(request) {
     
     // Check if the last element is using ledgerId incorrectly
     if (request.url.path[lastIndex] === "{{ledgerId}}") {
-      request.url.path[lastIndex] = "{portfolioId}";
-      console.log('Fixed incorrect ledgerId in path - replaced with {portfolioId}');
+      request.url.path[lastIndex] = "{id}";
+      console.log('Fixed incorrect ledgerId in path - replaced with {id}');
+    }
+    
+    // Also update any {{portfolioId}} in the path to {id}
+    for (let i = 0; i < request.url.path.length; i++) {
+      if (request.url.path[i] === "{{portfolioId}}") {
+        request.url.path[i] = "{id}";
+        console.log('Fixed path component to use {id} instead of {{portfolioId}}');
+      }
     }
   }
   
@@ -417,6 +652,12 @@ console.log("Set id path parameter to use portfolioId value: " + pm.environment.
       
       // Add the script to the end of the existing pre-request script
       if (Array.isArray(preRequestEvent.script.exec)) {
+        // Remove any existing id setup for portfolioId to avoid duplicates
+        preRequestEvent.script.exec = preRequestEvent.script.exec.filter(
+          line => !line.includes('pm.variables.set("id"') && 
+                  !line.includes('portfolioId')
+        );
+        // Add the new script
         preRequestEvent.script.exec.push(...idSetupScript.split('\n'));
       }
     } else {
@@ -467,12 +708,12 @@ function customizeSegmentUpdateEndpoint(request) {
   if (request.url.raw) {
     // The API expects segments/{id} so keep it that way but set the value properly
     // Fix any instances where the path is wrong
-    request.url.raw = request.url.raw.replace(/segments\/\{\{segmentId\}\}/g, "segments/{segmentId}");
+    request.url.raw = request.url.raw.replace(/segments\/\{\{segmentId\}\}/g, "segments/{id}");
     
     // Replace segments/{{ledgerId}} with segments/{id}
-    request.url.raw = request.url.raw.replace(/segments\/\{\{ledgerId\}\}/g, "segments/{segmentId}");
+    request.url.raw = request.url.raw.replace(/segments\/\{\{ledgerId\}\}/g, "segments/{id}");
     
-    console.log('Updated raw URL to use correct format: segments/{segmentId}');
+    console.log('Updated raw URL to use correct format: segments/{id}');
   }
   
   // Update path components - CRITICAL FIX
@@ -482,8 +723,16 @@ function customizeSegmentUpdateEndpoint(request) {
     
     // Check if the last element is using ledgerId incorrectly
     if (request.url.path[lastIndex] === "{{ledgerId}}") {
-      request.url.path[lastIndex] = "{segmentId}";
-      console.log('Fixed incorrect ledgerId in path - replaced with {segmentId}');
+      request.url.path[lastIndex] = "{id}";
+      console.log('Fixed incorrect ledgerId in path - replaced with {id}');
+    }
+    
+    // Also update any {{segmentId}} in the path to {id}
+    for (let i = 0; i < request.url.path.length; i++) {
+      if (request.url.path[i] === "{{segmentId}}") {
+        request.url.path[i] = "{id}";
+        console.log('Fixed path component to use {id} instead of {{segmentId}}');
+      }
     }
   }
   
@@ -500,6 +749,12 @@ console.log("Set id path parameter to use segmentId value: " + pm.environment.ge
       
       // Add the script to the end of the existing pre-request script
       if (Array.isArray(preRequestEvent.script.exec)) {
+        // Remove any existing id setup for segmentId to avoid duplicates
+        preRequestEvent.script.exec = preRequestEvent.script.exec.filter(
+          line => !line.includes('pm.variables.set("id"') &&
+                  !line.includes('segmentId')
+        );
+        // Add the new script
         preRequestEvent.script.exec.push(...idSetupScript.split('\n'));
       }
     } else {
@@ -546,6 +801,12 @@ console.log("Set transaction_id path parameter to use transactionId value: " + p
       
       // Add the script to the end of the existing pre-request script
       if (Array.isArray(preRequestEvent.script.exec)) {
+        // Remove any existing transaction_id setup to avoid duplicates
+        preRequestEvent.script.exec = preRequestEvent.script.exec.filter(
+          line => !line.includes('pm.variables.set("transaction_id"') &&
+                  !line.includes('transactionId')
+        );
+        // Add the new script
         preRequestEvent.script.exec.push(...idSetupScript.split('\n'));
       }
     } else {
@@ -592,6 +853,12 @@ console.log("Set balance_id path parameter to use balanceId value: " + pm.enviro
       
       // Add the script to the end of the existing pre-request script
       if (Array.isArray(preRequestEvent.script.exec)) {
+        // Remove any existing balance_id setup to avoid duplicates
+        preRequestEvent.script.exec = preRequestEvent.script.exec.filter(
+          line => !line.includes('pm.variables.set("balance_id"') &&
+                  !line.includes('balanceId')
+        );
+        // Add the new script
         preRequestEvent.script.exec.push(...idSetupScript.split('\n'));
       }
     } else {
@@ -672,6 +939,11 @@ if (!pm.environment.get("accountAlias")) {
       
       // Add the script to the end of the existing pre-request script
       if (Array.isArray(preRequestEvent.script.exec)) {
+        // Remove any existing accountAlias check to avoid duplicates
+        preRequestEvent.script.exec = preRequestEvent.script.exec.filter(
+          line => !line.includes('accountAlias') && !line.includes('account alias')
+        );
+        // Add the new script
         preRequestEvent.script.exec.push(...accountAliasCheckScript.split('\n'));
       }
     }
@@ -709,6 +981,7 @@ function customizeEndpoints(items) {
       
       // Post-process Transaction JSON endpoint
       if (item.name === 'Create a Transaction using JSON' || 
+          item.name === '27. Create Transaction using JSON' ||
           (item.name.includes('Transaction') && item.name.includes('JSON') && item.request.method === 'POST')) {
         customizeTransactionJsonEndpoint(item.request);
       }
@@ -725,10 +998,22 @@ function customizeEndpoints(items) {
         customizeAccountUpdateEndpoint(item.request);
       }
       
+      // Post-process Portfolio creation endpoint
+      if (item.name === "19. Create Portfolio" ||
+          (item.name.includes('Create Portfolio') && item.request.method === 'POST')) {
+        customizePortfolioCreateEndpoint(item.request);
+      }
+      
       // Post-process Portfolio update endpoint
       if (item.name === "21. Update Portfolio" || 
           (item.name.includes('Update Portfolio') && item.request.method === 'PATCH')) {
         customizePortfolioUpdateEndpoint(item.request);
+      }
+      
+      // Post-process Segment creation endpoint
+      if (item.name === "23. Create Segment" ||
+          (item.name.includes('Create Segment') && item.request.method === 'POST')) {
+        customizeSegmentCreateEndpoint(item.request);
       }
       
       // Post-process Segment update endpoint
@@ -755,16 +1040,51 @@ function customizeEndpoints(items) {
         customizeTransactionUpdateEndpoint(item.request);
       }
       
+      // Post-process Account Balances endpoint
+      if (item.name === "30. Get Account Balances" ||
+          (item.name.includes('Account Balances') && item.request.method === 'GET')) {
+        customizeBalanceEndpoint(item.request);
+      }
+      
+      // Post-process List All Balances endpoint
+      if (item.name === "31. List All Balances" ||
+          (item.name.includes('List All Balances') && item.request.method === 'GET')) {
+        customizeBalanceEndpoint(item.request);
+      }
+      
+      // Post-process Get Balance by ID endpoint
+      if (item.name === "32. Get Balance by ID" ||
+          (item.name.includes('Get Balance') && item.request.method === 'GET')) {
+        customizeBalanceEndpoint(item.request);
+      }
+      
       // Post-process Balance update endpoint
       if (item.name === "33. Update Balance" || 
           (item.name.includes('Update Balance') && item.request.method === 'PATCH')) {
         customizeBalanceUpdateEndpoint(item.request);
       }
       
+      // Post-process List Account Operations endpoint
+      if (item.name === "34. List Account Operations" ||
+          (item.name.includes('List Account Operations') && item.request.method === 'GET')) {
+        customizeOperationEndpoint(item.request);
+      }
+      
       // Post-process Get Account by Alias endpoint
       if (item.name === "16. Get Account by Alias" ||
           (item.name.includes('Account') && item.name.includes('Alias'))) {
         customizeGetAccountByAliasEndpoint(item.request);
+      }
+      
+      // Special case for creating AssetRate with USD
+      if (item.name === "13. Create AssetRate") {
+        if (item.request.body && item.request.body.mode === 'raw') {
+          try {
+            item.request.body.raw = JSON.stringify(endpointExamples.assetRateExample, null, 2);
+          } catch (e) {
+            console.log("Could not set body for AssetRate");
+          }
+        }
       }
     }
   }
@@ -796,14 +1116,15 @@ function findRequestByPathAndMethod(collection, path, method) {
   const pathRegex = new RegExp(pathPattern);
   
   // Special cases
+  const isAccountAliasEndpoint = path.includes('/accounts/alias/');
   const isUpdateEndpoint = method === 'PATCH';
   const isUpdateOrganizationEndpoint = isUpdateEndpoint && path.includes('/organizations/{id}');
   const isUpdateLedgerEndpoint = isUpdateEndpoint && path.includes('/ledgers/{id}');
   const isUpdateAccountEndpoint = isUpdateEndpoint && path.includes('/accounts/{id}') && !path.includes('/balances');
   const isUpdatePortfolioEndpoint = isUpdateEndpoint && path.includes('/portfolios/{id}');
   const isUpdateSegmentEndpoint = isUpdateEndpoint && path.includes('/segments/{id}');
-  const isUpdateTransactionEndpoint = isUpdateEndpoint && path.includes('/transactions/{id}');
-  const isUpdateBalanceEndpoint = isUpdateEndpoint && path.includes('/balances/{id}');
+  const isUpdateTransactionEndpoint = isUpdateEndpoint && path.includes('/transactions/{transaction_id}');
+  const isUpdateBalanceEndpoint = isUpdateEndpoint && path.includes('/balances/{balance_id}');
   
   // Search through all folders
   if (collection.item) {
@@ -821,7 +1142,44 @@ function findRequestByPathAndMethod(collection, path, method) {
             // Check if URL matches the path pattern
             const urlMatches = pathRegex.test(rawUrl);
             
-            if (urlMatches) {
+            // Special handling for specific endpoints
+            const isAliasEndpoint = isAccountAliasEndpoint && rawUrl.includes('/accounts/alias/');
+            
+            // Ensure we don't match asset-rates for update endpoints
+            let isCorrectUpdateEndpoint = true;
+            if (isUpdateEndpoint) {
+              if ((isUpdateOrganizationEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdateLedgerEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdateAccountEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdatePortfolioEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdateSegmentEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdateTransactionEndpoint && rawUrl.includes('asset-rates')) ||
+                  (isUpdateBalanceEndpoint && rawUrl.includes('asset-rates'))) {
+                isCorrectUpdateEndpoint = false;
+              }
+            }
+            
+            // For update endpoints, ensure we have the correct entity pattern
+            // For example, a PATCH with /organizations/{id} should not match /organizations/{organization_id}/asset-rates
+            if (isUpdateEndpoint) {
+              if (isUpdateOrganizationEndpoint && !rawUrl.match(/organizations\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdateLedgerEndpoint && !rawUrl.match(/ledgers\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdateAccountEndpoint && !rawUrl.match(/accounts\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdatePortfolioEndpoint && !rawUrl.match(/portfolios\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdateSegmentEndpoint && !rawUrl.match(/segments\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdateTransactionEndpoint && !rawUrl.match(/transactions\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              } else if (isUpdateBalanceEndpoint && !rawUrl.match(/balances\/\{[^\/]*\}$/)) {
+                isCorrectUpdateEndpoint = false;
+              }
+            }
+            
+            if ((urlMatches || isAliasEndpoint) && isCorrectUpdateEndpoint) {
               console.log(`Found matching endpoint: ${request.name}`);
               return request;
             }
