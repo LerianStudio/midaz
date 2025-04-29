@@ -48,7 +48,6 @@
   "entity.organization.doingBusinessAs": "Nome Fantasia",
   "entity.organization.legalDocument": "Documento",
   "entity.organization.legalName": "Nome Legal",
-  "entity.organization.status": "Status",
   "common.selectPlaceholder": "Selecione...",
   "error.midaz.unknowError": "Erro no Midaz, por favor, entre em contato com o suporte.",
   "common.status": "Status",
@@ -515,5 +514,6 @@
   "common.confirmPassword": "Confirmar Senha",
   "errors.custom.one_special_character": "O campo deve conter pelo menos 1 caractere especial",
   "entity.user.password.tooltip": "A senha deve conter pelo menos 8 caracteres, uma letra maiúscula, uma letra minúscula e um número.",
-  "sidebar.disabled.reason": "Nenhum ledger selecionado. Para acessar, crie um ledger."
+  "sidebar.disabled.reason": "Nenhum ledger selecionado. Para acessar, crie um ledger.",
+  "organizations.useOrganization": "Usar esta Organização"
 }

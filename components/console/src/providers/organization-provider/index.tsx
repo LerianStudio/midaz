@@ -8,7 +8,7 @@ import {
 } from '@/core/application/use-cases/organizations/fetch-all-organizations-use-case'
 import { serverFetcher } from '@/lib/fetcher'
 import { OrganizationProviderClient } from './organization-provider-client'
-import { OrganizationsType } from '@/types/organizations-type'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 
 const fetchAllOrganizationsUseCase = container.get<FetchAllOrganizations>(
   FetchAllOrganizationsUseCase
@@ -27,7 +27,7 @@ export const OrganizationProvider = async ({
 
   return (
     <OrganizationProviderClient
-      organizations={(orgResult?.items as OrganizationsType[]) ?? []}
+      organizations={(orgResult?.items as OrganizationResponseDto[]) ?? []}
     >
       {children}
     </OrganizationProviderClient>
