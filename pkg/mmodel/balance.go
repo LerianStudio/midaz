@@ -1,8 +1,11 @@
 package mmodel
 
 import (
+	"encoding/json"
+	"fmt"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/google/uuid"
+	"strconv"
 	"time"
 )
 
@@ -54,8 +57,8 @@ type BalanceRedis struct {
 	ID             string `json:"id"`
 	AccountID      string `json:"accountId"`
 	AssetCode      string `json:"assetCode"`
-	Available      int64  `json:"available,string"`
-	OnHold         int64  `json:"onHold,string"`
+	Available      int64  `json:"available"`
+	OnHold         int64  `json:"onHold"`
 	Scale          int64  `json:"scale"`
 	Version        int64  `json:"version"`
 	AccountType    string `json:"accountType"`
@@ -112,4 +115,85 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 		DeletedAt:      b.DeletedAt,
 		Metadata:       b.Metadata,
 	}
+}
+
+// UnmarshalJSON is a custom unmarshal function for BalanceRedis
+func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
+	type Alias BalanceRedis
+
+	aux := struct {
+		Available interface{} `json:"available"`
+		OnHold    interface{} `json:"onHold"`
+		*Alias
+	}{
+		Alias: (*Alias)(b),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	switch v := aux.Available.(type) {
+	case float64:
+		b.Available = int64(v)
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return fmt.Errorf("err to converter available field from string to float64: %v", err)
+		}
+
+		b.Available = int64(f)
+	case json.Number:
+		i, err := v.Int64()
+		if err != nil {
+			f, err := v.Float64()
+			if err != nil {
+				return fmt.Errorf("err to converter available field from json.Number: %v", err)
+			}
+
+			b.Available = int64(f)
+		} else {
+			b.Available = i
+		}
+	default:
+		f, ok := v.(float64)
+		if !ok {
+			return fmt.Errorf("type unsuported to available: %T", v)
+		}
+
+		b.Available = int64(f)
+	}
+
+	switch v := aux.OnHold.(type) {
+	case float64:
+		b.OnHold = int64(v)
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return fmt.Errorf("err to converter onHold field from string to float64: %v", err)
+		}
+
+		b.OnHold = int64(f)
+	case json.Number:
+		i, err := v.Int64()
+		if err != nil {
+			f, err := v.Float64()
+			if err != nil {
+				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
+			}
+
+			b.OnHold = int64(f)
+		} else {
+			b.OnHold = i
+		}
+	default:
+		f, ok := v.(float64)
+		if !ok {
+			return fmt.Errorf("type unsuported to  onHold: %T", v)
+		}
+
+		b.OnHold = int64(f)
+	}
+
+	return nil
 }
