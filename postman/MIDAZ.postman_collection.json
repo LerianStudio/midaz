@@ -3075,7 +3075,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -3197,7 +3197,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -3319,7 +3319,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -3734,7 +3734,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -3856,7 +3856,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -3978,7 +3978,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -9223,7 +9223,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{id}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -9345,7 +9345,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{id}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {
@@ -9755,7 +9755,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{id}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -9877,7 +9877,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{id}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -10393,7 +10393,7 @@
               }
             ],
             "url": {
-              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}",
               "host": [
                 "{{transactionUrl}}"
               ],
@@ -10404,7 +10404,9 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "transactions",
-                "{{transactionId}}"
+                "{{transactionId}}",
+                "operations",
+                "{{operationId}}"
               ],
               "variable": [
                 {
@@ -10421,13 +10423,18 @@
                   "key": "transaction_id",
                   "value": "{{transactionId}}",
                   "description": "Transaction ID"
+                },
+                {
+                  "key": "operation_id",
+                  "value": "{{operationId}}",
+                  "description": "Operation ID"
                 }
               ]
             },
-            "description": "Update a Transaction with the input payload",
+            "description": "Update an Operation with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -11753,7 +11760,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "segments",
-                "{{ledgerId}}"
+                "{{segmentId}}"
               ],
               "variable": [
                 {
@@ -11875,7 +11882,7 @@
                 "ledgers",
                 "{{ledgerId}}",
                 "portfolios",
-                "{{ledgerId}}"
+                "{{portfolioId}}"
               ],
               "variable": [
                 {

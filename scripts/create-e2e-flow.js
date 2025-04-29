@@ -61,60 +61,60 @@ const workflowSteps = [
   { operation: "GET", path: "/v1/organizations", name: "1. List Organizations" },
   { operation: "POST", path: "/v1/organizations", name: "2. Create Organization" },
   { operation: "GET", path: "/v1/organizations/{id}", name: "3. Get Organization" },
-  { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization", pathPattern: "/organizations/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{id}", name: "4. Update Organization" },
   
   // Ledger management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers", name: "5. List Ledgers" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers", name: "6. Create Ledger" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "7. Get Ledger" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger", pathPattern: "/ledgers/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "8. Update Ledger" },
   
   // Asset management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "9. List Assets" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets", name: "10. Create BRL Asset" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "11. Get Asset" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset", pathPattern: "/assets/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "12. Update Asset" },
   
   // Account management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "13. List Accounts" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts", name: "14. Create Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "15. Get Account" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", name: "16. Get Account by Alias" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account", pathPattern: "/accounts/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "17. Update Account" },
   
   // Portfolio management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "18. List Portfolios" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", name: "19. Create Portfolio" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "20. Get Portfolio" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio", pathPattern: "/portfolios/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "21. Update Portfolio" },
   
   // Segment management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "22. List Segments" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments", name: "23. Create Segment" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "24. Get Segment" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment", pathPattern: "/segments/{id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "25. Update Segment" },
   
   // Transaction management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction", pathPattern: "/transactions/{transaction_id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
   
   // Balance management flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "32. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance", pathPattern: "/balances/{balance_id}$" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Update Balance" },
   
   // Operations flow (account-scoped since global operations endpoints aren't available)
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}", name: "35. Get Account Operation" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{id}", name: "35. Get Account Operation" },
   
   // Special transaction operations
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "36. Revert Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}/revert", name: "36. Revert Transaction" },
   
   // Resource cleanup flow (in reverse dependency order)
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "37. Delete Balance" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "37. Delete Balance" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "38. Delete Account" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "39. Delete Segment" },
   { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "40. Delete Portfolio" },
@@ -189,20 +189,6 @@ const endpointExamples = {
     "sourceAssetCode": "USD",
     "rate": 1.0,
     "effectiveDate": new Date().toISOString()
-  },
-  
-  // Simple funding transaction example for quick account funding
-  fundingTransactionExample: {
-    "description": "Initial funding from external source",
-    "reference": "FUNDING-001",
-    "operations": [
-      {
-        "sourceAccountId": "@external/USD",
-        "destinationAccountId": "{{accountId}}",
-        "amount": "1000.00",
-        "assetCode": "USD"
-      }
-    ]
   }
 };
 
@@ -398,12 +384,12 @@ function customizePortfolioUpdateEndpoint(request) {
   if (request.url.raw) {
     // The API expects portfolios/{id} so keep it that way but set the value properly
     // Fix any instances where the path is wrong
-    request.url.raw = request.url.raw.replace(/portfolios\/\{\{portfolioId\}\}/g, "portfolios/{id}");
+    request.url.raw = request.url.raw.replace(/portfolios\/\{\{portfolioId\}\}/g, "portfolios/{portfolioId}");
     
     // Replace portfolios/{{ledgerId}} with portfolios/{id}
-    request.url.raw = request.url.raw.replace(/portfolios\/\{\{ledgerId\}\}/g, "portfolios/{id}");
+    request.url.raw = request.url.raw.replace(/portfolios\/\{\{ledgerId\}\}/g, "portfolios/{portfolioId}");
     
-    console.log('Updated raw URL to use correct format: portfolios/{id}');
+    console.log('Updated raw URL to use correct format: portfolios/{portfolioId}');
   }
   
   // Update path components - CRITICAL FIX
@@ -413,16 +399,8 @@ function customizePortfolioUpdateEndpoint(request) {
     
     // Check if the last element is using ledgerId incorrectly
     if (request.url.path[lastIndex] === "{{ledgerId}}") {
-      request.url.path[lastIndex] = "{id}";
-      console.log('Fixed incorrect ledgerId in path - replaced with {id}');
-    }
-    
-    // Also update any {{portfolioId}} in the path to {id}
-    for (let i = 0; i < request.url.path.length; i++) {
-      if (request.url.path[i] === "{{portfolioId}}") {
-        request.url.path[i] = "{id}";
-        console.log('Fixed path component to use {id} instead of {{portfolioId}}');
-      }
+      request.url.path[lastIndex] = "{portfolioId}";
+      console.log('Fixed incorrect ledgerId in path - replaced with {portfolioId}');
     }
   }
   
@@ -489,12 +467,12 @@ function customizeSegmentUpdateEndpoint(request) {
   if (request.url.raw) {
     // The API expects segments/{id} so keep it that way but set the value properly
     // Fix any instances where the path is wrong
-    request.url.raw = request.url.raw.replace(/segments\/\{\{segmentId\}\}/g, "segments/{id}");
+    request.url.raw = request.url.raw.replace(/segments\/\{\{segmentId\}\}/g, "segments/{segmentId}");
     
     // Replace segments/{{ledgerId}} with segments/{id}
-    request.url.raw = request.url.raw.replace(/segments\/\{\{ledgerId\}\}/g, "segments/{id}");
+    request.url.raw = request.url.raw.replace(/segments\/\{\{ledgerId\}\}/g, "segments/{segmentId}");
     
-    console.log('Updated raw URL to use correct format: segments/{id}');
+    console.log('Updated raw URL to use correct format: segments/{segmentId}');
   }
   
   // Update path components - CRITICAL FIX
@@ -504,16 +482,8 @@ function customizeSegmentUpdateEndpoint(request) {
     
     // Check if the last element is using ledgerId incorrectly
     if (request.url.path[lastIndex] === "{{ledgerId}}") {
-      request.url.path[lastIndex] = "{id}";
-      console.log('Fixed incorrect ledgerId in path - replaced with {id}');
-    }
-    
-    // Also update any {{segmentId}} in the path to {id}
-    for (let i = 0; i < request.url.path.length; i++) {
-      if (request.url.path[i] === "{{segmentId}}") {
-        request.url.path[i] = "{id}";
-        console.log('Fixed path component to use {id} instead of {{segmentId}}');
-      }
+      request.url.path[lastIndex] = "{segmentId}";
+      console.log('Fixed incorrect ledgerId in path - replaced with {segmentId}');
     }
   }
   
@@ -796,17 +766,6 @@ function customizeEndpoints(items) {
           (item.name.includes('Account') && item.name.includes('Alias'))) {
         customizeGetAccountByAliasEndpoint(item.request);
       }
-      
-      // Special case for creating AssetRate with USD
-      if (item.name === "13. Create AssetRate") {
-        if (item.request.body && item.request.body.mode === 'raw') {
-          try {
-            item.request.body.raw = JSON.stringify(endpointExamples.assetRateExample, null, 2);
-          } catch (e) {
-            console.log("Could not set body for AssetRate");
-          }
-        }
-      }
     }
   }
 }
@@ -837,15 +796,14 @@ function findRequestByPathAndMethod(collection, path, method) {
   const pathRegex = new RegExp(pathPattern);
   
   // Special cases
-  const isAccountAliasEndpoint = path.includes('/accounts/alias/');
   const isUpdateEndpoint = method === 'PATCH';
   const isUpdateOrganizationEndpoint = isUpdateEndpoint && path.includes('/organizations/{id}');
   const isUpdateLedgerEndpoint = isUpdateEndpoint && path.includes('/ledgers/{id}');
   const isUpdateAccountEndpoint = isUpdateEndpoint && path.includes('/accounts/{id}') && !path.includes('/balances');
   const isUpdatePortfolioEndpoint = isUpdateEndpoint && path.includes('/portfolios/{id}');
   const isUpdateSegmentEndpoint = isUpdateEndpoint && path.includes('/segments/{id}');
-  const isUpdateTransactionEndpoint = isUpdateEndpoint && path.includes('/transactions/{transaction_id}');
-  const isUpdateBalanceEndpoint = isUpdateEndpoint && path.includes('/balances/{balance_id}');
+  const isUpdateTransactionEndpoint = isUpdateEndpoint && path.includes('/transactions/{id}');
+  const isUpdateBalanceEndpoint = isUpdateEndpoint && path.includes('/balances/{id}');
   
   // Search through all folders
   if (collection.item) {
@@ -863,44 +821,7 @@ function findRequestByPathAndMethod(collection, path, method) {
             // Check if URL matches the path pattern
             const urlMatches = pathRegex.test(rawUrl);
             
-            // Special handling for specific endpoints
-            const isAliasEndpoint = isAccountAliasEndpoint && rawUrl.includes('/accounts/alias/');
-            
-            // Ensure we don't match asset-rates for update endpoints
-            let isCorrectUpdateEndpoint = true;
-            if (isUpdateEndpoint) {
-              if ((isUpdateOrganizationEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdateLedgerEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdateAccountEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdatePortfolioEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdateSegmentEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdateTransactionEndpoint && rawUrl.includes('asset-rates')) ||
-                  (isUpdateBalanceEndpoint && rawUrl.includes('asset-rates'))) {
-                isCorrectUpdateEndpoint = false;
-              }
-            }
-            
-            // For update endpoints, ensure we have the correct entity pattern
-            // For example, a PATCH with /organizations/{id} should not match /organizations/{organization_id}/asset-rates
-            if (isUpdateEndpoint) {
-              if (isUpdateOrganizationEndpoint && !rawUrl.match(/organizations\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdateLedgerEndpoint && !rawUrl.match(/ledgers\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdateAccountEndpoint && !rawUrl.match(/accounts\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdatePortfolioEndpoint && !rawUrl.match(/portfolios\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdateSegmentEndpoint && !rawUrl.match(/segments\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdateTransactionEndpoint && !rawUrl.match(/transactions\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              } else if (isUpdateBalanceEndpoint && !rawUrl.match(/balances\/\{[^\/]*\}$/)) {
-                isCorrectUpdateEndpoint = false;
-              }
-            }
-            
-            if ((urlMatches || isAliasEndpoint) && isCorrectUpdateEndpoint) {
+            if (urlMatches) {
               console.log(`Found matching endpoint: ${request.name}`);
               return request;
             }

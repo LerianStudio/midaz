@@ -890,8 +890,8 @@ function createPostmanCollection(spec) {
                   if (paramName === 'id') {
                     // Try to determine the entity type from the path
                     if (path.includes('/organizations/') && !path.includes('/ledgers/')) return '{{organizationId}}';
-                    if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/')) return '{{ledgerId}}';
-                    if (path.includes('/accounts/') && !path.includes('/balances/')) return '{{accountId}}';
+                    if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/') && !path.includes('/portfolios/') && !path.includes('/segments/')) return '{{ledgerId}}';
+                    if (path.includes('/accounts/') && !path.includes('/balances/') && !path.includes('/portfolios/') && !path.includes('/segments/')) return '{{accountId}}';
                     if (path.includes('/assets/')) return '{{assetId}}';
                     if (path.includes('/portfolios/')) return '{{portfolioId}}';
                     if (path.includes('/segments/')) return '{{segmentId}}';
@@ -950,8 +950,8 @@ function createPostmanCollection(spec) {
               else if (p.name === 'id') {
                 // Try to determine the entity type from the path
                 if (path.includes('/organizations/') && !path.includes('/ledgers/')) value = '{{organizationId}}';
-                if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/')) value = '{{ledgerId}}';
-                if (path.includes('/accounts/') && !path.includes('/balances/')) value = '{{accountId}}';
+                if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{ledgerId}}';
+                if (path.includes('/accounts/') && !path.includes('/balances/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{accountId}}';
                 if (path.includes('/assets/')) value = '{{assetId}}';
                 if (path.includes('/portfolios/')) value = '{{portfolioId}}';
                 if (path.includes('/segments/')) value = '{{segmentId}}';
