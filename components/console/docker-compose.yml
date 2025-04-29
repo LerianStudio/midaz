@@ -1,7 +1,6 @@
 services:
   console:
     container_name: midaz-console
-    image: midaz-console
     build:
       context: .
       dockerfile: Dockerfile

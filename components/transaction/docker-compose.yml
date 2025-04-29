@@ -1,7 +1,6 @@
 services:
   transaction:
     container_name: midaz-transaction
-    image: midaz-transaction
     restart: always
     build:
       context: ../../
