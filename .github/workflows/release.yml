@@ -148,12 +148,12 @@ jobs:
       uses: goreleaser/goreleaser-action@v6
       with:
         version: v2.8.2
-        args: release --clean --skip-validate-git
+        args: release --clean
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
   
-  # Generate changelog with gptchangelog
+  # Generate changelog with gptchangelog custom module
   generate_changelog:
     name: 📝 Generate AI-powered Changelog
     runs-on: ubuntu-22.04
