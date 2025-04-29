@@ -148,7 +148,7 @@ jobs:
       uses: goreleaser/goreleaser-action@v6
       with:
         version: v2.8.2
-        args: release --clean
+        args: release --clean --skip-validate-git
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
