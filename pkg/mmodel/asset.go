@@ -155,13 +155,13 @@ type AssetErrorResponse struct {
 		// Error code identifying the specific error
 		// example: 400001
 		Code int `json:"code"`
-		
+
 		// Human-readable error message
 		// example: Invalid input: field 'code' is required
 		Message string `json:"message"`
-		
+
 		// Additional error details if available
 		// example: {"field": "code", "violation": "required"}
-		Details map[string]interface{} `json:"details,omitempty"`
+		Details map[string]any `json:"details,omitempty"`
 	}
 }

@@ -15,81 +15,81 @@ type Balance struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Organization that owns this balance
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Ledger containing the account this balance belongs to
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Account that holds this balance
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Alias for the account, used for easy identification or tagging
 	// example: @person1
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
-	
+
 	// Asset code identifying the currency or asset type of this balance
 	// example: USD
 	// minLength: 2
 	// maxLength: 10
 	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
-	
+
 	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
 	// example: 1500
 	// minimum: 0
 	Available int64 `json:"available" example:"1500" minimum:"0"`
-	
+
 	// Amount currently on hold and unavailable for transactions
 	// example: 500
 	// minimum: 0
 	OnHold int64 `json:"onHold" example:"500" minimum:"0"`
-	
+
 	// Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)
 	// example: 2
 	// minimum: 0
 	Scale int64 `json:"scale" example:"2" minimum:"0"`
-	
+
 	// Optimistic concurrency control version
 	// example: 1
 	// minimum: 1
 	Version int64 `json:"version" example:"1" minimum:"1"`
-	
+
 	// Type of account holding this balance
 	// example: creditCard
 	// maxLength: 50
 	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
-	
+
 	// Whether the account can send funds from this balance
 	// example: true
 	AllowSending bool `json:"allowSending" example:"true"`
-	
+
 	// Whether the account can receive funds to this balance
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
-	
+
 	// Timestamp when the balance was created (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	
+
 	// Timestamp when the balance was last updated (RFC3339 format)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	
+
 	// Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-	
+
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
@@ -104,7 +104,7 @@ type UpdateBalance struct {
 	// required: false
 	// example: true
 	AllowSending *bool `json:"allowSending" example:"true"`
-	
+
 	// Whether the account should be allowed to receive funds to this balance
 	// required: false
 	// example: true
@@ -124,12 +124,12 @@ type Balances struct {
 	// Array of balance records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","accountId":"00000000-0000-0000-0000-000000000000","assetCode":"USD","available":1500}]
 	Items []Balance `json:"items"`
-	
+
 	// Current page number in the pagination
 	// example: 1
 	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
-	
+
 	// Maximum number of items per page
 	// example: 10
 	// minimum: 1
@@ -143,31 +143,31 @@ type Balances struct {
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
-	
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
-	
+
 	// Asset code identifying the currency or asset type of this balance
 	AssetCode string `json:"assetCode"`
-	
+
 	// Amount available for transactions
 	Available int64 `json:"available"`
-	
+
 	// Amount currently on hold
 	OnHold int64 `json:"onHold"`
-	
+
 	// Decimal places for the asset
 	Scale int64 `json:"scale"`
-	
+
 	// Optimistic concurrency control version
 	Version int64 `json:"version"`
-	
+
 	// Type of account holding this balance
 	AccountType string `json:"accountType"`
-	
+
 	// Whether the account can send funds (1=true, 0=false)
 	AllowSending int `json:"allowSending"`
-	
+
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
 }
@@ -251,13 +251,13 @@ type BalanceErrorResponse struct {
 		// Error code identifying the specific error
 		// example: 400001
 		Code int `json:"code"`
-		
+
 		// Human-readable error message
 		// example: Invalid input: field 'assetCode' is required
 		Message string `json:"message"`
-		
+
 		// Additional error details if available
 		// example: {"field": "assetCode", "violation": "required"}
-		Details map[string]interface{} `json:"details,omitempty"`
+		Details map[string]any `json:"details,omitempty"`
 	}
 }

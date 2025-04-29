@@ -93,7 +93,7 @@ fi
 # Run golangci-lint if available
 if command -v golangci-lint >/dev/null 2>&1; then
     echo "${YELLOW}Running quick lint check...${NC}"
-    golangci-lint run --fast ./... || {
+    golangci-lint run ./... || {
         echo "${RED}${BOLD}[ERROR]${NC} Linting failed. Please fix the issues before committing."
         echo "${YELLOW}You can run 'make lint' for more details.${NC}"
         exit 1
@@ -255,7 +255,7 @@ fi
 # Run golangci-lint if available
 if command -v golangci-lint >/dev/null 2>&1; then
     echo "${YELLOW}Running quick lint check...${NC}"
-    golangci-lint run --fast ./... || {
+    golangci-lint run ./... || {
         echo "${RED}${BOLD}[ERROR]${NC} Linting failed. Please fix the issues before committing."
         echo "${YELLOW}You can run 'make lint' for more details.${NC}"
         exit 1
