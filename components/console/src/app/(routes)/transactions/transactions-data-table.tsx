@@ -55,7 +55,6 @@ type TransactionsDataTableProps = {
 
 type TransactionsRowProps = {
   transaction: Row<TransactionType>
-  currentLedger: LedgerType
 }
 
 const multipleItemsMessages = defineMessages({
@@ -88,10 +87,7 @@ const statusMessages = defineMessages({
   }
 })
 
-const TransactionRow: React.FC<TransactionsRowProps> = ({
-  transaction,
-  currentLedger
-}) => {
+const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const intl = useIntl()
   const {
     status: { code },
@@ -297,7 +293,6 @@ export const TransactionsDataTable = ({
                   <TransactionRow
                     key={transaction.id}
                     transaction={transaction}
-                    currentLedger={currentLedger}
                   />
                 ))}
               </TableBody>
