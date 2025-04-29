@@ -2512,7 +2512,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "chartOfAccountsGroupName": {
-                    "description": "Chart of accounts group name for accounting purposes\nexample: PIX_TRANSACTIONS\nmaxLength: 256",
+                    "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
                     "type": "string"
                 },
                 "code": {
@@ -2537,7 +2537,7 @@ const docTemplate = `{
                     "type": "object",
                     "properties": {
                         "asset": {
-                            "description": "Asset code for the transaction\nexample: BRL\nrequired: true",
+                            "description": "Asset code for the transaction\nexample: USD\nrequired: true",
                             "type": "string"
                         },
                         "distribute": {
@@ -2551,7 +2551,7 @@ const docTemplate = `{
                                         "type": "object",
                                         "properties": {
                                             "account": {
-                                                "description": "Account identifier or alias\nexample: @account1_BRL\nrequired: true",
+                                                "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
                                                 "type": "string"
                                             },
                                             "amount": {
@@ -2559,7 +2559,7 @@ const docTemplate = `{
                                                 "type": "object",
                                                 "properties": {
                                                     "asset": {
-                                                        "description": "Asset code\nexample: BRL\nrequired: true",
+                                                        "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
                                                     "scale": {
@@ -2573,7 +2573,7 @@ const docTemplate = `{
                                                 }
                                             },
                                             "chartOfAccounts": {
-                                                "description": "Chart of accounts code\nexample: PIX_CREDIT",
+                                                "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
                                                 "type": "string"
                                             },
                                             "description": {
@@ -2605,7 +2605,7 @@ const docTemplate = `{
                                         "type": "object",
                                         "properties": {
                                             "account": {
-                                                "description": "Account identifier or alias\nexample: @external/BRL\nrequired: true",
+                                                "description": "Account identifier or alias\nexample: @external/USD\nrequired: true",
                                                 "type": "string"
                                             },
                                             "amount": {
@@ -2613,7 +2613,7 @@ const docTemplate = `{
                                                 "type": "object",
                                                 "properties": {
                                                     "asset": {
-                                                        "description": "Asset code\nexample: BRL\nrequired: true",
+                                                        "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
                                                     "scale": {
@@ -2627,7 +2627,7 @@ const docTemplate = `{
                                                 }
                                             },
                                             "chartOfAccounts": {
-                                                "description": "Chart of accounts code\nexample: PIX_DEBIT",
+                                                "description": "Chart of accounts code\nexample: FUNDING_DEBIT",
                                                 "type": "string"
                                             },
                                             "description": {

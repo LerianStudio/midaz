@@ -2735,12 +2735,12 @@ components:
         are identified by a unique ID, can have aliases for easy reference, and are
         associated with a specific asset type.
       example:
-        parentAccountId: 00000000-0000-0000-0000-000000000000
+        parentAccountId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         metadata:
           key: '{}'
         assetCode: USD
-        portfolioId: 00000000-0000-0000-0000-000000000000
-        segmentId: 00000000-0000-0000-0000-000000000000
+        portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Corporate Checking Account
         alias: '@treasury_checking'
         entityId: EXT-ACC-12345
@@ -2795,27 +2795,21 @@ components:
           description: |-
             ID of the parent account if this is a sub-account (optional)
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         portfolioId:
           description: |-
             ID of the portfolio this account belongs to (optional)
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         segmentId:
           description: |-
             ID of the segment this account belongs to (optional)
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         status:
@@ -3462,8 +3456,8 @@ components:
       example:
         metadata:
           key: '{}'
-        portfolioId: 00000000-0000-0000-0000-000000000000
-        segmentId: 00000000-0000-0000-0000-000000000000
+        portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
         status: '{}'
       properties:
@@ -3488,18 +3482,14 @@ components:
           description: |-
             Updated portfolio ID for the account
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         segmentId:
           description: |-
             Updated segment ID for the account
             required: false
-            example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
         status:

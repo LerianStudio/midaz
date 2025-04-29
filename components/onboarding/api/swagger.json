@@ -3219,22 +3219,19 @@
                     "example": "Corporate Checking Account"
                 },
                 "parentAccountId": {
-                    "description": "ID of the parent account if this is a sub-account (optional)\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "ID of the parent account if this is a sub-account (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "portfolioId": {
-                    "description": "ID of the portfolio this account belongs to (optional)\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "ID of the portfolio this account belongs to (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "segmentId": {
-                    "description": "ID of the segment this account belongs to (optional)\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "ID of the segment this account belongs to (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Current operating status of the account\nrequired: false",
@@ -3790,16 +3787,14 @@
                     "example": "Primary Corporate Checking Account"
                 },
                 "portfolioId": {
-                    "description": "Updated portfolio ID for the account\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "Updated portfolio ID for the account\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "segmentId": {
-                    "description": "Updated segment ID for the account\nrequired: false\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "Updated segment ID for the account\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Updated status of the account\nrequired: false",

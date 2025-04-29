@@ -296,27 +296,21 @@ definitions:
         description: |-
           ID of the parent account if this is a sub-account (optional)
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       portfolioId:
         description: |-
           ID of the portfolio this account belongs to (optional)
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       segmentId:
         description: |-
           ID of the segment this account belongs to (optional)
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:
@@ -872,18 +866,14 @@ definitions:
         description: |-
           Updated portfolio ID for the account
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       segmentId:
         description: |-
           Updated segment ID for the account
           required: false
-          example: 00000000-0000-0000-0000-000000000000
           format: uuid
-        example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:

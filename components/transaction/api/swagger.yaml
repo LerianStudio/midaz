@@ -679,7 +679,7 @@ definitions:
       chartOfAccountsGroupName:
         description: |-
           Chart of accounts group name for accounting purposes
-          example: PIX_TRANSACTIONS
+          example: FUNDING
           maxLength: 256
         type: string
       code:
@@ -713,7 +713,7 @@ definitions:
           asset:
             description: |-
               Asset code for the transaction
-              example: BRL
+              example: USD
               required: true
             type: string
           distribute:
@@ -730,7 +730,7 @@ definitions:
                     account:
                       description: |-
                         Account identifier or alias
-                        example: @account1_BRL
+                        example: {{accountAlias}}
                         required: true
                       type: string
                     amount:
@@ -741,7 +741,7 @@ definitions:
                         asset:
                           description: |-
                             Asset code
-                            example: BRL
+                            example: USD
                             required: true
                           type: string
                         scale:
@@ -760,7 +760,7 @@ definitions:
                     chartOfAccounts:
                       description: |-
                         Chart of accounts code
-                        example: PIX_CREDIT
+                        example: FUNDING_CREDIT
                       type: string
                     description:
                       description: |-
@@ -796,7 +796,7 @@ definitions:
                     account:
                       description: |-
                         Account identifier or alias
-                        example: @external/BRL
+                        example: @external/USD
                         required: true
                       type: string
                     amount:
@@ -807,7 +807,7 @@ definitions:
                         asset:
                           description: |-
                             Asset code
-                            example: BRL
+                            example: USD
                             required: true
                           type: string
                         scale:
@@ -826,7 +826,7 @@ definitions:
                     chartOfAccounts:
                       description: |-
                         Chart of accounts code
-                        example: PIX_DEBIT
+                        example: FUNDING_DEBIT
                       type: string
                     description:
                       description: |-
