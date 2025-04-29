@@ -18,7 +18,6 @@ export type AssetResponseDto = {
   name: string
   type: string
   code: string
-  status: StatusDto
   metadata: Record<string, string> | null
   createdAt: Date
   updatedAt: Date
