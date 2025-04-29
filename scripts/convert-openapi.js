@@ -479,8 +479,7 @@ function fixPathParameters(spec) {
       .replace(/:asset_code/g, '{asset_code}')
       .replace(/:portfolio_id/g, '{portfolio_id}')
       .replace(/:segment_id/g, '{segment_id}')
-      .replace(/:id/g, '{id}')
-      .replace(/:alias/g, '{alias}');
+      .replace(/:id/g, '{id}');
     
     fixedPaths[fixedPath] = paths[path];
   }
@@ -793,6 +792,51 @@ function generateExampleFromSchema(schema, depth = 0) {
       }
     }
     
+    // Special handling for the send field in transaction models
+    if (schema.properties && schema.properties.send && schema.properties.send.type === 'object' && schema.properties.send.properties) {
+      example.send = {
+        asset: "USD",
+        value: 100,
+        scale: 2,
+        source: {
+          from: [
+            {
+              account: "@external/USD",
+              amount: {
+                asset: "USD",
+                value: 100,
+                scale: 2
+              },
+              description: "Debit Operation",
+              chartOfAccounts: "FUNDING_DEBIT",
+              metadata: {
+                operation: "funding",
+                type: "external"
+              }
+            }
+          ]
+        },
+        distribute: {
+          to: [
+            {
+              account: "{{accountAlias}}",
+              amount: {
+                asset: "USD",
+                value: 100,
+                scale: 2
+              },
+              description: "Credit Operation",
+              chartOfAccounts: "FUNDING_CREDIT",
+              metadata: {
+                operation: "funding",
+                type: "account"
+              }
+            }
+          ]
+        }
+      };
+    }
+    
     return example;
   } else if (schema.type === 'array') {
     if (schema.items) {
@@ -1084,6 +1128,50 @@ function createPostmanCollection(spec) {
                         }
                       }
                     }
+                    // Special handling for the send field in transaction models
+                    else if (propName === 'send' && prop.type === 'object' && prop.properties) {
+                      example[propName] = {
+                        asset: "USD",
+                        value: 100,
+                        scale: 2,
+                        source: {
+                          from: [
+                            {
+                              account: "@external/USD",
+                              amount: {
+                                asset: "USD",
+                                value: 100,
+                                scale: 2
+                              },
+                              description: "Debit Operation",
+                              chartOfAccounts: "FUNDING_DEBIT",
+                              metadata: {
+                                operation: "funding",
+                                type: "external"
+                              }
+                            }
+                          ]
+                        },
+                        distribute: {
+                          to: [
+                            {
+                              account: "{{accountAlias}}",
+                              amount: {
+                                asset: "USD",
+                                value: 100,
+                                scale: 2
+                              },
+                              description: "Credit Operation",
+                              chartOfAccounts: "FUNDING_CREDIT",
+                              metadata: {
+                                operation: "funding",
+                                type: "account"
+                              }
+                            }
+                          ]
+                        }
+                      };
+                    }
                     // Handle metadata with a realistic example
                     else if (propName === 'metadata' && prop.additionalProperties !== undefined) {
                       example[propName] = {
@@ -1115,53 +1203,6 @@ function createPostmanCollection(spec) {
                       else if (prop.type === 'object') example[propName] = {};
                     }
                   });
-                }
-              }
-            }
-            
-            // Only special handling for DSL endpoint
-            if (path.includes('/transactions')) {
-              if (method === 'post') {
-                // Check if this is the DSL endpoint
-                if (path.includes('/dsl') || path.endsWith('/dsl')) {
-                  console.log('DSL endpoint detected, adding text body example');
-                  
-                  // Create a transaction DSL example
-                  const dslExample = `// Transaction DSL Example
-// This is a simple transfer between two accounts
-
-transaction {
-  description "Fund transfer between accounts"
-  reference "TRANSFER-REF-001"
-  
-  // Account debited $100
-  debit {
-    account "{{accountId}}"
-    amount 100.00
-    asset "USD"
-  }
-  
-  // Account credited $100
-  credit {
-    account "00000000-0000-0000-0000-000000000002"
-    amount 100.00
-    asset "USD"
-  }
-}`;
-
-                  // For DSL endpoint, set body directly
-                  requestItem.request.body = {
-                    mode: 'raw',
-                    raw: dslExample,
-                    options: {
-                      raw: {
-                        language: 'text'
-                      }
-                    }
-                  };
-                  
-                  // Skip the normal JSON body creation for this endpoint
-                  return;
                 }
               }
             }
