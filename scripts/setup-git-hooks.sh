@@ -126,10 +126,13 @@ commit_msg=$(cat "$commit_msg_file")
 # Get the first line of the commit message
 first_line=$(echo "$commit_msg" | head -n 1)
 
+# For debugging
+echo "Commit message first line: '$first_line'"
+
 # Define the conventional commit format regex
 # Format: type(scope): description
 # Where type is one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-conventional_format="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: .+"
+conventional_format='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_.-]*\))?: .+'
 
 if ! [[ "$first_line" =~ $conventional_format ]]; then
     echo "[ERROR] Commit message does not follow conventional format."
@@ -261,10 +264,13 @@ commit_msg=$(cat "$commit_msg_file")
 # Get the first line of the commit message
 first_line=$(echo "$commit_msg" | head -n 1)
 
+# For debugging
+echo "Commit message first line: '$first_line'"
+
 # Define the conventional commit format regex
 # Format: type(scope): description
 # Where type is one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-conventional_format="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: .+"
+conventional_format='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_.-]*\))?: .+'
 
 if ! [[ "$first_line" =~ $conventional_format ]]; then
     echo "[ERROR] Commit message does not follow conventional format."
