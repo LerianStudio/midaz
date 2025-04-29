@@ -89,7 +89,7 @@ help:
 	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
-	@echo "$(BOLD)Service Commands:$(NC)"
+	@echo "Service Commands:"
 	@echo "  make up                           - Start all services with Docker Compose"
 	@echo "  make down                         - Stop all services with Docker Compose"
 	@echo "  make start                        - Start all containers"
@@ -199,9 +199,9 @@ cover:
 	@echo "Coverage Summary:"
 	@echo "----------------------------------------"
 	@go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open coverage.html in your browser to view detailed coverage report$(NC)"
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
+	@echo "----------------------------------------"
+	@echo "Open coverage.html in your browser to view detailed coverage report"
+	@echo "[ok] Coverage report generated successfully ✔️"
 
 #-------------------------------------------------------
 # Backend Commands
@@ -211,36 +211,36 @@ cover:
 up-backend:
 	$(call title1,"Starting backend services")
 	$(call check_env_files)
-	@echo "$(CYAN)Starting infrastructure services first...$(NC)"
+	@echo "Starting infrastructure services first..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "$(CYAN)Starting backend components...$(NC)"
+	@echo "Starting backend components..."
 	@for dir in $(BACKEND_COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "$(CYAN)Starting services in $$dir...$(NC)"; \
+			echo "Starting services in $$dir..."; \
 			(cd $$dir && $(MAKE) up) || exit 1; \
 		fi \
 	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services started successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Backend services started successfully ✔️"
 
 .PHONY: down-backend
 down-backend:
 	$(call title1,"Stopping backend services")
-	@echo "$(CYAN)Stopping backend components...$(NC)"
+	@echo "Stopping backend components..."
 	@for dir in $(BACKEND_COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "$(CYAN)Stopping services in $$dir...$(NC)"; \
+			echo "Stopping services in $$dir..."; \
 			(cd $$dir && $(MAKE) down) || exit 1; \
 		fi \
 	done
-	@echo "$(CYAN)Stopping infrastructure services...$(NC)"
+	@echo "Stopping infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) down
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services stopped successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Backend services stopped successfully ✔️"
 
 .PHONY: restart-backend
 restart-backend:
 	$(call title1,"Restarting backend services")
 	@make down-backend && make up-backend
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services restarted successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Backend services restarted successfully ✔️"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -494,7 +494,7 @@ transaction:
 console:
 	$(call title1,"Running command in console component")
 	@if [ -z "$(COMMAND)" ]; then \
-		echo "$(RED)Error: No command specified. Use COMMAND=<cmd> to specify a command.$(NC)"; \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
 	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
