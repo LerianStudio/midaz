@@ -42,14 +42,12 @@ import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { TransactionType } from '@/types/transactions-type'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { LedgerType } from '@/types/ledgers-type'
 
 type TransactionsDataTableProps = {
   transactions: PaginationDto<TransactionType> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
-  currentLedger: LedgerType
   onCreateTransaction: () => void
 }
 
@@ -195,7 +193,6 @@ export const TransactionsDataTable = ({
   form,
   total,
   pagination,
-  currentLedger,
   onCreateTransaction
 }: TransactionsDataTableProps) => {
   const intl = useIntl()
