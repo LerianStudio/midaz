@@ -854,6 +854,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "ID cannot be used as the parent ID",
 			Message:    "The provided ID cannot be used as the parent ID. Please choose a different one.",
 		},
+		constant.ErrMessageBrokerUnavailable: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrMessageBrokerUnavailable.Error(),
+			Title:      "Message Broker Unavailable",
+			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

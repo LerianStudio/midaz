@@ -1,3 +1,9 @@
+## [v2.2.0-beta.12] - 2025-04-29
+
+### ✨ Features
+- Configure commit process with push bot application ID
+
+
 ## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
 
 

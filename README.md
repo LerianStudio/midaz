@@ -133,6 +133,7 @@ This will start all components using Docker Compose:
 - Infrastructure Services (PostgreSQL, MongoDB, RabbitMQ, Redis, Grafana)
 - Onboarding Service
 - Transaction Service
+- Console
 
 ### Additional Commands
 
