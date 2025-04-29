@@ -11,7 +11,6 @@ export class LedgerMapper {
   ): LedgerEntity {
     return {
       name: dto.name!,
-      status: dto.status!,
       metadata: dto.metadata!
     }
   }
@@ -21,10 +20,6 @@ export class LedgerMapper {
       id: ledger.id!,
       organizationId: ledger.organizationId!,
       name: ledger.name,
-      status: {
-        code: ledger.status.code,
-        description: ledger.status.description ?? ''
-      },
       metadata: ledger.metadata ?? {},
       createdAt: ledger.createdAt!,
       updatedAt: ledger.updatedAt!,
