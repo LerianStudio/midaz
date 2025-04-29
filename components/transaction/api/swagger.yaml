@@ -695,7 +695,7 @@ definitions:
           maxLength: 256
         type: string
       metadata:
-        additionalProperties: true
+        additionalProperties: {}
         description: |-
           Additional custom attributes
           example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -768,7 +768,7 @@ definitions:
                         example: Credit Operation
                       type: string
                     metadata:
-                      additionalProperties: true
+                      additionalProperties: {}
                       description: |-
                         Additional metadata
                         example: {"operation": "funding", "type": "account"}
@@ -834,7 +834,7 @@ definitions:
                         example: Debit Operation
                       type: string
                     metadata:
-                      additionalProperties: true
+                      additionalProperties: {}
                       description: |-
                         Additional metadata
                         example: {"operation": "funding", "type": "external"}

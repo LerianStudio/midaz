@@ -2526,7 +2526,7 @@ const docTemplate = `{
                 "metadata": {
                     "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
                     "type": "object",
-                    "additionalProperties": true
+                    "additionalProperties": {}
                 },
                 "pending": {
                     "description": "Whether the transaction should be created in pending state\nexample: false",
@@ -2583,7 +2583,7 @@ const docTemplate = `{
                                             "metadata": {
                                                 "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
                                                 "type": "object",
-                                                "additionalProperties": true
+                                                "additionalProperties": {}
                                             }
                                         }
                                     }
@@ -2637,7 +2637,7 @@ const docTemplate = `{
                                             "metadata": {
                                                 "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"external\"}",
                                                 "type": "object",
-                                                "additionalProperties": true
+                                                "additionalProperties": {}
                                             }
                                         }
                                     }

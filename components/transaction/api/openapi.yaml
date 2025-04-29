@@ -2358,10 +2358,11 @@ components:
             maxLength: 256
           type: string
         metadata:
+          additionalProperties:
+            type: object
           description: |-
             Additional custom attributes
             example: {"reference": "TRANSACTION-001", "source": "api"}
-          properties: {}
           type: object
         pending:
           description: |-
@@ -2940,10 +2941,11 @@ components:
             example: Credit Operation
           type: string
         metadata:
+          additionalProperties:
+            type: object
           description: |-
             Additional metadata
             example: {"operation": "funding", "type": "account"}
-          properties: {}
           type: object
       type: object
     ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
@@ -2980,10 +2982,11 @@ components:
             example: Debit Operation
           type: string
         metadata:
+          additionalProperties:
+            type: object
           description: |-
             Additional metadata
             example: {"operation": "funding", "type": "external"}
-          properties: {}
           type: object
       type: object
     ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
