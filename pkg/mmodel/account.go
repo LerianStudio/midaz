@@ -13,8 +13,6 @@ import (
 //	@example {
 //	  "name": "Corporate Checking Account",
 //	  "assetCode": "USD",
-//	  "portfolioId": "00000000-0000-0000-0000-000000000000",
-//	  "segmentId": "00000000-0000-0000-0000-000000000000",
 //	  "status": {
 //	    "code": "ACTIVE"
 //	  },
@@ -35,9 +33,8 @@ type CreateAccountInput struct {
 
 	// ID of the parent account if this is a sub-account (optional)
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Optional external identifier for linking to external systems
 	// required: false
@@ -53,15 +50,13 @@ type CreateAccountInput struct {
 
 	// ID of the portfolio this account belongs to (optional)
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
 	// ID of the segment this account belongs to (optional)
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Current operating status of the account
 	// required: false
@@ -92,8 +87,6 @@ type CreateAccountInput struct {
 //
 //	@example {
 //	  "name": "Primary Corporate Checking Account",
-//	  "portfolioId": "11111111-1111-1111-1111-111111111111",
-//	  "segmentId": "22222222-2222-2222-2222-222222222222",
 //	  "status": {
 //	    "code": "ACTIVE"
 //	  },
@@ -112,15 +105,13 @@ type UpdateAccountInput struct {
 
 	// Updated segment ID for the account
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	SegmentID *string `json:"segmentId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Updated portfolio ID for the account
 	// required: false
-	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
-	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
 	// Updated status of the account
 	// required: false
