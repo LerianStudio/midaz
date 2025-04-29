@@ -1,5 +1,4 @@
 import { MetadataDto } from './metadata-dto'
-import { StatusDto } from './status-dto'
 
 export type CreateAccountDto = {
   assetCode: string
@@ -12,7 +11,6 @@ export type CreateAccountDto = {
   segmentId?: string
   allowSending?: boolean
   allowReceiving?: boolean
-  status?: StatusDto
   metadata?: MetadataDto
 }
 
@@ -30,7 +28,6 @@ export interface AccountResponseDto {
   parentAccountId: string
   portfolioId?: string | null
   segmentId: string
-  status: StatusDto
   allowSending?: boolean
   allowReceiving?: boolean
   metadata: MetadataDto

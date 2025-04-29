@@ -33,11 +33,6 @@ export class UpdateAccountUseCase implements UpdateAccount {
     accountId: string,
     account: Partial<UpdateAccountDto>
   ): Promise<AccountResponseDto> {
-    // Remove this if you don't want to force the status
-    account.status = {
-      code: 'ACTIVE',
-      description: 'Active Account'
-    }
     const { alias, ...accountEntity }: Partial<AccountEntity> =
       AccountMapper.toDomain(account)
 
