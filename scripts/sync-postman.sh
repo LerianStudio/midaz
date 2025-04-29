@@ -109,6 +109,7 @@ fi
 # Define paths
 MIDAZ_ROOT=$(pwd)
 SCRIPTS_DIR="${MIDAZ_ROOT}/scripts"
+CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"  # Path to OpenAPI→Postman converter script
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
 ONBOARDING_API="${MIDAZ_ROOT}/components/onboarding/api"

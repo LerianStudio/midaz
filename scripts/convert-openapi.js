@@ -1341,9 +1341,14 @@ try {
 
 // Create and write the environment template if requested
 if (envOutputFile) {
-  const environmentTemplate = createEnvironmentTemplate(enhancedSpec);
-  fs.writeFileSync(envOutputFile, JSON.stringify(environmentTemplate, null, 2));
-  console.log(`Created environment template at ${envOutputFile}`);
+  try {
+    const environmentTemplate = createEnvironmentTemplate(enhancedSpec);
+    fs.writeFileSync(envOutputFile, JSON.stringify(environmentTemplate, null, 2));
+    console.log(`Created environment template at ${envOutputFile}`);
+  } catch (error) {
+    console.error(`Error writing environment template file: ${error.message}`);
+    process.exit(1); // Exit with error code if environment writing fails
+  }
 }
 
 process.exit(0);
