@@ -57,10 +57,6 @@ export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
           id: ledger.id!,
           organizationId: ledger.organizationId!,
           name: ledger.name!,
-          status: {
-            code: ledger.status!.code!,
-            description: ledger.status!.description!
-          },
           metadata: ledger.metadata!,
           createdAt: ledger.createdAt!,
           updatedAt: ledger.updatedAt!,

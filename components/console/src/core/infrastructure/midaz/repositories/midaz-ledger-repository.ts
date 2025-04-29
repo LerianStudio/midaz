@@ -4,6 +4,10 @@ import { injectable } from 'inversify'
 import { inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazLedgerMapper } from '../mappers/midaz-ledger-mapper'
+import { MidazLedgerDto } from '../dto/midaz-ledger-dto'
+import { createQueryString } from '@/lib/search'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 
 @injectable()
 export class MidazLedgerRepository implements LedgerRepository {
@@ -18,13 +22,14 @@ export class MidazLedgerRepository implements LedgerRepository {
     organizationId: string,
     ledger: LedgerEntity
   ): Promise<LedgerEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers`
-
-    const response = await this.httpService.post<LedgerEntity>(url, {
-      body: JSON.stringify(ledger)
-    })
-
-    return response
+    const dto = MidazLedgerMapper.toCreateDto(ledger)
+    const response = await this.httpService.post<MidazLedgerDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazLedgerMapper.toEntity(response)
   }
 
   async fetchAll(
@@ -32,23 +37,24 @@ export class MidazLedgerRepository implements LedgerRepository {
     limit: number,
     page: number
   ): Promise<PaginationEntity<LedgerEntity>> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers?limit=${limit}&page=${page}`
-
-    const response =
-      await this.httpService.get<PaginationEntity<LedgerEntity>>(url)
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazLedgerDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers${createQueryString(
+        { limit, page }
+      )}`
+    )
+    return MidazLedgerMapper.toPaginationEntity(response)
   }
 
   async fetchById(
     organizationId: string,
     ledgerId: string
   ): Promise<LedgerEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
-
-    const response = await this.httpService.get<LedgerEntity>(url)
-
-    return response
+    const response = await this.httpService.get<MidazLedgerDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
+    )
+    return MidazLedgerMapper.toEntity(response)
   }
 
   async update(
@@ -56,20 +62,19 @@ export class MidazLedgerRepository implements LedgerRepository {
     ledgerId: string,
     ledger: Partial<LedgerEntity>
   ): Promise<LedgerEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
-
-    const response = await this.httpService.patch<LedgerEntity>(url, {
-      body: JSON.stringify(ledger)
-    })
-
-    return response
+    const dto = MidazLedgerMapper.toUpdateDto(ledger)
+    const response = await this.httpService.patch<MidazLedgerDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazLedgerMapper.toEntity(response)
   }
 
   async delete(organizationId: string, ledgerId: string): Promise<void> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
-
-    const response = await this.httpService.delete(url)
-
-    return
+    await this.httpService.delete(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
+    )
   }
 }
