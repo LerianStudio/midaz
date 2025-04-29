@@ -185,7 +185,7 @@
             "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -534,7 +534,7 @@
             "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -804,7 +804,7 @@
             "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Example name\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1182,7 +1182,7 @@
             "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1466,7 +1466,7 @@
             "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"deposit\"\n}",
+              "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": \"00000000-0000-0000-0000-000000000000\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1557,6 +1557,15 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract accountId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.alias) {",
+                  "    pm.environment.set(\"accountAlias\", jsonData.alias);",
+                  "    console.log(\"accountAlias set to: \" + jsonData.alias);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract accountAlias: \", error);",
                   "}"
                 ]
               }
@@ -1994,7 +2003,7 @@
             "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": \"00000000-0000-0000-0000-000000000000\",\n  \"segmentId\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2278,7 +2287,7 @@
             "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  },\n  \"type\": \"currency\"\n}",
+              "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2683,7 +2692,7 @@
             "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2967,7 +2976,7 @@
             "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3342,7 +3351,7 @@
             "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3626,7 +3635,7 @@
             "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4001,7 +4010,7 @@
             "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\",\n    \"description\": \"Active status\"\n  }\n}",
+              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5122,7 +5131,7 @@
             "description": "Update an Operation with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
+              "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5252,7 +5261,7 @@
             "description": "Create or Update an AssetRate with the input details",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"externalId\": \"00000000-0000-0000-0000-000000000000\",\n  \"from\": \"USD\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"rate\": 100,\n  \"scale\": 2,\n  \"source\": \"External System\",\n  \"to\": \"BRL\",\n  \"ttl\": 3600\n}",
+              "raw": "{\n  \"externalId\": \"00000000-0000-0000-0000-000000000000\",\n  \"from\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"rate\": 100,\n  \"scale\": 2,\n  \"source\": \"External System\",\n  \"to\": \"BRL\",\n  \"ttl\": 3600\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5931,7 +5940,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  },\n  \"pending\": true,\n  \"send\": {\n    \"asset\": \"USD\",\n    \"value\": 100,\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100,\n            \"scale\": 2\n          },\n          \"description\": \"Debit Operation\",\n          \"chartOfAccounts\": \"FUNDING_DEBIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"external\"\n          }\n        }\n      ]\n    },\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100,\n            \"scale\": 2\n          },\n          \"description\": \"Credit Operation\",\n          \"chartOfAccounts\": \"FUNDING_CREDIT\",\n          \"metadata\": {\n            \"operation\": \"funding\",\n            \"type\": \"account\"\n          }\n        }\n      ]\n    }\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"pending\": false,\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"Example account\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"Example account\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6057,7 +6066,7 @@
             "description": "Create a Transaction with the input template",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionType\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTypeCode\": \"Example transactionTypeCode\",\n  \"variables\": {}\n}",
+              "raw": "{\n  \"transactionType\": \"00000000-0000-0000-0000-000000000000\",\n  \"transactionTypeCode\": \"Example transactionTypeCode\",\n  \"variables\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6310,7 +6319,7 @@
             "description": "Update a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"department\": \"finance\",\n    \"region\": \"north_america\",\n    \"type\": \"corporate\"\n  }\n}",
+              "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
