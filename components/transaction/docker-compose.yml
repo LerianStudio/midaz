@@ -32,3 +32,4 @@ networks:
   plugin-auth-network:
     name: plugin-auth-network
     driver: bridge
+    external: true
