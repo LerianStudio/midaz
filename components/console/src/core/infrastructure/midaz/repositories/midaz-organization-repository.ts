@@ -3,6 +3,10 @@ import { OrganizationRepository } from '@/core/domain/repositories/organization-
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazOrganizationMapper } from '../mappers/midaz-organization-mapper'
+import { MidazOrganizationDto } from '../dto/midaz-organization-dto'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { createQueryString } from '@/lib/search'
 
 @injectable()
 export class MidazOrganizationRepository implements OrganizationRepository {
@@ -16,56 +20,48 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   async create(
     organizationData: OrganizationEntity
   ): Promise<OrganizationEntity> {
-    const response = await this.httpService.post<OrganizationEntity>(
+    const dto = MidazOrganizationMapper.toCreateDto(organizationData)
+    const response = await this.httpService.post<MidazOrganizationDto>(
       this.baseUrl,
       {
-        body: JSON.stringify(organizationData)
+        body: JSON.stringify(dto)
       }
     )
-
-    return response
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async fetchAll(
     limit: number,
     page: number
   ): Promise<PaginationEntity<OrganizationEntity>> {
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      page: page.toString()
-    })
-    const url = `${this.baseUrl}?${params.toString()}`
-
-    const response =
-      await this.httpService.get<PaginationEntity<OrganizationEntity>>(url)
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazOrganizationDto>
+    >(`${this.baseUrl}${createQueryString({ limit, page })}`)
+    return MidazOrganizationMapper.toPaginationEntity(response)
   }
 
   async fetchById(id: string): Promise<OrganizationEntity> {
-    const url = `${this.baseUrl}/${id}`
-
-    const response = await this.httpService.get<OrganizationEntity>(url)
-
-    return response
+    const response = await this.httpService.get<MidazOrganizationDto>(
+      `${this.baseUrl}/${id}`
+    )
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async update(
     organizationId: string,
     organization: Partial<OrganizationEntity>
   ): Promise<OrganizationEntity> {
-    const url = `${this.baseUrl}/${organizationId}`
-
-    const response = await this.httpService.patch<OrganizationEntity>(url, {
-      body: JSON.stringify(organization)
-    })
-
-    return response
+    const dto = MidazOrganizationMapper.toUpdateDto(organization)
+    const response = await this.httpService.patch<MidazOrganizationDto>(
+      `${this.baseUrl}/${organizationId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async delete(id: string): Promise<void> {
-    const url = `${this.baseUrl}/${id}`
-
-    await this.httpService.delete(url)
+    await this.httpService.delete(`${this.baseUrl}/${id}`)
   }
 }
