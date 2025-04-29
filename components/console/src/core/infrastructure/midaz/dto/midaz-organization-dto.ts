@@ -1,4 +1,4 @@
-import { AddressDto } from './midaz-address-metadata-dto'
+import { MidazAddressDto } from './midaz-address-dto'
 import { MidazMetadataDto } from './midaz-metadata-dto'
 import { MidazStatusDto } from './midaz-status-dto'
 
@@ -7,7 +7,7 @@ export type MidazCreateOrganizationDto = {
   parentOrganizationId?: string
   doingBusinessAs?: string
   legalDocument: string
-  address: AddressDto
+  address: MidazAddressDto
   metadata?: MidazMetadataDto
   status?: MidazStatusDto
 }
