@@ -90,58 +90,58 @@ type CreateTransactionInput struct {
 	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
-// @example {
-//   "chartOfAccountsGroupName": "FUNDING",
-//   "description": "New Transaction",
-//   "code": "TR12345",
-//   "pending": false,
-//   "metadata": {
-//     "reference": "TRANSACTION-001",
-//     "source": "api"
-//   },
-//   "send": {
-//     "asset": "USD",
-//     "value": 100,
-//     "scale": 2,
-//     "source": {
-//       "from": [
-//         {
-//           "account": "@external/USD",
-//           "amount": {
-//             "asset": "USD",
-//             "value": 100,
-//             "scale": 2
-//           },
-//           "description": "Debit Operation",
-//           "chartOfAccounts": "FUNDING_DEBIT",
-//           "metadata": {
-//             "operation": "funding",
-//             "type": "external"
-//           }
-//         }
-//       ]
-//     },
-//     "distribute": {
-//       "to": [
-//         {
-//           "account": "{{accountAlias}}",
-//           "amount": {
-//             "asset": "USD",
-//             "value": 100,
-//             "scale": 2
-//           },
-//           "description": "Credit Operation",
-//           "chartOfAccounts": "FUNDING_CREDIT",
-//           "metadata": {
-//             "operation": "funding",
-//             "type": "account"
-//           }
-//         }
-//       ]
-//     }
-//   }
-// }
-
+//	@example {
+//	  "chartOfAccountsGroupName": "FUNDING",
+//	  "description": "New Transaction",
+//	  "code": "TR12345",
+//	  "pending": false,
+//	  "metadata": {
+//	    "reference": "TRANSACTION-001",
+//	    "source": "api"
+//	  },
+//	  "send": {
+//	    "asset": "USD",
+//	    "value": 100,
+//	    "scale": 2,
+//	    "source": {
+//	      "from": [
+//	        {
+//	          "account": "@external/USD",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": 100,
+//	            "scale": 2
+//	          },
+//	          "description": "Debit Operation",
+//	          "chartOfAccounts": "FUNDING_DEBIT",
+//	          "metadata": {
+//	            "operation": "funding",
+//	            "type": "external"
+//	          }
+//	        }
+//	      ]
+//	    },
+//	    "distribute": {
+//	      "to": [
+//	        {
+//	          "account": "{{accountAlias}}",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": 100,
+//	            "scale": 2
+//	          },
+//	          "description": "Credit Operation",
+//	          "chartOfAccounts": "FUNDING_CREDIT",
+//	          "metadata": {
+//	            "operation": "funding",
+//	            "type": "account"
+//	          }
+//	        }
+//	      ]
+//	    }
+//	  }
+//	}
+//
 // CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
 // This is only used for Swagger documentation generation
 //
