@@ -122,8 +122,8 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 
 	aux := struct {
-		Available interface{} `json:"available"`
-		OnHold    interface{} `json:"onHold"`
+		Available any `json:"available"`
+		OnHold    any `json:"onHold"`
 		*Alias
 	}{
 		Alias: (*Alias)(b),
