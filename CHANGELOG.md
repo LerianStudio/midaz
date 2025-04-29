@@ -1,3 +1,11 @@
+## [v2.2.0-beta.11] - 2025-04-29
+
+### ✨ Features
+- Update `goreleaser` configuration to improve the release process, enhancing the efficiency and reliability of software releases.
+
+### 🔧 Maintenance
+- Ignore dirty files during `goreleaser` execution by using `git clean`, ensuring a clean working directory and preventing potential release issues.
+
 ## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
 
 
