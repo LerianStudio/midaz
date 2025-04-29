@@ -2665,8 +2665,8 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
-        code: BRL
-        name: Brazilian Real
+        code: USD
+        name: US Dollar
         id: 00000000-0000-0000-0000-000000000000
         type: currency
         status: '{}'
@@ -2674,7 +2674,7 @@ components:
       properties:
         code:
           description: Unique code/symbol for the asset (max length 100 characters)
-          example: BRL
+          example: USD
           maxLength: 100
           type: string
         createdAt:
@@ -2704,7 +2704,7 @@ components:
           type: object
         name:
           description: Name of the asset (max length 256 characters)
-          example: Brazilian Real
+          example: US Dollar
           maxLength: 256
           type: string
         organizationId:
@@ -2843,15 +2843,15 @@ components:
       example:
         metadata:
           key: '{}'
-        code: BRL
-        name: Brazilian Real
+        code: USD
+        name: US Dollar
         type: currency
         status: '{}'
       properties:
         code:
           description: Unique code/symbol for the asset (required, max length 100
             characters)
-          example: BRL
+          example: USD
           maxLength: 100
           type: string
         metadata:
@@ -2863,7 +2863,7 @@ components:
           type: object
         name:
           description: Name of the asset (required, max length 256 characters)
-          example: Brazilian Real
+          example: US Dollar
           maxLength: 256
           type: string
         status:
@@ -2888,7 +2888,7 @@ components:
       example:
         metadata:
           key: '{}'
-        name: Treasury Operations
+        name: name
         status: '{}'
       properties:
         metadata:
@@ -2903,9 +2903,7 @@ components:
           description: |-
             Display name of the ledger
             required: true
-            example: Treasury Operations
             maxLength: 256
-          example: Treasury Operations
           maxLength: 256
           type: string
         status:
@@ -3858,8 +3856,8 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
-          code: BRL
-          name: Brazilian Real
+          code: USD
+          name: US Dollar
           id: 00000000-0000-0000-0000-000000000000
           type: currency
           status: '{}'
@@ -3870,8 +3868,8 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
-          code: BRL
-          name: Brazilian Real
+          code: USD
+          name: US Dollar
           id: 00000000-0000-0000-0000-000000000000
           type: currency
           status: '{}'

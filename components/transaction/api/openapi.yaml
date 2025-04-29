@@ -2410,7 +2410,7 @@ components:
       example:
         metadata:
           key: '{}'
-        assetCode: BRL
+        assetCode: USD
         onHold: 500
         allowReceiving: true
         accountType: creditCard
@@ -2466,10 +2466,10 @@ components:
         assetCode:
           description: |-
             Asset code identifying the currency or asset type of this balance
-            example: BRL
+            example: USD
             minLength: 2
             maxLength: 10
-          example: BRL
+          example: USD
           maxLength: 10
           minLength: 2
           type: string
@@ -2575,7 +2575,7 @@ components:
         items:
         - metadata:
             key: '{}'
-          assetCode: BRL
+          assetCode: USD
           onHold: 500
           allowReceiving: true
           accountType: creditCard
@@ -2593,7 +2593,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
         - metadata:
             key: '{}'
-          assetCode: BRL
+          assetCode: USD
           onHold: 500
           allowReceiving: true
           accountType: creditCard

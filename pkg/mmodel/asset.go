@@ -9,13 +9,13 @@ import "time"
 //	@Description	CreateAssetInput is the input payload to create an asset within a ledger, such as a currency, cryptocurrency, or other financial instrument.
 type CreateAssetInput struct {
 	// Name of the asset (required, max length 256 characters)
-	Name string `json:"name" validate:"required,max=256" example:"Brazilian Real"`
+	Name string `json:"name" validate:"required,max=256" example:"US Dollar"`
 
 	// Type of the asset (e.g., currency, cryptocurrency, commodity, stock)
 	Type string `json:"type" example:"currency"`
 
 	// Unique code/symbol for the asset (required, max length 100 characters)
-	Code string `json:"code" validate:"required,max=100" example:"BRL"`
+	Code string `json:"code" validate:"required,max=100" example:"USD"`
 
 	// Status of the asset (active, inactive, pending)
 	Status Status `json:"status"`
@@ -24,6 +24,17 @@ type CreateAssetInput struct {
 	// Keys max length: 100 characters, Values max length: 2000 characters
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } //	@name	CreateAssetInput
+// @example {
+//   "name": "US Dollar",
+//   "type": "currency",
+//   "code": "USD",
+//   "status": "ACTIVE",
+//   "metadata": {
+//     "country": "United States",
+//     "symbol": "$",
+//     "isoNumeric": "840"
+//   }
+// }
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 //
@@ -41,6 +52,18 @@ type UpdateAssetInput struct {
 	// Keys max length: 100 characters, Values max length: 2000 characters
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } //	@name	UpdateAssetInput
+// @example {
+//   "name": "US Dollar Updated",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
+//   "metadata": {
+//     "country": "United States",
+//     "symbol": "$",
+//     "isoNumeric": "840",
+//     "updated": true
+//   }
+// }
 
 // Asset is a struct designed to encapsulate payload data.
 //
@@ -52,13 +75,13 @@ type Asset struct {
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Name of the asset (max length 256 characters)
-	Name string `json:"name" example:"Brazilian Real" maxLength:"256"`
+	Name string `json:"name" example:"US Dollar" maxLength:"256"`
 
 	// Type of the asset (e.g., currency, cryptocurrency, commodity, stock)
 	Type string `json:"type" example:"currency"`
 
 	// Unique code/symbol for the asset (max length 100 characters)
-	Code string `json:"code" example:"BRL" maxLength:"100"`
+	Code string `json:"code" example:"USD" maxLength:"100"`
 
 	// Status of the asset (active, inactive, pending)
 	Status Status `json:"status"`
@@ -89,7 +112,7 @@ type Asset struct {
 //	@Description	Assets represents a paginated collection of asset records returned by list operations.
 type Assets struct {
 	// Array of asset records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Brazilian Real","code":"BRL","type":"currency"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"US Dollar","code":"USD","type":"currency"}]
 	Items []Asset `json:"items"`
 
 	// Current page number

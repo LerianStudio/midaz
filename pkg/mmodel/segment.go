@@ -77,7 +77,7 @@ type Segment struct {
 // @Description Segments represents a paginated collection of segment records returned by list operations.
 type Segments struct {
 	// Array of segment records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Segment","ledgerId":"00000000-0000-0000-0000-000000000000"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Segment","ledgerId":"00000000-0000-0000-0000-000000000000","status":{"code":"ACTIVE"}}]
 	Items []Segment `json:"items"`
 	
 	// Current page number

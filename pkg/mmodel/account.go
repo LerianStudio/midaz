@@ -14,7 +14,9 @@ import (
 //   "assetCode": "USD",
 //   "portfolioId": "00000000-0000-0000-0000-000000000000",
 //   "segmentId": "00000000-0000-0000-0000-000000000000",
-//   "status": "ACTIVE",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
 //   "alias": "@treasury_checking",
 //   "type": "deposit",
 //   "metadata": {
@@ -90,7 +92,9 @@ type CreateAccountInput struct {
 //   "name": "Primary Corporate Checking Account",
 //   "portfolioId": "11111111-1111-1111-1111-111111111111",
 //   "segmentId": "22222222-2222-2222-2222-222222222222",
-//   "status": "ACTIVE",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
 //   "metadata": {
 //     "department": "Global Treasury", 
 //     "purpose": "Primary Operations", 
@@ -138,7 +142,9 @@ type UpdateAccountInput struct {
 //   "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
 //   "portfolioId": "d4e5f6a1-b2c3-7890-defg-4567890123ef",
 //   "segmentId": "e5f6a1b2-c3d4-7890-efgh-5678901234fg",
-//   "status": "ACTIVE",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
 //   "alias": "@treasury_checking",
 //   "type": "deposit",
 //   "createdAt": "2022-04-15T09:30:00Z",
@@ -245,7 +251,9 @@ func (a *Account) IDtoUUID() uuid.UUID {
 //       "name": "Corporate Checking Account",
 //       "assetCode": "USD",
 //       "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
-//       "status": "ACTIVE",
+//       "status": {
+//         "code": "ACTIVE"
+//       },
 //       "alias": "@treasury_checking",
 //       "type": "deposit",
 //       "createdAt": "2022-04-15T09:30:00Z",
@@ -256,7 +264,9 @@ func (a *Account) IDtoUUID() uuid.UUID {
 //       "name": "Operating Expenses",
 //       "assetCode": "USD",
 //       "ledgerId": "c3d4e5f6-a1b2-7890-cdef-3456789012de",
-//       "status": "ACTIVE",
+//       "status": {
+//         "code": "ACTIVE"
+//       },
 //       "alias": "@operating_expenses",
 //       "type": "expense",
 //       "createdAt": "2022-04-16T10:15:00Z",
@@ -268,7 +278,7 @@ func (a *Account) IDtoUUID() uuid.UUID {
 // }
 type Accounts struct {
 	// Array of account records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Corporate Checking Account","assetCode":"USD","status":"ACTIVE"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Corporate Checking Account","assetCode":"USD","status":{"code": "ACTIVE"}}]
 	Items []Account `json:"items"`
 	
 	// Current page number in the pagination

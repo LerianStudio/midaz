@@ -2706,11 +2706,11 @@ const docTemplate = `{
                     "example": true
                 },
                 "assetCode": {
-                    "description": "Asset code identifying the currency or asset type of this balance\nexample: BRL\nminLength: 2\nmaxLength: 10",
+                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
                     "type": "string",
                     "maxLength": 10,
                     "minLength": 2,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",

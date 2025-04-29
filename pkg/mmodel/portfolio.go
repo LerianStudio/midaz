@@ -86,7 +86,7 @@ type Portfolio struct {
 // @Description Portfolios represents a paginated collection of portfolio records returned by list operations.
 type Portfolios struct {
 	// Array of portfolio records
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Portfolio","ledgerId":"00000000-0000-0000-0000-000000000000"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Portfolio","ledgerId":"00000000-0000-0000-0000-000000000000","status":{"code":"ACTIVE"}}]
 	Items []Portfolio `json:"items"`
 	
 	// Current page number

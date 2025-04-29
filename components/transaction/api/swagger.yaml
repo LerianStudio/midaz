@@ -920,10 +920,10 @@ definitions:
       assetCode:
         description: |-
           Asset code identifying the currency or asset type of this balance
-          example: BRL
+          example: USD
           minLength: 2
           maxLength: 10
-        example: BRL
+        example: USD
         maxLength: 10
         minLength: 2
         type: string

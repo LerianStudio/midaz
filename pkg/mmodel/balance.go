@@ -37,10 +37,10 @@ type Balance struct {
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 	
 	// Asset code identifying the currency or asset type of this balance
-	// example: BRL
+	// example: USD
 	// minLength: 2
 	// maxLength: 10
-	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
+	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
 	
 	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
 	// example: 1500
@@ -122,7 +122,7 @@ func (b *Balance) IDtoUUID() uuid.UUID {
 // @Description Paginated list of balances with metadata about the current page, limit, and the balance items themselves. Used for list operations.
 type Balances struct {
 	// Array of balance records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","accountId":"00000000-0000-0000-0000-000000000000","assetCode":"BRL","available":1500}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","accountId":"00000000-0000-0000-0000-000000000000","assetCode":"USD","available":1500}]
 	Items []Balance `json:"items"`
 	
 	// Current page number in the pagination

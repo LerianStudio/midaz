@@ -190,7 +190,7 @@ definitions:
     properties:
       code:
         description: Unique code/symbol for the asset (max length 100 characters)
-        example: BRL
+        example: USD
         maxLength: 100
         type: string
       createdAt:
@@ -219,7 +219,7 @@ definitions:
         type: object
       name:
         description: Name of the asset (max length 256 characters)
-        example: Brazilian Real
+        example: US Dollar
         maxLength: 256
         type: string
       organizationId:
@@ -343,7 +343,7 @@ definitions:
     properties:
       code:
         description: Unique code/symbol for the asset (required, max length 100 characters)
-        example: BRL
+        example: USD
         maxLength: 100
         type: string
       metadata:
@@ -354,7 +354,7 @@ definitions:
         type: object
       name:
         description: Name of the asset (required, max length 256 characters)
-        example: Brazilian Real
+        example: US Dollar
         maxLength: 256
         type: string
       status:
@@ -386,9 +386,7 @@ definitions:
         description: |-
           Display name of the ledger
           required: true
-          example: Treasury Operations
           maxLength: 256
-        example: Treasury Operations
         maxLength: 256
         type: string
       status:

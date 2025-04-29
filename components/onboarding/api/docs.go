@@ -3123,7 +3123,7 @@ const docTemplate = `{
                     "description": "Unique code/symbol for the asset (max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "createdAt": {
                     "description": "Timestamp when the asset was created",
@@ -3158,7 +3158,7 @@ const docTemplate = `{
                     "description": "Name of the asset (max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Brazilian Real"
+                    "example": "US Dollar"
                 },
                 "organizationId": {
                     "description": "ID of the organization that owns this asset (UUID format)",
@@ -3269,7 +3269,7 @@ const docTemplate = `{
                     "description": "Unique code/symbol for the asset (required, max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "metadata": {
                     "description": "Additional custom attributes for the asset\nKeys max length: 100 characters, Values max length: 2000 characters",
@@ -3280,7 +3280,7 @@ const docTemplate = `{
                     "description": "Name of the asset (required, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Brazilian Real"
+                    "example": "US Dollar"
                 },
                 "status": {
                     "description": "Status of the asset (active, inactive, pending)",
@@ -3310,10 +3310,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Display name of the ledger\nrequired: true\nexample: Treasury Operations\nmaxLength: 256",
+                    "description": "Display name of the ledger\nrequired: true\nmaxLength: 256",
                     "type": "string",
-                    "maxLength": 256,
-                    "example": "Treasury Operations"
+                    "maxLength": 256
                 },
                 "status": {
                     "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)\nrequired: false",

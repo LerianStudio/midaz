@@ -77,7 +77,9 @@ type CreateOrganizationInput struct {
 //     "state": "NY",
 //     "country": "US"
 //   },
-//   "status": "ACTIVE",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
 //   "metadata": {
 //     "industry": "Financial Technology",
 //     "founded": 2020,
@@ -134,7 +136,9 @@ type UpdateOrganizationInput struct {
 //     "state": "NY",
 //     "country": "US"
 //   },
-//   "status": "ACTIVE",
+//   "status": {
+//     "code": "ACTIVE"
+//   },
 //   "createdAt": "2022-04-15T09:30:00Z",
 //   "updatedAt": "2022-04-15T09:30:00Z",
 //   "metadata": {
@@ -250,7 +254,9 @@ func (a Address) IsEmpty() bool {
 //       "legalName": "Lerian Financial Services Ltd.",
 //       "doingBusinessAs": "Lerian FS",
 //       "legalDocument": "123456789012345",
-//       "status": "ACTIVE",
+//       "status": {
+//         "code": "ACTIVE"
+//       },
 //       "createdAt": "2022-04-15T09:30:00Z",
 //       "updatedAt": "2022-04-15T09:30:00Z"
 //     },
@@ -259,7 +265,9 @@ func (a Address) IsEmpty() bool {
 //       "legalName": "Global Finance Partners",
 //       "doingBusinessAs": "GFP",
 //       "legalDocument": "987654321012345",
-//       "status": "ACTIVE",
+//       "status": {
+//         "code": "ACTIVE"
+//       },
 //       "createdAt": "2022-03-10T14:15:00Z",
 //       "updatedAt": "2022-03-10T14:15:00Z"
 //     }
@@ -269,7 +277,7 @@ func (a Address) IsEmpty() bool {
 // }
 type Organizations struct {
 	// Array of organization records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","legalName":"Lerian Financial Services Ltd.","status":"ACTIVE"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","legalName":"Lerian Financial Services Ltd.","status":{"code":"ACTIVE"}}]
 	Items []Organization `json:"items"`
 	
 	// Current page number in the pagination

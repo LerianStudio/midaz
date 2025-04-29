@@ -9,9 +9,8 @@ import "time"
 type CreateLedgerInput struct {
 	// Display name of the ledger
 	// required: true
-	// example: Treasury Operations
 	// maxLength: 256
-	Name string `json:"name" validate:"required,max=256" example:"Treasury Operations" maxLength:"256"`
+	Name string `json:"name" validate:"required,max=256" maxLength:"256"`
 	
 	// Current operating status of the ledger (defaults to ACTIVE if not specified)
 	// required: false
@@ -93,7 +92,7 @@ type Ledger struct {
 // @Description Paginated list of ledgers with metadata about the current page, limit, and the ledger items themselves. Used for list operations.
 type Ledgers struct {
 	// Array of ledger records returned in this page
-	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Treasury Operations","status":"ACTIVE"}]
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Treasury Operations","status":{"code":"ACTIVE"}}]
 	Items []Ledger `json:"items"`
 	
 	// Current page number in the pagination

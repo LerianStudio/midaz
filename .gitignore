@@ -3,6 +3,7 @@
 .idea/
 *.iml
 ide/
+tmp/
 CLAUDE.md
 .run/onboarding.run.xml
 .run/transaction.run.xml
