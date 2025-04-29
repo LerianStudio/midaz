@@ -2,8 +2,11 @@ import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazAccountDto } from '../dto/midaz-account-dto'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazAccountMapper } from '../mappers/midaz-account-mapper'
+import { createQueryString } from '@/lib/search'
 
 @injectable()
 export class MidazAccountRepository implements AccountRepository {
@@ -19,13 +22,14 @@ export class MidazAccountRepository implements AccountRepository {
     ledgerId: string,
     account: AccountEntity
   ): Promise<AccountEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts`
-
-    const response = await this.httpService.post<AccountEntity>(url, {
-      body: JSON.stringify(account)
-    })
-
-    return response
+    const dto = MidazAccountMapper.toCreateDto(account)
+    const response = await this.httpService.post<MidazAccountDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazAccountMapper.toEntity(response)
   }
 
   async fetchAll(
@@ -34,15 +38,12 @@ export class MidazAccountRepository implements AccountRepository {
     limit: number,
     page: number
   ): Promise<PaginationEntity<AccountEntity>> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts?limit=${limit}&page=${page}`
-
     const response = await this.httpService.get<
-      PaginationEntity<AccountEntity>
-    >(url, {
-      method: HttpMethods.GET
-    })
-
-    return response
+      MidazPaginationDto<MidazAccountDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts${createQueryString({ page, limit })}`
+    )
+    return MidazAccountMapper.toPaginationEntity(response)
   }
 
   async fetchById(
@@ -50,13 +51,10 @@ export class MidazAccountRepository implements AccountRepository {
     ledgerId: string,
     accountId: string
   ): Promise<AccountEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
-
-    const response = await this.httpService.get<AccountEntity>(url, {
-      method: HttpMethods.GET
-    })
-
-    return response
+    const response = await this.httpService.get<MidazAccountDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
+    )
+    return MidazAccountMapper.toEntity(response)
   }
 
   async update(
@@ -65,14 +63,14 @@ export class MidazAccountRepository implements AccountRepository {
     accountId: string,
     account: Partial<AccountEntity>
   ): Promise<AccountEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
-
-    const response = await this.httpService.patch<AccountEntity>(url, {
-      method: HttpMethods.PATCH,
-      body: JSON.stringify(account)
-    })
-
-    return response
+    const dto = MidazAccountMapper.toUpdateDto(account)
+    const response = await this.httpService.patch<MidazAccountDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazAccountMapper.toEntity(response)
   }
 
   async delete(
@@ -80,11 +78,8 @@ export class MidazAccountRepository implements AccountRepository {
     ledgerId: string,
     accountId: string
   ): Promise<void> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
-    await this.httpService.delete(url, {
-      method: HttpMethods.DELETE
-    })
-
-    return
+    await this.httpService.delete(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
+    )
   }
 }
