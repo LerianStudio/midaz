@@ -465,18 +465,7 @@ all-components:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger documentation for all services")
-	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
-	@echo "Verifying API documentation coverage..."
-	@sh ./scripts/verify-api-docs.sh 2>/dev/null || echo "Warning: Some API endpoints may not be properly documented. Continuing with documentation generation..."
-	@echo "Generating documentation for onboarding component..."
-	@cd $(ONBOARDING_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
-	@echo "Generating documentation for transaction component..."
-	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
-	@echo "[ok] Swagger documentation generated successfully for all services"
-	@echo "Syncing Postman collection with the generated OpenAPI documentation..."
-	@sh ./scripts/sync-postman.sh
-	@echo "[ok] Postman collection synced successfully with OpenAPI documentation"
+	@./scripts/generate-docs.sh
 
 #-------------------------------------------------------
 # Developer Helper Commands
