@@ -48,10 +48,10 @@ func WithError(c *fiber.Ctx, err error) error {
 				Message: e.Message,
 			})
 		}
-	default:
-		var iErr pkg.InternalServerError
-		_ = errors.As(pkg.ValidateInternalError(err, ""), &iErr)
 
-		return InternalServerError(c, iErr.Code, iErr.Title, iErr.Message)
+	case pkg.InternalServerError:
+		return InternalServerError(c, e.Code, e.Title, e.Message)
+	default:
+		return pkg.ValidateInternalError(err, "")
 	}
 }
