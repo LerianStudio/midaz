@@ -7,7 +7,7 @@ import {
 } from '../../dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdatePortfolio {
   execute: (
@@ -32,10 +32,6 @@ export class UpdatePortfolioUseCase implements UpdatePortfolio {
     portfolioId: string,
     portfolio: Partial<UpdatePortfolioDto>
   ): Promise<PortfolioResponseDto> {
-    portfolio.status = {
-      code: 'ACTIVE',
-      description: 'Teste Portfolio'
-    }
     const portfolioEntity: Partial<PortfolioEntity> = PortfolioMapper.toDomain(
       portfolio as CreatePortfolioDto
     )
