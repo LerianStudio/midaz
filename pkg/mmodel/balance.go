@@ -54,8 +54,8 @@ type BalanceRedis struct {
 	ID             string `json:"id"`
 	AccountID      string `json:"accountId"`
 	AssetCode      string `json:"assetCode"`
-	Available      int64  `json:"available"`
-	OnHold         int64  `json:"onHold"`
+	Available      int64  `json:"available,string"`
+	OnHold         int64  `json:"onHold,string"`
 	Scale          int64  `json:"scale"`
 	Version        int64  `json:"version"`
 	AccountType    string `json:"accountType"`
