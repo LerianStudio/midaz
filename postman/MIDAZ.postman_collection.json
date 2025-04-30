@@ -9,7 +9,7 @@
   "item": [
     {
       "name": "Complete API Workflow",
-      "description": "A complete linear test sequence for all the main endpoints of the Midaz API, including creation, retrieval, updates, and deletion.",
+      "description": "A sequence of API calls representing a typical workflow, generated from WORKFLOW.md.",
       "item": [
         {
           "name": "1. Create Organization",
@@ -39,7 +39,7 @@
                 "organizations"
               ]
             },
-            "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
+            "description": "**Workflow Step 1: Create Organization**\n\nCreates a new organization in the system\n\n---\n\nCreates a new organization with the provided details including legal name, legal document, and optional address information",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -129,8 +129,7 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new organization in the system"
+          ]
         },
         {
           "name": "2. Get Organization",
@@ -151,7 +150,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -160,53 +159,15 @@
                 "organizations",
                 "{{organizationId}}"
               ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
-                }
-              ],
               "variable": [
                 {
-                  "key": "organizationId",
+                  "key": "id",
                   "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 2: Get Organization**\n\nRetrieves the organization details\n\n---\n\nReturns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -234,7 +195,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -276,8 +242,7 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the organization details"
+          ]
         },
         {
           "name": "3. Update Organization",
@@ -298,7 +263,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -312,15 +277,10 @@
                   "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
                 }
               ]
             },
-            "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
+            "description": "**Workflow Step 3: Update Organization**\n\nUpdates organization details\n\n---\n\nUpdates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -399,8 +359,7 @@
                 ]
               }
             }
-          ],
-          "description": "Updates organization details"
+          ]
         },
         {
           "name": "4. List Organizations",
@@ -468,7 +427,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 4: List Organizations**\n\nLists all organizations\n\n---\n\nReturns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -538,8 +497,7 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all organizations"
+          ]
         },
         {
           "name": "5. Create Ledger",
@@ -560,7 +518,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -575,15 +533,10 @@
                   "key": "organization_id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
                 }
               ]
             },
-            "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
+            "description": "**Workflow Step 5: Create Ledger**\n\nCreates a new ledger within the organization\n\n---\n\nCreates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -678,8 +631,7 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new ledger within the organization"
+          ]
         },
         {
           "name": "6. Get Ledger",
@@ -700,7 +652,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -718,56 +670,13 @@
                   "description": "Organization ID in UUID format"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
+                  "key": "id",
                   "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter ledgers by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter ledgers created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter ledgers created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 6: Get Ledger**\n\nRetrieves the ledger details\n\n---\n\nReturns detailed information about a ledger identified by its UUID within the specified organization"
           },
           "response": [],
           "event": [
@@ -795,7 +704,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -837,8 +754,7 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the ledger details"
+          ]
         },
         {
           "name": "7. Update Ledger",
@@ -859,7 +775,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -880,20 +796,10 @@
                   "key": "id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
+            "description": "**Workflow Step 7: Update Ledger**\n\nUpdates ledger details\n\n---\n\nUpdates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -972,8 +878,7 @@
                 ]
               }
             }
-          ],
-          "description": "Updates ledger details"
+          ]
         },
         {
           "name": "8. List Ledgers",
@@ -994,7 +899,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1009,11 +914,6 @@
                   "key": "organization_id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
                 }
               ],
               "query": [
@@ -1055,7 +955,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 8: List Ledgers**\n\nLists all ledgers in the organization\n\n---\n\nReturns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -1125,8 +1025,7 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all ledgers in the organization"
+          ]
         },
         {
           "name": "9. Create Asset",
@@ -1147,7 +1046,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1169,20 +1068,10 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
+            "description": "**Workflow Step 9: Create Asset**\n\nCreates a new asset (e.g., USD) in the ledger\n\n---\n\nCreates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
@@ -1280,8 +1169,7 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new asset (e.g., USD) in the ledger"
+          ]
         },
         {
           "name": "10. Get Asset",
@@ -1302,7 +1190,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1327,61 +1215,13 @@
                   "description": "Ledger ID in UUID format"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "assetId",
+                  "key": "id",
                   "value": "{{assetId}}",
-                  "description": "assetId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter assets by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter assets created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter assets created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "description": "Asset ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 10: Get Asset**\n\nRetrieves the asset details\n\n---\n\nReturns detailed information about an asset identified by its UUID within the specified ledger"
           },
           "response": [],
           "event": [
@@ -1409,7 +1249,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"assetId\")) {",
+                  "  console.log(\"Warning: assetId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -1451,8 +1302,7 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the asset details"
+          ]
         },
         {
           "name": "11. Update Asset",
@@ -1473,7 +1323,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1501,25 +1351,10 @@
                   "key": "id",
                   "value": "{{assetId}}",
                   "description": "Asset ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "assetId",
-                  "value": "{{assetId}}",
-                  "description": "assetId in UUID format"
                 }
               ]
             },
-            "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 11: Update Asset**\n\nUpdates asset details\n\n---\n\nUpdates an existing asset's properties such as name, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -1598,8 +1433,7 @@
                 ]
               }
             }
-          ],
-          "description": "Updates asset details"
+          ]
         },
         {
           "name": "12. List Assets",
@@ -1620,7 +1454,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1642,16 +1476,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ],
               "query": [
@@ -1693,7 +1517,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 12: List Assets**\n\nLists all assets in the ledger\n\n---\n\nReturns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -1763,8 +1587,7 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all assets in the ledger"
+          ]
         },
         {
           "name": "13. Create Account",
@@ -1785,7 +1608,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1807,20 +1630,10 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
+            "description": "**Workflow Step 13: Create Account**\n\nCreates a new account in the ledger\n\n---\n\nCreates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
@@ -1927,8 +1740,7 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new account in the ledger"
+          ]
         },
         {
           "name": "14. Get Account",
@@ -1949,7 +1761,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -1974,61 +1786,13 @@
                   "description": "Ledger ID in UUID format"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "accountId",
+                  "key": "id",
                   "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter accounts by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter accounts created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter accounts created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "description": "Account ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 14: Get Account**\n\nRetrieves the account details\n\n---\n\nReturns detailed information about an account identified by its UUID within the specified ledger"
           },
           "response": [],
           "event": [
@@ -2056,7 +1820,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -2098,8 +1873,7 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the account details"
+          ]
         },
         {
           "name": "15. Update Account",
@@ -2120,7 +1894,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -2148,25 +1922,10 @@
                   "key": "id",
                   "value": "{{accountId}}",
                   "description": "Account ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "accountId",
-                  "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
                 }
               ]
             },
-            "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
+            "description": "**Workflow Step 15: Update Account**\n\nUpdates account details\n\n---\n\nUpdates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2245,8 +2004,7 @@
                 ]
               }
             }
-          ],
-          "description": "Updates account details"
+          ]
         },
         {
           "name": "16. List Accounts",
@@ -2267,7 +2025,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -2289,16 +2047,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ],
               "query": [
@@ -2340,7 +2088,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 16: List Accounts**\n\nLists all accounts in the ledger\n\n---\n\nReturns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -2410,187 +2158,10 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all accounts in the ledger"
+          ]
         },
         {
-          "name": "18. Get Asset Rate",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/asset-rates/{{assetRateId}}",
-              "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "asset-rates",
-                "{{assetRateId}}"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "asset_code",
-                  "value": "{{assetCode}}",
-                  "description": "From Asset Code"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "assetRateId",
-                  "value": "{{assetRateId}}",
-                  "description": "assetRateId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "to",
-                  "value": "",
-                  "description": "To Asset Codes",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Get an AssetRate by the Asset Code with the input details"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "if (pm.request.method === \"POST\") {",
-                  "  pm.test(\"Status code is 200 or 201\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  });",
-                  "} else if (pm.request.method === \"DELETE\") {",
-                  "  pm.test(\"Status code is 204 No Content\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(204);",
-                  "  });",
-                  "} else {",
-                  "  pm.test(\"Status code is 200 OK\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(200);",
-                  "  });",
-                  "}",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
-                  "  if (pm.response.code === 204) {",
-                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
-                  "    return;",
-                  "  }",
-                  "  ",
-                  "  // For responses with content, validate JSON structure",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  ""
-                ]
-              }
-            }
-          ],
-          "description": "Retrieves the asset rate details"
-        },
-        {
-          "name": "19. Create Portfolio",
+          "name": "17. Create Portfolio",
           "request": {
             "method": "POST",
             "header": [
@@ -2608,7 +2179,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -2630,20 +2201,10 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
+            "description": "**Workflow Step 17: Create Portfolio**\n\nCreates a new portfolio in the ledger\n\n---\n\nCreates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2741,11 +2302,10 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new portfolio in the ledger"
+          ]
         },
         {
-          "name": "20. Get Portfolio",
+          "name": "18. Get Portfolio",
           "request": {
             "method": "GET",
             "header": [
@@ -2763,7 +2323,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -2788,61 +2348,13 @@
                   "description": "Ledger ID in UUID format"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "portfolioId",
+                  "key": "id",
                   "value": "{{portfolioId}}",
-                  "description": "portfolioId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter portfolios by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter portfolios created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter portfolios created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "description": "Portfolio ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 18: Get Portfolio**\n\nRetrieves the portfolio details\n\n---\n\nReturns detailed information about a portfolio identified by its UUID within the specified ledger"
           },
           "response": [],
           "event": [
@@ -2870,7 +2382,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"portfolioId\")) {",
+                  "  console.log(\"Warning: portfolioId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -2912,11 +2435,10 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the portfolio details"
+          ]
         },
         {
-          "name": "21. Update Portfolio",
+          "name": "19. Update Portfolio",
           "request": {
             "method": "PATCH",
             "header": [
@@ -2934,7 +2456,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -2962,25 +2484,10 @@
                   "key": "id",
                   "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "portfolioId",
-                  "value": "{{portfolioId}}",
-                  "description": "portfolioId in UUID format"
                 }
               ]
             },
-            "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 19: Update Portfolio**\n\nUpdates portfolio details\n\n---\n\nUpdates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -3059,11 +2566,10 @@
                 ]
               }
             }
-          ],
-          "description": "Updates portfolio details"
+          ]
         },
         {
-          "name": "22. List Portfolios",
+          "name": "20. List Portfolios",
           "request": {
             "method": "GET",
             "header": [
@@ -3081,7 +2587,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -3103,16 +2609,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ],
               "query": [
@@ -3154,7 +2650,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 20: List Portfolios**\n\nLists all portfolios in the ledger\n\n---\n\nReturns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -3224,11 +2720,10 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all portfolios in the ledger"
+          ]
         },
         {
-          "name": "23. Create Segment",
+          "name": "21. Create Segment",
           "request": {
             "method": "POST",
             "header": [
@@ -3246,7 +2741,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -3268,20 +2763,10 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
+            "description": "**Workflow Step 21: Create Segment**\n\nCreates a new segment in the ledger\n\n---\n\nCreates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -3379,11 +2864,10 @@
                 ]
               }
             }
-          ],
-          "description": "Creates a new segment in the ledger"
+          ]
         },
         {
-          "name": "24. Get Segment",
+          "name": "22. Get Segment",
           "request": {
             "method": "GET",
             "header": [
@@ -3401,7 +2885,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -3426,61 +2910,13 @@
                   "description": "Ledger ID in UUID format"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "segmentId",
+                  "key": "id",
                   "value": "{{segmentId}}",
-                  "description": "segmentId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter segments by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter segments created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter segments created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "description": "Segment ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 22: Get Segment**\n\nRetrieves the segment details\n\n---\n\nReturns detailed information about a segment identified by its UUID within the specified ledger"
           },
           "response": [],
           "event": [
@@ -3508,7 +2944,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"segmentId\")) {",
+                  "  console.log(\"Warning: segmentId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3550,11 +2997,10 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the segment details"
+          ]
         },
         {
-          "name": "25. Update Segment",
+          "name": "23. Update Segment",
           "request": {
             "method": "PATCH",
             "header": [
@@ -3572,7 +3018,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -3600,25 +3046,10 @@
                   "key": "id",
                   "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "segmentId",
-                  "value": "{{segmentId}}",
-                  "description": "segmentId in UUID format"
                 }
               ]
             },
-            "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 23: Update Segment**\n\nUpdates segment details\n\n---\n\nUpdates an existing segment's properties such as name, status, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -3697,11 +3128,10 @@
                 ]
               }
             }
-          ],
-          "description": "Updates segment details"
+          ]
         },
         {
-          "name": "26. List Segments",
+          "name": "24. List Segments",
           "request": {
             "method": "GET",
             "header": [
@@ -3719,7 +3149,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -3741,16 +3171,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ],
               "query": [
@@ -3792,7 +3212,7 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 24: List Segments**\n\nLists all segments in the ledger\n\n---\n\nReturns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": [],
           "event": [
@@ -3862,11 +3282,10 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all segments in the ledger"
+          ]
         },
         {
-          "name": "27. Create Transaction",
+          "name": "25. Create Transaction",
           "request": {
             "method": "POST",
             "header": [
@@ -3884,9 +3303,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/json",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -3899,27 +3318,27 @@
               ],
               "variable": [
                 {
-                  "key": "organizationId",
+                  "key": "organization_id",
                   "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
+                  "description": "Organization ID"
                 },
                 {
-                  "key": "ledgerId",
+                  "key": "ledger_id",
                   "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
+                  "description": "Ledger ID"
                 }
               ]
             },
+            "description": "**Workflow Step 25: Create Transaction**\n\nCreates a new transaction in the ledger\n\n---\n\nCreate a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            },
-            "description": "Create a Transaction with the input DSL file"
+            }
           },
           "response": [],
           "event": [
@@ -3947,7 +3366,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3985,15 +3412,93 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"transactionId\", jsonData.id);",
+                  "    console.log(\"transactionId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract transactionId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.balanceId) {",
+                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
+                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
+                  "    }",
+                  "  }",
+                  "  // Check if response is an array with at least one item",
+                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
+                  "  } ",
+                  "  // Check if response has a data array with at least one item",
+                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].id) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.id) {",
+                  "      pm.environment.set(\"operationId\", destinationOp.id);",
+                  "      console.log(\"operationId set to: \" + destinationOp.id);",
+                  "    }",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "}"
                 ]
               }
             }
-          ],
-          "description": "Creates a new transaction in the ledger"
+          ]
         },
         {
-          "name": "28. Get Transaction",
+          "name": "26. Get Transaction",
           "request": {
             "method": "GET",
             "header": [
@@ -4011,174 +3516,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/{{transactionId}}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
               "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "transactions",
-                "{{transactionId}}"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "transactionId",
-                  "value": "{{transactionId}}",
-                  "description": "transactionId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Get all Transactions with the input metadata or without metadata"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  ""
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "if (pm.request.method === \"POST\") {",
-                  "  pm.test(\"Status code is 200 or 201\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  });",
-                  "} else if (pm.request.method === \"DELETE\") {",
-                  "  pm.test(\"Status code is 204 No Content\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(204);",
-                  "  });",
-                  "} else {",
-                  "  pm.test(\"Status code is 200 OK\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(200);",
-                  "  });",
-                  "}",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
-                  "  if (pm.response.code === 204) {",
-                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
-                  "    return;",
-                  "  }",
-                  "  ",
-                  "  // For responses with content, validate JSON structure",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  ""
-                ]
-              }
-            }
-          ],
-          "description": "Retrieves the transaction details"
-        },
-        {
-          "name": "29. Update Transaction",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions/{{transactionId}}",
-              "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -4204,25 +3544,132 @@
                   "key": "transaction_id",
                   "value": "{{transactionId}}",
                   "description": "Transaction ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "transactionId",
-                  "value": "{{transactionId}}",
-                  "description": "transactionId in UUID format"
                 }
               ]
             },
-            "description": "Update a Transaction with the input payload",
+            "description": "**Workflow Step 26: Get Transaction**\n\nRetrieves the transaction details\n\n---\n\nGet a Transaction with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "27. Update Transaction",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "{{transactionId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "{{transactionId}}",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "**Workflow Step 27: Update Transaction**\n\nUpdates transaction metadata\n\n---\n\nUpdate a Transaction with the input payload",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
@@ -4301,11 +3748,10 @@
                 ]
               }
             }
-          ],
-          "description": "Updates transaction metadata"
+          ]
         },
         {
-          "name": "30. List Transactions",
+          "name": "28. List Transactions",
           "request": {
             "method": "GET",
             "header": [
@@ -4323,9 +3769,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/transactions",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -4345,16 +3791,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ],
               "query": [
@@ -4390,7 +3826,7 @@
                 }
               ]
             },
-            "description": "Get all Transactions with the input metadata or without metadata"
+            "description": "**Workflow Step 28: List Transactions**\n\nLists all transactions in the ledger\n\n---\n\nGet all Transactions with the input metadata or without metadata"
           },
           "response": [],
           "event": [
@@ -4460,11 +3896,10 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all transactions in the ledger"
+          ]
         },
         {
-          "name": "31. Get Operation",
+          "name": "29. Get Operation",
           "request": {
             "method": "GET",
             "header": [
@@ -4482,9 +3917,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/operations/{{operationId}}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -4492,6 +3927,8 @@
                 "{{organizationId}}",
                 "ledgers",
                 "{{ledgerId}}",
+                "accounts",
+                "{{accountId}}",
                 "operations",
                 "{{operationId}}"
               ],
@@ -4512,55 +3949,13 @@
                   "description": "Account ID"
                 },
                 {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "operationId",
+                  "key": "operation_id",
                   "value": "{{operationId}}",
-                  "description": "operationId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
+                  "description": "Operation ID"
                 }
               ]
             },
-            "description": "Get all Operations with the input ID"
+            "description": "**Workflow Step 29: Get Operation**\n\nRetrieves the operation details\n\n---\n\nGet an Operation with the input ID"
           },
           "response": [],
           "event": [
@@ -4630,11 +4025,10 @@
                 ]
               }
             }
-          ],
-          "description": "Retrieves the operation details"
+          ]
         },
         {
-          "name": "32. List Operations by Account",
+          "name": "30. List Operations by Account",
           "request": {
             "method": "GET",
             "header": [
@@ -4652,14 +4046,16 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/accounts/{{accountId}}/operations",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
                 "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
                 "accounts",
                 "{{accountId}}",
                 "operations"
@@ -4679,16 +4075,6 @@
                   "key": "account_id",
                   "value": "{{accountId}}",
                   "description": "Account ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "accountId",
-                  "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
                 }
               ],
               "query": [
@@ -4724,7 +4110,7 @@
                 }
               ]
             },
-            "description": "Get all Operations with the input ID"
+            "description": "**Workflow Step 30: List Operations by Account**\n\nLists all operations for a specific account\n\n---\n\nGet all Operations with the input ID"
           },
           "response": [],
           "event": [
@@ -4794,11 +4180,10 @@
                 ]
               }
             }
-          ],
-          "description": "Lists all operations for an account"
+          ]
         },
         {
-          "name": "33. Update Operation Metadata",
+          "name": "31. Update Operation Metadata",
           "request": {
             "method": "PATCH",
             "header": [
@@ -4816,16 +4201,18 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/accounts/{{accountId}}/operations/{{operationId}}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
                 "{{organizationId}}",
-                "accounts",
-                "{{accountId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "{{transactionId}}",
                 "operations",
                 "{{operationId}}"
               ],
@@ -4849,25 +4236,10 @@
                   "key": "operation_id",
                   "value": "{{operationId}}",
                   "description": "Operation ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "accountId",
-                  "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
-                },
-                {
-                  "key": "operationId",
-                  "value": "{{operationId}}",
-                  "description": "operationId in UUID format"
                 }
               ]
             },
-            "description": "Update an Operation with the input payload",
+            "description": "**Workflow Step 31: Update Operation Metadata**\n\nUpdates operation metadata\n\n---\n\nUpdate an Operation with the input payload",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
@@ -4946,11 +4318,10 @@
                 ]
               }
             }
-          ],
-          "description": "Updates operation metadata"
+          ]
         },
         {
-          "name": "34. Get Balance",
+          "name": "32. Get Balance",
           "request": {
             "method": "GET",
             "header": [
@@ -4968,447 +4339,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
               "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "balances",
-                "{{balanceId}}"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "account_id",
-                  "value": "{{accountId}}",
-                  "description": "Account ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "balanceId",
-                  "value": "{{balanceId}}",
-                  "description": "balanceId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Get all balances by account id"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  "",
-                  "// Validate required variables",
-                  "",
-                  "if (!pm.environment.get(\"organizationId\")) {",
-                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
-                  "}",
-                  "if (!pm.environment.get(\"ledgerId\")) {",
-                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
-                  "}",
-                  "if (!pm.environment.get(\"accountId\")) {",
-                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
-                  "}"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "if (pm.request.method === \"POST\") {",
-                  "  pm.test(\"Status code is 200 or 201\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  });",
-                  "} else if (pm.request.method === \"DELETE\") {",
-                  "  pm.test(\"Status code is 204 No Content\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(204);",
-                  "  });",
-                  "} else {",
-                  "  pm.test(\"Status code is 200 OK\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(200);",
-                  "  });",
-                  "}",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
-                  "  if (pm.response.code === 204) {",
-                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
-                  "    return;",
-                  "  }",
-                  "  ",
-                  "  // For responses with content, validate JSON structure",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "// Extract variables from response for use in subsequent requests",
-                  "",
-                  "try {",
-                  "  var jsonData = pm.response.json();",
-                  "  // Check if this is a transaction response with operations",
-                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
-                  "    // Find the destination operation (the one with account in the 'destination' array)",
-                  "    var destinationOp = null;",
-                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
-                  "      const destAccount = jsonData.destination[0];",
-                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
-                  "    }",
-                  "    ",
-                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
-                  "    if (!destinationOp) {",
-                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
-                  "    }",
-                  "    ",
-                  "    // If we still couldn't find it, use the first operation",
-                  "    if (!destinationOp && jsonData.operations.length > 0) {",
-                  "      destinationOp = jsonData.operations[0];",
-                  "    }",
-                  "    ",
-                  "    if (destinationOp && destinationOp.balanceId) {",
-                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
-                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
-                  "    }",
-                  "  }",
-                  "  // Check if response is an array with at least one item",
-                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
-                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
-                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
-                  "  } ",
-                  "  // Check if response has a data array with at least one item",
-                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
-                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
-                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
-                  "  }",
-                  "} catch (error) {",
-                  "  console.error(\"Failed to extract balanceId: \", error);",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "description": "Retrieves the balance details"
-        },
-        {
-          "name": "35. List Balances by Account",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/accounts/{{accountId}}/balances",
-              "host": [
-                "{{onboardingUrl}}"
-              ],
-              "path": [
-                "v1",
-                "organizations",
-                "{{organizationId}}",
-                "accounts",
-                "{{accountId}}",
-                "balances"
-              ],
-              "variable": [
-                {
-                  "key": "organization_id",
-                  "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "account_id",
-                  "value": "{{accountId}}",
-                  "description": "Account ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "accountId",
-                  "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Limit",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Start Date",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "End Date",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort Order",
-                  "disabled": true
-                },
-                {
-                  "key": "cursor",
-                  "value": "",
-                  "description": "Cursor",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Get all balances by account id"
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Check for auth token",
-                  "if (!pm.environment.get(\"authToken\")) {",
-                  "  console.log(\"Warning: authToken is not set in the environment\");",
-                  "}",
-                  "",
-                  "// Set authorization header if it exists",
-                  "if (pm.environment.get(\"authToken\")) {",
-                  "  pm.request.headers.upsert({",
-                  "    key: \"Authorization\",",
-                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
-                  "  });",
-                  "}",
-                  "",
-                  "// Set request ID for tracing",
-                  "pm.request.headers.upsert({",
-                  "  key: \"X-Request-Id\",",
-                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
-                  "});",
-                  "",
-                  "// Validate required variables",
-                  "",
-                  "if (!pm.environment.get(\"organizationId\")) {",
-                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
-                  "}",
-                  "if (!pm.environment.get(\"ledgerId\")) {",
-                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
-                  "}",
-                  "if (!pm.environment.get(\"accountId\")) {",
-                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
-                  "}"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "",
-                  "// Test for successful response status",
-                  "if (pm.request.method === \"POST\") {",
-                  "  pm.test(\"Status code is 200 or 201\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  });",
-                  "} else if (pm.request.method === \"DELETE\") {",
-                  "  pm.test(\"Status code is 204 No Content\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(204);",
-                  "  });",
-                  "} else {",
-                  "  pm.test(\"Status code is 200 OK\", function () {",
-                  "    pm.expect(pm.response.code).to.equal(200);",
-                  "  });",
-                  "}",
-                  "",
-                  "// Validate response has the expected format",
-                  "pm.test(\"Response has the correct structure\", function() {",
-                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
-                  "  if (pm.response.code === 204) {",
-                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
-                  "    return;",
-                  "  }",
-                  "  ",
-                  "  // For responses with content, validate JSON structure",
-                  "  pm.response.to.be.json;",
-                  "  ",
-                  "  // Add specific validation based on response schema here",
-                  "});",
-                  "",
-                  "// Extract variables from response for use in subsequent requests",
-                  "",
-                  "try {",
-                  "  var jsonData = pm.response.json();",
-                  "  // Check if this is a transaction response with operations",
-                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
-                  "    // Find the destination operation (the one with account in the 'destination' array)",
-                  "    var destinationOp = null;",
-                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
-                  "      const destAccount = jsonData.destination[0];",
-                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
-                  "    }",
-                  "    ",
-                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
-                  "    if (!destinationOp) {",
-                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
-                  "    }",
-                  "    ",
-                  "    // If we still couldn't find it, use the first operation",
-                  "    if (!destinationOp && jsonData.operations.length > 0) {",
-                  "      destinationOp = jsonData.operations[0];",
-                  "    }",
-                  "    ",
-                  "    if (destinationOp && destinationOp.balanceId) {",
-                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
-                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
-                  "    }",
-                  "  }",
-                  "  // Check if response is an array with at least one item",
-                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
-                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
-                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
-                  "  } ",
-                  "  // Check if response has a data array with at least one item",
-                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
-                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
-                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
-                  "  }",
-                  "} catch (error) {",
-                  "  console.error(\"Failed to extract balanceId: \", error);",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "description": "Lists all balances for an account"
-        },
-        {
-          "name": "36. Update Balance Metadata",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
-                "disabled": false
-              },
-              {
-                "key": "X-Request-Id",
-                "value": "{{$guid}}",
-                "description": "Request ID",
-                "disabled": true
-              }
-            ],
-            "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
-              "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -5434,25 +4367,339 @@
                   "key": "balance_id",
                   "value": "{{balanceId}}",
                   "description": "Balance ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "balanceId",
-                  "value": "{{balanceId}}",
-                  "description": "balanceId in UUID format"
                 }
               ]
             },
-            "description": "Update a Balance with the input payload",
+            "description": "**Workflow Step 32: Get Balance**\n\nRetrieves the balance details\n\n---\n\nGet a Balance with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "33. List Balances by Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "accounts",
+                "{{accountId}}",
+                "balances"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "{{accountId}}",
+                  "description": "Account ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Workflow Step 33: List Balances by Account**\n\nLists all balances for a specific account\n\n---\n\nGet all balances by account id"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.balanceId) {",
+                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
+                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
+                  "    }",
+                  "  }",
+                  "  // Check if response is an array with at least one item",
+                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
+                  "  } ",
+                  "  // Check if response has a data array with at least one item",
+                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "34. Update Balance",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "balances",
+                "{{balanceId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "{{balanceId}}",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "**Workflow Step 34: Update Balance**\n\nUpdates balance metadata\n\n---\n\nUpdate a Balance with the input payload",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true\n}",
@@ -5531,11 +4778,10 @@
                 ]
               }
             }
-          ],
-          "description": "Updates balance metadata"
+          ]
         },
         {
-          "name": "37. List All Balances",
+          "name": "35. List All Balances",
           "request": {
             "method": "GET",
             "header": [
@@ -5553,14 +4799,16 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/balances",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
                 "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
                 "balances"
               ],
               "variable": [
@@ -5573,16 +4821,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID"
-                },
-                {
-                  "key": "account_id",
-                  "value": "{{accountId}}",
-                  "description": "Account ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
                 }
               ],
               "query": [
@@ -5618,7 +4856,133 @@
                 }
               ]
             },
-            "description": "Get all balances by account id"
+            "description": "**Workflow Step 35: List All Balances**\n\nLists all balances in the ledger\n\n---\n\nGet all balances"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "36. Zero Out Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "json"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "**Workflow Step 36: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers 100 (scale 2) from external/USD to the account, reversing the transaction in step 25\n\n---\n\nCreate a Transaction with the input payload",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -5654,9 +5018,6 @@
                   "}",
                   "if (!pm.environment.get(\"ledgerId\")) {",
                   "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
-                  "}",
-                  "if (!pm.environment.get(\"accountId\")) {",
-                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
                   "}"
                 ]
               }
@@ -5700,6 +5061,15 @@
                   "",
                   "try {",
                   "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"transactionId\", jsonData.id);",
+                  "    console.log(\"transactionId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract transactionId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
                   "  // Check if this is a transaction response with operations",
                   "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
                   "    // Find the destination operation (the one with account in the 'destination' array)",
@@ -5736,15 +5106,43 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].id) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.id) {",
+                  "      pm.environment.set(\"operationId\", destinationOp.id);",
+                  "      console.log(\"operationId set to: \" + destinationOp.id);",
+                  "    }",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
                   "}"
                 ]
               }
             }
-          ],
-          "description": "Lists all balances across the organization"
+          ]
         },
         {
-          "name": "38. Delete Balance",
+          "name": "37. Delete Balance",
           "request": {
             "method": "DELETE",
             "header": [
@@ -5762,9 +5160,9 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/balances/{{balanceId}}",
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
               "host": [
-                "{{onboardingUrl}}"
+                "{{transactionUrl}}"
               ],
               "path": [
                 "v1",
@@ -5790,25 +5188,10 @@
                   "key": "balance_id",
                   "value": "{{balanceId}}",
                   "description": "Balance ID"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "balanceId",
-                  "value": "{{balanceId}}",
-                  "description": "balanceId in UUID format"
                 }
               ]
             },
-            "description": "Delete a Balance with the input ID"
+            "description": "**Workflow Step 37: Delete Balance**\n\nDeletes a balance\n\n---\n\nDelete a Balance with the input ID"
           },
           "response": [],
           "event": [
@@ -5878,11 +5261,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes a balance"
+          ]
         },
         {
-          "name": "39. Delete Segment",
+          "name": "38. Delete Segment",
           "request": {
             "method": "DELETE",
             "header": [
@@ -5900,7 +5282,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/segments/{{segmentId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -5928,25 +5310,10 @@
                   "key": "id",
                   "value": "{{segmentId}}",
                   "description": "Segment ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "segmentId",
-                  "value": "{{segmentId}}",
-                  "description": "segmentId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 38: Delete Segment**\n\nDeletes a segment\n\n---\n\nPermanently removes a segment from the specified ledger. This operation cannot be undone."
           },
           "response": [],
           "event": [
@@ -6016,11 +5383,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes a segment"
+          ]
         },
         {
-          "name": "40. Delete Portfolio",
+          "name": "39. Delete Portfolio",
           "request": {
             "method": "DELETE",
             "header": [
@@ -6038,7 +5404,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/portfolios/{{portfolioId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -6066,25 +5432,10 @@
                   "key": "id",
                   "value": "{{portfolioId}}",
                   "description": "Portfolio ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "portfolioId",
-                  "value": "{{portfolioId}}",
-                  "description": "portfolioId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 39: Delete Portfolio**\n\nDeletes a portfolio\n\n---\n\nPermanently removes a portfolio from the specified ledger. This operation cannot be undone."
           },
           "response": [],
           "event": [
@@ -6154,11 +5505,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes a portfolio"
+          ]
         },
         {
-          "name": "41. Delete Account",
+          "name": "40. Delete Account",
           "request": {
             "method": "DELETE",
             "header": [
@@ -6176,7 +5526,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/accounts/{{accountId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -6204,25 +5554,10 @@
                   "key": "id",
                   "value": "{{accountId}}",
                   "description": "Account ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "accountId",
-                  "value": "{{accountId}}",
-                  "description": "accountId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes an account from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 40: Delete Account**\n\nDeletes an account\n\n---\n\nPermanently removes an account from the specified ledger. This operation cannot be undone."
           },
           "response": [],
           "event": [
@@ -6292,11 +5627,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes an account"
+          ]
         },
         {
-          "name": "42. Delete Asset",
+          "name": "41. Delete Asset",
           "request": {
             "method": "DELETE",
             "header": [
@@ -6314,7 +5648,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/{{assetId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -6342,25 +5676,10 @@
                   "key": "id",
                   "value": "{{assetId}}",
                   "description": "Asset ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
-                },
-                {
-                  "key": "assetId",
-                  "value": "{{assetId}}",
-                  "description": "assetId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 41: Delete Asset**\n\nDeletes an asset\n\n---\n\nPermanently removes an asset from the specified ledger. This operation cannot be undone."
           },
           "response": [],
           "event": [
@@ -6430,11 +5749,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes an asset"
+          ]
         },
         {
-          "name": "43. Delete Ledger",
+          "name": "42. Delete Ledger",
           "request": {
             "method": "DELETE",
             "header": [
@@ -6452,7 +5770,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -6473,20 +5791,10 @@
                   "key": "id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
-                },
-                {
-                  "key": "ledgerId",
-                  "value": "{{ledgerId}}",
-                  "description": "ledgerId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
+            "description": "**Workflow Step 42: Delete Ledger**\n\nDeletes a ledger\n\n---\n\nPermanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -6556,11 +5864,10 @@
                 ]
               }
             }
-          ],
-          "description": "Deletes a ledger"
+          ]
         },
         {
-          "name": "44. Delete Organization",
+          "name": "43. Delete Organization",
           "request": {
             "method": "DELETE",
             "header": [
@@ -6578,7 +5885,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
@@ -6592,15 +5899,10 @@
                   "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "description": "organizationId in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
+            "description": "**Workflow Step 43: Delete Organization**\n\nThis workflow can be automated in Postman by using environment variables to store and pass the IDs between requests.\n\n---\n\nPermanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -6670,11 +5972,11 @@
                 ]
               }
             }
-          ],
-          "description": "This workflow can be automated in Postman by using environment variables to store and pass the IDs between requests."
+          ]
         }
       ],
-      "_postman_id": "a1a7afcd-ec98-49a0-8b63-540ac69a1213"
+      "_postman_id": "b311cdec-4dea-4b1f-ac73-28d153d21c56",
+      "event": []
     },
     {
       "name": "Organizations",

@@ -102,173 +102,167 @@ This document outlines a complete linear workflow for testing all the main endpo
     - Lists all accounts in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-17. **Create Asset Rate**
-
-    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/asset-rates`
-    - Creates a new asset exchange rate
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
-    - **Output:** `assetRateId`
-
-18. **Get Asset Rate**
-
-    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/asset-rates/{assetRateId}`
-    - Retrieves the asset rate details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetRateId` from step 17
-
-19. **Create Portfolio**
+17. **Create Portfolio**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios`
     - Creates a new portfolio in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
     - **Output:** `portfolioId`
 
-20. **Get Portfolio**
+18. **Get Portfolio**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
     - Retrieves the portfolio details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 17
 
-21. **Update Portfolio**
+19. **Update Portfolio**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
     - Updates portfolio details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 17
 
-22. **List Portfolios**
+20. **List Portfolios**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios`
     - Lists all portfolios in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-23. **Create Segment**
+21. **Create Segment**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments`
     - Creates a new segment in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
     - **Output:** `segmentId`
 
-24. **Get Segment**
+22. **Get Segment**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
     - Retrieves the segment details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 21
 
-25. **Update Segment**
+23. **Update Segment**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
     - Updates segment details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 21
 
-26. **List Segments**
+24. **List Segments**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments`
     - Lists all segments in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-27. **Create Transaction**
+25. **Create Transaction**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
     - Creates a new transaction in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
     - **Output:** `transactionId`, `balanceId`, `operationId`
 
-28. **Get Transaction**
+26. **Get Transaction**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
     - Retrieves the transaction details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25
 
-29. **Update Transaction**
+27. **Update Transaction**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
     - Updates transaction metadata
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25
 
-30. **List Transactions**
+28. **List Transactions**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions`
     - Lists all transactions in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-31. **Get Operation**
+29. **Get Operation**
 
-    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/operations/{operationId}`
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations/{operationId}`
     - Retrieves the operation details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `operationId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13, `operationId` from step 25
 
-32. **List Operations by Account**
+30. **List Operations by Account**
 
-    - `GET /v1/organizations/{organizationId}/accounts/{accountId}/operations`
-    - Lists all operations for an account
-    - **Uses:** `organizationId` from step 1, `accountId` from step 13
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations`
+    - Lists all operations for a specific account
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-33. **Update Operation Metadata**
+31. **Update Operation Metadata**
 
-    - `PATCH /v1/organizations/{organizationId}/accounts/{accountId}/operations/{operationId}`
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}/operations/{operationId}`
     - Updates operation metadata
-    - **Uses:** `organizationId` from step 1, `accountId` from step 13, `operationId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25, `operationId` from step 25
 
-34. **Get Balance**
+32. **Get Balance**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Retrieves the balance details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
 
-35. **List Balances by Account**
+33. **List Balances by Account**
 
-    - `GET /v1/organizations/{organizationId}/accounts/{accountId}/balances`
-    - Lists all balances for an account
-    - **Uses:** `organizationId` from step 1, `accountId` from step 13
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/balances`
+    - Lists all balances for a specific account
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-36. **Update Balance Metadata**
+34. **Update Balance**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Updates balance metadata
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
 
-37. **List All Balances**
+35. **List All Balances**
 
-    - `GET /v1/organizations/{organizationId}/balances`
-    - Lists all balances across the organization
-    - **Uses:** `organizationId` from step 1
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances`
+    - Lists all balances in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-38. **Delete Balance**
+36. **Zero Out Balance**
+
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
+    - Creates a reverse transaction to zero out the balance created in step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+    - **Description:** Creates a transaction that transfers 100 (scale 2) from external/USD to the account, reversing the transaction in step 25
+
+37. **Delete Balance**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Deletes a balance
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
 
-39. **Delete Segment**
+38. **Delete Segment**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
     - Deletes a segment
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 21
 
-40. **Delete Portfolio**
+39. **Delete Portfolio**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
     - Deletes a portfolio
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 17
 
-41. **Delete Account**
+40. **Delete Account**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}`
     - Deletes an account
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-42. **Delete Asset**
+41. **Delete Asset**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}`
     - Deletes an asset
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetId` from step 9
 
-43. **Delete Ledger**
+42. **Delete Ledger**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}`
     - Deletes a ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-44. **Delete Organization**
+43. **Delete Organization**
 
     - `DELETE /v1/organizations/{organizationId}`
     - Deletes an organization
