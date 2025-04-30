@@ -42,7 +42,7 @@ export function useDefaultLedger({
       // Check if ledgers fetch has been completed,
       // And indeed this organizations has no ledgers
       if (ledgers?.length === 0) {
-        setCurrentLedger({} as LedgerResponseDto)
+        setCurrentLedger({} as LedgerType)
         return
       }
 
