@@ -740,13 +740,8 @@ function addRequestBody(requestItem, operation, spec) {
         example = jsonContent.examples[firstExampleKey].value;
       }
       
-      // Remove internal fields that should not be exposed in the API
-      if (example && typeof example === 'object') {
-        // Remove pending field from transaction examples
-        if ('pending' in example) {
-          delete example.pending;
-        }
-      }
+      // Remove fields marked with swagger:ignore
+      example = removeIgnoredFields(example, jsonContent.schema, spec);
       
       requestItem.request.body = {
         mode: 'raw',
@@ -765,28 +760,11 @@ function addRequestBody(requestItem, operation, spec) {
     if (bodyParam && bodyParam.schema) {
       let example = {};
       
-      // Try to extract example from schema reference
-      if (bodyParam.schema.$ref) {
-        const schemaName = bodyParam.schema.$ref.split('/').pop();
-        
-        // Look for the schema definition in the spec
-        if (spec.definitions && spec.definitions[schemaName]) {
-          const schema = spec.definitions[schemaName];
-          
-          // Build example from schema properties
-          if (schema.properties) {
-            example = buildExampleFromProperties(schema.properties, spec);
-          }
-        }
-      }
+      // Generate example strictly from the schema
+      example = generateExampleFromSchema(bodyParam.schema, spec);
       
-      // Remove internal fields that should not be exposed in the API
-      if (example && typeof example === 'object') {
-        // Remove pending field from transaction examples
-        if ('pending' in example) {
-          delete example.pending;
-        }
-      }
+      // Remove fields marked with swagger:ignore
+      example = removeIgnoredFields(example, bodyParam.schema, spec);
       
       requestItem.request.body = {
         mode: 'raw',
@@ -1509,23 +1487,57 @@ function generateArrayExample(schema, path = '') {
  * @returns {Object} Example object
  */
 function generateExampleFromSchema(schema, spec) {
-  if (schema.$ref) {
-    // Extract the schema name from the reference
-    const schemaName = schema.$ref.split('/').pop();
-    
-    // Look for the schema definition in the spec
-    if (spec.components && spec.components.schemas && spec.components.schemas[schemaName]) {
-      const schemaDefinition = spec.components.schemas[schemaName];
-      
-      // Build example from schema properties
-      if (schemaDefinition.properties) {
-        return generateObjectExample(schemaDefinition);
-      }
-    }
-  } else if (schema.properties) {
-    return generateObjectExample(schema);
+  // If schema has an example, use it
+  if (schema.example !== undefined) {
+    return schema.example;
   }
   
+  // If schema has a reference, resolve it
+  if (schema.$ref) {
+    const refPath = schema.$ref.split('/');
+    const refName = refPath.pop();
+    
+    // Handle different reference formats
+    let refSchema;
+    if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
+      // OpenAPI 3.0 format
+      refSchema = spec.components.schemas[refName];
+    } else if (spec.definitions) {
+      // Swagger 2.0 format
+      refSchema = spec.definitions[refName];
+    }
+    
+    if (refSchema) {
+      // Special handling for specific schemas
+      if (refName === 'Send') {
+        return generateSendExample();
+      }
+      
+      return generateExampleFromSchema(refSchema, spec);
+    }
+  }
+  
+  // Handle different schema types
+  if (schema.type === 'object' || (!schema.type && schema.properties)) {
+    return generateObjectExample(schema);
+  } else if (schema.type === 'array' && schema.items) {
+    return generateArrayExample(schema);
+  } else if (schema.type === 'string') {
+    if (schema.format === 'uuid') {
+      return '00000000-0000-0000-0000-000000000000';
+    } else if (schema.format === 'date-time') {
+      return new Date().toISOString();
+    } else if (schema.enum && schema.enum.length > 0) {
+      return schema.enum[0];
+    }
+    return 'Example string';
+  } else if (schema.type === 'number' || schema.type === 'integer') {
+    return 100;
+  } else if (schema.type === 'boolean') {
+    return false;
+  }
+  
+  // Default case
   return {};
 }
 
@@ -1740,6 +1752,71 @@ function fixPathParameters(spec) {
   
   spec.paths = fixedPaths;
   return spec;
+}
+
+/**
+ * Remove fields that are marked with swagger:ignore from the example object
+ * @param {Object} example - The example object
+ * @param {Object} schema - The schema object
+ * @param {Object} spec - The full OpenAPI spec
+ * @returns {Object} The filtered example object
+ */
+function removeIgnoredFields(example, schema, spec) {
+  if (!example || typeof example !== 'object' || Array.isArray(example)) {
+    return example;
+  }
+  
+  // Create a new object to avoid modifying the original
+  const filteredExample = { ...example };
+  
+  // Always remove the pending field as it's an internal field
+  if ('pending' in filteredExample) {
+    delete filteredExample.pending;
+  }
+  
+  // If we have a schema, try to find fields marked with swagger:ignore
+  if (schema) {
+    let properties = {};
+    
+    // Get properties from schema or resolve reference
+    if (schema.properties) {
+      properties = schema.properties;
+    } else if (schema.$ref) {
+      const refPath = schema.$ref.split('/');
+      const refName = refPath.pop();
+      
+      if (refPath.includes('components') && refPath.includes('schemas') && spec.components && spec.components.schemas) {
+        // OpenAPI 3.0 format
+        const refSchema = spec.components.schemas[refName];
+        if (refSchema && refSchema.properties) {
+          properties = refSchema.properties;
+        }
+      } else if (spec.definitions && spec.definitions[refName]) {
+        // Swagger 2.0 format
+        const refSchema = spec.definitions[refName];
+        if (refSchema && refSchema.properties) {
+          properties = refSchema.properties;
+        }
+      }
+    }
+    
+    // Check each property for swagger:ignore in description
+    for (const [propName, propSchema] of Object.entries(properties)) {
+      if (propSchema.description && propSchema.description.includes('swagger:ignore')) {
+        delete filteredExample[propName];
+      }
+    }
+    
+    // Process nested objects recursively
+    for (const [key, value] of Object.entries(filteredExample)) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const propSchema = properties[key];
+        filteredExample[key] = removeIgnoredFields(value, propSchema, spec);
+      }
+    }
+  }
+  
+  return filteredExample;
 }
 
 // Main function
