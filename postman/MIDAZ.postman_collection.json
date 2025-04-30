@@ -3354,8 +3354,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Generate a unique idempotency key for this transaction",
-                  "const uuid = require(\"uuid\");",
-                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "const timestamp = new Date().getTime();",
+                  "const random = Math.floor(Math.random() * 1000000);",
+                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -5009,8 +5010,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Generate a unique idempotency key for this transaction",
-                  "const uuid = require(\"uuid\");",
-                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "const timestamp = new Date().getTime();",
+                  "const random = Math.floor(Math.random() * 1000000);",
+                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -5997,7 +5999,7 @@
           ]
         }
       ],
-      "_postman_id": "a6f3568a-e3f3-4c22-acc3-48a83d845dc7",
+      "_postman_id": "ee5aa54b-7160-47ec-a950-fa25c09fe89a",
       "event": []
     },
     {
@@ -11934,8 +11936,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Generate a unique idempotency key for this transaction",
-                  "const uuid = require(\"uuid\");",
-                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "const timestamp = new Date().getTime();",
+                  "const random = Math.floor(Math.random() * 1000000);",
+                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -12071,8 +12074,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Generate a unique idempotency key for this transaction",
-                  "const uuid = require(\"uuid\");",
-                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "const timestamp = new Date().getTime();",
+                  "const random = Math.floor(Math.random() * 1000000);",
+                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",

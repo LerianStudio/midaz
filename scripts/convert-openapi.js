@@ -810,8 +810,9 @@ function addParameters(requestItem, operation, path) {
       // Add code to generate a unique idempotency key
       const idempotencyKeyScript = [
         '// Generate a unique idempotency key for this transaction',
-        'const uuid = require("uuid");',
-        'pm.environment.set("idempotencyKey", uuid.v4());',
+        'const timestamp = new Date().getTime();',
+        'const random = Math.floor(Math.random() * 1000000);',
+        'pm.environment.set("idempotencyKey", `${timestamp}-${random}`);',
         'console.log("Generated idempotency key:", pm.environment.get("idempotencyKey"));',
         ''
       ];
