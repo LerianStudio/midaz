@@ -701,7 +701,9 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
-        description: Whether the transaction should be created in pending state
+        description: |-
+          Whether the transaction should be created in pending state
+          swagger:ignore
         type: boolean
       send:
         description: |-

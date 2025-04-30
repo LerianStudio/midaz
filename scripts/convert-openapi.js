@@ -740,6 +740,14 @@ function addRequestBody(requestItem, operation, spec) {
         example = jsonContent.examples[firstExampleKey].value;
       }
       
+      // Remove internal fields that should not be exposed in the API
+      if (example && typeof example === 'object') {
+        // Remove pending field from transaction examples
+        if ('pending' in example) {
+          delete example.pending;
+        }
+      }
+      
       requestItem.request.body = {
         mode: 'raw',
         raw: JSON.stringify(example, null, 2),
@@ -769,6 +777,14 @@ function addRequestBody(requestItem, operation, spec) {
           if (schema.properties) {
             example = buildExampleFromProperties(schema.properties, spec);
           }
+        }
+      }
+      
+      // Remove internal fields that should not be exposed in the API
+      if (example && typeof example === 'object') {
+        // Remove pending field from transaction examples
+        if ('pending' in example) {
+          delete example.pending;
         }
       }
       
@@ -1330,9 +1346,10 @@ function generateSendExample() {
 /**
  * Generate an example for a complex object based on schema properties
  * @param {Object} schema - The schema object from the OpenAPI spec
+ * @param {string} path - The path of the current property
  * @returns {Object} Example object
  */
-function generateObjectExample(schema) {
+function generateObjectExample(schema, path = '') {
   const example = {};
   
   if (!schema || !schema.properties) {
@@ -1340,6 +1357,9 @@ function generateObjectExample(schema) {
   }
   
   for (const [propName, propSchema] of Object.entries(schema.properties)) {
+    // Build the current property path
+    const currentPath = path ? `${path}.${propName}` : propName;
+    
     // Use existing example if available
     if (propSchema.example !== undefined) {
       example[propName] = propSchema.example;
@@ -1360,7 +1380,14 @@ function generateObjectExample(schema) {
           // Follow project standard for currency/asset examples
           example[propName] = "USD";
         } else if (propName.toLowerCase() === 'account') {
-          example[propName] = "account_123";
+          // Special handling for account property based on context
+          if (currentPath.includes('source') || currentPath.includes('from')) {
+            example[propName] = "@external/USD";
+          } else if (currentPath.includes('distribute') || currentPath.includes('to')) {
+            example[propName] = "@treasury_checking";
+          } else {
+            example[propName] = "@external/USD"; // Default fallback
+          }
         } else {
           example[propName] = `Example ${propName}`;
         }
@@ -1373,7 +1400,7 @@ function generateObjectExample(schema) {
         example[propName] = false;
         break;
       case 'array':
-        example[propName] = generateArrayExample(propSchema);
+        example[propName] = generateArrayExample(propSchema, currentPath);
         break;
       case 'object':
         if (propName.toLowerCase() === 'address') {
@@ -1383,7 +1410,7 @@ function generateObjectExample(schema) {
           // Follow project standard for status fields - always use {"code": "ACTIVE"}
           example[propName] = { code: "ACTIVE" };
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema);
+          example[propName] = generateObjectExample(propSchema, currentPath);
         } else {
           example[propName] = { key: "value" };
         }
@@ -1406,7 +1433,7 @@ function generateObjectExample(schema) {
             example[propName] = null;
           }
         } else if (propSchema.properties) {
-          example[propName] = generateObjectExample(propSchema);
+          example[propName] = generateObjectExample(propSchema, currentPath);
         } else {
           example[propName] = null;
         }
@@ -1434,54 +1461,44 @@ function generateAddressExample() {
 /**
  * Generate an example for an array based on schema properties
  * @param {Object} schema - The array schema object from the OpenAPI spec
+ * @param {string} path - The path of the current property
  * @returns {Array} Example array
  */
-function generateArrayExample(schema) {
-  if (!schema || !schema.items) {
+function generateArrayExample(schema, path = '') {
+  if (!schema.items) {
     return [];
   }
-  
+
+  // Use existing example if available
+  if (schema.example) {
+    return schema.example;
+  }
+
   const itemSchema = schema.items;
+  
+  // Generate an example item based on the item schema
   let exampleItem;
   
-  // Use existing example if available
-  if (itemSchema.example !== undefined) {
-    exampleItem = itemSchema.example;
-  } else {
-    switch (itemSchema.type) {
-      case 'string':
-        if (itemSchema.format === 'uuid') {
-          exampleItem = null;
-        } else {
-          exampleItem = 'Example string';
-        }
-        break;
-      case 'integer':
-      case 'number':
-        exampleItem = 100;
-        break;
-      case 'boolean':
-        exampleItem = false;
-        break;
-      case 'object':
-        exampleItem = generateObjectExample(itemSchema);
-        break;
-      default:
-        if (itemSchema.$ref) {
-          // Handle reference to another schema
-          const refName = itemSchema.$ref.split('/').pop();
-          if (refName === 'Send') {
-            exampleItem = generateSendExample();
-          } else {
-            exampleItem = null;
-          }
-        } else {
-          exampleItem = null;
-        }
+  if (itemSchema.type === 'object' && itemSchema.properties) {
+    exampleItem = generateObjectExample(itemSchema, `${path}[]`);
+  } else if (itemSchema.type === 'string') {
+    exampleItem = 'Example string';
+  } else if (itemSchema.type === 'number' || itemSchema.type === 'integer') {
+    exampleItem = 123;
+  } else if (itemSchema.type === 'boolean') {
+    exampleItem = false;
+  } else if (itemSchema.$ref) {
+    const refName = itemSchema.$ref.split('/').pop();
+    if (refName === 'Send') {
+      exampleItem = generateSendExample();
+    } else {
+      exampleItem = null;
     }
+  } else {
+    exampleItem = null;
   }
   
-  // Return an array with one example item
+  // Return an array with a single example item
   return [exampleItem];
 }
 

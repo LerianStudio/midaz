@@ -76,8 +76,8 @@ type CreateTransactionInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
 	// Whether the transaction should be created in pending state
-	// example: false
-	Pending bool `json:"pending,omitempty" example:"false"`
+	// swagger:ignore
+	Pending bool `json:"pending,omitempty"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -163,6 +163,7 @@ type CreateTransactionSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
+	// swagger:ignore
 	Pending bool `json:"pending,omitempty"`
 
 	// Additional custom attributes

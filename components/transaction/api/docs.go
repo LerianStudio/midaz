@@ -2529,7 +2529,7 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state",
+                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
                     "type": "boolean"
                 },
                 "send": {
