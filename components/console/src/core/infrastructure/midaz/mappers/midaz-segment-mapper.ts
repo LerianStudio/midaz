@@ -9,32 +9,32 @@ import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
 
 export class MidazSegmentMapper {
-  public static toCreateDto(asset: SegmentEntity): MidazCreateSegmentDto {
+  public static toCreateDto(segment: SegmentEntity): MidazCreateSegmentDto {
     return {
-      name: asset.name,
-      metadata: asset.metadata
+      name: segment.name,
+      metadata: segment.metadata
     }
   }
 
   public static toUpdateDto(
-    asset: Partial<SegmentEntity>
+    segment: Partial<SegmentEntity>
   ): MidazUpdateSegmentDto {
     return {
-      name: asset.name,
-      metadata: asset.metadata
+      name: segment.name,
+      metadata: segment.metadata
     }
   }
 
-  public static toEntity(asset: MidazSegmentDto): SegmentEntity {
+  public static toEntity(segment: MidazSegmentDto): SegmentEntity {
     return {
-      id: asset.id,
-      organizationId: asset.organizationId,
-      ledgerId: asset.ledgerId,
-      name: asset.name,
-      metadata: asset.metadata ?? {},
-      createdAt: asset.createdAt,
-      updatedAt: asset.updatedAt,
-      deletedAt: asset.deletedAt
+      id: segment.id,
+      organizationId: segment.organizationId,
+      ledgerId: segment.ledgerId,
+      name: segment.name,
+      metadata: segment.metadata ?? {},
+      createdAt: segment.createdAt,
+      updatedAt: segment.updatedAt,
+      deletedAt: segment.deletedAt
     }
   }
 
