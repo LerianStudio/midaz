@@ -125,7 +125,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"organizationId\", jsonData.id);\n  console.log(\"Saved organizationId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -642,7 +643,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"ledgerId\", jsonData.id);\n  console.log(\"Saved ledgerId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -1159,7 +1161,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"assetId\", jsonData.id);\n  console.log(\"Saved assetId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -1676,7 +1679,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"accountId\", jsonData.id);\n  console.log(\"Saved accountId:\", jsonData.id);\n}\nif (jsonData && jsonData.alias) {\n  pm.environment.set(\"accountAlias\", jsonData.alias);\n  console.log(\"Saved accountAlias:\", jsonData.alias);\n}\n"
                 ]
               }
             }
@@ -2193,7 +2197,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"assetRateId\", jsonData.id);\n  console.log(\"Saved assetRateId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -2453,7 +2458,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"portfolioId\", jsonData.id);\n  console.log(\"Saved portfolioId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -2970,7 +2976,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"segmentId\", jsonData.id);\n  console.log(\"Saved segmentId:\", jsonData.id);\n}\n"
                 ]
               }
             }
@@ -3487,7 +3494,8 @@
                   "  }",
                   "} catch (error) {",
                   "  console.error(\"Failed to extract organizationId: \", error);",
-                  "}"
+                  "}",
+                  "\n// Save output variables for workflow\nvar jsonData = pm.response.json();\nif (jsonData && jsonData.id) {\n  pm.environment.set(\"transactionId\", jsonData.id);\n  console.log(\"Saved transactionId:\", jsonData.id);\n}\nif (jsonData && jsonData.operations && jsonData.operations.length > 0) {\n  // Find the destination operation\n  var destinationOp = null;\n  if (jsonData.destination && jsonData.destination.length > 0) {\n    const destAccount = jsonData.destination[0];\n    for (let i = 0; i < jsonData.operations.length; i++) {\n      if (jsonData.operations[i].accountId === destAccount) {\n        destinationOp = jsonData.operations[i];\n        break;\n      }\n    }\n  }\n  \n  if (destinationOp && destinationOp.balanceId) {\n    pm.environment.set(\"balanceId\", destinationOp.balanceId);\n    console.log(\"Saved balanceId:\", destinationOp.balanceId);\n  }\n}\nif (jsonData && jsonData.operations && jsonData.operations.length > 0) {\n  // Find the destination operation\n  var destinationOp = null;\n  if (jsonData.destination && jsonData.destination.length > 0) {\n    const destAccount = jsonData.destination[0];\n    for (let i = 0; i < jsonData.operations.length; i++) {\n      if (jsonData.operations[i].accountId === destAccount) {\n        destinationOp = jsonData.operations[i];\n        break;\n      }\n    }\n  }\n  \n  if (destinationOp && destinationOp.id) {\n    pm.environment.set(\"operationId\", destinationOp.id);\n    console.log(\"Saved operationId:\", destinationOp.id);\n  }\n}\n"
                 ]
               }
             }
@@ -5662,7 +5670,7 @@
           "description": "Deletes an organization\n\n**Uses:**\n- `organizationId` from step 1\n"
         }
       ],
-      "_postman_id": "5834e148-246f-4e3c-9ab6-9f97a2402c6b"
+      "_postman_id": "dcf5ef29-6d80-44a9-a47c-56e97242010d"
     },
     {
       "name": "Organizations",
