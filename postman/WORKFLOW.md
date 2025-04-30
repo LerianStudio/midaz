@@ -1,226 +1,239 @@
-# Midaz API Workflow & Documentation Findings
+# Midaz API Workflow
 
-This document outlines the typical API workflow for setting up entities and posting transactions, based on analysis of the Swagger annotations. It also highlights areas where the documentation (specifically examples) could be improved to better illustrate this flow.
+This document outlines a complete linear workflow for testing all the main endpoints of the Midaz API. Each step builds on the previous ones, creating a comprehensive test sequence.
 
-## Identified Workflow
+## Complete Linear Test Sequence
 
-The following sequence represents a common path for creating the necessary entities, retrieving/updating them, and posting a simple transaction. Steps involving retrieval or updates assume a previous step (like Create) has provided the necessary ID.
+1. **Create Organization**
 
-1.  **Create Organization:**
+   - `POST /v1/organizations`
+   - Creates a new organization in the system
+   - **Output:** `organizationId`
 
-    - `POST /v1/organizations`
-    - **Input:** Organization details (legal name, document, etc.).
-    - **Output:** Organization object including `organizationId`.
+2. **Get Organization**
 
-2.  **Get Organization by ID:**
+   - `GET /v1/organizations/{organizationId}`
+   - Retrieves the organization details
+   - **Uses:** `organizationId` from step 1
 
-    - `GET /v1/organizations/{organization_id}`
-    - **Input:** Uses `organizationId` from Step 1 in the path.
-    - **Output:** Organization object.
+3. **Update Organization**
 
-3.  **Update Organization:**
+   - `PATCH /v1/organizations/{organizationId}`
+   - Updates organization details
+   - **Uses:** `organizationId` from step 1
 
-    - `PATCH /v1/organizations/{organization_id}`
-    - **Input:** Uses `organizationId` from Step 1 in the path. Requires fields to update in the body.
-    - **Output:** Updated Organization object.
+4. **List Organizations**
 
-4.  **List Organizations:**
+   - `GET /v1/organizations`
+   - Lists all organizations
 
-    - `GET /v1/organizations`
-    - **Input:** Optional pagination/filtering parameters.
-    - **Output:** List of organization objects.
+5. **Create Ledger**
 
-5.  **Create Ledger:**
+   - `POST /v1/organizations/{organizationId}/ledgers`
+   - Creates a new ledger within the organization
+   - **Uses:** `organizationId` from step 1
+   - **Output:** `ledgerId`
 
-    - `POST /v1/organizations/{organization_id}/ledgers`
-    - **Input:** Uses `organizationId` from Step 1 in the path. Requires ledger details (name, etc.) in the body.
-    - **Output:** Ledger object including `ledgerId`.
+6. **Get Ledger**
 
-6.  **Get Ledger by ID:**
+   - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}`
+   - Retrieves the ledger details
+   - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path.
-    - **Output:** Ledger object.
+7. **Update Ledger**
 
-7.  **Update Ledger:**
+   - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}`
+   - Updates ledger details
+   - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires fields to update in the body.
-    - **Output:** Updated Ledger object.
+8. **List Ledgers**
 
-8.  **List Ledgers (within an Org):**
+   - `GET /v1/organizations/{organizationId}/ledgers`
+   - Lists all ledgers in the organization
+   - **Uses:** `organizationId` from step 1
 
-    - `GET /v1/organizations/{organization_id}/ledgers`
-    - **Input:** Uses `organizationId` (Step 1) in the path. Optional pagination/filtering.
-    - **Output:** List of ledger objects for the specified organization.
+9. **Create Asset**
 
-9.  **Create Portfolio:**
+   - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets`
+   - Creates a new asset (e.g., USD) in the ledger
+   - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+   - **Output:** `assetId`
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires portfolio details in the body.
-    - **Output:** Portfolio object including `portfolioId`.
+10. **Get Asset**
 
-10. **Get Portfolio by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}`
+    - Retrieves the asset details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetId` from step 9
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `portfolioId` in the path.
-    - **Output:** Portfolio object.
+11. **Update Asset**
 
-11. **Update Portfolio:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}`
+    - Updates asset details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetId` from step 9
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `portfolioId` in the path. Requires fields to update in the body.
-    - **Output:** Updated Portfolio object.
+12. **List Assets**
 
-12. **List Portfolios (within a Ledger):**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets`
+    - Lists all assets in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Optional pagination/filtering.
-    - **Output:** List of portfolio objects for the specified ledger.
+13. **Create Account**
 
-13. **Create Segment:**
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts`
+    - Creates a new account in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+    - **Output:** `accountId`, `accountAlias`
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires segment details in the body.
-    - **Output:** Segment object including `segmentId`.
+14. **Get Account**
 
-14. **Get Segment by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}`
+    - Retrieves the account details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `segmentId` in the path.
-    - **Output:** Segment object.
+15. **Update Account**
 
-15. **Update Segment:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}`
+    - Updates account details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `segmentId` in the path. Requires fields to update in the body.
-    - **Output:** Updated Segment object.
+16. **List Accounts**
 
-16. **List Segments (within a Ledger):**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts`
+    - Lists all accounts in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Optional pagination/filtering.
-    - **Output:** List of segment objects for the specified ledger.
+17. **Create Asset Rate**
 
-17. **Create Asset:**
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/asset-rates`
+    - Creates a new asset exchange rate
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+    - **Output:** `assetRateId`
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires asset details (name, code like "USD", type) in the body.
-    - **Output:** Asset object including `assetId` and `code`.
+18. **Get Asset Rate**
 
-18. **Get Asset by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/asset-rates/{assetRateId}`
+    - Retrieves the asset rate details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetRateId` from step 17
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `assetId` (Step 17) in the path.
-    - **Output:** Asset object.
+19. **Create Portfolio**
 
-19. **Update Asset:**
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios`
+    - Creates a new portfolio in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+    - **Output:** `portfolioId`
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{asset_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `assetId` (Step 17) in the path. Requires fields to update in the body.
-    - **Output:** Updated Asset object.
+20. **Get Portfolio**
 
-20. **List Assets (within a Ledger):**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
+    - Retrieves the portfolio details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Optional pagination/filtering.
-    - **Output:** List of asset objects for the specified ledger.
+21. **Update Portfolio**
 
-21. **Create Account:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
+    - Updates portfolio details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires account details (name, type, `assetCode` from Step 17 like "USD") in the body.
-    - **Output:** Account object including `accountId` and `accountAlias`.
+22. **List Portfolios**
 
-22. **Get Account by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios`
+    - Lists all portfolios in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and an `account_id` (from Step 21) in the path.
-    - **Output:** Account object.
+23. **Create Segment**
 
-23. **Update Account:**
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments`
+    - Creates a new segment in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+    - **Output:** `segmentId`
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `account_id` in the path. Requires fields to update in the body.
-    - **Output:** Updated Account object.
+24. **Get Segment**
 
-24. **List Accounts (within a Ledger):**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
+    - Retrieves the segment details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Optional pagination/filtering.
-    - **Output:** List of account objects for the specified ledger.
+25. **Update Segment**
 
-25. **Create Transaction:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
+    - Updates segment details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Requires transaction details in the body, referencing account aliases, asset details (likely `assetCode`), and amount.
-    - **Output:** Transaction object including `transactionId`, `balanceId`, and `operationId`.
+26. **List Segments**
 
-26. **Get Transaction by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments`
+    - Lists all segments in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `transactionId` (Step 25) in the path.
-    - **Output:** Transaction object.
+27. **Create Transaction**
 
-27. **Update Transaction Metadata:**
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
+    - Creates a new transaction in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+    - **Output:** `transactionId`, `balanceId`, `operationId`
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}`
-    - **Input:** Uses `organizationId` (Step 1), `ledgerId` (Step 5), and `transactionId` (Step 25) in the path. Allows updating metadata in the body.
-    - **Output:** Updated Transaction object.
+28. **Get Transaction**
 
-28. **List Transactions (within a Ledger):**
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions`
-    - **Input:** Uses `organizationId` (Step 1) and `ledgerId` (Step 5) in the path. Optional pagination/filtering (e.g., by date range, metadata).
-    - **Output:** List of transaction objects for the specified ledger.
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
+    - Retrieves the transaction details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 27
 
-### Transaction Related Endpoints
+29. **Update Transaction**
 
-1.  **Create Transaction:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
+    - Updates transaction metadata
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 27
 
-    - `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json`
-    - Submit a new transaction. This will typically generate corresponding operations and potentially update balances.
+30. **List Transactions**
 
-2.  **Get All Balances:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions`
+    - Lists all transactions in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-    - `GET /v1/organizations/{organization_id}/balances`
-    - List all balances across all accounts within the organization.
+31. **Get Operation**
 
-3.  **Get All Balances by Account ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/operations/{operationId}`
+    - Retrieves the operation details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `operationId` from step 27
 
-    - `GET /v1/organizations/{organization_id}/accounts/{account_id}/balances`
-    - List all balances associated with a specific account.
+32. **List Operations by Account**
 
-4.  **Get Balance by ID:**
+    - `GET /v1/organizations/{organizationId}/accounts/{accountId}/operations`
+    - Lists all operations for an account
+    - **Uses:** `organizationId` from step 1, `accountId` from step 13
 
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}`
-    - Retrieve a specific balance record by its ID.
+33. **Update Operation Metadata**
 
-5.  **Update Balance Metadata:**
+    - `PATCH /v1/organizations/{organizationId}/accounts/{accountId}/operations/{operationId}`
+    - Updates operation metadata
+    - **Uses:** `organizationId` from step 1, `accountId` from step 13, `operationId` from step 27
 
-    - `PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}`
-    - Update the metadata associated with a specific balance.
+34. **Get Balance**
 
-6.  **Delete Balance by ID:**
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
+    - Retrieves the balance details
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
 
-    - `DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}`
-    - _Note: Use with caution. Deleting balances directly might impact financial reporting integrity. This is usually reserved for specific cleanup or correction scenarios._
-    - Remove a specific balance record.
+35. **List Balances by Account**
 
-7.  **Get All Operations by Account:**
+    - `GET /v1/organizations/{organizationId}/accounts/{accountId}/balances`
+    - Lists all balances for an account
+    - **Uses:** `organizationId` from step 1, `accountId` from step 13
 
-    - `GET /v1/organizations/{organization_id}/accounts/{account_id}/operations`
-    - List all operations (debits/credits) associated with a specific account.
+36. **Update Balance Metadata**
 
-8.  **Get Operation by ID:**
+    - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
+    - Updates balance metadata
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
 
-    - `GET /v1/organizations/{organization_id}/accounts/{account_id}/operations/{operation_id}`
-    - Retrieve details of a specific operation by its ID.
+37. **List All Balances**
+    - `GET /v1/organizations/{organizationId}/balances`
+    - Lists all balances across the organization
+    - **Uses:** `organizationId` from step 1
 
-9.  **Update Operation Metadata:**
+## Notes
 
-    - `PATCH /v1/organizations/{organization_id}/accounts/{account_id}/operations/{operation_id}`
-    - Update the metadata associated with a specific operation.
-
-10. **Get All Transactions:**
-    - `GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions`
-    - List all transactions within a ledger.
+- This workflow provides a comprehensive test of all major API endpoints in a logical sequence.
+- Each step builds on previous steps, using IDs and resources created earlier.
+- The sequence follows the natural hierarchy: Organization → Ledger → Assets/Accounts → Transactions → Operations/Balances.
+- This workflow can be automated in Postman by using environment variables to store and pass the IDs between requests.
