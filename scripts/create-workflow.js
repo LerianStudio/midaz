@@ -103,6 +103,10 @@ function findRequestInCollection(collection, path, method) {
   // Normalize the path by removing the leading slash if present
   const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
   
+  // Extract the endpoint parts and resource types
+  const pathParts = normalizedPath.split('/');
+  const resourceType = getResourceTypeFromPath(normalizedPath);
+  
   // Function to search recursively through folders
   function searchInItems(items) {
     for (const item of items) {
@@ -113,35 +117,36 @@ function findRequestInCollection(collection, path, method) {
       } else if (item.request) {
         // This is a request, check if it matches
         const request = item.request;
+        
+        // Check if the method matches
         if (request.method === method.toUpperCase()) {
-          // Get the path from the URL
-          let requestPath = '';
-          if (request.url.path) {
-            requestPath = request.url.path.join('/');
-          } else if (request.url.raw) {
-            // Extract path from raw URL
-            const urlParts = request.url.raw.split('?')[0].split('/');
-            // Remove host parts (those with {{variables}})
-            const pathParts = urlParts.filter(part => !part.includes('{{') || part.includes('organizationId') || part.includes('ledgerId'));
-            requestPath = pathParts.join('/');
-          }
+          // Get the endpoint name from the request name
+          const requestName = item.name.toLowerCase();
           
-          // Normalize the request path
-          requestPath = requestPath.replace(/\{\{/g, '{').replace(/\}\}/g, '}');
-          
-          // For DELETE endpoints, we need to be more flexible with matching
-          if (method.toUpperCase() === 'DELETE') {
-            // Extract the resource type from the path (e.g., 'organizations', 'ledgers', etc.)
-            const pathParts = normalizedPath.split('/');
-            const resourceType = pathParts[pathParts.length - 2]; // The resource type is usually the second-to-last part
-            
-            // Check if the request path contains the resource type and the DELETE method matches
-            if (requestPath.includes(resourceType)) {
+          // Special handling for different HTTP methods
+          if (method.toUpperCase() === 'POST' && requestName.includes('create')) {
+            // For POST requests, match by resource type and "create" in the name
+            if (resourceType && requestName.includes(resourceType.slice(0, -1))) {
               return item;
             }
-          } else {
-            // For non-DELETE endpoints, use the existing matching logic
-            if (requestPath.includes(normalizedPath) || normalizedPath.includes(requestPath)) {
+          } else if (method.toUpperCase() === 'GET' && normalizedPath.includes('{') && requestName.includes('retrieve')) {
+            // For GET requests with path parameters, match by resource type and "retrieve" in the name
+            if (resourceType && requestName.includes(resourceType.slice(0, -1))) {
+              return item;
+            }
+          } else if (method.toUpperCase() === 'GET' && !normalizedPath.includes('{') && requestName.includes('list')) {
+            // For GET requests without path parameters, match by resource type and "list" in the name
+            if (resourceType && requestName.includes(resourceType)) {
+              return item;
+            }
+          } else if (method.toUpperCase() === 'PATCH' && requestName.includes('update')) {
+            // For PATCH requests, match by resource type and "update" in the name
+            if (resourceType && requestName.includes(resourceType.slice(0, -1))) {
+              return item;
+            }
+          } else if (method.toUpperCase() === 'DELETE' && requestName.includes('delete')) {
+            // For DELETE requests, match by resource type and "delete" in the name
+            if (resourceType && requestName.includes(resourceType.slice(0, -1))) {
               return item;
             }
           }
@@ -152,6 +157,25 @@ function findRequestInCollection(collection, path, method) {
   }
   
   return searchInItems(collection.item);
+}
+
+// Extract the resource type from a path (e.g., "organizations" from "v1/organizations/{organizationId}")
+function getResourceTypeFromPath(path) {
+  const parts = path.split('/').filter(p => p);
+  
+  // Look for known resource types
+  const resourceTypes = [
+    'organizations', 'ledgers', 'accounts', 'assets', 'asset-rates',
+    'portfolios', 'segments', 'transactions', 'operations', 'balances'
+  ];
+  
+  for (const type of resourceTypes) {
+    if (parts.includes(type)) {
+      return type;
+    }
+  }
+  
+  return null;
 }
 
 // Create a workflow folder with all the steps

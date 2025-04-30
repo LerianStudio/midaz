@@ -152,54 +152,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -227,7 +197,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -670,54 +645,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -745,7 +690,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -927,54 +877,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -1002,7 +922,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -1188,54 +1113,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -1263,7 +1158,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -1445,54 +1345,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -1520,7 +1390,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -1706,54 +1581,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -1781,7 +1626,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -1963,54 +1813,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -2038,7 +1858,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -2224,54 +2049,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -2299,7 +2094,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -2485,54 +2285,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -2560,7 +2330,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -2742,54 +2517,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -2817,7 +2562,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3003,54 +2753,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -3078,7 +2798,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3260,54 +2985,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -3335,7 +3030,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3521,54 +3221,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -3596,7 +3266,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3778,54 +3453,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -3853,7 +3498,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -3917,54 +3567,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -3992,7 +3612,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4056,54 +3681,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -4131,7 +3726,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4313,54 +3913,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -4388,7 +3958,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4452,54 +4027,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -4527,7 +4072,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4709,54 +4259,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
-                "organizations"
+                "organizations",
+                "{{organizationId}}"
               ],
-              "query": [
+              "variable": [
                 {
-                  "key": "metadata",
-                  "value": "",
-                  "description": "JSON string to filter organizations by metadata fields",
-                  "disabled": true
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "Maximum number of records to return per page",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "description": "Page number for pagination",
-                  "disabled": true
-                },
-                {
-                  "key": "start_date",
-                  "value": "",
-                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "end_date",
-                  "value": "",
-                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
-                  "disabled": true
-                },
-                {
-                  "key": "sort_order",
-                  "value": "",
-                  "description": "Sort direction for results based on creation date",
-                  "disabled": true
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": [],
           "event": [
@@ -4784,7 +4304,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -4837,49 +4362,35 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{authToken}}",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "{{$guid}}",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
             "url": {
-              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
-                "{{transactionUrl}}"
+                "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "balances",
-                "{{balanceId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID"
-                },
-                {
-                  "key": "balance_id",
-                  "value": "{{balanceId}}",
-                  "description": "Balance ID"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Delete a Balance with the input ID"
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -4971,38 +4482,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "segments",
-                "{{segmentId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "id",
-                  "value": "{{segmentId}}",
-                  "description": "Segment ID in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone."
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -5094,38 +4591,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "portfolios",
-                "{{portfolioId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "id",
-                  "value": "{{portfolioId}}",
-                  "description": "Portfolio ID in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone."
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -5217,38 +4700,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "accounts",
-                "{{accountId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "id",
-                  "value": "{{accountId}}",
-                  "description": "Account ID in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes an account from the specified ledger. This operation cannot be undone."
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -5340,38 +4809,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}",
-                "assets",
-                "{{assetId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "ledger_id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID in UUID format"
-                },
-                {
-                  "key": "id",
-                  "value": "{{assetId}}",
-                  "description": "Asset ID in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone."
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -5463,31 +4918,24 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
               "host": [
                 "{{onboardingUrl}}"
               ],
               "path": [
                 "v1",
                 "organizations",
-                "{{organizationId}}",
-                "ledgers",
-                "{{ledgerId}}"
+                "{{organizationId}}"
               ],
               "variable": [
                 {
-                  "key": "organization_id",
+                  "key": "id",
                   "value": "{{organizationId}}",
                   "description": "Organization ID in UUID format"
-                },
-                {
-                  "key": "id",
-                  "value": "{{ledgerId}}",
-                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": [],
           "event": [
@@ -5670,7 +5118,7 @@
           "description": "Deletes an organization\n\n**Uses:**\n- `organizationId` from step 1\n"
         }
       ],
-      "_postman_id": "dcf5ef29-6d80-44a9-a47c-56e97242010d"
+      "_postman_id": "e02c2c61-5e09-481d-8299-87b4475c235c"
     },
     {
       "name": "Organizations",
