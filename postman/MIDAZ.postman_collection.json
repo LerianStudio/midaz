@@ -3300,6 +3300,12 @@
                 "value": "{{$guid}}",
                 "description": "Request ID",
                 "disabled": true
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "description": "Unique key to prevent duplicate transactions",
+                "disabled": false
               }
             ],
             "url": {
@@ -3347,6 +3353,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Generate a unique idempotency key for this transaction",
+                  "const uuid = require(\"uuid\");",
+                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
+                  "",
                   "",
                   "// Check for auth token",
                   "if (!pm.environment.get(\"authToken\")) {",
@@ -4944,6 +4955,12 @@
                 "value": "{{$guid}}",
                 "description": "Request ID",
                 "disabled": true
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "description": "Unique key to prevent duplicate transactions",
+                "disabled": false
               }
             ],
             "url": {
@@ -4991,6 +5008,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Generate a unique idempotency key for this transaction",
+                  "const uuid = require(\"uuid\");",
+                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
+                  "",
                   "",
                   "// Check for auth token",
                   "if (!pm.environment.get(\"authToken\")) {",
@@ -5975,7 +5997,7 @@
           ]
         }
       ],
-      "_postman_id": "b311cdec-4dea-4b1f-ac73-28d153d21c56",
+      "_postman_id": "a6f3568a-e3f3-4c22-acc3-48a83d845dc7",
       "event": []
     },
     {
@@ -11867,6 +11889,12 @@
                 "value": "{{$guid}}",
                 "description": "Request ID",
                 "disabled": true
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "description": "Unique key to prevent duplicate transactions",
+                "disabled": false
               }
             ],
             "url": {
@@ -11905,6 +11933,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Generate a unique idempotency key for this transaction",
+                  "const uuid = require(\"uuid\");",
+                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
+                  "",
                   "",
                   "// Check for auth token",
                   "if (!pm.environment.get(\"authToken\")) {",
@@ -11984,6 +12017,12 @@
                 "value": "{{$guid}}",
                 "description": "Request ID",
                 "disabled": true
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "description": "Unique key to prevent duplicate transactions",
+                "disabled": false
               }
             ],
             "url": {
@@ -12031,6 +12070,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Generate a unique idempotency key for this transaction",
+                  "const uuid = require(\"uuid\");",
+                  "pm.environment.set(\"idempotencyKey\", uuid.v4());",
+                  "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
+                  "",
                   "",
                   "// Check for auth token",
                   "if (!pm.environment.get(\"authToken\")) {",

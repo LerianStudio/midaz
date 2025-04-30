@@ -694,79 +694,141 @@ function createUrl(path, baseUrlVariable) {
  * @param {string} path - The path of the endpoint
  */
 function addParameters(requestItem, operation, path) {
-  if (!operation.parameters) return;
-  
-  // Path parameters
-  const pathParams = operation.parameters.filter(p => p.in === 'path');
-  if (pathParams.length > 0) {
-    requestItem.request.url.variable = pathParams.map(p => {
-      // Map common parameter names to environment variables using camelCase
-      let value = '';
-      if (p.name === 'organization_id') value = '{{organizationId}}';
-      else if (p.name === 'ledger_id') value = '{{ledgerId}}';
-      else if (p.name === 'account_id') value = '{{accountId}}';
-      else if (p.name === 'asset_id') value = '{{assetId}}';
-      else if (p.name === 'transaction_id') value = '{{transactionId}}';
-      else if (p.name === 'operation_id') value = '{{operationId}}';
-      else if (p.name === 'balance_id') value = '{{balanceId}}';
-      else if (p.name === 'id') {
-        // Try to determine the entity type from the path
-        if (path.includes('/organizations/') && !path.includes('/ledgers/')) value = '{{organizationId}}';
-        if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{ledgerId}}';
-        if (path.includes('/accounts/') && !path.includes('/balances/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{accountId}}';
-        if (path.includes('/assets/')) value = '{{assetId}}';
-        if (path.includes('/portfolios/')) value = '{{portfolioId}}';
-        if (path.includes('/segments/')) value = '{{segmentId}}';
-        if (path.includes('/operations/')) value = '{{operationId}}';
-        if (path.includes('/transactions/')) value = '{{transactionId}}';
-        if (path.includes('/balances/')) value = '{{balanceId}}';
-      }
-      // Convert any other snake_case params to camelCase
-      else if (p.name.includes('_')) {
-        const camelCaseParam = p.name.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
-        value = `{{${camelCaseParam}}}`;
-      }
-      
-      return {
+  if (!operation.parameters) {
+    // Initialize header array if it doesn't exist
+    if (!requestItem.request.header) {
+      requestItem.request.header = [];
+    }
+  } else {
+    // Path parameters
+    const pathParams = operation.parameters.filter(p => p.in === 'path');
+    if (pathParams.length > 0) {
+      requestItem.request.url.variable = pathParams.map(p => {
+        // Map common parameter names to environment variables using camelCase
+        let value = '';
+        if (p.name === 'organization_id') value = '{{organizationId}}';
+        else if (p.name === 'ledger_id') value = '{{ledgerId}}';
+        else if (p.name === 'account_id') value = '{{accountId}}';
+        else if (p.name === 'asset_id') value = '{{assetId}}';
+        else if (p.name === 'transaction_id') value = '{{transactionId}}';
+        else if (p.name === 'operation_id') value = '{{operationId}}';
+        else if (p.name === 'balance_id') value = '{{balanceId}}';
+        else if (p.name === 'id') {
+          // Try to determine the entity type from the path
+          if (path.includes('/organizations/') && !path.includes('/ledgers/')) value = '{{organizationId}}';
+          if (path.includes('/ledgers/') && !path.includes('/accounts/') && !path.includes('/assets/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{ledgerId}}';
+          if (path.includes('/accounts/') && !path.includes('/balances/') && !path.includes('/portfolios/') && !path.includes('/segments/')) value = '{{accountId}}';
+          if (path.includes('/assets/')) value = '{{assetId}}';
+          if (path.includes('/portfolios/')) value = '{{portfolioId}}';
+          if (path.includes('/segments/')) value = '{{segmentId}}';
+          if (path.includes('/operations/')) value = '{{operationId}}';
+          if (path.includes('/transactions/')) value = '{{transactionId}}';
+          if (path.includes('/balances/')) value = '{{balanceId}}';
+        }
+        // Convert any other snake_case params to camelCase
+        else if (p.name.includes('_')) {
+          const camelCaseParam = p.name.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
+          value = `{{${camelCaseParam}}}`;
+        }
+        
+        return {
+          key: p.name,
+          value: value,
+          description: p.description || ''
+        };
+      });
+    }
+    
+    // Query parameters
+    const queryParams = operation.parameters.filter(p => p.in === 'query');
+    if (queryParams.length > 0) {
+      requestItem.request.url.query = queryParams.map(p => ({
         key: p.name,
-        value: value,
-        description: p.description || ''
-      };
+        value: p.schema?.default !== undefined ? String(p.schema.default) : '',
+        description: p.description || '',
+        disabled: !p.required
+      }));
+    }
+    
+    // Header parameters
+    const headerParams = operation.parameters.filter(p => p.in === 'header');
+    if (headerParams.length > 0) {
+      requestItem.request.header = headerParams.map(p => {
+        // Handle auth headers specially
+        let value = '';
+        if (p.name === 'Authorization') {
+          value = '{{authToken}}';
+          if (value.indexOf('Bearer') === -1) {
+            value = 'Bearer ' + value;
+          }
+        } else if (p.name === 'X-Request-Id') {
+          value = '{{$guid}}';
+        }
+        
+        return {
+          key: p.name,
+          value: value,
+          description: p.description || '',
+          disabled: !p.required
+        };
+      });
+    }
+  }
+  
+  // Add Authorization header if not present
+  const hasAuthHeader = requestItem.request.header.some(h => h.key === 'Authorization');
+  if (!hasAuthHeader) {
+    requestItem.request.header.push({
+      key: 'Authorization',
+      value: 'Bearer {{authToken}}',
+      description: 'Authorization Bearer Token',
+      disabled: false
     });
   }
   
-  // Query parameters
-  const queryParams = operation.parameters.filter(p => p.in === 'query');
-  if (queryParams.length > 0) {
-    requestItem.request.url.query = queryParams.map(p => ({
-      key: p.name,
-      value: p.schema?.default !== undefined ? String(p.schema.default) : '',
-      description: p.description || '',
-      disabled: !p.required
-    }));
+  // Add X-Request-Id header if not present
+  const hasRequestIdHeader = requestItem.request.header.some(h => h.key === 'X-Request-Id');
+  if (!hasRequestIdHeader) {
+    requestItem.request.header.push({
+      key: 'X-Request-Id',
+      value: '{{$guid}}',
+      description: 'Request ID',
+      disabled: true
+    });
   }
   
-  // Header parameters
-  const headerParams = operation.parameters.filter(p => p.in === 'header');
-  if (headerParams.length > 0) {
-    requestItem.request.header = headerParams.map(p => {
-      // Handle auth headers specially
-      let value = '';
-      if (p.name === 'Authorization') {
-        value = '{{authToken}}';
-        if (value.indexOf('Bearer') === -1) {
-          value = 'Bearer ' + value;
-        }
-      } else if (p.name === 'X-Request-Id') {
-        value = '{{$guid}}';
-      }
+  // Add Idempotency-Key header for transaction creation endpoints
+  const isTransactionEndpoint = (
+    (path.includes('/transactions/json') || path.includes('/transactions/dsl')) && 
+    requestItem.request.method === 'POST'
+  );
+  
+  if (isTransactionEndpoint) {
+    // Add pre-request script to set a unique idempotencyKey
+    const preRequestScript = requestItem.event.find(e => e.listen === 'prerequest');
+    if (preRequestScript) {
+      // Add code to generate a unique idempotency key
+      const idempotencyKeyScript = [
+        '// Generate a unique idempotency key for this transaction',
+        'const uuid = require("uuid");',
+        'pm.environment.set("idempotencyKey", uuid.v4());',
+        'console.log("Generated idempotency key:", pm.environment.get("idempotencyKey"));',
+        ''
+      ];
       
-      return {
-        key: p.name,
-        value: value,
-        description: p.description || '',
-        disabled: !p.required
-      };
+      // Add the script lines to the beginning of the existing script
+      preRequestScript.script.exec = [
+        ...idempotencyKeyScript,
+        ...preRequestScript.script.exec
+      ];
+    }
+    
+    // Add the Idempotency-Key header
+    requestItem.request.header.push({
+      key: 'Idempotency-Key',
+      value: '{{idempotencyKey}}',
+      description: 'Unique key to prevent duplicate transactions',
+      disabled: false
     });
   }
 }
@@ -1003,6 +1065,12 @@ function createEnvironmentTemplate(spec) {
       },
       {
         key: 'transactionId',
+        value: '',
+        type: 'default',
+        enabled: true
+      },
+      {
+        key: 'idempotencyKey',
         value: '',
         type: 'default',
         enabled: true
