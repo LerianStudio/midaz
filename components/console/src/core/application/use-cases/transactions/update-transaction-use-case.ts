@@ -2,9 +2,12 @@ import { TransactionRepository } from '@/core/domain/repositories/transaction-re
 import { inject, injectable } from 'inversify'
 import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
 import { TransactionMapper } from '../../mappers/transaction-mapper'
-import { UpdateTransactionDto } from '../../dto/transaction-dto'
+import {
+  CreateTransactionDto,
+  UpdateTransactionDto
+} from '../../dto/transaction-dto'
 import { TransactionResponseDto } from '../../dto/transaction-dto'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdateTransaction {
   execute: (
@@ -29,11 +32,10 @@ export class UpdateTransactionUseCase implements UpdateTransaction {
     transactionId: string,
     transaction: Partial<UpdateTransactionDto>
   ): Promise<TransactionResponseDto> {
-    const transactionEntity: Partial<TransactionEntity> =
-      TransactionMapper.transactionMapperUpdate(
-        transaction.description ?? '',
-        transaction.metadata ?? {}
-      )
+    const transactionEntity = TransactionMapper.toDomain({
+      description: transaction.description ?? '',
+      metadata: transaction.metadata ?? {}
+    } as CreateTransactionDto)
 
     const updatedTransaction: TransactionEntity =
       await this.transactionRepository.update(
@@ -43,7 +45,7 @@ export class UpdateTransactionUseCase implements UpdateTransaction {
         transactionEntity
       )
 
-    const updatedTransactionResponseDto: TransactionResponseDto =
+    const updatedTransactionResponseDto =
       TransactionMapper.toResponseDto(updatedTransaction)!
 
     return updatedTransactionResponseDto

@@ -5,11 +5,8 @@ import type {
   CreateTransactionDto,
   TransactionResponseDto
 } from '../../dto/transaction-dto'
-import {
-  TransactionCreateEntity,
-  TransactionEntity
-} from '@/core/domain/entities/transaction-entity'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface CreateTransaction {
   execute: (
@@ -32,7 +29,7 @@ export class CreateTransactionUseCase implements CreateTransaction {
     ledgerId: string,
     transaction: CreateTransactionDto
   ): Promise<TransactionResponseDto> {
-    const transactionEntity: TransactionCreateEntity =
+    const transactionEntity: TransactionEntity =
       TransactionMapper.toDomain(transaction)
 
     const transactionCreated = await this.transactionRepository.create(

@@ -1,3 +1,4 @@
+import { apiErrorHandler } from '@/app/api/utils/api-error-handler'
 import {
   FetchTransactionById,
   FetchTransactionByIdUseCase
@@ -37,10 +38,9 @@ export const GET = applyMiddleware(
 
       return NextResponse.json(transaction)
     } catch (error) {
-      return NextResponse.json(
-        { error: 'Failed to fetch transaction' },
-        { status: 500 }
-      )
+      const { message, status } = await apiErrorHandler(error)
+
+      return NextResponse.json({ message }, { status })
     }
   }
 )
@@ -76,10 +76,9 @@ export const PATCH = applyMiddleware(
 
       return NextResponse.json(updatedTransaction)
     } catch (error) {
-      return NextResponse.json(
-        { error: 'Failed to update transaction' },
-        { status: 500 }
-      )
+      const { message, status } = await apiErrorHandler(error)
+
+      return NextResponse.json({ message }, { status })
     }
   }
 )

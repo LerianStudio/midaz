@@ -1,14 +1,11 @@
 import { PaginationEntity } from '../entities/pagination-entity'
-import {
-  TransactionCreateEntity,
-  TransactionEntity
-} from '../entities/transaction-entity'
+import { TransactionEntity } from '../entities/transaction-entity'
 
 export abstract class TransactionRepository {
   abstract create: (
     organizationId: string,
     ledgerId: string,
-    transaction: TransactionCreateEntity
+    transaction: TransactionEntity
   ) => Promise<TransactionEntity>
   abstract fetchAll: (
     organizationId: string,

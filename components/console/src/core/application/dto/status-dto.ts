@@ -1,4 +1,4 @@
-export interface StatusDto {
+export type StatusDto = {
   code: string
-  description: string
+  description: string | null
 }

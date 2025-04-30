@@ -85,7 +85,7 @@ export const useListTransactions = ({
   limit,
   ...options
 }: UseListTransactionsProps) => {
-  return useQuery<PaginationDto<any>>({
+  return useQuery<PaginationDto<TransactionResponseDto>>({
     queryKey: ['transactions-list', organizationId, ledgerId, page, limit],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,

@@ -1,11 +1,12 @@
-import {
-  TransactionCreateEntity,
-  TransactionEntity
-} from '@/core/domain/entities/transaction-entity'
+import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazTransactionMapper } from '../mappers/midaz-transaction-mapper'
+import { MidazTransactionDto } from '../dto/midaz-transaction-dto'
+import { createQueryString } from '@/lib/search'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 
 @injectable()
 export class MidazTransactionRepository implements TransactionRepository {
@@ -18,15 +19,16 @@ export class MidazTransactionRepository implements TransactionRepository {
   async create(
     organizationId: string,
     ledgerId: string,
-    transaction: TransactionCreateEntity
+    transaction: TransactionEntity
   ): Promise<TransactionEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`
-
-    const response = await this.httpService.post<TransactionEntity>(url, {
-      body: JSON.stringify(transaction)
-    })
-
-    return response
+    const dto = MidazTransactionMapper.toCreateDto(transaction)
+    const response = await this.httpService.post<MidazTransactionDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazTransactionMapper.toEntity(response)
   }
 
   async fetchAll(
@@ -35,12 +37,12 @@ export class MidazTransactionRepository implements TransactionRepository {
     limit: number,
     page: number
   ): Promise<PaginationEntity<TransactionEntity>> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?limit=${limit}&page=${page}`
-
-    const response =
-      await this.httpService.get<PaginationEntity<TransactionEntity>>(url)
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazTransactionDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions${createQueryString({ limit, page })}`
+    )
+    return MidazTransactionMapper.toPaginationEntity(response)
   }
 
   async fetchById(
@@ -48,11 +50,10 @@ export class MidazTransactionRepository implements TransactionRepository {
     ledgerId: string,
     transactionId: string
   ): Promise<TransactionEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
-
-    const response = await this.httpService.get<TransactionEntity>(url)
-
-    return response
+    const response = await this.httpService.get<MidazTransactionDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
+    )
+    return MidazTransactionMapper.toEntity(response)
   }
 
   async update(
@@ -61,12 +62,13 @@ export class MidazTransactionRepository implements TransactionRepository {
     transactionId: string,
     transaction: Partial<TransactionEntity>
   ): Promise<TransactionEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
-
-    const response = await this.httpService.patch<TransactionEntity>(url, {
-      body: JSON.stringify(transaction)
-    })
-
-    return response
+    const dto = MidazTransactionMapper.toUpdateDto(transaction)
+    const response = await this.httpService.patch<MidazTransactionDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazTransactionMapper.toEntity(response)
   }
 }
