@@ -23,7 +23,8 @@
     "docker-up": "npm run set-env && docker compose up -d",
     "prepare": "husky",
     "format": "prettier --write .",
-    "lhci": "lhci autorun"
+    "lhci": "lhci autorun",
+    "preinstall": "bash ./scripts/check-node-version.sh"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "^0.5.6",
