@@ -8,7 +8,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPONENTS=("onboarding" "transaction")
 
 # Temporary log dir
-LOG_DIR="${ROOT_DIR}/tmp/generate-docs-logs"
+LOG_DIR="${ROOT_DIR}/tmp"
 mkdir -p "${LOG_DIR}"
 
 # Print a header with a nice box

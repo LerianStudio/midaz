@@ -109,6 +109,12 @@ function parseWorkflowStepsFromMarkdown(markdown) {
         uses: [],
         outputs: []
       };
+      
+      // Debug for Zero Out Balance step
+      if (titleMatch[2].trim() === "Zero Out Balance") {
+        console.log(`DEBUG: Found Zero Out Balance step in markdown: number=${stepNumber}, title="${titleMatch[2].trim()}"`);
+      }
+      
       steps.push(currentStep);
     }
     // Match method and path: "- `POST /v1/organizations`"
@@ -234,78 +240,47 @@ function findRequestRecursive(items, targetMethod, targetPath) {
 
 // Add or update the test script to extract variables
 function addOrUpdateTestScript(workflowItem, outputs) {
-    if (!outputs || outputs.length === 0) {
-        return; // No outputs to extract
+    if (!outputs || outputs.length === 0) return; // No outputs to extract
+    
+    // Find or create test event
+    let testEvent = null;
+    if (!workflowItem.event) {
+        workflowItem.event = [];
     }
-
-    let testEvent = workflowItem.event?.find(e => e.listen === 'test');
-
-    // If no test event exists, create one
+    
+    testEvent = workflowItem.event.find(e => e.listen === 'test');
     if (!testEvent) {
-        if (!workflowItem.event) {
-            workflowItem.event = [];
-        }
         testEvent = {
             listen: 'test',
             script: {
                 id: uuidv4(),
-                type: 'text/javascript',
-                exec: []
+                exec: [],
+                type: 'text/javascript'
             }
         };
         workflowItem.event.push(testEvent);
     }
-
-    // Ensure exec array exists
-    if (!testEvent.script.exec) {
+    
+    // Ensure exec is an array
+    if (!Array.isArray(testEvent.script.exec)) {
         testEvent.script.exec = [];
     }
-
-    // Basic status code test (add if missing or minimal)
-    const hasStatusCodeTest = testEvent.script.exec.some(line => line.includes('pm.test("Status code is') || line.includes('pm.response.to.have.status'));
-    if (!hasStatusCodeTest) {
-       testEvent.script.exec.unshift(
-         '// Basic status code check',
-         'pm.test("Status code is 2xx", function () {',
-         '    pm.expect(pm.response.code).to.be.within(200, 299);',
-         '});',
-         ''
-       );
-    }
-
-
-    // Generate extraction logic
-    let extractScript = '\n// Auto-generated: Extract variables from response\n';
-    extractScript += 'try {\n';
-    extractScript += '    const jsonData = pm.response.json();\n';
-
+    
+    // Add variable extraction script
+    let extractScript = "\n// Extract variables from response\ntry {\n";
+    extractScript += "    const jsonData = pm.response.json();\n";
+    
     for (const output of outputs) {
-        // Simple direct property access for now (e.g., id, alias)
-        // More complex extraction (like balanceId/operationId from arrays) might need refinement
-        if (output === 'organizationId' || output === 'ledgerId' || output === 'assetId' ||
-            output === 'accountId' || output === 'assetRateId' || output === 'portfolioId' ||
-            output === 'segmentId' || output === 'transactionId') {
-            extractScript += `    if (jsonData && jsonData.id) {\n`;
-            extractScript += `        pm.environment.set("${output}", jsonData.id);\n`;
-            extractScript += `        console.log("Saved ${output}:", jsonData.id);\n`;
-            extractScript += `    }\n`;
-        } else if (output === 'accountAlias') {
-             extractScript += `    if (jsonData && jsonData.alias) {\n`;
-             extractScript += `        pm.environment.set("${output}", jsonData.alias);\n`;
-             extractScript += `        console.log("Saved ${output}:", jsonData.alias);\n`;
-             extractScript += `    }\n`;
-        } else if (output === 'balanceId' || output === 'operationId') {
-             // Basic handling for balanceId/operationId - assumes they might be in 'data' or top-level
-             // This might need adjustment based on actual response structures
-             extractScript += `    // Attempting to save ${output}\n`;
-             extractScript += `    let foundVal = null;\n`;
-             extractScript += `    if (jsonData && jsonData.${output}) { foundVal = jsonData.${output}; }\n`;
-             extractScript += `    else if (jsonData && jsonData.data && jsonData.data.${output}) { foundVal = jsonData.data.${output}; }\n`;
-             // Add more specific checks if needed, e.g., iterating arrays
-             extractScript += `    if (foundVal) {\n`;
-             extractScript += `        pm.environment.set("${output}", foundVal);\n`;
-             extractScript += `        console.log("Saved ${output}:", foundVal);\n`;
-             extractScript += `    } else { /* console.log("Could not find ${output} directly in response"); */ }\n`;
+        if (typeof output === 'string' && output.trim() !== '') {
+            extractScript += "    // Attempting to save " + output + "\n";
+            extractScript += "    let foundVal = null;\n";
+            extractScript += "    if (jsonData && jsonData." + output + ") { foundVal = jsonData." + output + "; }\n";
+            extractScript += "    else if (jsonData && jsonData.data && jsonData.data." + output + ") { foundVal = jsonData.data." + output + "; }\n";
+            // Add more specific checks if needed, e.g., iterating arrays
+            extractScript += "    if (foundVal) {\n";
+            extractScript += "        pm.environment.set(\"" + output + "\", foundVal);\n";
+            extractScript += "        console.log(\"Saved " + output + ":\", foundVal);\n";
+            extractScript += "    } else { /* console.log(\"Could not find " + output + " directly in response\"); */ }\n";
         } else {
             console.warn(`  Warning: Don't know how to extract output variable '${output}'. Skipping.`);
         }
@@ -330,8 +305,15 @@ function createWorkflowFolder(collection, steps) {
     let notFoundCount = 0;
     const missingSteps = []; // Array to collect missing steps
 
+    console.log("DEBUG: Starting to process steps for workflow folder creation");
+    
     steps.forEach((step, index) => {
         console.log(`Processing Step ${index + 1}: ${step.title} (${step.method} ${step.path})`);
+        
+        // Debug logging for Zero Out Balance step
+        if (step.title === "Zero Out Balance") {
+            console.log(`DEBUG: Found Zero Out Balance step in workflow creation: number=${step.number}, title="${step.title}"`);
+        }
 
         // Find the original request in the main collection
         // Exclude the workflow folder itself from the search
@@ -347,37 +329,105 @@ function createWorkflowFolder(collection, steps) {
 
             // Add/Update description from Markdown
             let markdownDesc = `**Workflow Step ${step.number}: ${step.title}**\n\n${step.description || 'No description provided in Markdown.'}`;
+            
+            // Add "Uses" section if applicable
             if (step.uses && step.uses.length > 0) {
-                markdownDesc += '\n\n**Uses:**';
-                step.uses.forEach(use => { markdownDesc += `\n- \`${use.variable}\` from step ${use.step}`; });
+                markdownDesc += '\n\n---\n\n**Uses:**\n';
+                step.uses.forEach(use => {
+                    markdownDesc += `- \`${use}\`\n`;
+                });
             }
-             if (step.outputs && step.outputs.length > 0) {
-                markdownDesc += '\n\n**Outputs:**';
-                step.outputs.forEach(output => { markdownDesc += `\n- \`${output}\``; });
-            }
+            
+            // Set the description
+            workflowItem.request.description = markdownDesc;
 
-            // Prepend Markdown description to existing request description (if any)
-            if (workflowItem.request?.description) {
-                 if (typeof workflowItem.request.description === 'string') {
-                    workflowItem.request.description = markdownDesc + '\n\n---\n\n' + workflowItem.request.description;
-                 } else if (workflowItem.request.description.content) {
-                    workflowItem.request.description.content = markdownDesc + '\n\n---\n\n' + workflowItem.request.description.content;
-                 } else {
-                     workflowItem.request.description = markdownDesc; // Overwrite if format is unexpected
-                 }
-            } else {
-                 if (!workflowItem.request) workflowItem.request = {}; // Ensure request object exists
-                 workflowItem.request.description = markdownDesc;
+            // Update path parameters in the URL
+            if (workflowItem.request.url && workflowItem.request.url.path) {
+                workflowItem.request.url.path = workflowItem.request.url.path.map(segment => {
+                    // Replace path parameters with environment variables
+                    if (segment === 'organizationId' || segment === '{organizationId}') {
+                        return '{organizationId}';
+                    } else if (segment === 'ledgerId' || segment === '{ledgerId}') {
+                        return '{ledgerId}';
+                    } else if (segment === 'accountId' || segment === '{accountId}') {
+                        return '{accountId}';
+                    } else if (segment === 'assetId' || segment === '{assetId}') {
+                        return '{assetId}';
+                    } else if (segment === 'balanceId' || segment === '{balanceId}') {
+                        return '{balanceId}';
+                    } else if (segment === 'portfolioId' || segment === '{portfolioId}') {
+                        return '{portfolioId}';
+                    } else if (segment === 'segmentId' || segment === '{segmentId}') {
+                        return '{segmentId}';
+                    } else if (segment === 'transactionId' || segment === '{transactionId}') {
+                        return '{transactionId}';
+                    } else if (segment === 'operationId' || segment === '{operationId}') {
+                        return '{operationId}';
+                    }
+                    return segment;
+                });
             }
-
 
             // Add/Update test script for variable extraction
             addOrUpdateTestScript(workflowItem, step.outputs);
 
+            // Special handling for Zero Out Balance step
+            if (step.title === "Zero Out Balance") {
+                console.log(`  DEBUG: Attempting to customize Zero Out Balance step (Step ${step.number})...`);
+                console.log(`  DEBUG: Request body before customization:`, JSON.stringify(workflowItem.request.body || {}, null, 2));
+                
+                // Make sure the request has a body
+                if (!workflowItem.request.body) {
+                    console.log(`  DEBUG: Creating new request body for Zero Out Balance step`);
+                    workflowItem.request.body = {
+                        mode: 'raw',
+                        raw: '',
+                        options: {
+                            raw: {
+                                language: 'json'
+                            }
+                        }
+                    };
+                } else {
+                    console.log(`  DEBUG: Request body already exists with mode: ${workflowItem.request.body.mode}`);
+                }
+                
+                // Set the custom transaction body for zeroing out the balance
+                const zeroOutTransactionBody = {
+                    "transactions": [
+                        {
+                            "postings": [
+                                {
+                                    "amount": {
+                                        "asset": "USD",
+                                        "value": 100
+                                    },
+                                    "source": "{{accountAlias}}",
+                                    "destination": "@external/USD"
+                                }
+                            ],
+                            "reference": "Zero out balance transaction",
+                            "metadata": {
+                                "description": "Reversing the transaction from step 25"
+                            }
+                        }
+                    ]
+                };
+                
+                // Update the request body
+                if (workflowItem.request.body) {
+                    workflowItem.request.body.raw = JSON.stringify(zeroOutTransactionBody, null, 2);
+                    console.log(`  DEBUG: Updated request body for Zero Out Balance step`);
+                    console.log(`  DEBUG: New request body:`, workflowItem.request.body.raw);
+                } else {
+                    console.log(`  DEBUG: Failed to update request body - body object is null or undefined`);
+                }
+            }
+
             // Add the prepared item to the workflow folder
             workflowFolder.item.push(workflowItem);
         } else {
-            console.warn(`  WARNING: Could not find matching request for Step ${index + 1}: ${step.title} (${step.method} ${step.path})`);
+            console.warn(`  Warning: Could not find matching request for Step ${index + 1}: ${step.title} (${step.method} ${step.path})`);
             notFoundCount++;
             missingSteps.push({
                 number: step.number,
@@ -426,45 +476,61 @@ function createWorkflowFolder(collection, steps) {
 // --- Main Execution ---
 
 function main() {
-    // 1. Parse Args
-    const args = process.argv.slice(2);
-    if (args.length < 3) {
-        console.error('Usage: node create-workflow.js <input-collection.json> <workflow.md> <output-collection.json>');
+    // Check command line arguments
+    if (process.argv.length < 5) {
+        console.error('Usage: node create-workflow.js <collection-file> <workflow-markdown-file> <output-file>');
         process.exit(1);
     }
-    const [inputCollectionPath, workflowMdPath, outputCollectionPath] = args;
 
-    // 2. Read Files
-    console.log(`Reading collection: ${inputCollectionPath}`);
-    const collection = readJsonFile(inputCollectionPath);
-    console.log(`Reading workflow markdown: ${workflowMdPath}`);
-    const workflowMd = readFile(workflowMdPath);
+    const collectionFilePath = process.argv[2];
+    const workflowMarkdownFilePath = process.argv[3];
+    const outputFilePath = process.argv[4];
 
-    // 3. Parse Workflow Steps
-    const steps = parseWorkflowStepsFromMarkdown(workflowMd);
+    try {
+        // Read input files
+        console.log(`Reading collection: ${collectionFilePath}`);
+        const collection = readJsonFile(collectionFilePath);
 
-    // 4. Create Workflow Folder (find and copy requests)
-    console.log("\nCreating workflow folder by finding and copying requests...");
-    const workflowFolder = createWorkflowFolder(collection, steps);
+        console.log(`Reading workflow markdown: ${workflowMarkdownFilePath}`);
+        const workflowMarkdown = readFile(workflowMarkdownFilePath);
 
-    // 5. Add/Replace Workflow Folder in Collection
-    // Remove existing workflow folder if present
-    const existingWorkflowIndex = collection.item.findIndex(item => item.name === "Complete API Workflow");
-    if (existingWorkflowIndex !== -1) {
-        console.log("Replacing existing 'Complete API Workflow' folder.");
-        collection.item.splice(existingWorkflowIndex, 1);
-    } else {
-        console.log("Adding new 'Complete API Workflow' folder.");
+        // Parse workflow steps from markdown
+        const workflowSteps = parseWorkflowStepsFromMarkdown(workflowMarkdown);
+        console.log(`Parsed ${workflowSteps.length} workflow steps from Markdown.`);
+        
+        // Debug: Print all step titles to verify Zero Out Balance is included
+        console.log("DEBUG: All parsed step titles:");
+        workflowSteps.forEach(step => {
+            console.log(`  Step ${step.number}: ${step.title}`);
+            if (step.title === "Zero Out Balance") {
+                console.log(`  DEBUG: Zero Out Balance step details: number=${step.number}, title="${step.title}", method=${step.method}, path=${step.path}`);
+            }
+        });
+
+        console.log("\nCreating workflow folder by finding and copying requests...");
+        const workflowFolder = createWorkflowFolder(collection, workflowSteps);
+
+        // 5. Add/Replace Workflow Folder in Collection
+        // Remove existing workflow folder if present
+        const existingWorkflowIndex = collection.item.findIndex(item => item.name === "Complete API Workflow");
+        if (existingWorkflowIndex !== -1) {
+            console.log("Replacing existing 'Complete API Workflow' folder.");
+            collection.item.splice(existingWorkflowIndex, 1);
+        } else {
+            console.log("Adding new 'Complete API Workflow' folder.");
+        }
+        // Add the new folder at the beginning
+        collection.item.unshift(workflowFolder);
+
+
+        // 6. Write Updated Collection
+        console.log(`\nWriting updated collection to: ${outputFilePath}`);
+        writeJsonFile(outputFilePath, collection);
+
+        console.log("\nWorkflow generation complete.");
+    } catch (error) {
+        console.error("An error occurred:", error);
     }
-    // Add the new folder at the beginning
-    collection.item.unshift(workflowFolder);
-
-
-    // 6. Write Updated Collection
-    console.log(`\nWriting updated collection to: ${outputCollectionPath}`);
-    writeJsonFile(outputCollectionPath, collection);
-
-    console.log("\nWorkflow generation complete.");
 }
 
 // Run main

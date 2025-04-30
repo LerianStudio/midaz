@@ -224,7 +224,7 @@ This document outlines a complete linear workflow for testing all the main endpo
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
     - Creates a reverse transaction to zero out the balance created in step 25
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
-    - **Description:** Creates a transaction that transfers 100 (scale 2) from external/USD to the account, reversing the transaction in step 25
+    - **Description:** Creates a transaction that transfers 100 (scale 2) from account to external/USD, reversing the transaction in step 25
 
 37. **Delete Balance**
 

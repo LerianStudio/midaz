@@ -39,7 +39,7 @@
                 "organizations"
               ]
             },
-            "description": "**Workflow Step 1: Create Organization**\n\nCreates a new organization in the system\n\n---\n\nCreates a new organization with the provided details including legal name, legal document, and optional address information",
+            "description": "**Workflow Step 1: Create Organization**\n\nCreates a new organization in the system",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian FS\",\n  \"legalDocument\": \"123456789012345\",\n  \"legalName\": \"Lerian Financial Services Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -167,7 +167,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 2: Get Organization**\n\nRetrieves the organization details\n\n---\n\nReturns detailed information about an organization identified by its UUID"
+            "description": "**Workflow Step 2: Get Organization**\n\nRetrieves the organization details"
           },
           "response": [],
           "event": [
@@ -280,7 +280,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 3: Update Organization**\n\nUpdates organization details\n\n---\n\nUpdates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
+            "description": "**Workflow Step 3: Update Organization**\n\nUpdates organization details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"address\": {\n    \"city\": \"New York\",\n    \"country\": \"US\",\n    \"line1\": \"123 Financial Avenue\",\n    \"line2\": \"Suite 1500\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\"\n  },\n  \"doingBusinessAs\": \"Lerian Group\",\n  \"legalName\": \"Lerian Financial Group Ltd.\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"parentOrganizationId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -427,7 +427,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 4: List Organizations**\n\nLists all organizations\n\n---\n\nReturns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 4: List Organizations**\n\nLists all organizations"
           },
           "response": [],
           "event": [
@@ -536,7 +536,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 5: Create Ledger**\n\nCreates a new ledger within the organization\n\n---\n\nCreates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
+            "description": "**Workflow Step 5: Create Ledger**\n\nCreates a new ledger within the organization",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Example name\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -676,7 +676,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 6: Get Ledger**\n\nRetrieves the ledger details\n\n---\n\nReturns detailed information about a ledger identified by its UUID within the specified organization"
+            "description": "**Workflow Step 6: Get Ledger**\n\nRetrieves the ledger details"
           },
           "response": [],
           "event": [
@@ -799,7 +799,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 7: Update Ledger**\n\nUpdates ledger details\n\n---\n\nUpdates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
+            "description": "**Workflow Step 7: Update Ledger**\n\nUpdates ledger details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -955,7 +955,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 8: List Ledgers**\n\nLists all ledgers in the organization\n\n---\n\nReturns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 8: List Ledgers**\n\nLists all ledgers in the organization"
           },
           "response": [],
           "event": [
@@ -1071,7 +1071,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 9: Create Asset**\n\nCreates a new asset (e.g., USD) in the ledger\n\n---\n\nCreates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
+            "description": "**Workflow Step 9: Create Asset**\n\nCreates a new asset (e.g., USD) in the ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"code\": \"USD\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"US Dollar\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"currency\"\n}",
@@ -1221,7 +1221,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 10: Get Asset**\n\nRetrieves the asset details\n\n---\n\nReturns detailed information about an asset identified by its UUID within the specified ledger"
+            "description": "**Workflow Step 10: Get Asset**\n\nRetrieves the asset details"
           },
           "response": [],
           "event": [
@@ -1354,7 +1354,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 11: Update Asset**\n\nUpdates asset details\n\n---\n\nUpdates an existing asset's properties such as name, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 11: Update Asset**\n\nUpdates asset details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Bitcoin\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -1517,7 +1517,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 12: List Assets**\n\nLists all assets in the ledger\n\n---\n\nReturns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 12: List Assets**\n\nLists all assets in the ledger"
           },
           "response": [],
           "event": [
@@ -1633,7 +1633,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 13: Create Account**\n\nCreates a new account in the ledger\n\n---\n\nCreates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
+            "description": "**Workflow Step 13: Create Account**\n\nCreates a new account in the ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"alias\": \"@treasury_checking\",\n  \"assetCode\": \"USD\",\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Corporate Checking Account\",\n  \"parentAccountId\": null,\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  },\n  \"type\": \"deposit\"\n}",
@@ -1792,7 +1792,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 14: Get Account**\n\nRetrieves the account details\n\n---\n\nReturns detailed information about an account identified by its UUID within the specified ledger"
+            "description": "**Workflow Step 14: Get Account**\n\nRetrieves the account details"
           },
           "response": [],
           "event": [
@@ -1925,7 +1925,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 15: Update Account**\n\nUpdates account details\n\n---\n\nUpdates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
+            "description": "**Workflow Step 15: Update Account**\n\nUpdates account details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2088,7 +2088,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 16: List Accounts**\n\nLists all accounts in the ledger\n\n---\n\nReturns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 16: List Accounts**\n\nLists all accounts in the ledger"
           },
           "response": [],
           "event": [
@@ -2204,7 +2204,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 17: Create Portfolio**\n\nCreates a new portfolio in the ledger\n\n---\n\nCreates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
+            "description": "**Workflow Step 17: Create Portfolio**\n\nCreates a new portfolio in the ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2354,7 +2354,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 18: Get Portfolio**\n\nRetrieves the portfolio details\n\n---\n\nReturns detailed information about a portfolio identified by its UUID within the specified ledger"
+            "description": "**Workflow Step 18: Get Portfolio**\n\nRetrieves the portfolio details"
           },
           "response": [],
           "event": [
@@ -2487,7 +2487,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 19: Update Portfolio**\n\nUpdates portfolio details\n\n---\n\nUpdates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 19: Update Portfolio**\n\nUpdates portfolio details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"entityId\": \"00000000-0000-0000-0000-000000000000\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Portfolio Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2650,7 +2650,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 20: List Portfolios**\n\nLists all portfolios in the ledger\n\n---\n\nReturns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 20: List Portfolios**\n\nLists all portfolios in the ledger"
           },
           "response": [],
           "event": [
@@ -2766,7 +2766,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 21: Create Segment**\n\nCreates a new segment in the ledger\n\n---\n\nCreates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
+            "description": "**Workflow Step 21: Create Segment**\n\nCreates a new segment in the ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -2916,7 +2916,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 22: Get Segment**\n\nRetrieves the segment details\n\n---\n\nReturns detailed information about a segment identified by its UUID within the specified ledger"
+            "description": "**Workflow Step 22: Get Segment**\n\nRetrieves the segment details"
           },
           "response": [],
           "event": [
@@ -3049,7 +3049,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 23: Update Segment**\n\nUpdates segment details\n\n---\n\nUpdates an existing segment's properties such as name, status, and metadata within the specified ledger",
+            "description": "**Workflow Step 23: Update Segment**\n\nUpdates segment details",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
@@ -3212,7 +3212,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 24: List Segments**\n\nLists all segments in the ledger\n\n---\n\nReturns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria"
+            "description": "**Workflow Step 24: List Segments**\n\nLists all segments in the ledger"
           },
           "response": [],
           "event": [
@@ -3302,7 +3302,7 @@
                 "disabled": true
               },
               {
-                "key": "Idempotency-Key",
+                "key": "X-Idempotency",
                 "value": "{{idempotencyKey}}",
                 "description": "Unique key to prevent duplicate transactions",
                 "disabled": false
@@ -3335,7 +3335,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 25: Create Transaction**\n\nCreates a new transaction in the ledger\n\n---\n\nCreate a Transaction with the input payload",
+            "description": "**Workflow Step 25: Create Transaction**\n\nCreates a new transaction in the ledger",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
@@ -3356,7 +3356,7 @@
                   "// Generate a unique idempotency key for this transaction",
                   "const timestamp = new Date().getTime();",
                   "const random = Math.floor(Math.random() * 1000000);",
-                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
+                  "pm.environment.set(\"idempotencyKey\", timestamp + \"-\" + random);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -3559,7 +3559,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 26: Get Transaction**\n\nRetrieves the transaction details\n\n---\n\nGet a Transaction with the input ID"
+            "description": "**Workflow Step 26: Get Transaction**\n\nRetrieves the transaction details"
           },
           "response": [],
           "event": [
@@ -3681,7 +3681,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 27: Update Transaction**\n\nUpdates transaction metadata\n\n---\n\nUpdate a Transaction with the input payload",
+            "description": "**Workflow Step 27: Update Transaction**\n\nUpdates transaction metadata",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Transaction description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
@@ -3838,7 +3838,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 28: List Transactions**\n\nLists all transactions in the ledger\n\n---\n\nGet all Transactions with the input metadata or without metadata"
+            "description": "**Workflow Step 28: List Transactions**\n\nLists all transactions in the ledger"
           },
           "response": [],
           "event": [
@@ -3967,7 +3967,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 29: Get Operation**\n\nRetrieves the operation details\n\n---\n\nGet an Operation with the input ID"
+            "description": "**Workflow Step 29: Get Operation**\n\nRetrieves the operation details"
           },
           "response": [],
           "event": [
@@ -4122,7 +4122,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 30: List Operations by Account**\n\nLists all operations for a specific account\n\n---\n\nGet all Operations with the input ID"
+            "description": "**Workflow Step 30: List Operations by Account**\n\nLists all operations for a specific account"
           },
           "response": [],
           "event": [
@@ -4251,7 +4251,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 31: Update Operation Metadata**\n\nUpdates operation metadata\n\n---\n\nUpdate an Operation with the input payload",
+            "description": "**Workflow Step 31: Update Operation Metadata**\n\nUpdates operation metadata",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Credit card operation\",\n  \"metadata\": {\n    \"key\": \"value\"\n  }\n}",
@@ -4382,7 +4382,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 32: Get Balance**\n\nRetrieves the balance details\n\n---\n\nGet a Balance with the input ID"
+            "description": "**Workflow Step 32: Get Balance**\n\nRetrieves the balance details"
           },
           "response": [],
           "event": [
@@ -4537,7 +4537,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 33: List Balances by Account**\n\nLists all balances for a specific account\n\n---\n\nGet all balances by account id"
+            "description": "**Workflow Step 33: List Balances by Account**\n\nLists all balances for a specific account"
           },
           "response": [],
           "event": [
@@ -4711,7 +4711,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 34: Update Balance**\n\nUpdates balance metadata\n\n---\n\nUpdate a Balance with the input payload",
+            "description": "**Workflow Step 34: Update Balance**\n\nUpdates balance metadata",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"allowReceiving\": true,\n  \"allowSending\": true\n}",
@@ -4868,7 +4868,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 35: List All Balances**\n\nLists all balances in the ledger\n\n---\n\nGet all balances"
+            "description": "**Workflow Step 35: List All Balances**\n\nLists all balances in the ledger"
           },
           "response": [],
           "event": [
@@ -4958,7 +4958,7 @@
                 "disabled": true
               },
               {
-                "key": "Idempotency-Key",
+                "key": "X-Idempotency",
                 "value": "{{idempotencyKey}}",
                 "description": "Unique key to prevent duplicate transactions",
                 "disabled": false
@@ -4991,10 +4991,10 @@
                 }
               ]
             },
-            "description": "**Workflow Step 36: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers 100 (scale 2) from external/USD to the account, reversing the transaction in step 25\n\n---\n\nCreate a Transaction with the input payload",
+            "description": "**Workflow Step 36: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers 100 (scale 2) from account to external/USD, reversing the transaction in step 25",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"transactions\": [\n    {\n      \"postings\": [\n        {\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"source\": \"{{accountAlias}}\",\n          \"destination\": \"@external/USD\"\n        }\n      ],\n      \"reference\": \"Zero out balance transaction\",\n      \"metadata\": {\n        \"description\": \"Reversing the transaction from step 25\"\n      }\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5012,7 +5012,7 @@
                   "// Generate a unique idempotency key for this transaction",
                   "const timestamp = new Date().getTime();",
                   "const random = Math.floor(Math.random() * 1000000);",
-                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
+                  "pm.environment.set(\"idempotencyKey\", timestamp + \"-\" + random);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -5215,7 +5215,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 37: Delete Balance**\n\nDeletes a balance\n\n---\n\nDelete a Balance with the input ID"
+            "description": "**Workflow Step 37: Delete Balance**\n\nDeletes a balance"
           },
           "response": [],
           "event": [
@@ -5337,7 +5337,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 38: Delete Segment**\n\nDeletes a segment\n\n---\n\nPermanently removes a segment from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 38: Delete Segment**\n\nDeletes a segment"
           },
           "response": [],
           "event": [
@@ -5459,7 +5459,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 39: Delete Portfolio**\n\nDeletes a portfolio\n\n---\n\nPermanently removes a portfolio from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 39: Delete Portfolio**\n\nDeletes a portfolio"
           },
           "response": [],
           "event": [
@@ -5581,7 +5581,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 40: Delete Account**\n\nDeletes an account\n\n---\n\nPermanently removes an account from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 40: Delete Account**\n\nDeletes an account"
           },
           "response": [],
           "event": [
@@ -5703,7 +5703,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 41: Delete Asset**\n\nDeletes an asset\n\n---\n\nPermanently removes an asset from the specified ledger. This operation cannot be undone."
+            "description": "**Workflow Step 41: Delete Asset**\n\nDeletes an asset"
           },
           "response": [],
           "event": [
@@ -5818,7 +5818,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 42: Delete Ledger**\n\nDeletes a ledger\n\n---\n\nPermanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
+            "description": "**Workflow Step 42: Delete Ledger**\n\nDeletes a ledger"
           },
           "response": [],
           "event": [
@@ -5926,7 +5926,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 43: Delete Organization**\n\nThis workflow can be automated in Postman by using environment variables to store and pass the IDs between requests.\n\n---\n\nPermanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
+            "description": "**Workflow Step 43: Delete Organization**\n\nThis workflow can be automated in Postman by using environment variables to store and pass the IDs between requests."
           },
           "response": [],
           "event": [
@@ -5999,7 +5999,7 @@
           ]
         }
       ],
-      "_postman_id": "ee5aa54b-7160-47ec-a950-fa25c09fe89a",
+      "_postman_id": "8f588ed5-e268-421d-aa7f-74dda7997c3b",
       "event": []
     },
     {
@@ -11893,7 +11893,7 @@
                 "disabled": true
               },
               {
-                "key": "Idempotency-Key",
+                "key": "X-Idempotency",
                 "value": "{{idempotencyKey}}",
                 "description": "Unique key to prevent duplicate transactions",
                 "disabled": false
@@ -11938,7 +11938,7 @@
                   "// Generate a unique idempotency key for this transaction",
                   "const timestamp = new Date().getTime();",
                   "const random = Math.floor(Math.random() * 1000000);",
-                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
+                  "pm.environment.set(\"idempotencyKey\", timestamp + \"-\" + random);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",
@@ -12022,7 +12022,7 @@
                 "disabled": true
               },
               {
-                "key": "Idempotency-Key",
+                "key": "X-Idempotency",
                 "value": "{{idempotencyKey}}",
                 "description": "Unique key to prevent duplicate transactions",
                 "disabled": false
@@ -12076,7 +12076,7 @@
                   "// Generate a unique idempotency key for this transaction",
                   "const timestamp = new Date().getTime();",
                   "const random = Math.floor(Math.random() * 1000000);",
-                  "pm.environment.set(\"idempotencyKey\", `${timestamp}-${random}`);",
+                  "pm.environment.set(\"idempotencyKey\", timestamp + \"-\" + random);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
                   "",

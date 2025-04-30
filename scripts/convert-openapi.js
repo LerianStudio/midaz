@@ -797,14 +797,14 @@ function addParameters(requestItem, operation, path) {
     });
   }
   
-  // Add Idempotency-Key header for transaction creation endpoints
+  // Add X-Idempotency header for transaction creation endpoints
   const isTransactionEndpoint = (
     (path.includes('/transactions/json') || path.includes('/transactions/dsl')) && 
     requestItem.request.method === 'POST'
   );
   
   if (isTransactionEndpoint) {
-    // Add pre-request script to set a unique idempotencyKey
+    // Add pre-request script to set a unique idempotency key
     const preRequestScript = requestItem.event.find(e => e.listen === 'prerequest');
     if (preRequestScript) {
       // Add code to generate a unique idempotency key
@@ -812,7 +812,7 @@ function addParameters(requestItem, operation, path) {
         '// Generate a unique idempotency key for this transaction',
         'const timestamp = new Date().getTime();',
         'const random = Math.floor(Math.random() * 1000000);',
-        'pm.environment.set("idempotencyKey", `${timestamp}-${random}`);',
+        'pm.environment.set("idempotencyKey", timestamp + "-" + random);',
         'console.log("Generated idempotency key:", pm.environment.get("idempotencyKey"));',
         ''
       ];
@@ -822,11 +822,33 @@ function addParameters(requestItem, operation, path) {
         ...idempotencyKeyScript,
         ...preRequestScript.script.exec
       ];
+    } else {
+      // Create a new pre-request script if one doesn't exist
+      const newPreRequestScript = {
+        listen: 'prerequest',
+        script: {
+          id: uuidv4(),
+          type: 'text/javascript',
+          exec: [
+            '// Generate a unique idempotency key for this transaction',
+            'const timestamp = new Date().getTime();',
+            'const random = Math.floor(Math.random() * 1000000);',
+            'pm.environment.set("idempotencyKey", timestamp + "-" + random);',
+            'console.log("Generated idempotency key:", pm.environment.get("idempotencyKey"));'
+          ]
+        }
+      };
+      
+      // Add the new pre-request script to the request item
+      if (!requestItem.event) {
+        requestItem.event = [];
+      }
+      requestItem.event.push(newPreRequestScript);
     }
     
-    // Add the Idempotency-Key header
+    // Add the X-Idempotency header
     requestItem.request.header.push({
-      key: 'Idempotency-Key',
+      key: 'X-Idempotency',
       value: '{{idempotencyKey}}',
       description: 'Unique key to prevent duplicate transactions',
       disabled: false
