@@ -12,6 +12,8 @@ import { getIntl } from '@/lib/intl'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject, injectable } from 'inversify'
 import { getServerSession } from 'next-auth'
+import { authApiMessages } from '../messages/messages'
+import { AuthApiException } from '../exceptions/auth-exceptions'
 
 @injectable()
 export class AuthHttpService extends HttpService {
@@ -77,14 +79,31 @@ export class AuthHttpService extends HttpService {
   }
 
   protected async catch(request: Request, response: Response, error: any) {
-    const intl = await getIntl()
-
     this.logger.error('[ERROR] - AuthHttpService', {
       url: request.url,
       method: request.method,
       status: response.status,
       response: error
     })
+
+    const intl = await getIntl()
+
+    if (error?.code) {
+      const message =
+        authApiMessages[error.code as keyof typeof authApiMessages]
+
+      if (!message) {
+        console.warn('AuthHttpService - Error code not found')
+        throw new AuthApiException(
+          intl.formatMessage({
+            id: 'error.midaz.unknowError',
+            defaultMessage: 'Unknown error on Midaz.'
+          })
+        )
+      }
+
+      throw new AuthApiException(intl.formatMessage(message), error.code)
+    }
 
     throw new InternalServerErrorApiException(
       intl.formatMessage({
