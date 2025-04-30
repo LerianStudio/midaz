@@ -2,7 +2,13 @@ import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/mid
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
-import { FetchModuleOptions, HttpMethods, HttpService } from '@/lib/http'
+import {
+  FetchModuleOptions,
+  HttpMethods,
+  HttpService,
+  InternalServerErrorApiException
+} from '@/lib/http'
+import { getIntl } from '@/lib/intl'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject, injectable } from 'inversify'
 import { getServerSession } from 'next-auth'
@@ -71,11 +77,20 @@ export class AuthHttpService extends HttpService {
   }
 
   protected async catch(request: Request, response: Response, error: any) {
+    const intl = await getIntl()
+
     this.logger.error('[ERROR] - AuthHttpService', {
       url: request.url,
       method: request.method,
       status: response.status,
       response: error
     })
+
+    throw new InternalServerErrorApiException(
+      intl.formatMessage({
+        id: 'error.midaz.unknowError',
+        defaultMessage: 'Unknown error on Midaz.'
+      })
+    )
   }
 }
