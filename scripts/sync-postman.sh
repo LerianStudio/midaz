@@ -248,6 +248,18 @@ fi
 echo "Cleaning up temporary files..."
 rm -rf "${TEMP_DIR}"
 
+# Add workflow sequence to the Postman collection
+echo "Adding workflow sequence to Postman collection..."
+if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ]; then
+    if node "${MIDAZ_ROOT}/scripts/create-workflow.js" "${POSTMAN_COLLECTION}" "${MIDAZ_ROOT}/postman/WORKFLOW.md" "${POSTMAN_COLLECTION}"; then
+        echo "[ok] Workflow sequence added to Postman collection ✔️"
+    else
+        echo "[warning] Failed to add workflow sequence to Postman collection ⚠️"
+    fi
+else
+    echo "[warning] Could not add workflow sequence: missing files ⚠️"
+fi
+
 echo "[ok] Postman collection and environment synced successfully with improved OpenAPI documentation ✔️"
 echo "Note: The synced collection is available at ${POSTMAN_COLLECTION}"
 echo "The environment template is available at ${POSTMAN_ENVIRONMENT}"

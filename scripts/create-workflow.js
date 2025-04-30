@@ -55,12 +55,13 @@ function readWorkflowMd(filePath) {
 // Parse the workflow markdown to extract steps
 function parseWorkflowSteps(markdown) {
   const steps = [];
+  // Updated regex to handle steps across different sections
   const stepRegex = /^\d+\.\s+\*\*([^*]+)\*\*\s*\n\s*\n\s*-\s+`([^`]+)`\s*\n\s*-\s+([^\n]+)(?:\s*\n\s*-\s+\*\*Uses:\*\*\s+([^\n]+))?(?:\s*\n\s*-\s+\*\*Output:\*\*\s+([^\n]+))?/gm;
   
   let match;
   while ((match = stepRegex.exec(markdown)) !== null) {
     const step = {
-      number: steps.length + 1,
+      number: parseInt(match[0].match(/^\d+/)[0], 10), // Extract the actual step number from the markdown
       name: match[1].trim(),
       endpoint: match[2].trim(),
       description: match[3].trim(),
@@ -69,6 +70,9 @@ function parseWorkflowSteps(markdown) {
     };
     steps.push(step);
   }
+  
+  // Sort steps by number to ensure they're in the correct order
+  steps.sort((a, b) => a.number - b.number);
   
   return steps;
 }
@@ -125,9 +129,21 @@ function findRequestInCollection(collection, path, method) {
           // Normalize the request path
           requestPath = requestPath.replace(/\{\{/g, '{').replace(/\}\}/g, '}');
           
-          // Check if paths match
-          if (requestPath.includes(normalizedPath) || normalizedPath.includes(requestPath)) {
-            return item;
+          // For DELETE endpoints, we need to be more flexible with matching
+          if (method.toUpperCase() === 'DELETE') {
+            // Extract the resource type from the path (e.g., 'organizations', 'ledgers', etc.)
+            const pathParts = normalizedPath.split('/');
+            const resourceType = pathParts[pathParts.length - 2]; // The resource type is usually the second-to-last part
+            
+            // Check if the request path contains the resource type and the DELETE method matches
+            if (requestPath.includes(resourceType)) {
+              return item;
+            }
+          } else {
+            // For non-DELETE endpoints, use the existing matching logic
+            if (requestPath.includes(normalizedPath) || normalizedPath.includes(requestPath)) {
+              return item;
+            }
           }
         }
       }
@@ -142,7 +158,7 @@ function findRequestInCollection(collection, path, method) {
 function createWorkflowFolder(collection, steps) {
   const workflowFolder = {
     name: "Complete API Workflow",
-    description: "A complete linear test sequence for all the main endpoints of the Midaz API.",
+    description: "A complete linear test sequence for all the main endpoints of the Midaz API, including creation, retrieval, updates, and deletion.",
     item: [],
     _postman_id: uuidv4()
   };

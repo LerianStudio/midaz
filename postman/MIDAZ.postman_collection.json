@@ -9,7 +9,7 @@
   "item": [
     {
       "name": "Complete API Workflow",
-      "description": "A complete linear test sequence for all the main endpoints of the Midaz API.",
+      "description": "A complete linear test sequence for all the main endpoints of the Midaz API, including creation, retrieval, updates, and deletion.",
       "item": [
         {
           "name": "1. Create Organization",
@@ -4681,9 +4681,988 @@
             }
           ],
           "description": "Updates balance metadata\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `balanceId` from step 27\n"
+        },
+        {
+          "name": "37. List All Balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations"
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "JSON string to filter organizations by metadata fields",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Maximum number of records to return per page",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number for pagination",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort direction for results based on creation date",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Lists all balances across the organization\n\n**Uses:**\n- `organizationId` from step 1\n"
+        },
+        {
+          "name": "38. Delete Balance",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "balances",
+                "{{balanceId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "{{balanceId}}",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Delete a Balance with the input ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes a balance\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `balanceId` from step 27\n"
+        },
+        {
+          "name": "39. Delete Segment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "segments",
+                "{{segmentId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{segmentId}}",
+                  "description": "Segment ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes a segment\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `segmentId` from step 23\n"
+        },
+        {
+          "name": "40. Delete Portfolio",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "portfolios",
+                "{{portfolioId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{portfolioId}}",
+                  "description": "Portfolio ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes a portfolio\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `portfolioId` from step 19\n"
+        },
+        {
+          "name": "41. Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "accounts",
+                "{{accountId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{accountId}}",
+                  "description": "Account ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes an account from the specified ledger. This operation cannot be undone."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes an account\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `accountId` from step 13\n"
+        },
+        {
+          "name": "42. Delete Asset",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "assets",
+                "{{assetId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{assetId}}",
+                  "description": "Asset ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes an asset\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n- `assetId` from step 9\n"
+        },
+        {
+          "name": "43. Delete Ledger",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes a ledger\n\n**Uses:**\n- `organizationId` from step 1\n- `ledgerId` from step 5\n"
+        },
+        {
+          "name": "44. Delete Organization",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                }
+              ]
+            },
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "description": "Deletes an organization\n\n**Uses:**\n- `organizationId` from step 1\n"
         }
       ],
-      "_postman_id": "4347823b-a6f3-4dd3-bb0f-94180f140f95"
+      "_postman_id": "5834e148-246f-4e3c-9ab6-9f97a2402c6b"
     },
     {
       "name": "Organizations",

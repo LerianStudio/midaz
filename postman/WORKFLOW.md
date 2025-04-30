@@ -1,4 +1,4 @@
-# Midaz API Workflow
+# Midaz API Workflow -- DO NOT MODIFY THIS FILE (this is used to generate documentation)
 
 This document outlines a complete linear workflow for testing all the main endpoints of the Midaz API. Each step builds on the previous ones, creating a comprehensive test sequence.
 
@@ -227,8 +227,51 @@ This document outlines a complete linear workflow for testing all the main endpo
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
 
 37. **List All Balances**
+
     - `GET /v1/organizations/{organizationId}/balances`
     - Lists all balances across the organization
+    - **Uses:** `organizationId` from step 1
+
+38. **Delete Balance**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
+    - Deletes a balance
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 27
+
+39. **Delete Segment**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
+    - Deletes a segment
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 23
+
+40. **Delete Portfolio**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
+    - Deletes a portfolio
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 19
+
+41. **Delete Account**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}`
+    - Deletes an account
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
+
+42. **Delete Asset**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}`
+    - Deletes an asset
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetId` from step 9
+
+43. **Delete Ledger**
+
+    - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}`
+    - Deletes a ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+44. **Delete Organization**
+
+    - `DELETE /v1/organizations/{organizationId}`
+    - Deletes an organization
     - **Uses:** `organizationId` from step 1
 
 ## Notes
@@ -236,4 +279,5 @@ This document outlines a complete linear workflow for testing all the main endpo
 - This workflow provides a comprehensive test of all major API endpoints in a logical sequence.
 - Each step builds on previous steps, using IDs and resources created earlier.
 - The sequence follows the natural hierarchy: Organization → Ledger → Assets/Accounts → Transactions → Operations/Balances.
+- The cleanup sequence follows the reverse order to maintain referential integrity.
 - This workflow can be automated in Postman by using environment variables to store and pass the IDs between requests.
