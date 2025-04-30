@@ -4994,7 +4994,7 @@
             "description": "**Workflow Step 36: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers 100 (scale 2) from account to external/USD, reversing the transaction in step 25",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactions\": [\n    {\n      \"postings\": [\n        {\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"source\": \"{{accountAlias}}\",\n          \"destination\": \"@external/USD\"\n        }\n      ],\n      \"reference\": \"Zero out balance transaction\",\n      \"metadata\": {\n        \"description\": \"Reversing the transaction from step 25\"\n      }\n    }\n  ]\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5999,7 +5999,7 @@
           ]
         }
       ],
-      "_postman_id": "8f588ed5-e268-421d-aa7f-74dda7997c3b",
+      "_postman_id": "373525a3-7646-43d8-91c0-bb035cef53a6",
       "event": []
     },
     {

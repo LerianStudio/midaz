@@ -394,24 +394,51 @@ function createWorkflowFolder(collection, steps) {
                 
                 // Set the custom transaction body for zeroing out the balance
                 const zeroOutTransactionBody = {
-                    "transactions": [
+                  "chartOfAccountsGroupName": "Example chartOfAccountsGroupName",
+                  "code": "Example code",
+                  "description": "Example description",
+                  "metadata": {
+                    "key": "value"
+                  },
+                  "send": {
+                    "asset": "USD",
+                    "distribute": {
+                      "to": [
                         {
-                            "postings": [
-                                {
-                                    "amount": {
-                                        "asset": "USD",
-                                        "value": 100
-                                    },
-                                    "source": "{{accountAlias}}",
-                                    "destination": "@external/USD"
-                                }
-                            ],
-                            "reference": "Zero out balance transaction",
-                            "metadata": {
-                                "description": "Reversing the transaction from step 25"
-                            }
+                          "account": "@external/USD",
+                          "amount": {
+                            "asset": "USD",
+                            "scale": 2,
+                            "value": 100
+                          },
+                          "chartOfAccounts": "Example chartOfAccounts",
+                          "description": "Example description",
+                          "metadata": {
+                            "key": "value"
+                          }
                         }
-                    ]
+                      ]
+                    },
+                    "scale": 2,
+                    "source": {
+                      "from": [
+                        {
+                          "account": "{{accountAlias}}",
+                          "amount": {
+                            "asset": "USD",
+                            "scale": 2,
+                            "value": 100
+                          },
+                          "chartOfAccounts": "Example chartOfAccounts",
+                          "description": "Example description",
+                          "metadata": {
+                            "key": "value"
+                          }
+                        }
+                      ]
+                    },
+                    "value": 100
+                  }
                 };
                 
                 // Update the request body
