@@ -7,7 +7,7 @@ import { useReducer, useEffect } from 'react'
 
 type UseDefaultLedgerProps = {
   current: OrganizationEntity
-  ledgers: LedgerType[]
+  ledgers?: LedgerType[]
   currentLedger: LedgerType
   setCurrentLedger: (ledger: LedgerType) => void
 }
@@ -39,9 +39,14 @@ export function useDefaultLedger({
   useEffect(() => {
     // Check if is there a organization selected
     if (current?.id) {
-      // Check if ledgers fetch has been completed,
-      // And indeed this organizations has no ledgers
-      if (ledgers?.length === 0) {
+      // Check if ledgers have been fetched
+      // If not, we should not do anything
+      if (!ledgers) {
+        return
+      }
+
+      // If this organization has no ledgers, set the current ledger to empty
+      if (ledgers.length === 0) {
         setCurrentLedger({} as LedgerType)
         return
       }
@@ -54,10 +59,11 @@ export function useDefaultLedger({
       if (ledger) {
         // If the ledger is found, set it as the current ledger
         setCurrentLedger(ledger)
-      } else if (ledgers?.length > 0) {
-        // If the ledger is not found, set the first ledger as the current ledger
-        setCurrentLedger(ledgers?.[0]!)
+        return
       }
+
+      // If the ledger is not found, set the first ledger as the current ledger
+      setCurrentLedger(ledgers?.[0]!)
     }
   }, [current?.id, ledgers?.length])
 
