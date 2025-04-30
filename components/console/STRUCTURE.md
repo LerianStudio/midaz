@@ -39,20 +39,77 @@ The project is structured into several key directories, each serving specific ro
     │   │   └── transactions/              # Transactions pages
     │   │       ├── [transactionId]/       # Transaction details
     │   │       └── create/                # Create transaction
-    │   └── api/               # API routes
-    │       ├── admin/         # Admin endpoints
-    │       │   └── health/    # Health check endpoints
-    │       ├── auth/          # Authentication endpoints
-    │       │   └── [...nextauth]/ # NextAuth.js routes
-    │       ├── identity/      # Identity management
-    │       │   ├── groups/    # Group management
-    │       │   └── users/     # User management
-    │       ├── onboarding/    # Onboarding API
-    │       │   └── [id]/      # Specific onboarding
-    │       ├── organizations/ # Organization endpoints
-    │       │   ├── [id]/      # Specific organization
-    │       │   └── parentOrganizations/ # Parent organizations
-    │       └── utils/         # Utility endpoints
+    │   └── api/                                # API routes
+    │       ├── admin/                          # Admin endpoints
+    │       │   └── health/                     # Health check endpoints
+    │       │       ├── alive/                  # Liveness probe (GET)
+    │       │       └── ready/                  # Readiness probe (GET)
+    │       ├── auth/                           # Authentication endpoints
+    │       │   └── [...nextauth]/              # NextAuth.js integration
+    │       ├── identity/                       # Identity management
+    │       │   ├── groups/                     # Group management
+    │       │   │   ├── [groupId]/              # Specific group operations (GET, PUT, DELETE)
+    │       │   │   └── /                       # Group listing/creation (GET, POST)
+    │       │   └── users/                      # User management
+    │       │       ├── [userId]/               # Specific user operations (GET, PUT, DELETE)
+    │       │       │   ├── password/           # Password management (PUT)
+    │       │       │   │   └── admin/          # Admin password operations (PATCH)
+    │       │       └── /                       # User listing/creation (GET, POST)
+    │       ├── onboarding/                     # Onboarding process API
+    │       │   ├── [id]/                       # Specific onboarding flow
+    │       │   │   └── complete/               # Complete onboarding (POST)
+    │       │   └── /                           # Onboarding management (GET, POST)
+    │       ├── organizations/                  # Organization management
+    │       │   ├── [id]/                       # Specific organization (GET, PUT, DELETE)
+    │       │   │   ├── ledgers/                # Organization ledgers
+    │       │   │   │   ├── [ledgerId]/         # Specific ledger (GET, PUT, DELETE)
+    │       │   │   │   │   ├── accounts/       # Ledger accounts
+    │       │   │   │   │   │   ├── [accountId]/  # Specific account operations
+    │       │   │   │   │   │   │   └── /          # GET: Retrieve account details
+    │       │   │   │   │   │   │               # PATCH: Update account
+    │       │   │   │   │   │   │               # DELETE: Remove account
+    │       │   │   │   │   │   └── /          # GET: List accounts with pagination
+    │       │   │   │   │   │                   # POST: Create a new account
+    │       │   │   │   │   ├── accounts-portfolios/ # Account-portfolio relations
+    │       │   │   │   │   │   └── /          # GET: List accounts with their portfolios
+    │       │   │   │   │   ├── assets/         # Ledger assets
+    │       │   │   │   │   │   ├── [assetId]/   # Specific asset operations
+    │       │   │   │   │   │   │   └── /          # GET: Retrieve asset details
+    │       │   │   │   │   │   │               # PUT: Update asset
+    │       │   │   │   │   │   │               # DELETE: Remove asset
+    │       │   │   │   │   │   └── /          # GET: List assets
+    │       │   │   │   │   │                   # POST: Add asset to ledger
+    │       │   │   │   │   ├── portfolios/     # Ledger portfolios
+    │       │   │   │   │   │   ├── [portfolioId]/ # Specific portfolio operations
+    │       │   │   │   │   │   │   └── /          # GET: Retrieve portfolio details
+    │       │   │   │   │   │   │               # PUT: Update portfolio
+    │       │   │   │   │   │   │               # DELETE: Remove portfolio
+    │       │   │   │   │   │   └── /          # GET: List portfolios
+    │       │   │   │   │   │                   # POST: Create a new portfolio
+    │       │   │   │   │   ├── portfolios-accounts/ # Portfolio-account relations
+    │       │   │   │   │   │   └── /          # GET: List portfolios with their accounts
+    │       │   │   │   │   ├── segments/       # Ledger segments
+    │       │   │   │   │   │   ├── [segmentId]/ # Specific segment operations
+    │       │   │   │   │   │   │   └── /          # GET: Retrieve segment details
+    │       │   │   │   │   │   │               # PUT: Update segment
+    │       │   │   │   │   │   │               # DELETE: Remove segment
+    │       │   │   │   │   │   └── /          # GET: List segments
+    │       │   │   │   │   │                   # POST: Create a new segment
+    │       │   │   │   │   └── transactions/   # Ledger transactions
+    │       │   │   │   │       ├── [transactionId]/ # Specific transaction operations
+    │       │   │   │   │       │   └── /          # GET: Retrieve transaction details
+    │       │   │   │   │       │               # PATCH: Update transaction
+    │       │   │   │   │       ├── json/       # Transaction JSON operations
+    │       │   │   │   │       │   └── /          # POST: Create transaction from JSON
+    │       │   │   │   │       └── /          # GET: List transactions with pagination
+    │       │   │   │   ├── ledgers-assets/     # Ledger-asset relationships
+    │       │   │   │   │   └── /          # GET: List assets across multiple ledgers
+    │       │   │   │   └── /                   # GET: List ledgers for an organization
+    │       │   │   │                       # POST: Create a new ledger
+    │       │   ├── parentOrganizations/        # Parent organization relationships (GET)
+    │       │   └── /                           # Organization listing/creation (GET, POST)
+    │       └── utils/                          # Utility endpoints and helpers
+    │           └── api-error-handler.ts        # Centralized API error handling
     ├── client/                # HTTP client implementations
     ├── components/            # UI components
     │   ├── breadcrumb/        # Breadcrumb navigation
@@ -201,22 +258,57 @@ The project is structured into several key directories, each serving specific ro
 
 ### App Routes (`./src/app`)
 
-- `(auth-routes)`: Routes accessible to unauthenticated users (signin, signout)
-- `(routes)`: Routes requiring authentication, organized by domain entities
-  - `accounts`: Account management pages
-  - `assets`: Asset management pages
-  - `ledgers`: Ledger management pages
-  - `onboarding`: User and organization onboarding flow
-  - `portfolios`: Portfolio management pages
-  - `segments`: Segment management pages
-  - `settings`: Application settings pages
-  - `transactions`: Transaction management pages
-- `api`: API routes implementing the backend functionality
-  - `admin`: Administrative endpoints
+- `(auth-routes)`: Routes accessible to unauthenticated users
+  - `signin/`
+  - `signout/`
+- `(routes)`: Authenticated routes organized by domain
+  - `accounts/`
+  - `assets/`
+  - `ledgers/`
+  - `onboarding/`
+  - `portfolios/`
+  - `segments/`
+  - `settings/`
+    - `organizations/`
+    - `users/`
+  - `transactions/`
+    - `[transactionId]/`
+    - `create/`
+- `api`: API routes implementing backend functionality
+  - `admin`: Admin endpoints
+    - `health`: Health check
+      - `alive`: Liveness probe (GET)
+      - `ready`: Readiness probe (GET)
   - `auth`: Authentication endpoints
-  - `identity`: User and group management
+    - `[...nextauth]`: NextAuth.js integration
+  - `identity`: Identity management
+    - `groups`: Group management
+      - `[groupId]`: Specific group operations
+    - `users`: User management
+      - `[userId]`: Specific user operations
+        - `password`: Password management
+          - `admin`: Admin password operations
   - `onboarding`: Onboarding process API
+    - `[id]`: Specific onboarding flow
+      - `complete`: Complete onboarding process
   - `organizations`: Organization management
+    - `[id]`: Specific organization operations
+      - `ledgers`: Organization ledgers
+        - `[ledgerId]`: Specific ledger operations
+          - `accounts`: Ledger accounts
+            - `[accountId]`: Specific account operations
+          - `accounts-portfolios`: Account-portfolio relations
+          - `assets`: Ledger assets
+            - `[assetId]`: Specific asset operations
+          - `portfolios`: Ledger portfolios
+            - `[portfolioId]`: Specific portfolio operations
+          - `portfolios-accounts`: Portfolio-account relations
+          - `segments`: Ledger segments
+            - `[segmentId]`: Specific segment operations
+          - `transactions`: Ledger transactions
+            - `[transactionId]`: Specific transaction operations
+          - `json`: Transaction JSON operations
+    - `parentOrganizations`: Parent organization relationships
   - `utils`: Utility endpoints
 
 ### Components (`./src/components`)
@@ -235,11 +327,13 @@ The components directory contains all UI components organized by functionality:
 The core follows Clean Architecture principles with three main layers:
 
 - `application`: Contains use cases, DTOs, and mappers that orchestrate business logic
+
   - `use-cases`: Business logic organized by domain entities
   - `dto`: Data Transfer Objects for passing data between layers
   - `mappers`: Transform data between different representations
 
 - `domain`: Contains business entities and repository interfaces
+
   - `entities`: Domain models representing business concepts
   - `repositories`: Interfaces defining data access methods
 
