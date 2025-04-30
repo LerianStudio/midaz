@@ -192,8 +192,8 @@ const DEPENDENCY_MAP = {
   },
   
   // Transaction endpoints
-  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
-    provides: ["transactionId"],
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
+    provides: ["transactionId", "balanceId", "operationId"],
     requires: ["organizationId", "ledgerId"]
   },
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}": {
@@ -372,8 +372,32 @@ try {
         script += `
 try {
   var jsonData = pm.response.json();
+  // Check if this is a transaction response with operations
+  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {
+    // Find the destination operation (the one with account in the 'destination' array)
+    var destinationOp = null;
+    if (jsonData.destination && jsonData.destination.length > 0) {
+      const destAccount = jsonData.destination[0];
+      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);
+    }
+    
+    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)
+    if (!destinationOp) {
+      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');
+    }
+    
+    // If we still couldn't find it, use the first operation
+    if (!destinationOp && jsonData.operations.length > 0) {
+      destinationOp = jsonData.operations[0];
+    }
+    
+    if (destinationOp && destinationOp.balanceId) {
+      pm.environment.set("${variable}", destinationOp.balanceId);
+      console.log("${variable} set to: " + destinationOp.balanceId);
+    }
+  }
   // Check if response is an array with at least one item
-  if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {
+  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {
     pm.environment.set("${variable}", jsonData[0].id);
     console.log("${variable} set to: " + jsonData[0].id);
   } 
@@ -385,7 +409,40 @@ try {
 } catch (error) {
   console.error("Failed to extract ${variable}: ", error);
 }`;
-      } 
+      }
+      // Special handling for operationId which comes from the operations array in a transaction
+      else if (variable === 'operationId') {
+        script += `
+try {
+  var jsonData = pm.response.json();
+  // Check if this is a transaction response with operations
+  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].id) {
+    // Find the destination operation (the one with account in the 'destination' array)
+    var destinationOp = null;
+    if (jsonData.destination && jsonData.destination.length > 0) {
+      const destAccount = jsonData.destination[0];
+      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);
+    }
+    
+    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)
+    if (!destinationOp) {
+      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');
+    }
+    
+    // If we still couldn't find it, use the first operation
+    if (!destinationOp && jsonData.operations.length > 0) {
+      destinationOp = jsonData.operations[0];
+    }
+    
+    if (destinationOp && destinationOp.id) {
+      pm.environment.set("${variable}", destinationOp.id);
+      console.log("${variable} set to: " + destinationOp.id);
+    }
+  }
+} catch (error) {
+  console.error("Failed to extract ${variable}: ", error);
+}`;
+      }
       // Default handling for other variables
       else {
         script += `
