@@ -57,7 +57,7 @@ export const SettingsDropdown = () => {
               })}
             </DropdownMenuItem>
           </Enforce>
-          <DropdownMenuItem className="pl-10">
+          <DropdownMenuItem className="pl-10" onClick={() => router.push('/settings?tab=system')}>
             {intl.formatMessage({
               id: 'settingsDropdown.system',
               defaultMessage: 'System'
