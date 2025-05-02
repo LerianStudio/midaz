@@ -37,6 +37,7 @@ help:
 	@echo "  make up                 - Start Docker container"
 	@echo "  make down               - Stop Docker container"
 	@echo "  make restart            - Restart Docker container"
+	@echo "  make rebuild-up         - Rebuild and restart services"
 	@echo "  make set-env            - Copy .env.example to .env"
 	@echo ""
 	@echo "$(BOLD)Storybook Commands:$(NC)"
@@ -113,6 +114,16 @@ restart:
 	$(call title1,"Restarting Docker container")
 	$(MAKE) down
 	$(MAKE) up
+
+.PHONY: rebuild-up
+rebuild-up:
+	$(call title1,"Rebuilding and restarting services")
+	@if [ -f "docker-compose.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.yml up $(c) -d --build; \
+	else \
+		echo "No docker-compose.yml file found. Skipping rebuild-up command."; \
+	fi
+	@echo "[ok] Services rebuilt and restarted successfully ✔️"
 
 .PHONY: set-env
 set-env:

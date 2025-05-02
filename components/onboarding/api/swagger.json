@@ -2965,88 +2965,88 @@
     },
     "definitions": {
         "Account": {
-            "description": "Account represents an individual financial entity within a ledger, such as a bank account, credit card, or expense category.",
+            "description": "Complete account entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for account operations. Accounts represent individual financial entities (bank accounts, cards, expense categories, etc.) within a ledger and are the primary structures for tracking balances and transactions.",
             "type": "object",
             "properties": {
                 "alias": {
-                    "description": "Unique alias for the account (max length 100 characters)",
+                    "description": "Unique alias for the account (makes referencing easier)\nexample: @treasury_checking\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "@person1"
+                    "example": "@treasury_checking"
                 },
                 "assetCode": {
-                    "description": "Asset code associated with this account (max length 100 characters)",
+                    "description": "Asset code associated with this account (determines currency/asset type)\nexample: USD\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "createdAt": {
-                    "description": "Timestamp when the account was created",
+                    "description": "Timestamp when the account was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the account was deleted (null if not deleted)",
+                    "description": "Timestamp when the account was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
-                    "description": "Optional external entity identifier (max length 256 characters)",
+                    "description": "Optional external identifier for linking to external systems\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "example": "EXT-ACC-12345"
                 },
                 "id": {
-                    "description": "Unique identifier for the account (UUID format)",
+                    "description": "Unique identifier for the account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
-                    "description": "ID of the ledger this account belongs to (UUID format)",
+                    "description": "ID of the ledger this account belongs to (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
-                    "description": "Additional custom attributes for the account",
+                    "description": "Custom key-value pairs for extending the account information\nexample: {\"department\": \"Treasury\", \"purpose\": \"Operating Expenses\", \"region\": \"Global\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Name of the account (max length 256 characters)",
+                    "description": "Human-readable name of the account\nexample: Corporate Checking Account\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "My Account"
+                    "example": "Corporate Checking Account"
                 },
                 "organizationId": {
-                    "description": "ID of the organization that owns this account (UUID format)",
+                    "description": "ID of the organization that owns this account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "parentAccountId": {
-                    "description": "ID of the parent account if this is a sub-account (UUID format)",
+                    "description": "ID of the parent account if this is a sub-account (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "portfolioId": {
-                    "description": "ID of the portfolio this account belongs to (UUID format)",
+                    "description": "ID of the portfolio this account belongs to (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "segmentId": {
-                    "description": "ID of the segment this account belongs to (UUID format)",
+                    "description": "ID of the segment this account belongs to (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "description": "Status of the account (active, inactive, pending)",
+                    "description": "Current operating status of the account",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3054,12 +3054,12 @@
                     ]
                 },
                 "type": {
-                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)",
+                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nexample: deposit",
                     "type": "string",
-                    "example": "creditCard"
+                    "example": "deposit"
                 },
                 "updatedAt": {
-                    "description": "Timestamp when the account was last updated",
+                    "description": "Timestamp when the account was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
@@ -3067,45 +3067,45 @@
             }
         },
         "Address": {
-            "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes).",
+            "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.",
             "type": "object",
             "properties": {
                 "city": {
-                    "description": "City or locality name",
+                    "description": "City or locality name\nexample: New York\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
                     "example": "New York"
                 },
                 "country": {
-                    "description": "Country code in ISO 3166-1 alpha-2 format (two-letter country code)",
+                    "description": "Country code in ISO 3166-1 alpha-2 format (two-letter country code)\nexample: US\nminLength: 2\nmaxLength: 2",
                     "type": "string",
                     "maxLength": 2,
                     "minLength": 2,
                     "example": "US"
                 },
                 "line1": {
-                    "description": "Primary address line (street address or PO Box)",
+                    "description": "Primary address line (street address or PO Box)\nexample: 123 Financial Avenue\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Street 1"
+                    "example": "123 Financial Avenue"
                 },
                 "line2": {
-                    "description": "Secondary address information like apartment number, suite, or floor",
+                    "description": "Secondary address information like apartment number, suite, or floor\nexample: Suite 1500\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Street 2"
+                    "example": "Suite 1500"
                 },
                 "state": {
-                    "description": "State, province, or region name or code",
+                    "description": "State, province, or region name or code\nexample: NY\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
                     "example": "NY"
                 },
                 "zipCode": {
-                    "description": "Postal code or ZIP code",
+                    "description": "Postal code or ZIP code\nexample: 10001\nmaxLength: 20",
                     "type": "string",
                     "maxLength": 20,
-                    "example": "00000-000"
+                    "example": "10001"
                 }
             }
         },
@@ -3117,7 +3117,7 @@
                     "description": "Unique code/symbol for the asset (max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "createdAt": {
                     "description": "Timestamp when the asset was created",
@@ -3152,7 +3152,7 @@
                     "description": "Name of the asset (max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Brazilian Real"
+                    "example": "US Dollar"
                 },
                 "organizationId": {
                     "description": "ID of the organization that owns this asset (UUID format)",
@@ -3182,7 +3182,7 @@
             }
         },
         "CreateAccountInput": {
-            "description": "CreateAccountInput is the input payload to create an account within a ledger, representing an individual financial entity like a bank account, credit card, or expense category.",
+            "description": "Request payload for creating a new account within a ledger. Accounts represent individual financial entities such as bank accounts, credit cards, expense categories, or any other financial buckets within a ledger. Accounts are identified by a unique ID, can have aliases for easy reference, and are associated with a specific asset type.",
             "type": "object",
             "required": [
                 "assetCode",
@@ -3190,54 +3190,51 @@
             ],
             "properties": {
                 "alias": {
-                    "description": "Unique alias for the account (optional, max length 100 characters, must follow alias format rules)",
+                    "description": "Unique alias for the account (optional, must follow alias format rules)\nrequired: false\nexample: @treasury_checking\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "@person1"
+                    "example": "@treasury_checking"
                 },
                 "assetCode": {
-                    "description": "Asset code that this account will use (required, max length 100 characters)",
+                    "description": "Asset code that this account will use for balances and transactions\nrequired: true\nexample: USD\nmaxLength: 100",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "entityId": {
-                    "description": "Optional external entity identifier (max length 256 characters)",
+                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "example": "EXT-ACC-12345"
                 },
                 "metadata": {
-                    "description": "Additional custom attributes for the account\nKeys max length: 100 characters, Values max length: 2000 characters",
+                    "description": "Custom key-value pairs for extending the account information\nrequired: false\nexample: {\"department\": \"Treasury\", \"purpose\": \"Operating Expenses\", \"region\": \"Global\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Name of the account (optional, max length 256 characters)",
+                    "description": "Human-readable name of the account\nrequired: false\nexample: Corporate Checking Account\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "My Account"
+                    "example": "Corporate Checking Account"
                 },
                 "parentAccountId": {
-                    "description": "ID of the parent account if this is a sub-account (optional, UUID format)",
+                    "description": "ID of the parent account if this is a sub-account (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "portfolioId": {
-                    "description": "ID of the portfolio this account belongs to (optional, UUID format)",
+                    "description": "ID of the portfolio this account belongs to (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "segmentId": {
-                    "description": "ID of the segment this account belongs to (optional, UUID format)",
+                    "description": "ID of the segment this account belongs to (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
-                    "description": "Status of the account (active, inactive, pending)",
+                    "description": "Current operating status of the account\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3245,9 +3242,9 @@
                     ]
                 },
                 "type": {
-                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)",
+                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nrequired: true\nexample: deposit\nenum: [deposit, savings, loans, marketplace, creditCard, external]",
                     "type": "string",
-                    "example": "creditCard"
+                    "example": "deposit"
                 }
             }
         },
@@ -3263,7 +3260,7 @@
                     "description": "Unique code/symbol for the asset (required, max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
-                    "example": "BRL"
+                    "example": "USD"
                 },
                 "metadata": {
                     "description": "Additional custom attributes for the asset\nKeys max length: 100 characters, Values max length: 2000 characters",
@@ -3274,7 +3271,7 @@
                     "description": "Name of the asset (required, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Brazilian Real"
+                    "example": "US Dollar"
                 },
                 "status": {
                     "description": "Status of the asset (active, inactive, pending)",
@@ -3292,25 +3289,24 @@
             }
         },
         "CreateLedgerInput": {
-            "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata.",
+            "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
             "type": "object",
             "required": [
                 "name"
             ],
             "properties": {
                 "metadata": {
-                    "description": "Custom key-value pairs for extending the ledger information",
+                    "description": "Custom key-value pairs for extending the ledger information\nrequired: false\nexample: {\"department\": \"Finance\", \"currency\": \"USD\", \"region\": \"North America\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Display name of the ledger (required)",
+                    "description": "Display name of the ledger\nrequired: true\nmaxLength: 256",
                     "type": "string",
-                    "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "maxLength": 256
                 },
                 "status": {
-                    "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)",
+                    "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3320,7 +3316,7 @@
             }
         },
         "CreateOrganizationInput": {
-            "description": "Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such.",
+            "description": "Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.",
             "type": "object",
             "required": [
                 "legalDocument",
@@ -3328,7 +3324,7 @@
             ],
             "properties": {
                 "address": {
-                    "description": "Physical address of the organization (optional)",
+                    "description": "Physical address of the organization\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Address"
@@ -3336,36 +3332,35 @@
                     ]
                 },
                 "doingBusinessAs": {
-                    "description": "Trading or brand name of the organization, if different from legal name (optional)",
+                    "description": "Trading or brand name of the organization, if different from legal name\nrequired: false\nexample: Lerian FS\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "example": "Lerian FS"
                 },
                 "legalDocument": {
-                    "description": "Official tax ID, company registration number, or other legal identification (required)",
+                    "description": "Official tax ID, company registration number, or other legal identification\nrequired: true\nexample: 123456789012345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "00000000000000"
+                    "example": "123456789012345"
                 },
                 "legalName": {
-                    "description": "Official legal name of the organization (required)",
+                    "description": "Official legal name of the organization\nrequired: true\nexample: Lerian Financial Services Ltd.\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "example": "Lerian Financial Services Ltd."
                 },
                 "metadata": {
-                    "description": "Custom key-value pairs for extending the organization information",
+                    "description": "Custom key-value pairs for extending the organization information\nrequired: false\nexample: {\"industry\": \"Financial Services\", \"founded\": 2020, \"employees\": 150}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "description": "UUID of the parent organization if this is a child organization (optional)",
+                    "description": "UUID of the parent organization if this is a child organization\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
-                    "description": "Current operating status of the organization (defaults to ACTIVE if not specified)",
+                    "description": "Current operating status of the organization (defaults to ACTIVE if not specified)\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3437,69 +3432,80 @@
             }
         },
         "Error": {
-            "description": "Standardized error response format used across all API endpoints for error situations",
+            "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
             "type": "object",
             "properties": {
                 "code": {
-                    "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT",
-                    "type": "string"
+                    "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "ERR_INVALID_INPUT"
                 },
                 "entityType": {
-                    "description": "Optional type of entity associated with the error\nexample: Organization",
-                    "type": "string"
+                    "description": "Optional type of entity associated with the error\nexample: Organization\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Organization"
                 },
                 "fields": {
                     "description": "Optional detailed field validations for client-side handling\nexample: {\"name\": \"Field 'name' is required\"}",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    },
+                    "example": {
+                        "{\"name\"": " \"Field 'name' is required\"}"
                     }
                 },
                 "message": {
-                    "description": "Detailed error message explaining the issue\nexample: The request contains invalid fields. Please check the field 'name' and try again.",
-                    "type": "string"
+                    "description": "Detailed error message explaining the issue\nexample: The request contains invalid fields. Please check the field 'name' and try again.\nmaxLength: 500",
+                    "type": "string",
+                    "maxLength": 500,
+                    "example": "The request contains invalid fields. Please check the field 'name' and try again."
                 },
                 "title": {
-                    "description": "Short, human-readable error title\nexample: Bad Request",
-                    "type": "string"
+                    "description": "Short, human-readable error title\nexample: Bad Request\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Bad Request"
                 }
             }
         },
         "Ledger": {
-            "description": "Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations.",
+            "description": "Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations. Ledgers are organizational units within an organization that group related financial accounts and assets together.",
             "type": "object",
             "properties": {
                 "createdAt": {
-                    "description": "Timestamp when the ledger was created (RFC3339 format)",
+                    "description": "Timestamp when the ledger was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the ledger was soft deleted, null if not deleted (RFC3339 format)",
+                    "description": "Timestamp when the ledger was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "id": {
-                    "description": "Unique identifier for the ledger (UUID format)",
+                    "description": "Unique identifier for the ledger (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
-                    "description": "Custom key-value pairs for extending the ledger information",
+                    "description": "Custom key-value pairs for extending the ledger information\nexample: {\"department\": \"Finance\", \"currency\": \"USD\", \"region\": \"North America\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Display name of the ledger",
+                    "description": "Display name of the ledger\nexample: Treasury Operations\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "example": "Treasury Operations"
                 },
                 "organizationId": {
-                    "description": "Reference to the organization that owns this ledger",
+                    "description": "Reference to the organization that owns this ledger (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
@@ -3513,7 +3519,7 @@
                     ]
                 },
                 "updatedAt": {
-                    "description": "Timestamp when the ledger was last updated (RFC3339 format)",
+                    "description": "Timestamp when the ledger was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
@@ -3521,7 +3527,7 @@
             }
         },
         "Organization": {
-            "description": "Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations.",
+            "description": "Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.",
             "type": "object",
             "properties": {
                 "address": {
@@ -3533,51 +3539,50 @@
                     ]
                 },
                 "createdAt": {
-                    "description": "Timestamp when the organization was created (RFC3339 format)",
+                    "description": "Timestamp when the organization was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the organization was soft deleted, null if not deleted (RFC3339 format)",
+                    "description": "Timestamp when the organization was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "doingBusinessAs": {
-                    "description": "Trading or brand name of the organization, if different from legal name",
+                    "description": "Trading or brand name of the organization, if different from legal name\nexample: Lerian FS\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "example": "Lerian FS"
                 },
                 "id": {
-                    "description": "Unique identifier for the organization (UUID format)",
+                    "description": "Unique identifier for the organization (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "legalDocument": {
-                    "description": "Official tax ID, company registration number, or other legal identification",
+                    "description": "Official tax ID, company registration number, or other legal identification\nexample: 123456789012345\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "00000000000000"
+                    "example": "123456789012345"
                 },
                 "legalName": {
-                    "description": "Official legal name of the organization",
+                    "description": "Official legal name of the organization\nexample: Lerian Financial Services Ltd.\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio"
+                    "example": "Lerian Financial Services Ltd."
                 },
                 "metadata": {
-                    "description": "Custom key-value pairs for extending the organization information",
+                    "description": "Custom key-value pairs for extending the organization information\nexample: {\"industry\": \"Financial Services\", \"founded\": 2020, \"employees\": 150}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "description": "Reference to the parent organization, if this is a child organization",
+                    "description": "Reference to the parent organization, if this is a child organization\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
                     "description": "Current operating status of the organization",
@@ -3588,7 +3593,7 @@
                     ]
                 },
                 "updatedAt": {
-                    "description": "Timestamp when the organization was last updated (RFC3339 format)",
+                    "description": "Timestamp when the organization was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
@@ -3767,34 +3772,32 @@
             }
         },
         "UpdateAccountInput": {
-            "description": "UpdateAccountInput is the input payload to update an existing account's properties such as name, status, portfolio, segment, and metadata.",
+            "description": "Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.",
             "type": "object",
             "properties": {
                 "metadata": {
-                    "description": "Updated or additional custom attributes for the account\nKeys max length: 100 characters, Values max length: 2000 characters",
+                    "description": "Updated custom key-value pairs for extending the account information\nrequired: false\nexample: {\"department\": \"Global Treasury\", \"purpose\": \"Primary Operations\", \"region\": \"Global\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Updated name of the account (optional, max length 256 characters)",
+                    "description": "Updated name of the account\nrequired: false\nexample: Primary Corporate Checking Account\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "My Account Updated"
+                    "example": "Primary Corporate Checking Account"
                 },
                 "portfolioId": {
-                    "description": "Updated portfolio ID for the account (optional, UUID format)",
+                    "description": "Updated portfolio ID for the account\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "segmentId": {
-                    "description": "Updated segment ID for the account (optional, UUID format)",
+                    "description": "Updated segment ID for the account\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
-                    "description": "Updated status of the account (active, inactive, pending)",
+                    "description": "Updated status of the account\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3833,18 +3836,18 @@
             "type": "object",
             "properties": {
                 "metadata": {
-                    "description": "Updated custom key-value pairs for extending the ledger information (optional)",
+                    "description": "Updated custom key-value pairs for extending the ledger information\nrequired: false\nexample: {\"department\": \"Global Finance\", \"currency\": \"USD\", \"region\": \"Global\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "description": "Updated display name of the ledger (optional)",
+                    "description": "Updated display name of the ledger\nrequired: false\nexample: Treasury Operations Global\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio Updated"
+                    "example": "Treasury Operations Global"
                 },
                 "status": {
-                    "description": "Updated status of the ledger (optional)",
+                    "description": "Updated status of the ledger\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
@@ -3858,7 +3861,7 @@
             "type": "object",
             "properties": {
                 "address": {
-                    "description": "Updated physical address of the organization (optional)",
+                    "description": "Updated physical address of the organization\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Address"
@@ -3866,30 +3869,29 @@
                     ]
                 },
                 "doingBusinessAs": {
-                    "description": "Updated trading or brand name of the organization (optional)",
+                    "description": "Updated trading or brand name of the organization\nrequired: false\nexample: Lerian Group\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "The ledger.io"
+                    "example": "Lerian Group"
                 },
                 "legalName": {
-                    "description": "Updated legal name of the organization (optional)",
+                    "description": "Updated legal name of the organization\nrequired: false\nexample: Lerian Financial Group Ltd.\nmaxLength: 256",
                     "type": "string",
                     "maxLength": 256,
-                    "example": "Lerian Studio Updated"
+                    "example": "Lerian Financial Group Ltd."
                 },
                 "metadata": {
-                    "description": "Updated custom key-value pairs for extending the organization information (optional)",
+                    "description": "Updated custom key-value pairs for extending the organization information\nrequired: false\nexample: {\"industry\": \"Financial Technology\", \"founded\": 2020, \"employees\": 200, \"headquarters\": \"New York\"}",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "description": "UUID of the parent organization if this is a child organization (optional)",
+                    "description": "Updated UUID of the parent organization if this is a child organization\nrequired: false\nformat: uuid",
                     "type": "string",
-                    "format": "uuid",
-                    "example": "00000000-0000-0000-0000-000000000000"
+                    "format": "uuid"
                 },
                 "status": {
-                    "description": "Updated status of the organization (optional)",
+                    "description": "Updated status of the organization\nrequired: false",
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"

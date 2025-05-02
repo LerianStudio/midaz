@@ -29,12 +29,15 @@ networks:
   transaction-network:
     name: transaction-network
     driver: bridge
+    external: true
   ledger-network:
     name: ledger-network
     driver: bridge
   plugin-auth-network:
     name: plugin-auth-network
     driver: bridge
+    external: true
   infra-network:
     name: infra-network
     driver: bridge
+    external: true

@@ -6,7 +6,10 @@
     "verify-api": "bash ./verify-api-docs.sh",
     "validate-onboarding": "cd ../components/onboarding && make validate-api-docs",
     "validate-transaction": "cd ../components/transaction && make validate-api-docs",
-    "validate-all": "npm run validate-onboarding && npm run validate-transaction"
+    "validate-all": "npm run validate-onboarding && npm run validate-transaction",
+    "test:postman": "bash ./run-postman-tests.sh",
+    "test:postman:e2e": "bash ./run-postman-tests.sh \"E2E Flow\"",
+    "debug:e2e": "node debug-e2e-flow.js ../postman/MIDAZ.postman_collection.json ../postman/MIDAZ.postman_environment.json"
   },
   "dependencies": {
     "axios": "^1.8.4",

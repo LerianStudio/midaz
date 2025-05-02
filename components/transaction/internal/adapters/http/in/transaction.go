@@ -40,8 +40,8 @@ type TransactionHandler struct {
 //	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -521,6 +521,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
+//
+//nolint:gocognit,gocyclo
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
