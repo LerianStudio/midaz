@@ -143,8 +143,10 @@ jobs:
         go-version: '1.23'
         cache: false
     
-    - name: Clean untracked files on repo
-      run: git clean -fd
+    - name: Clean repo (reset + clean)
+      run: |
+        git reset --hard
+        git clean -fd
 
     # Build and publish Go binaries using GoReleaser
     - name: Run GoReleaser
