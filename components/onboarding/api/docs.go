@@ -3248,8 +3248,9 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nrequired: true\nexample: deposit\nenum: [deposit, savings, loans, marketplace, creditCard, external]",
+                    "description": "Type of the account\nrequired: true\nexample: deposit\nmaxLength: 256",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "deposit"
                 }
             }
