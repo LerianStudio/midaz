@@ -1,3 +1,8 @@
+## [v2.2.0-beta.14] - 2025-05-02
+
+### ✨ Features
+- Clean temporary files before executing Goreleaser to ensure a clean build environment
+
 ## [v2.2.0-beta.12] - 2025-04-29
 
 ### ✨ Features
