@@ -1,3 +1,9 @@
+## [v2.2.0-beta.12] - 2025-04-29
+
+### ✨ Features
+- Configure commit process with push bot application ID
+
+
 ## [v2.2.0-beta.11] - 2025-04-29
 
 ### ✨ Features
