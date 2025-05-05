@@ -73,7 +73,7 @@ var (
 	ErrFailedToRetrieveAccountsByAliases   = errors.New("0063")
 	ErrNoAccountsFound                     = errors.New("0064")
 	ErrInvalidPathParameter                = errors.New("0065")
-	// 0066 (invalid account type) was removed
+	ErrInvalidAccountType = errors.New("0066")
 	ErrInvalidMetadataNesting                   = errors.New("0067")
 	ErrOperationIDNotFound                      = errors.New("0068")
 	ErrNoOperationsFound                        = errors.New("0069")
