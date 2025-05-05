@@ -195,13 +195,13 @@ export const AccountSheet = ({
             <SheetHeader>
               <SheetTitle>
                 {intl.formatMessage({
-                  id: 'ledgers.account.sheet.create.title',
+                  id: 'accounts.sheet.create.title',
                   defaultMessage: 'New Account'
                 })}
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'ledgers.account.sheet.create.description',
+                  id: 'accounts.sheet.create.description',
                   defaultMessage:
                     'Fill in the details of the Account you want to create.'
                 })}
@@ -214,7 +214,7 @@ export const AccountSheet = ({
               <SheetTitle>
                 {intl.formatMessage(
                   {
-                    id: 'ledgers.account.sheet.edit.title',
+                    id: 'accounts.sheet.edit.title',
                     defaultMessage: 'Edit {accountName}'
                   },
                   {
@@ -224,7 +224,7 @@ export const AccountSheet = ({
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'ledgers.account.sheet.edit.description',
+                  id: 'accounts.sheet.edit.description',
                   defaultMessage: 'View and edit account fields.'
                 })}
               </SheetDescription>
@@ -240,7 +240,7 @@ export const AccountSheet = ({
                 <TabsList className="mb-8 px-0">
                   <TabsTrigger value="details">
                     {intl.formatMessage({
-                      id: 'ledgers.account.sheet.tabs.details',
+                      id: 'accounts.sheet.tabs.details',
                       defaultMessage: 'Account Details'
                     })}
                   </TabsTrigger>
@@ -263,11 +263,11 @@ export const AccountSheet = ({
                       control={form.control}
                       name="name"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.name',
+                        id: 'accounts.field.name',
                         defaultMessage: 'Account Name'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.name.tooltip',
+                        id: 'accounts.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account'
                       })}
                       required
@@ -277,11 +277,11 @@ export const AccountSheet = ({
                       control={form.control}
                       name="alias"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.alias',
+                        id: 'accounts.field.alias',
                         defaultMessage: 'Account Alias'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.alias.tooltip',
+                        id: 'accounts.field.alias.tooltip',
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
@@ -298,7 +298,7 @@ export const AccountSheet = ({
                             defaultMessage: 'Type'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.type.tooltip',
+                            id: 'accounts.field.type.tooltip',
                             defaultMessage: 'The type of account'
                           })}
                           required
@@ -350,11 +350,11 @@ export const AccountSheet = ({
                           control={form.control}
                           name="entityId"
                           label={intl.formatMessage({
-                            id: 'ledgers.account.field.entityId',
+                            id: 'accounts.field.entityId',
                             defaultMessage: 'Entity ID'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.entityId.tooltip',
+                            id: 'accounts.field.entityId.tooltip',
                             defaultMessage:
                               'Identification number (EntityId) of the Account holder'
                           })}
@@ -363,11 +363,11 @@ export const AccountSheet = ({
                           control={form.control}
                           name="assetCode"
                           label={intl.formatMessage({
-                            id: 'ledgers.account.field.asset',
+                            id: 'accounts.field.asset',
                             defaultMessage: 'Asset'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.asset.tooltip',
+                            id: 'accounts.field.asset.tooltip',
                             defaultMessage:
                               'Asset or currency that will be operated in this Account using balance'
                           })}
@@ -386,11 +386,11 @@ export const AccountSheet = ({
                       control={form.control}
                       name="segmentId"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.segment',
+                        id: 'accounts.field.segment',
                         defaultMessage: 'Segment'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.segment.tooltip',
+                        id: 'accounts.field.segment.tooltip',
                         defaultMessage:
                           'Category (cluster) of clients with specific characteristics'
                       })}
@@ -427,7 +427,7 @@ export const AccountSheet = ({
                         control={form.control}
                         name="allowReceiving"
                         label={intl.formatMessage({
-                          id: 'ledgers.account.field.allowReceiving',
+                          id: 'accounts.field.allowReceiving',
                           defaultMessage: 'Allow Receiving'
                         })}
                         tooltip={intl.formatMessage({
@@ -463,13 +463,13 @@ export const AccountSheet = ({
                       <InfoIcon className="h-4 w-4" />
                       <AlertTitle>
                         {intl.formatMessage({
-                          id: 'ledgers.account.sheet.noPortfolio.title',
+                          id: 'accounts.sheet.noPortfolio.title',
                           defaultMessage: 'Link to a Portfolio'
                         })}
                       </AlertTitle>
                       <AlertDescription>
                         {intl.formatMessage({
-                          id: 'ledgers.account.sheet.noPortfolio.description',
+                          id: 'accounts.sheet.noPortfolio.description',
                           defaultMessage:
                             'You do not have a portfolio available to link here.'
                         })}
@@ -481,11 +481,11 @@ export const AccountSheet = ({
                     control={form.control}
                     name="portfolioId"
                     label={intl.formatMessage({
-                      id: 'ledgers.account.field.portfolio',
+                      id: 'accounts.field.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                     tooltip={intl.formatMessage({
-                      id: 'ledgers.account.field.portfolio.tooltip',
+                      id: 'accounts.field.portfolio.tooltip',
                       defaultMessage: 'Portfolio that will receive this account'
                     })}
                     disabled={portfolioListData.length === 0}
@@ -502,12 +502,12 @@ export const AccountSheet = ({
                       <p className="text-xs font-normal italic text-shadcn-400">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({
-                              id: 'ledgers.account.sheet.noLinkedPortfolio',
+                              id: 'accounts.sheet.noLinkedPortfolio',
                               defaultMessage:
                                 'Account not linked to any portfolio.'
                             })
                           : intl.formatMessage({
-                              id: 'ledgers.account.sheet.linkedPortfolio',
+                              id: 'accounts.sheet.linkedPortfolio',
                               defaultMessage: 'Account linked to a portfolio.'
                             })}
                       </p>

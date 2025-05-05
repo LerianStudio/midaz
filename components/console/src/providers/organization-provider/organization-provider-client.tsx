@@ -77,7 +77,7 @@ export const OrganizationProviderClient = ({
 
   useDefaultLedger({
     current,
-    ledgers: ledgers?.items ?? [],
+    ledgers: ledgers?.items,
     currentLedger,
     setCurrentLedger
   })

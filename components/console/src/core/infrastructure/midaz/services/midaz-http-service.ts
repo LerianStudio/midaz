@@ -77,7 +77,12 @@ export class MidazHttpService extends HttpService {
         apiErrorMessages[error.code as keyof typeof apiErrorMessages]
 
       if (!message) {
-        console.warn('MidazHttpService - Error code not found')
+        this.logger.warn('[ERROR] - MidazHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
         throw new MidazApiException(
           intl.formatMessage({
             id: 'error.midaz.unknowError',

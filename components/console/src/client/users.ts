@@ -45,6 +45,7 @@ export const useUserById = ({ userId, ...options }: UseUserByIdProps) => {
     queryKey: ['users', userId],
     queryFn: getFetcher(`/api/identity/users/${userId}`),
     placeholderData: keepPreviousData,
+    enabled: !!userId,
     ...options
   })
 }

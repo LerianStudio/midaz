@@ -2,10 +2,18 @@ import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/mid
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
-import { FetchModuleOptions, HttpMethods, HttpService } from '@/lib/http'
+import {
+  FetchModuleOptions,
+  HttpMethods,
+  HttpService,
+  InternalServerErrorApiException
+} from '@/lib/http'
+import { getIntl } from '@/lib/intl'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject, injectable } from 'inversify'
 import { getServerSession } from 'next-auth'
+import { authApiMessages } from '../messages/messages'
+import { AuthApiException } from '../exceptions/auth-exceptions'
 
 @injectable()
 export class AuthHttpService extends HttpService {
@@ -77,5 +85,36 @@ export class AuthHttpService extends HttpService {
       status: response.status,
       response: error
     })
+
+    const intl = await getIntl()
+
+    if (error?.code) {
+      const message =
+        authApiMessages[error.code as keyof typeof authApiMessages]
+
+      if (!message) {
+        this.logger.warn('[ERROR] - AuthHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
+        throw new AuthApiException(
+          intl.formatMessage({
+            id: 'error.midaz.unknowError',
+            defaultMessage: 'Unknown error on Midaz.'
+          })
+        )
+      }
+
+      throw new AuthApiException(intl.formatMessage(message), error.code)
+    }
+
+    throw new InternalServerErrorApiException(
+      intl.formatMessage({
+        id: 'error.midaz.unknowError',
+        defaultMessage: 'Unknown error on Midaz.'
+      })
+    )
   }
 }
