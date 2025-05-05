@@ -93,7 +93,12 @@ export class AuthHttpService extends HttpService {
         authApiMessages[error.code as keyof typeof authApiMessages]
 
       if (!message) {
-        console.warn('AuthHttpService - Error code not found')
+        this.logger.warn('[ERROR] - AuthHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
         throw new AuthApiException(
           intl.formatMessage({
             id: 'error.midaz.unknowError',
