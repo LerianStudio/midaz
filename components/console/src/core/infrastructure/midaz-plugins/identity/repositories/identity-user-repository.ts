@@ -1,25 +1,21 @@
 import { UserEntity } from '@/core/domain/entities/user-entity'
 import { UserRepository } from '@/core/domain/repositories/user-repository'
-import { ContainerTypeMidazHttpFetch } from '@/core/infrastructure/container-registry/midaz-http-fetch-module'
-import { HttpFetchUtils } from '@/core/infrastructure/utils/http-fetch-utils'
-import { HttpMethods } from '@/lib/http'
 import { inject, injectable } from 'inversify'
+import { IdentityHttpService } from '../services/identity-http-service'
 
 @injectable()
 export class IdentityUserRepository implements UserRepository {
   private baseUrl: string = process.env.PLUGIN_IDENTITY_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(IdentityHttpService)
+    private readonly httpService: IdentityHttpService
   ) {}
 
   async create(user: UserEntity): Promise<UserEntity> {
     const url = `${this.baseUrl}/users`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<UserEntity>({
-      url,
-      method: HttpMethods.POST,
+    const response = await this.httpService.post<UserEntity>(url, {
       body: JSON.stringify(user)
     })
 
@@ -29,12 +25,7 @@ export class IdentityUserRepository implements UserRepository {
   async fetchAll(): Promise<UserEntity[]> {
     const url = `${this.baseUrl}/users`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      UserEntity[]
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response = await this.httpService.get<UserEntity[]>(url)
 
     return response
   }
@@ -42,10 +33,7 @@ export class IdentityUserRepository implements UserRepository {
   async fetchById(userId: string): Promise<UserEntity> {
     const url = `${this.baseUrl}/users/${userId}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<UserEntity>({
-      url,
-      method: HttpMethods.GET
-    })
+    const response = await this.httpService.get<UserEntity>(url)
 
     return response
   }
@@ -54,9 +42,7 @@ export class IdentityUserRepository implements UserRepository {
     const url = `${this.baseUrl}/users/${userId}`
     const { firstName, lastName, email, groups } = user
 
-    await this.midazHttpFetchUtils.httpMidazFetch<UserEntity>({
-      url,
-      method: HttpMethods.PATCH,
+    await this.httpService.patch<UserEntity>(url, {
       body: JSON.stringify({ firstName, lastName, email, groups })
     })
 
@@ -65,10 +51,7 @@ export class IdentityUserRepository implements UserRepository {
 
   async delete(userId: string): Promise<void> {
     const url = `${this.baseUrl}/users/${userId}`
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    await this.httpService.delete(url)
 
     return
   }
@@ -76,9 +59,7 @@ export class IdentityUserRepository implements UserRepository {
   async resetPassword(userId: string, newPassword: string): Promise<void> {
     const url = `${this.baseUrl}/users/${userId}/reset-password`
 
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.PATCH,
+    await this.httpService.patch<void>(url, {
       body: JSON.stringify({ newPassword })
     })
 
@@ -92,9 +73,7 @@ export class IdentityUserRepository implements UserRepository {
   ): Promise<void> {
     const url = `${this.baseUrl}/users/${userId}/update-password`
 
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.PATCH,
+    await this.httpService.patch<void>(url, {
       body: JSON.stringify({ oldPassword, newPassword })
     })
 

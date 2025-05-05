@@ -1,18 +1,16 @@
 import { injectable, inject } from 'inversify'
 import { SegmentEntity } from '@/core/domain/entities/segment-entity'
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazSegmentRepository implements SegmentRepository {
   private baseUrl: string = process.env.MIDAZ_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   async create(
@@ -21,12 +19,9 @@ export class MidazSegmentRepository implements SegmentRepository {
     segment: SegmentEntity
   ): Promise<SegmentEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments`
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<SegmentEntity>({
-        url,
-        method: HttpMethods.POST,
-        body: JSON.stringify(segment)
-      })
+    const response = await this.httpService.post<SegmentEntity>(url, {
+      body: JSON.stringify(segment)
+    })
 
     return response
   }
@@ -39,12 +34,8 @@ export class MidazSegmentRepository implements SegmentRepository {
   ): Promise<PaginationEntity<SegmentEntity>> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments?limit=${limit}&page=${page}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<SegmentEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<SegmentEntity>>(url)
 
     return response
   }
@@ -56,11 +47,7 @@ export class MidazSegmentRepository implements SegmentRepository {
   ): Promise<SegmentEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<SegmentEntity>({
-        url,
-        method: HttpMethods.GET
-      })
+    const response = await this.httpService.get<SegmentEntity>(url)
 
     return response
   }
@@ -73,12 +60,9 @@ export class MidazSegmentRepository implements SegmentRepository {
   ): Promise<SegmentEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<SegmentEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(segment)
-      })
+    const response = await this.httpService.patch<SegmentEntity>(url, {
+      body: JSON.stringify(segment)
+    })
 
     return response
   }
@@ -90,10 +74,7 @@ export class MidazSegmentRepository implements SegmentRepository {
   ): Promise<void> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
 
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    await this.httpService.delete(url)
 
     return
   }

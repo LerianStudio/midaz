@@ -34,10 +34,10 @@ export class MidazHttpService extends HttpService {
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
       const session = await getServerSession(nextAuthOptions)
       const { access_token } = session?.user
-      headers.Authorization = `Bearer ${access_token}`
+      headers.Authorization = `${access_token}`
     }
 
-    return headers
+    return { headers }
   }
 
   protected onBeforeFetch(request: Request): void {
@@ -77,7 +77,12 @@ export class MidazHttpService extends HttpService {
         apiErrorMessages[error.code as keyof typeof apiErrorMessages]
 
       if (!message) {
-        console.warn('MidazHttpService - Error code not found')
+        this.logger.warn('[ERROR] - MidazHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
         throw new MidazApiException(
           intl.formatMessage({
             id: 'error.midaz.unknowError',

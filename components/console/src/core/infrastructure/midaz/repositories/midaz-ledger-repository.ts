@@ -2,18 +2,16 @@ import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { injectable } from 'inversify'
 import { inject } from 'inversify'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
 
 @injectable()
 export class MidazLedgerRepository implements LedgerRepository {
   private baseUrl: string = process.env.MIDAZ_BASE_PATH as string
 
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   async create(
@@ -22,12 +20,9 @@ export class MidazLedgerRepository implements LedgerRepository {
   ): Promise<LedgerEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<LedgerEntity>({
-        url,
-        method: HttpMethods.POST,
-        body: JSON.stringify(ledger)
-      })
+    const response = await this.httpService.post<LedgerEntity>(url, {
+      body: JSON.stringify(ledger)
+    })
 
     return response
   }
@@ -39,12 +34,8 @@ export class MidazLedgerRepository implements LedgerRepository {
   ): Promise<PaginationEntity<LedgerEntity>> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers?limit=${limit}&page=${page}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<LedgerEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
+    const response =
+      await this.httpService.get<PaginationEntity<LedgerEntity>>(url)
 
     return response
   }
@@ -55,11 +46,7 @@ export class MidazLedgerRepository implements LedgerRepository {
   ): Promise<LedgerEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<LedgerEntity>({
-        url,
-        method: HttpMethods.GET
-      })
+    const response = await this.httpService.get<LedgerEntity>(url)
 
     return response
   }
@@ -71,12 +58,9 @@ export class MidazLedgerRepository implements LedgerRepository {
   ): Promise<LedgerEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
 
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<LedgerEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(ledger)
-      })
+    const response = await this.httpService.patch<LedgerEntity>(url, {
+      body: JSON.stringify(ledger)
+    })
 
     return response
   }
@@ -84,10 +68,7 @@ export class MidazLedgerRepository implements LedgerRepository {
   async delete(organizationId: string, ledgerId: string): Promise<void> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}`
 
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    const response = await this.httpService.delete(url)
 
     return
   }

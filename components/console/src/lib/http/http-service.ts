@@ -68,6 +68,11 @@ export abstract class HttpService {
         throw new ServiceUnavailableApiException(error)
       }
 
+      // Handle 204 Success No Content response
+      if (response.status === HttpStatus.NO_CONTENT) {
+        return {} as T
+      }
+
       return await response.json()
     } catch (error: any) {
       if (error instanceof ApiException) {

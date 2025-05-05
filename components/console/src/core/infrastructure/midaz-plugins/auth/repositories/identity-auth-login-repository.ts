@@ -8,16 +8,15 @@ import { AuthLoginRepository } from '@/core/domain/repositories/auth/auth-login-
 import { inject, injectable } from 'inversify'
 import * as jwt from 'jsonwebtoken'
 import { JwtPayload } from 'jsonwebtoken'
-import { ContainerTypeMidazHttpFetch } from '../../../container-registry/midaz-http-fetch-module'
-import { HttpFetchUtils } from '../../../utils/http-fetch-utils'
-import { HttpMethods, UnauthorizedApiException } from '@/lib/http'
+import { UnauthorizedApiException } from '@/lib/http'
 import { getIntl } from '@/lib/intl'
+import { AuthHttpService } from '../services/auth-http-service'
 
 @injectable()
 export class IdentityAuthLoginRepository implements AuthLoginRepository {
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils,
+    @inject(AuthHttpService)
+    private readonly httpService: AuthHttpService,
     @inject(LoggerAggregator)
     private readonly midazLogger: LoggerAggregator
   ) {}
@@ -48,13 +47,9 @@ export class IdentityAuthLoginRepository implements AuthLoginRepository {
 
     try {
       const authResponse: AuthResponseEntity =
-        await this.midazHttpFetchUtils.httpMidazWithoutAuthFetch<AuthResponseEntity>(
-          {
-            url,
-            method: HttpMethods.POST,
-            body: JSON.stringify(loginDataWithClient)
-          }
-        )
+        await this.httpService.login<AuthResponseEntity>(url, {
+          body: JSON.stringify(loginDataWithClient)
+        })
 
       const jwtPauload: JwtPayload = jwt.decode(
         authResponse.accessToken
