@@ -1,3 +1,15 @@
+## [v2.2.0-beta.15] - 2025-05-05
+
+### ✨ Features
+- ⚠️ **Breaking Change**: Remove account type enum constraint, allowing more flexibility in account type definitions. This change may affect existing implementations relying on previous constraints.
+
+### 🐛 Bug Fixes
+- Map invalid account types correctly to ensure proper handling of unexpected inputs.
+- Implement code review suggestions to enhance code quality and address minor issues identified during the review process.
+
+### 📚 Documentation
+- Update documentation for the account type field to reflect recent changes and improve clarity.
+
 ## [v2.2.0-beta.14] - 2025-05-02
 
 ### ✨ Features
