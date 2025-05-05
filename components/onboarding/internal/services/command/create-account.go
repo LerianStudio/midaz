@@ -36,12 +36,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
-	if err := libCommons.ValidateAccountType(cai.Type); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
-
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.Account{}).Name())
-	}
-
 	status := uc.determineStatus(cai)
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)

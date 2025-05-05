@@ -68,11 +68,11 @@ type CreateAccountInput struct {
 	// maxLength: 100
 	Alias *string `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@treasury_checking" maxLength:"100"`
 
-	// Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+	// Type of the account
 	// required: true
 	// example: deposit
-	// enum: [deposit, savings, loans, marketplace, creditCard, external]
-	Type string `json:"type" validate:"required" example:"deposit" enum:"deposit,savings,loans,marketplace,creditCard,external"`
+	// maxLength: 256
+	Type string `json:"type" validate:"required,max=256" example:"deposit"`
 
 	// Custom key-value pairs for extending the account information
 	// required: false

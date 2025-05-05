@@ -321,11 +321,12 @@ definitions:
           required: false
       type:
         description: |-
-          Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+          Type of the account
           required: true
           example: deposit
-          enum: [deposit, savings, loans, marketplace, creditCard, external]
+          maxLength: 256
         example: deposit
+        maxLength: 256
         type: string
     required:
     - assetCode

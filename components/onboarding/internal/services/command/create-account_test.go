@@ -114,24 +114,6 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  true,
 		},
 		{
-			name: "invalid account type",
-			input: &mmodel.CreateAccountInput{
-				Name:      "Test Account",
-				Type:      "invalid",
-				AssetCode: "USD",
-			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
-				mockRabbitMQ.EXPECT().
-					CheckRabbitMQHealth().
-					Return(true).
-					Times(1)
-
-			},
-			expectedErr:  "0066 - The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
-			expectedName: "",
-			expectError:  true,
-		},
-		{
 			name: "error creating account",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
