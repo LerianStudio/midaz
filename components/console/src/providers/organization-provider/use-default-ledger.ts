@@ -7,7 +7,7 @@ import { useReducer, useEffect } from 'react'
 
 type UseDefaultLedgerProps = {
   current: OrganizationEntity
-  ledgers: LedgerResponseDto[]
+  ledgers?: LedgerResponseDto[]
   currentLedger: LedgerResponseDto
   setCurrentLedger: (ledger: LedgerResponseDto) => void
 }
@@ -47,7 +47,7 @@ export function useDefaultLedger({
 
       // If this organization has no ledgers, set the current ledger to empty
       if (ledgers.length === 0) {
-        setCurrentLedger({} as LedgerType)
+        setCurrentLedger({} as LedgerResponseDto)
         return
       }
 
