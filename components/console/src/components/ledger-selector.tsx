@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useIntl } from 'react-intl'
-import {  ChevronsUpDown, Database } from 'lucide-react'
+import { ChevronsUpDown, Database } from 'lucide-react'
 import {
   Select,
   SelectTrigger,
