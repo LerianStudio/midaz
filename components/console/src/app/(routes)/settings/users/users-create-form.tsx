@@ -6,13 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { user, passwordChange } from '@/schema/user'
 import { useListGroups } from '@/client/groups'
-import { SelectItem } from '@/components/ui/select'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateUser } from '@/client/users'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
 import { useToast } from '@/hooks/use-toast'
+import { MultipleSelectItem } from '@/components/ui/multiple-select'
 
 const FormSchema = z
   .object({
@@ -38,7 +38,7 @@ const initialValues = {
   password: '',
   confirmPassword: '',
   email: '',
-  groups: ''
+  groups: []
 }
 
 interface CreateUserFormProps {
@@ -82,11 +82,7 @@ export const CreateUserForm = ({
 
   const handleSubmit = (formData: FormData) => {
     const { confirmPassword, ...userData } = formData
-
-    createUser({
-      ...userData,
-      groups: [userData.groups]
-    })
+    createUser(userData)
   }
 
   return (
@@ -179,12 +175,13 @@ export const CreateUserForm = ({
               defaultMessage: 'Select'
             })}
             control={form.control}
+            multi
             required
           >
             {groups?.map((group: GroupResponseDto) => (
-              <SelectItem key={group.id} value={group.id}>
+              <MultipleSelectItem key={group.id} value={group.id}>
                 {group.name}
-              </SelectItem>
+              </MultipleSelectItem>
             ))}
           </SelectField>
 
