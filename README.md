@@ -98,25 +98,25 @@ Lerian Midaz implements true double-entry accounting with sophisticated transact
 - **Comprehensive APIs**: RESTful endpoints with OpenAPI documentation
 - **Testing**: Extensive unit and integration tests with mocking support
 
-### Getting Started
+## Getting Started
 
 To start using Lerian Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
 
-#### Community & Support
+### Community & Support
 
 - Join our [Discord community](https://discord.gg/DnhqKwkGv3) for discussions, support, and updates.
 - For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/issues).
 - If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).
 - Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.
 
-### Repo Activity
+## Repo Activity
 
 ![Alt](https://repobeats.axiom.co/api/embed/827f95068c3eb21900ed6a7191a53639481cbc75.svg "Repobeats analytics image")
 
-### Contributing & License
+## Contributing & License
 
 We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
 
-### About Lerian
+## About Lerian
 
 Midaz is developed by Lerian, a tech company founded in 2024, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.studio](mailto:contact@lerian.studio) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).
