@@ -55,7 +55,7 @@ const profileInitialValues = {
   lastName: '',
   username: '',
   email: '',
-  groups: ''
+  groups: []
 }
 
 const passwordInitialValues = {
