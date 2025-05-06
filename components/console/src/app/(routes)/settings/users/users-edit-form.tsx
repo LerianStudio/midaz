@@ -6,11 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { user, passwordChange } from '@/schema/user'
 import { useListGroups } from '@/client/groups'
-import { SelectItem } from '@/components/ui/select'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useUpdateUser, useResetUserPassword } from '@/client/users'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import React from 'react'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
@@ -20,12 +19,13 @@ import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
+import { MultipleSelectItem } from '@/components/ui/multiple-select'
 
 const initialValues = {
   firstName: '',
   lastName: '',
   email: '',
-  groups: ''
+  groups: []
 }
 
 const UpdateFormSchema = z.object({
@@ -64,14 +64,6 @@ export const EditUserForm = ({
   const { data: groups } = useListGroups({})
   const [activeTab, setActiveTab] = useState('personal-information')
 
-  const userData = useMemo(
-    () => ({
-      ...user,
-      groups: user.groups && user.groups.length > 0 ? user.groups[0] : ''
-    }),
-    [user]
-  )
-
   const {
     handleDialogOpen,
     dialogProps,
@@ -87,7 +79,7 @@ export const EditUserForm = ({
 
   const form = useForm<UpdateFormData>({
     resolver: zodResolver(UpdateFormSchema),
-    defaultValues: getInitialValues(initialValues, userData)
+    defaultValues: getInitialValues(initialValues, user)
   })
 
   const passwordForm = useForm<PasswordFormData>({
@@ -139,16 +131,10 @@ export const EditUserForm = ({
       }
     })
 
-  const handleEditSubmit = (formData: UpdateFormData) => {
-    updateUser({
-      ...formData,
-      groups: [formData.groups]
-    })
-  }
+  const handleEditSubmit = (formData: UpdateFormData) => updateUser(formData)
 
-  const handlePasswordSubmit = (formData: PasswordFormData) => {
+  const handlePasswordSubmit = (formData: PasswordFormData) =>
     handleDialogOpen('', formData)
-  }
 
   return (
     <React.Fragment>
@@ -248,12 +234,13 @@ export const EditUserForm = ({
                       defaultMessage: 'Select...'
                     })}
                     control={form.control}
+                    multi
                     required
                   >
                     {groups?.map((group: GroupResponseDto) => (
-                      <SelectItem key={group.id} value={group.id}>
+                      <MultipleSelectItem key={group.id} value={group.id}>
                         {group.name}
-                      </SelectItem>
+                      </MultipleSelectItem>
                     ))}
                   </SelectField>
 
