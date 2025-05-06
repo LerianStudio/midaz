@@ -11,8 +11,7 @@ import {
 
 const meta: Meta = {
   title: 'Primitives/MultipleSelect',
-  component: MultipleSelect,
-  argTypes: {}
+  component: MultipleSelect
 }
 
 export default meta
@@ -37,63 +36,11 @@ const frameworks = [
   {
     value: 'astro',
     label: 'Astro'
-  },
-  {
-    value: 'vue.js',
-    label: 'Vue.js'
-  },
-  {
-    value: 'angular',
-    label: 'Angular'
-  },
-  {
-    value: 'ember.js',
-    label: 'Ember.js'
-  },
-  {
-    value: 'backbone.js',
-    label: 'Backbone.js'
-  },
-  {
-    value: 'jquery',
-    label: 'jQuery'
-  },
-  {
-    value: 'vanilla-js',
-    label: 'Vanilla JS'
-  },
-  {
-    value: 'lit',
-    label: 'Lit'
-  },
-  {
-    value: 'preact',
-    label: 'Preact'
-  },
-  {
-    value: 'solidjs',
-    label: 'SolidJS'
-  },
-  {
-    value: 'svelte',
-    label: 'Svelte'
-  },
-  {
-    value: 'jquery-mobile',
-    label: 'jQuery Mobile'
-  },
-  {
-    value: 'jquery-ui',
-    label: 'jQuery UI'
-  },
-  {
-    value: 'jquery-mobile-v1',
-    label: 'jQuery Mobile v1'
   }
 ]
 
 const BaseLayout = ({ children }: React.PropsWithChildren) => (
-  <div className="h-[1024px]">{children}</div>
+  <div className="h-[256px]">{children}</div>
 )
 
 const Component = (args: any) => {
