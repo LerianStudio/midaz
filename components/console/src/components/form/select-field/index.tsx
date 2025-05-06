@@ -16,6 +16,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectEmpty,
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
@@ -23,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { CommandGroup } from 'cmdk'
 import { PropsWithChildren, ReactNode } from 'react'
 import { Control } from 'react-hook-form'
+import { useIntl } from 'react-intl'
 
 export type SelectFieldProps = PropsWithChildren & {
   name: string
@@ -49,6 +51,8 @@ export const SelectField = ({
   children,
   ...others
 }: SelectFieldProps) => {
+  const intl = useIntl()
+
   return (
     <FormField
       {...others}
@@ -85,7 +89,15 @@ export const SelectField = ({
                   <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
               </FormControl>
-              <SelectContent>{children}</SelectContent>
+              <SelectContent>
+                <SelectEmpty>
+                  {intl.formatMessage({
+                    id: 'common.noOptions',
+                    defaultMessage: 'No options found.'
+                  })}
+                </SelectEmpty>
+                {children}
+              </SelectContent>
             </Select>
           )}
           <FormMessage />
