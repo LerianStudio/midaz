@@ -1,3 +1,11 @@
+## [v2.2.0-beta.16] - 2025-05-06
+
+### 🔧 Maintenance
+- Remove unused `APP_CONTEXT` environment variable to clean up configuration and improve code clarity.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and ensure accurate version tracking.
+
 ## [v2.2.0-beta.15] - 2025-05-05
 
 ### ✨ Features
