@@ -37,11 +37,11 @@ If you are interested in contributing to the development of these plugins or hav
 
 We will also provide soon a list of potential new plugins that could be built, to help you get started. More to come!
 
-### Core Architecture
+## Core Architecture
 
 Lerian Midaz is built as a modern, cloud-native platform with a modular microservices architecture:
 
-#### Domains
+### Domains
 
 Lerian Midaz implements a comprehensive financial hierarchy:
 
@@ -54,7 +54,7 @@ Lerian Midaz implements a comprehensive financial hierarchy:
 - **Transactions**: Financial transactions with debits and credits
 - **Balances**: Account balance tracking with available funds management and transaction capabilities
 
-#### Services
+### Services
 
 1. **Onboarding Service**: Core entity management system.
 
@@ -76,7 +76,7 @@ Lerian Midaz implements a comprehensive financial hierarchy:
    - Valkey for caching and message passing
    - Grafana/OpenTelemetry for comprehensive monitoring
 
-#### Transaction Processing
+### Transaction Processing
 
 Lerian Midaz implements true double-entry accounting with sophisticated transaction capabilities:
 
@@ -88,7 +88,7 @@ Lerian Midaz implements true double-entry accounting with sophisticated transact
 - **Async Processing**: Event-driven architecture for scalable transaction handling
 - **Balance Management**: Sophisticated balance tracking with available and on-hold amounts
 
-#### Technical Highlights
+### Technical Highlights
 
 - **Hexagonal Architecture**: Clear separation between domain logic and external dependencies
 - **CQRS Pattern**: Separate command and query responsibilities for optimized performance
@@ -98,7 +98,7 @@ Lerian Midaz implements true double-entry accounting with sophisticated transact
 - **Comprehensive APIs**: RESTful endpoints with OpenAPI documentation
 - **Testing**: Extensive unit and integration tests with mocking support
 
-#### Getting Started
+### Getting Started
 
 To start using Lerian Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
 
@@ -109,14 +109,14 @@ To start using Lerian Midaz, please follow our [Getting Started Guide](https://d
 - If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).
 - Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.
 
-#### Repo Activity
+### Repo Activity
 
 ![Alt](https://repobeats.axiom.co/api/embed/827f95068c3eb21900ed6a7191a53639481cbc75.svg "Repobeats analytics image")
 
-#### Contributing & License
+### Contributing & License
 
 We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Lerian Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
 
-#### About Lerian
+### About Lerian
 
 Midaz is developed by Lerian, a tech company founded in 2024, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.studio](mailto:contact@lerian.studio) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).
