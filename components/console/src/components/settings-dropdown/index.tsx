@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
-import { Building, HelpCircle, Settings, Users } from 'lucide-react'
+import { Building, Globe, HelpCircle, Settings, Users } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,7 +57,10 @@ export const SettingsDropdown = () => {
               })}
             </DropdownMenuItem>
           </Enforce>
-          <DropdownMenuItem className="pl-10" onClick={() => router.push('/settings?tab=system')}>
+          <DropdownMenuItem onClick={() => router.push('/settings?tab=system')}>
+            <DropdownMenuItemIcon>
+              <Globe />
+            </DropdownMenuItemIcon>
             {intl.formatMessage({
               id: 'settingsDropdown.system',
               defaultMessage: 'System'

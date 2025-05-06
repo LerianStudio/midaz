@@ -48,7 +48,6 @@
   "entity.organization.doingBusinessAs": "Nome Fantasia",
   "entity.organization.legalDocument": "Documento",
   "entity.organization.legalName": "Nome Legal",
-  "entity.organization.status": "Status",
   "common.selectPlaceholder": "Selecione...",
   "error.midaz.unknowError": "Erro no Midaz, por favor, entre em contato com o suporte.",
   "common.status": "Status",
@@ -515,5 +514,7 @@
   "accounts.sheet.noLinkedPortfolio": "Conta não vinculada a nenhum portfólio.",
   "accounts.sheet.noPortfolio.description": "Você não tem um portfólio disponível para vincular aqui.",
   "accounts.sheet.noPortfolio.title": "Vincular a um Portfólio",
-  "accounts.sheet.tabs.details": "Detalhes da Conta"
+  "accounts.sheet.tabs.details": "Detalhes da Conta",
+  "sidebar.disabled.reason": "Nenhum ledger selecionado. Para acessar, crie um ledger.",
+  "organizations.useOrganization": "Usar esta Organização"
 }

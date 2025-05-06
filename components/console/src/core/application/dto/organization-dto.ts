@@ -1,6 +1,5 @@
 import { AddressDto } from './address-dto'
 import { MetadataDto } from './metadata-dto'
-import { StatusDto } from './status-dto'
 
 export type CreateOrganizationDto = {
   legalName: string
@@ -9,7 +8,6 @@ export type CreateOrganizationDto = {
   legalDocument: string
   address: AddressDto
   metadata?: MetadataDto
-  status: StatusDto
 }
 
 export type UpdateOrganizationDto = {
@@ -17,7 +15,6 @@ export type UpdateOrganizationDto = {
   parentOrganizationId?: string
   doingBusinessAs?: string
   address?: AddressDto
-  status?: StatusDto
   metadata?: MetadataDto
 }
 
@@ -29,7 +26,6 @@ export type OrganizationResponseDto = {
   legalDocument: string
   address: AddressDto
   metadata?: MetadataDto
-  status: StatusDto
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date

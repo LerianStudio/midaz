@@ -42,20 +42,17 @@ import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { TransactionType } from '@/types/transactions-type'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { LedgerType } from '@/types/ledgers-type'
 
 type TransactionsDataTableProps = {
   transactions: PaginationDto<TransactionType> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
-  currentLedger: LedgerType
   onCreateTransaction: () => void
 }
 
 type TransactionsRowProps = {
   transaction: Row<TransactionType>
-  currentLedger: LedgerType
 }
 
 const multipleItemsMessages = defineMessages({
@@ -88,10 +85,7 @@ const statusMessages = defineMessages({
   }
 })
 
-const TransactionRow: React.FC<TransactionsRowProps> = ({
-  transaction,
-  currentLedger
-}) => {
+const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const intl = useIntl()
   const {
     status: { code },
@@ -199,7 +193,6 @@ export const TransactionsDataTable = ({
   form,
   total,
   pagination,
-  currentLedger,
   onCreateTransaction
 }: TransactionsDataTableProps) => {
   const intl = useIntl()
@@ -297,7 +290,6 @@ export const TransactionsDataTable = ({
                   <TransactionRow
                     key={transaction.id}
                     transaction={transaction}
-                    currentLedger={currentLedger}
                   />
                 ))}
               </TableBody>
