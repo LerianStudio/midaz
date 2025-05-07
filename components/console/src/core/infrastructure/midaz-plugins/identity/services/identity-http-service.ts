@@ -2,7 +2,8 @@ import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/mid
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
-import { HttpService } from '@/lib/http'
+import { HttpService, InternalServerErrorApiException } from '@/lib/http'
+import { getIntl } from '@/lib/intl'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject } from 'inversify'
 import { getServerSession } from 'next-auth'
@@ -33,7 +34,7 @@ export class IdentityHttpService extends HttpService {
       headers.Authorization = `Bearer ${access_token}`
     }
 
-    return headers
+    return { headers }
   }
 
   protected onBeforeFetch(request: Request): void {
@@ -59,6 +60,8 @@ export class IdentityHttpService extends HttpService {
   }
 
   protected async catch(request: Request, response: Response, error: any) {
+    const intl = await getIntl()
+
     this.logger.error('[ERROR] - IdentityHttpService', {
       url: request.url,
       method: request.method,
@@ -66,6 +69,11 @@ export class IdentityHttpService extends HttpService {
       response: error
     })
 
-    throw error
+    throw new InternalServerErrorApiException(
+      intl.formatMessage({
+        id: 'error.midaz.unknowError',
+        defaultMessage: 'Unknown error on Midaz.'
+      })
+    )
   }
 }

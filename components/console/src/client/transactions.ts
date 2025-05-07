@@ -39,17 +39,12 @@ export const useCreateTransaction = ({
 }: UseCreateTransactionProps): UseMutationResult<
   TransactionResponseDto | CreateTransactionDto
 > => {
-  return useMutation({
+  return useMutation<any, any, any>({
     mutationKey: ['transactions', 'create'],
     mutationFn: postFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`
     ),
-    onSuccess: (data) => {
-      options.onSuccess?.(data)
-    },
-    onError: (error) => {
-      options.onError?.(error.message)
-    }
+    ...options
   })
 }
 

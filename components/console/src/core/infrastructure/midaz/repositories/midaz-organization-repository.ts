@@ -1,16 +1,18 @@
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { injectable, inject } from 'inversify'
-import { HttpFetchUtils } from '../../utils/http-fetch-utils'
-import { ContainerTypeMidazHttpFetch } from '../../container-registry/midaz-http-fetch-module'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { HttpMethods } from '@/lib/http'
+import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazOrganizationMapper } from '../mappers/midaz-organization-mapper'
+import { MidazOrganizationDto } from '../dto/midaz-organization-dto'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { createQueryString } from '@/lib/search'
 
 @injectable()
 export class MidazOrganizationRepository implements OrganizationRepository {
   constructor(
-    @inject(ContainerTypeMidazHttpFetch.HttpFetchUtils)
-    private readonly midazHttpFetchUtils: HttpFetchUtils
+    @inject(MidazHttpService)
+    private readonly httpService: MidazHttpService
   ) {}
 
   private baseUrl: string = process.env.MIDAZ_BASE_PATH + '/organizations'
@@ -18,70 +20,48 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   async create(
     organizationData: OrganizationEntity
   ): Promise<OrganizationEntity> {
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url: this.baseUrl,
-        method: HttpMethods.POST,
-        body: JSON.stringify(organizationData)
-      })
-
-    return response
+    const dto = MidazOrganizationMapper.toCreateDto(organizationData)
+    const response = await this.httpService.post<MidazOrganizationDto>(
+      this.baseUrl,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async fetchAll(
     limit: number,
     page: number
   ): Promise<PaginationEntity<OrganizationEntity>> {
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      page: page.toString()
-    })
-    const url = `${this.baseUrl}?${params.toString()}`
-
-    const response = await this.midazHttpFetchUtils.httpMidazFetch<
-      PaginationEntity<OrganizationEntity>
-    >({
-      url,
-      method: HttpMethods.GET
-    })
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazOrganizationDto>
+    >(`${this.baseUrl}${createQueryString({ limit, page })}`)
+    return MidazOrganizationMapper.toPaginationEntity(response)
   }
 
   async fetchById(id: string): Promise<OrganizationEntity> {
-    const url = `${this.baseUrl}/${id}`
-
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url,
-        method: HttpMethods.GET
-      })
-
-    return response
+    const response = await this.httpService.get<MidazOrganizationDto>(
+      `${this.baseUrl}/${id}`
+    )
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async update(
     organizationId: string,
     organization: Partial<OrganizationEntity>
   ): Promise<OrganizationEntity> {
-    const url = `${this.baseUrl}/${organizationId}`
-
-    const response =
-      await this.midazHttpFetchUtils.httpMidazFetch<OrganizationEntity>({
-        url,
-        method: HttpMethods.PATCH,
-        body: JSON.stringify(organization)
-      })
-
-    return response
+    const dto = MidazOrganizationMapper.toUpdateDto(organization)
+    const response = await this.httpService.patch<MidazOrganizationDto>(
+      `${this.baseUrl}/${organizationId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazOrganizationMapper.toEntity(response)
   }
 
   async delete(id: string): Promise<void> {
-    const url = `${this.baseUrl}/${id}`
-
-    await this.midazHttpFetchUtils.httpMidazFetch<void>({
-      url,
-      method: HttpMethods.DELETE
-    })
+    await this.httpService.delete(`${this.baseUrl}/${id}`)
   }
 }

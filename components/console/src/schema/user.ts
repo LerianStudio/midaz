@@ -35,7 +35,7 @@ const password = z
 
 const confirmPassword = z.string().min(8).max(255)
 
-const groups = z.string()
+const groups = z.array(z.string()).nonempty()
 
 export const user = {
   firstName,

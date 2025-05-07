@@ -1,3 +1,4 @@
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import {
@@ -13,7 +14,7 @@ import {
 } from '@tanstack/react-query'
 
 export const useListOrganizations = ({ ...options }) => {
-  return useQuery<PaginationDto<OrganizationEntity>>({
+  return useQuery<PaginationDto<OrganizationResponseDto>>({
     queryKey: ['organizations'],
     queryFn: getFetcher(`/api/organizations`),
     ...options

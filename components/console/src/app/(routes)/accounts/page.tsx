@@ -140,8 +140,15 @@ const Page = () => {
       {
         accessorKey: 'name',
         header: intl.formatMessage({
-          id: 'entity.account.name',
+          id: 'accounts.field.name',
           defaultMessage: 'Account Name'
+        })
+      },
+      {
+        accessorKey: 'alias',
+        header: intl.formatMessage({
+          id: 'accounts.field.alias',
+          defaultMessage: 'Account Alias'
         })
       },
       {

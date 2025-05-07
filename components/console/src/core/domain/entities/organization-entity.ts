@@ -1,18 +1,4 @@
-import { StatusEntity } from './status-entity'
-
-export type OrganizationEntity = {
-  id?: string
-  parentOrganizationId?: string
-  legalName: string
-  doingBusinessAs?: string
-  legalDocument: string
-  address: Address
-  metadata?: Record<string, any>
-  status: StatusEntity
-  createdAt?: Date
-  updatedAt?: Date
-  deletedAt?: Date
-}
+import { MetadataEntity } from './metadata-entity'
 
 type Address = {
   line1: string
@@ -22,4 +8,17 @@ type Address = {
   city: string
   state: string
   country: string
+}
+
+export type OrganizationEntity = {
+  id?: string
+  parentOrganizationId?: string
+  legalName: string
+  doingBusinessAs?: string
+  legalDocument: string
+  address: Address
+  metadata?: MetadataEntity
+  createdAt?: Date
+  updatedAt?: Date
+  deletedAt?: Date
 }

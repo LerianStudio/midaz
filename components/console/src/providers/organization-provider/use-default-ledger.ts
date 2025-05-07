@@ -7,7 +7,7 @@ import { useReducer, useEffect } from 'react'
 
 type UseDefaultLedgerProps = {
   current: OrganizationEntity
-  ledgers: LedgerType[]
+  ledgers?: LedgerType[]
   currentLedger: LedgerType
   setCurrentLedger: (ledger: LedgerType) => void
 }
@@ -37,35 +37,40 @@ export function useDefaultLedger({
   }
 
   useEffect(() => {
+    // Check if is there a organization selected
     if (current?.id) {
-      if (ledgers?.length > 0) {
-        if (!currentLedger?.id) {
-          setCurrentLedger(ledgers[0])
-          return
-        }
-
-        const currentLedgerExists = ledgers.some(
-          (ledger) => ledger.id === currentLedger.id
-        )
-
-        if (!currentLedgerExists) {
-          const defaultLedger = ledgers.find(
-            ({ id }) => defaultLedgers[current.id!] === id
-          )
-
-          setCurrentLedger(defaultLedger || ledgers[0])
-        }
-      } else if (Object.keys(currentLedger || {}).length > 0) {
-        setCurrentLedger({} as LedgerType)
+      // Check if ledgers have been fetched
+      // If not, we should not do anything
+      if (!ledgers) {
+        return
       }
-    } else if (Object.keys(currentLedger || {}).length > 0) {
-      setCurrentLedger({} as LedgerType)
+
+      // If this organization has no ledgers, set the current ledger to empty
+      if (ledgers.length === 0) {
+        setCurrentLedger({} as LedgerType)
+        return
+      }
+
+      // Check if there is a default ledger saved onto local storage
+      const ledger = ledgers?.find(
+        ({ id }) => defaultLedgers[current.id!] === id
+      )
+
+      if (ledger) {
+        // If the ledger is found, set it as the current ledger
+        setCurrentLedger(ledger)
+        return
+      }
+
+      // If the ledger is not found, set the first ledger as the current ledger
+      setCurrentLedger(ledgers?.[0]!)
     }
-  }, [current?.id, ledgers, currentLedger?.id, setCurrentLedger])
+  }, [current?.id, ledgers?.length])
 
   useEffect(() => {
-    if (currentLedger?.id && current?.id) {
-      save(current.id, currentLedger.id)
+    // Update storage according to the current ledger
+    if (currentLedger?.id) {
+      save(current.id!, currentLedger.id!)
     }
-  }, [currentLedger?.id, current?.id])
+  }, [currentLedger?.id])
 }

@@ -12,8 +12,7 @@ export class OrganizationMapper {
       doingBusinessAs: dto.doingBusinessAs!,
       legalDocument: dto.legalDocument!,
       address: dto.address!,
-      metadata: dto.metadata!,
-      status: dto.status!
+      metadata: dto.metadata!
     }
   }
 
@@ -27,14 +26,10 @@ export class OrganizationMapper {
       doingBusinessAs: entity.doingBusinessAs,
       legalDocument: entity.legalDocument,
       address: entity.address,
-      status: {
-        code: entity.status.code,
-        description: entity.status.description ?? ''
-      },
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt!,
       updatedAt: entity.updatedAt!,
-      deletedAt: entity.deletedAt!
+      deletedAt: entity.deletedAt
     }
   }
 

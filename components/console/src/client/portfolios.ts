@@ -74,6 +74,7 @@ export const useListPortfolios = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/portfolios`
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }

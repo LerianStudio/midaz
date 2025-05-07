@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useIntl } from 'react-intl'
-import { Book, ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, Database } from 'lucide-react'
 import {
   Select,
   SelectTrigger,
@@ -147,7 +147,7 @@ export const LedgerSelector = () => {
         className="flex cursor-default items-center gap-4 disabled:opacity-100"
         variant="outline"
       >
-        <Book size={20} className="text-zinc-400" />
+        <Database size={20} className="text-zinc-400" />
         <span className="pt-[2px] text-xs font-normal uppercase text-zinc-400">
           {intl.formatMessage({
             id: 'ledger.selector.currentLedger.label',
@@ -183,7 +183,7 @@ export const LedgerSelector = () => {
             >
               <SelectTrigger className="w-fit text-sm font-semibold text-zinc-800">
                 <div className="flex items-center gap-4">
-                  <Book size={20} className="text-zinc-400" />
+                  <Database size={20} className="text-zinc-400" />
                   <span className="pt-[2px] text-xs font-normal uppercase text-zinc-400">
                     {intl.formatMessage({
                       id: 'ledger.selector.currentLedger.label',
