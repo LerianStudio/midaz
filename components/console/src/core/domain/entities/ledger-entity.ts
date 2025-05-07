@@ -1,12 +1,11 @@
 import { AssetEntity } from './asset-entity'
-import { StatusEntity } from './status-entity'
+import { MetadataEntity } from './metadata-entity'
 
 export type LedgerEntity = {
   id?: string
   organizationId?: string
   name: string
-  status: StatusEntity
-  metadata: Record<string, string> | null
+  metadata: MetadataEntity
   createdAt?: Date
   updatedAt?: Date
   deletedAt?: Date | null

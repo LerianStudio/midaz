@@ -3,6 +3,10 @@ import { SegmentEntity } from '@/core/domain/entities/segment-entity'
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { MidazSegmentDto } from '../dto/midaz-segment-dto'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazSegmentMapper } from '../mappers/midaz-segment-mapper'
+import { createQueryString } from '@/lib/search'
 
 @injectable()
 export class MidazSegmentRepository implements SegmentRepository {
@@ -18,12 +22,14 @@ export class MidazSegmentRepository implements SegmentRepository {
     ledgerId: string,
     segment: SegmentEntity
   ): Promise<SegmentEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments`
-    const response = await this.httpService.post<SegmentEntity>(url, {
-      body: JSON.stringify(segment)
-    })
-
-    return response
+    const dto = MidazSegmentMapper.toCreateDto(segment)
+    const response = await this.httpService.post<MidazSegmentDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazSegmentMapper.toEntity(response)
   }
 
   async fetchAll(
@@ -32,12 +38,12 @@ export class MidazSegmentRepository implements SegmentRepository {
     limit: number,
     page: number
   ): Promise<PaginationEntity<SegmentEntity>> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments?limit=${limit}&page=${page}`
-
-    const response =
-      await this.httpService.get<PaginationEntity<SegmentEntity>>(url)
-
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazSegmentDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments${createQueryString({ page, limit })}`
+    )
+    return MidazSegmentMapper.toPaginationEntity(response)
   }
 
   async fetchById(
@@ -45,11 +51,10 @@ export class MidazSegmentRepository implements SegmentRepository {
     ledgerId: string,
     segmentId: string
   ): Promise<SegmentEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
-
-    const response = await this.httpService.get<SegmentEntity>(url)
-
-    return response
+    const response = await this.httpService.get<MidazSegmentDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
+    )
+    return MidazSegmentMapper.toEntity(response)
   }
 
   async update(
@@ -58,13 +63,14 @@ export class MidazSegmentRepository implements SegmentRepository {
     segmentId: string,
     segment: Partial<SegmentEntity>
   ): Promise<SegmentEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
-
-    const response = await this.httpService.patch<SegmentEntity>(url, {
-      body: JSON.stringify(segment)
-    })
-
-    return response
+    const dto = MidazSegmentMapper.toUpdateDto(segment)
+    const response = await this.httpService.patch<MidazSegmentDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return MidazSegmentMapper.toEntity(response)
   }
 
   async delete(
@@ -72,10 +78,8 @@ export class MidazSegmentRepository implements SegmentRepository {
     ledgerId: string,
     segmentId: string
   ): Promise<void> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
-
-    await this.httpService.delete(url)
-
-    return
+    await this.httpService.delete(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
+    )
   }
 }

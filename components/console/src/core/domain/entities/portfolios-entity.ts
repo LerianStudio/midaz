@@ -1,14 +1,13 @@
-import { StatusEntity } from './status-entity'
+import { MetadataEntity } from './metadata-entity'
 
 export type PortfolioEntity = {
   id?: string
   ledgerId?: string
   organizationId?: string
   name: string
-  entityId: string
-  status: StatusEntity
-  metadata: Record<string, any>
+  entityId?: string
+  metadata: MetadataEntity
   createdAt?: Date
   updatedAt?: Date
-  deletedAt?: Date | null
+  deletedAt?: Date
 }

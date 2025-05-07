@@ -12,7 +12,6 @@ export class PortfolioMapper {
       name: dto.name,
       ledgerId: dto.ledgerId,
       organizationId: dto.organizationId,
-      status: dto.status!,
       metadata: dto.metadata ?? {}
     }
   }
@@ -26,10 +25,6 @@ export class PortfolioMapper {
       ledgerId: portfolio.ledgerId!,
       organizationId: portfolio.organizationId!,
       name: portfolio.name,
-      status: {
-        code: portfolio.status.code,
-        description: portfolio.status.description ?? ''
-      },
       metadata: portfolio.metadata ?? {},
       createdAt: portfolio.createdAt!,
       updatedAt: portfolio.updatedAt!,

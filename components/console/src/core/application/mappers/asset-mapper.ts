@@ -10,7 +10,6 @@ export class AssetMapper {
       name: dto.name!,
       type: dto.type!,
       code: dto.code!,
-      status: dto.status!,
       metadata: dto.metadata!
     }
   }
@@ -23,10 +22,6 @@ export class AssetMapper {
       name: entity.name,
       type: entity.type,
       code: entity.code,
-      status: {
-        ...entity.status,
-        description: entity.status.description ?? ''
-      },
       metadata: entity.metadata,
       createdAt: entity.createdAt!,
       updatedAt: entity.updatedAt!,

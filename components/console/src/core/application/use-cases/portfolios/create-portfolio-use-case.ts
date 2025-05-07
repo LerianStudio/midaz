@@ -6,7 +6,7 @@ import type {
 } from '../../dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface CreatePortfolio {
   execute: (
@@ -29,10 +29,6 @@ export class CreatePortfolioUseCase implements CreatePortfolio {
     ledgerId: string,
     portfolio: CreatePortfolioDto
   ): Promise<PortfolioResponseDto> {
-    portfolio.status = {
-      code: 'ACTIVE',
-      description: 'Teste Portfolio'
-    }
     const portfolioEntity: PortfolioEntity = PortfolioMapper.toDomain(portfolio)
     const portfolioCreated = await this.portfolioRepository.create(
       organizationId,
