@@ -5,7 +5,7 @@
  */
 
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
-import { OrganizationAvatarDocument } from '../models/models/organization-avatar'
+import { OrganizationAvatarDocument } from '../models/organization-avatar'
 
 /**
  * OrganizationAvatarMapper
@@ -32,7 +32,7 @@ export class OrganizationAvatarMapper {
    * @param entity - The domain entity containing organization avatar data
    * @returns An object with properties ready to be used in MongoDB operations
    */
-  static toDocumentProps(entity: OrganizationAvatarEntity) {
+  static toDomain(entity: OrganizationAvatarEntity) {
     return {
       organizationId: entity.organizationId,
       imageBase64: entity.imageBase64

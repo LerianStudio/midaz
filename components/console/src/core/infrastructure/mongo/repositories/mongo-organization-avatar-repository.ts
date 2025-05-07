@@ -8,7 +8,7 @@ import { OrganizationAvatarRepository } from '@/core/domain/repositories/organiz
 import { inject, injectable } from 'inversify'
 import { LoggerAggregator } from '../../logger/logger-aggregator'
 import { handleDatabaseError } from '../../utils/database-error-handler'
-import OrganizationAvatar from '../models/models/organization-avatar'
+import OrganizationAvatar from '../models/organization-avatar'
 import { MongoConfig } from '../mongo-config'
 import { OrganizationAvatarMapper } from '../mappers/mongo-organization-avatar-mapper'
 
