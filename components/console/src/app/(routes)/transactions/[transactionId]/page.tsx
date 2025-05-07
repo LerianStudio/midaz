@@ -38,7 +38,7 @@ import { SkeletonTransactionDialog } from './skeleton-transaction-dialog'
 import CancelledCircle from '/public/svg/cancelled-circle.svg'
 import { truncateString } from '@/helpers'
 import dayjs from 'dayjs'
-import { OperationDto } from '@/core/application/dto/transaction-dto'
+import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TRANSACTION_DETAILS_TAB_VALUES } from './transaction-details-tab-values'
 import { getInitialValues } from '@/lib/form'
 
@@ -72,20 +72,6 @@ export default function TransactionDetailsPage() {
     values: getInitialValues(initialValues, transaction),
     defaultValues: initialValues
   })
-
-  const displayValue = (amount: number, scale: number) => {
-    const number = intl.formatNumber(amount, {
-      minimumFractionDigits: scale,
-      maximumFractionDigits: scale
-    })
-
-    const withoutThousandSeparator = number.replace(/\./g, '')
-    const normalized = withoutThousandSeparator.replace(',', '.')
-
-    const parsed = parseFloat(normalized)
-
-    return parsed.toString()
-  }
 
   if (isLoading) {
     return <SkeletonTransactionDialog />
@@ -180,16 +166,15 @@ export default function TransactionDetailsPage() {
                   }
                 />
                 <TransactionReceiptValue
-                  asset={transaction?.assetCode!}
-                  value={displayValue(
-                    transaction?.amount!,
-                    transaction?.amountScale!
-                  )}
+                  asset={transaction?.asset!}
+                  value={intl.formatNumber(transaction?.value!)}
                 />
                 <StatusDisplay status={transaction?.status?.code || ''} />
                 <TransactionReceiptSubjects
-                  sources={transaction?.source!}
-                  destinations={transaction?.destination!}
+                  sources={transaction?.source.map((s) => s.accountAlias!)!}
+                  destinations={
+                    transaction?.destination.map((d) => d.accountAlias!)!
+                  }
                 />
                 {transaction?.description && (
                   <TransactionReceiptDescription>
@@ -207,9 +192,9 @@ export default function TransactionDetailsPage() {
                   value={
                     <div className="flex flex-col">
                       {transaction?.source?.map(
-                        (source: string, index: number) => (
+                        (source: TransactionOperationDto, index: number) => (
                           <p key={index} className="underline">
-                            {source}
+                            {source.accountAlias}
                           </p>
                         )
                       )}
@@ -224,9 +209,12 @@ export default function TransactionDetailsPage() {
                   value={
                     <div className="flex flex-col">
                       {transaction?.destination?.map(
-                        (destination: string, index: number) => (
+                        (
+                          destination: TransactionOperationDto,
+                          index: number
+                        ) => (
                           <p key={index} className="underline">
-                            {destination}
+                            {destination.accountAlias}
                           </p>
                         )
                       )}
@@ -238,37 +226,29 @@ export default function TransactionDetailsPage() {
                     id: 'common.value',
                     defaultMessage: 'Value'
                   })}
-                  value={`${transaction?.assetCode} ${displayValue(transaction?.amount!, transaction?.amountScale!)}`}
+                  value={`${transaction?.asset} ${intl.formatNumber(transaction?.value!)}`}
                 />
                 <Separator orientation="horizontal" />
-                {transaction?.operations
-                  ?.filter((op: any) => op.type === 'DEBIT')
-                  .map((operation: any, index: number) => (
-                    <TransactionReceiptOperation
-                      key={index}
-                      type="debit"
-                      account={operation.accountAlias}
-                      asset={operation.assetCode}
-                      value={displayValue(
-                        operation?.amount.amount,
-                        operation?.amount.scale
-                      )}
-                    />
-                  ))}
-                {transaction?.operations
-                  ?.filter((op: any) => op.type === 'CREDIT')
-                  .map((operation: any, index: number) => (
+                {transaction?.source?.map((operation: any, index: number) => (
+                  <TransactionReceiptOperation
+                    key={index}
+                    type="debit"
+                    account={operation.accountAlias}
+                    asset={operation.assetCode}
+                    value={intl.formatNumber(operation?.value)}
+                  />
+                ))}
+                {transaction?.destination?.map(
+                  (operation: any, index: number) => (
                     <TransactionReceiptOperation
                       key={index}
                       type="credit"
                       account={operation.accountAlias}
                       asset={operation.assetCode}
-                      value={displayValue(
-                        operation?.amount.amount,
-                        operation?.amount.scale
-                      )}
+                      value={intl.formatNumber(operation?.value)}
                     />
-                  ))}
+                  )
+                )}
                 <Separator orientation="horizontal" />
                 <TransactionReceiptItem
                   label={intl.formatMessage({
@@ -311,14 +291,11 @@ export default function TransactionDetailsPage() {
             <div className="grid grid-cols-3">
               <div className="col-span-2">
                 <BasicInformationPaperReadOnly
-                  amount={displayValue(
-                    transaction?.amount!,
-                    transaction?.amountScale!
-                  )}
+                  amount={intl.formatNumber(transaction?.value!)}
                   values={{
                     chartOfAccountsGroupName:
                       transaction?.chartOfAccountsGroupName,
-                    asset: transaction?.assetCode,
+                    asset: transaction?.asset,
                     description: transaction?.description
                   }}
                   control={form.control}
@@ -348,25 +325,37 @@ export default function TransactionDetailsPage() {
           <TabsContent value={TRANSACTION_DETAILS_TAB_VALUES.OPERATIONS}>
             <div className="grid grid-cols-3">
               <div className="col-span-2">
-                {transaction?.operations?.map(
-                  (operation: OperationDto, index: number) => (
+                {transaction?.source?.map(
+                  (operation: TransactionOperationDto, index: number) => (
                     <OperationAccordionReadOnly
                       key={index}
-                      amount={displayValue(
-                        Number(operation?.amount?.amount),
-                        operation?.amount?.scale
-                      )}
-                      type={operation.type === 'DEBIT' ? 'debit' : 'credit'}
-                      name={
-                        operation.type === 'DEBIT'
-                          ? `source.${index}`
-                          : `destination.${index}`
-                      }
-                      asset={transaction?.assetCode}
+                      amount={intl.formatNumber(operation?.value)}
+                      type="debit"
+                      name={`source.${index}`}
+                      asset={transaction?.asset}
                       control={form.control}
                       values={{
-                        account: operation.accountAlias,
-                        value: Number(operation.amount.amount),
+                        account: operation.accountAlias!,
+                        value: operation.value,
+                        metadata: operation.metadata || {},
+                        description: operation.description || '',
+                        chartOfAccounts: operation.chartOfAccounts || ''
+                      }}
+                    />
+                  )
+                )}
+                {transaction?.destination?.map(
+                  (operation: TransactionOperationDto, index: number) => (
+                    <OperationAccordionReadOnly
+                      key={index}
+                      amount={intl.formatNumber(operation?.value)}
+                      type="credit"
+                      name={`source.${index}`}
+                      asset={transaction?.asset}
+                      control={form.control}
+                      values={{
+                        account: operation.accountAlias!,
+                        value: operation.value,
                         metadata: operation.metadata || {},
                         description: operation.description || '',
                         chartOfAccounts: operation.chartOfAccounts || ''
