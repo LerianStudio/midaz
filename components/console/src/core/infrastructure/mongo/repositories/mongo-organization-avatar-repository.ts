@@ -54,9 +54,9 @@ export class MongoOrganizationAvatarRepository
   ): Promise<OrganizationAvatarEntity> {
     try {
       const result = await this.model.create(organizationAvatar)
-      const OrganizationAvatarEntity = OrganizationAvatarMapper.toEntity(result)
+      const organizationAvatarEntity = OrganizationAvatarMapper.toEntity(result)
 
-      return OrganizationAvatarEntity
+      return organizationAvatarEntity
     } catch (error) {
       this.logger.error('[ERROR] - MongoOrganizationAvatarRepository.create', {
         error,
