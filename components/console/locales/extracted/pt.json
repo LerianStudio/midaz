@@ -84,6 +84,12 @@
   "errors.too_small.string.exact": "Campo deve conter exatamente {minimum} {minimum, plural, =0 {caracteres} one {caractere} other {caracteres}}",
   "errors.too_small.string.inclusive": "Campo deve conter no mínimo {minimum} {minimum, plural, =0 {caracteres} one {caractere} other {caracteres}}",
   "errors.too_small.string.not_inclusive": "Campo deve conter mais de {minimum} {minimum, plural, =0 {caracteres} one {caractere} other {caracteres}}",
+
+  "errors.database.invalidObject": "Formato inválido de ID para {entity}",
+  "errors.database.validationFailed": "Um ou mais campos obrigatórios não foram fornecidos ou são inválidos. {fields}",
+  "errors.database.constraint": "Chave duplicada para {entity}",
+  "errors.database.unexpected": "Ops! Tivemos um problema ao acessar as informações. Estamos trabalhando nisso.",
+
   "common.confirmDeletion": "Confirmar Exclusão",
   "common.remove": "Remover",
   "common.send": "Enviar",

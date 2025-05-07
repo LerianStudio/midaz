@@ -260,6 +260,12 @@
   "errors.too_small.string.exact": "Field must contain exactly {minimum} {minimum, plural, =0 {characters} one {character} other {characters}}",
   "errors.too_small.string.inclusive": "Field must contain at least {minimum} {minimum, plural, =0 {characters} one {character} other {characters}}",
   "errors.too_small.string.not_inclusive": "Field must contain over {minimum} {minimum, plural, =0 {characters} one {character} other {characters}}",
+
+  "errors.database.invalidObject": "Invalid {entity} Id format.",
+  "errors.database.validationFailed": "One or more required fields are missing or invalid. {fields}",
+  "errors.database.constraint": "Duplicate key error for {entity}",
+  "errors.database.unexpected": "Oops! We had a problem accessing the information. We're working on it.",
+
   "header.userDropdown.documentation": "Documentation Hub",
   "header.userDropdown.logout": "Logout",
   "header.userDropdown.support": "Support",
