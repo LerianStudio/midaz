@@ -34,7 +34,6 @@ export const OperationAccordion = ({
   operation
 }: OperationAccordionProps) => {
   const intl = useIntl()
-  console.log('operation', operation)
 
   return (
     <PaperCollapsible className="mb-2">
