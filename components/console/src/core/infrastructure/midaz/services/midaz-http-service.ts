@@ -9,6 +9,8 @@ import { SpanStatusCode } from '@opentelemetry/api'
 import { getIntl } from '@/lib/intl'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
 import { apiErrorMessages } from '../messages/messages'
+import { authApiMessages } from '../../midaz-plugins/auth/messages/messages'
+import { AuthApiException } from '../../midaz-plugins/auth/exceptions/auth-exceptions'
 
 @injectable()
 export class MidazHttpService extends HttpService {
@@ -72,6 +74,34 @@ export class MidazHttpService extends HttpService {
 
     const intl = await getIntl()
 
+    // Auth exceptions from Midaz
+    if (error?.code && error.code.includes('AUT')) {
+      const message =
+        authApiMessages[error.code as keyof typeof authApiMessages]
+
+      if (!message) {
+        this.logger.warn('[ERROR] - AuthHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
+        throw new AuthApiException(
+          intl.formatMessage({
+            id: 'error.midaz.unknowError',
+            defaultMessage: 'Unknown error on Midaz.'
+          })
+        )
+      }
+
+      throw new AuthApiException(
+        intl.formatMessage(message),
+        error.code,
+        response.status
+      )
+    }
+
+    // Midaz exceptions
     if (error?.code) {
       const message =
         apiErrorMessages[error.code as keyof typeof apiErrorMessages]
@@ -91,7 +121,11 @@ export class MidazHttpService extends HttpService {
         )
       }
 
-      throw new MidazApiException(intl.formatMessage(message), error.code)
+      throw new MidazApiException(
+        intl.formatMessage(message),
+        error.code,
+        response.status
+      )
     }
 
     throw new MidazApiException(

@@ -15,7 +15,7 @@ export const getFetcher = (url: string) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -28,7 +28,7 @@ export const getPaginatedFetcher = (url: string, params?: {}) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -42,7 +42,7 @@ export const postFetcher = (url: string) => {
       body: JSON.stringify(body)
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -56,7 +56,7 @@ export const patchFetcher = (url: string) => {
       body: JSON.stringify(body)
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -69,7 +69,7 @@ export const deleteFetcher = (url: string) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -85,12 +85,13 @@ export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
   }
 }
 
-const fetcherResponseHandler = async (response: Response) => {
+const responseHandler = async (response: Response) => {
   if (!response.ok) {
     if (response.status === 401) {
       signOut({ callbackUrl: '/login' })
       return
     }
+
     const errorMessage = await response.json()
     throw new Error(errorMessage.message)
   }
