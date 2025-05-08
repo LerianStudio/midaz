@@ -1,9 +1,10 @@
 import { Paper } from '@/components/ui/paper'
 import { Label } from '@/components/ui/label'
+import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 
 export type OperationSourceFieldProps = {
   label: string
-  values?: (string | { account: string })[] | []
+  values?: TransactionOperationDto[] | []
 }
 
 export const OperationSourceFieldReadOnly = ({
@@ -16,7 +17,7 @@ export const OperationSourceFieldReadOnly = ({
       {values?.map((field, index) => (
         <div key={index} className="flex flex-row gap-4">
           <div className="flex h-9 flex-grow items-center rounded-md bg-shadcn-100 px-2">
-            {typeof field === 'string' ? field : field.account}
+            {typeof field === 'string' ? field : field.accountAlias}
           </div>
         </div>
       ))}

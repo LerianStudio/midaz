@@ -34,17 +34,20 @@ import { isNil } from 'lodash'
 import { HelpCircle, MoreVertical } from 'lucide-react'
 import Link from 'next/link'
 import React from 'react'
-import { defineMessages, IntlShape, useIntl } from 'react-intl'
+import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { TransactionType } from '@/types/transactions-type'
 import { IdTableCell } from '@/components/table/id-table-cell'
+import {
+  TransactionOperationDto,
+  TransactionResponseDto
+} from '@/core/application/dto/transaction-dto'
 
 type TransactionsDataTableProps = {
-  transactions: PaginationDto<TransactionType> | undefined
+  transactions: PaginationDto<TransactionResponseDto> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
@@ -52,7 +55,7 @@ type TransactionsDataTableProps = {
 }
 
 type TransactionsRowProps = {
-  transaction: Row<TransactionType>
+  transaction: Row<TransactionResponseDto>
 }
 
 const multipleItemsMessages = defineMessages({
@@ -90,26 +93,19 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const {
     status: { code },
     createdAt,
-    assetCode,
+    asset,
     source = [],
     destination = []
   } = transaction.original
 
   const badgeVariant = getBadgeVariant(code)
-  const numericValue = transaction.original.amount
-
-  const displayValue = intl.formatNumber(numericValue, {
-    minimumFractionDigits: transaction.original.amountScale,
-    maximumFractionDigits: transaction.original.amountScale
-  })
 
   const renderItemsList = (
-    items: string[],
-    type: 'source' | 'destination',
-    intl: IntlShape
+    items: TransactionOperationDto[],
+    type: 'source' | 'destination'
   ) => {
     if (items.length === 1) {
-      return <p>{String(items[0])}</p>
+      return <p>{String(items[0].accountAlias)}</p>
     }
     if (items.length === 0) {
       return null
@@ -128,7 +124,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
             </TooltipTrigger>
             <TooltipContent className="max-w-80">
               <p className="text-shadcn-400">
-                {items.map((item) => String(item)).join(', ')}
+                {items.map((item) => item.accountAlias).join(', ')}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -137,8 +133,8 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     )
   }
 
-  const renderSource = renderItemsList(source, 'source', intl)
-  const renderDestination = renderItemsList(destination, 'destination', intl)
+  const renderSource = renderItemsList(source, 'source')
+  const renderDestination = renderItemsList(destination, 'destination')
 
   return (
     <React.Fragment>
@@ -157,8 +153,8 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
           </Badge>
         </TableCell>
         <TableCell className="text-base font-medium text-zinc-600">
-          <span className="mr-2 text-xs font-normal">{assetCode}</span>
-          {capitalizeFirstLetter(displayValue)}
+          <span className="mr-2 text-xs font-normal">{asset}</span>
+          {capitalizeFirstLetter(intl.formatNumber(transaction.original.value))}
         </TableCell>
         <TableCell align="center">
           <DropdownMenu>
