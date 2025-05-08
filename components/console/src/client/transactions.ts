@@ -64,11 +64,10 @@ export const useGetTransactionById = ({
   Error
 > => {
   return useQuery({
-    queryKey: ['transactions-by-id', transactionId, organizationId, ledgerId],
+    queryKey: ['transactions-by-id', transactionId, ledgerId, organizationId],
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
     ),
-    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -86,7 +85,6 @@ export const useListTransactions = ({
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
       { page, limit }
     ),
-    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -120,8 +118,8 @@ export const useUpdateTransaction = ({
         queryKey: [
           'transactions-by-id',
           transactionId,
-          organizationId,
-          ledgerId
+          ledgerId,
+          organizationId
         ]
       })
       onSuccess?.(...args)
