@@ -4,7 +4,7 @@ import ArrowRightCircle from '/public/svg/arrow-right-circle.svg'
 import { BasicInformationPaper } from './basic-information-paper'
 import { OperationSourceField } from './operation-source-field'
 import { useIntl } from 'react-intl'
-import { TransactionResponseDto } from '@/core/application/dto/transaction-dto'
+import { TransactionDto } from '@/core/application/dto/transaction-dto'
 import { z } from 'zod'
 import { getInitialValues } from '@/lib/form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,7 +31,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>
 
 type TransactionDataTabProps = {
-  data: TransactionResponseDto
+  data: TransactionDto
   onSuccess?: () => void
 }
 

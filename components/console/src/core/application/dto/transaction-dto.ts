@@ -1,7 +1,7 @@
 import { MetadataDto } from './metadata-dto'
 import { StatusDto } from './status-dto'
 
-export type CreateTransactionSourceDto = {
+export type CreateTransactionOperationDto = {
   account: string
   asset: string
   value: number
@@ -15,8 +15,8 @@ export type CreateTransactionDto = {
   chartOfAccountsGroupName?: string
   value: number
   asset: string
-  source: CreateTransactionSourceDto[]
-  destination: CreateTransactionSourceDto[]
+  source: CreateTransactionOperationDto[]
+  destination: CreateTransactionOperationDto[]
   metadata: MetadataDto
 }
 
@@ -25,11 +25,11 @@ export type UpdateTransactionDto = {
   metadata?: Record<string, unknown>
 }
 
-export type TransactionOperationDto = CreateTransactionSourceDto & {
+export type TransactionOperationDto = CreateTransactionOperationDto & {
   accountAlias?: string
 }
 
-export type TransactionResponseDto = {
+export type TransactionDto = {
   id: string
   ledgerId: string
   organizationId: string

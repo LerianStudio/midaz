@@ -1,7 +1,7 @@
 import { Form } from '@/components/ui/form'
 import {
   TransactionOperationDto,
-  TransactionResponseDto
+  TransactionDto
 } from '@/core/application/dto/transaction-dto'
 import { getInitialValues } from '@/lib/form'
 import { transaction } from '@/schema/transactions'
@@ -32,7 +32,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>
 
 type TransactionOperationTabProps = {
-  data: TransactionResponseDto
+  data: TransactionDto
   onSuccess?: () => void
 }
 

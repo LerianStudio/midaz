@@ -16,7 +16,7 @@ import { PaginationRequest } from '@/types/pagination-request-type'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   CreateTransactionDto,
-  TransactionResponseDto
+  TransactionDto
 } from '@/core/application/dto/transaction-dto'
 
 export type UseListTransactionsProps = {
@@ -28,7 +28,7 @@ export type UseListTransactionsProps = {
 export type UseCreateTransactionProps = {
   organizationId: string
   ledgerId: string
-  onSuccess?: (data: TransactionResponseDto) => void
+  onSuccess?: (data: TransactionDto) => void
   onError?: (message: string) => void
 }
 
@@ -37,7 +37,7 @@ export const useCreateTransaction = ({
   ledgerId,
   ...options
 }: UseCreateTransactionProps): UseMutationResult<
-  TransactionResponseDto | CreateTransactionDto
+  TransactionDto | CreateTransactionDto
 > => {
   return useMutation<any, any, any>({
     mutationKey: ['transactions', 'create'],
@@ -59,10 +59,7 @@ export const useGetTransactionById = ({
   ledgerId,
   transactionId,
   ...options
-}: UseGetTransactionByIdProps): UseQueryResult<
-  TransactionResponseDto,
-  Error
-> => {
+}: UseGetTransactionByIdProps): UseQueryResult<TransactionDto, Error> => {
   return useQuery({
     queryKey: ['transactions-by-id', transactionId, ledgerId, organizationId],
     queryFn: getFetcher(
@@ -79,7 +76,7 @@ export const useListTransactions = ({
   limit,
   ...options
 }: UseListTransactionsProps) => {
-  return useQuery<PaginationDto<TransactionResponseDto>>({
+  return useQuery<PaginationDto<TransactionDto>>({
     queryKey: ['transactions-list', organizationId, ledgerId, page, limit],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
