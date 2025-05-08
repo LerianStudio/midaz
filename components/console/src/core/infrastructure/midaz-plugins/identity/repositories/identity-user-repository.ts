@@ -2,6 +2,8 @@ import { UserEntity } from '@/core/domain/entities/user-entity'
 import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { inject, injectable } from 'inversify'
 import { IdentityHttpService } from '../services/identity-http-service'
+import { IdentityUserMapper } from '../mappers/identity-user-mapper'
+import { IdentityUserDto } from '../dto/identity-user-dto'
 
 @injectable()
 export class IdentityUserRepository implements UserRepository {
@@ -13,57 +15,52 @@ export class IdentityUserRepository implements UserRepository {
   ) {}
 
   async create(user: UserEntity): Promise<UserEntity> {
-    const url = `${this.baseUrl}/users`
-
-    const response = await this.httpService.post<UserEntity>(url, {
-      body: JSON.stringify(user)
-    })
-
-    return response
+    const dto = IdentityUserMapper.toCreateDto(user)
+    const response = await this.httpService.post<IdentityUserDto>(
+      `${this.baseUrl}/users`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return IdentityUserMapper.toEntity(response)
   }
 
   async fetchAll(): Promise<UserEntity[]> {
-    const url = `${this.baseUrl}/users`
-
-    const response = await this.httpService.get<UserEntity[]>(url)
-
+    const response = await this.httpService.get<UserEntity[]>(
+      `${this.baseUrl}/users`
+    )
     return response
   }
 
   async fetchById(userId: string): Promise<UserEntity> {
-    const url = `${this.baseUrl}/users/${userId}`
-
-    const response = await this.httpService.get<UserEntity>(url)
-
-    return response
+    const response = await this.httpService.get<IdentityUserDto>(
+      `${this.baseUrl}/users/${userId}`
+    )
+    return IdentityUserMapper.toEntity(response)
   }
 
   async update(userId: string, user: UserEntity): Promise<UserEntity> {
-    const url = `${this.baseUrl}/users/${userId}`
-    const { firstName, lastName, email, groups } = user
-
-    await this.httpService.patch<UserEntity>(url, {
-      body: JSON.stringify({ firstName, lastName, email, groups })
-    })
-
-    return user
+    const dto = IdentityUserMapper.toUpdateDto(user)
+    const response = await this.httpService.patch<IdentityUserDto>(
+      `${this.baseUrl}/users/${userId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
+    return IdentityUserMapper.toEntity(response)
   }
 
   async delete(userId: string): Promise<void> {
-    const url = `${this.baseUrl}/users/${userId}`
-    await this.httpService.delete(url)
-
-    return
+    await this.httpService.delete(`${this.baseUrl}/users/${userId}`)
   }
 
   async resetPassword(userId: string, newPassword: string): Promise<void> {
-    const url = `${this.baseUrl}/users/${userId}/reset-password`
-
-    await this.httpService.patch<void>(url, {
-      body: JSON.stringify({ newPassword })
-    })
-
-    return
+    await this.httpService.patch(
+      `${this.baseUrl}/users/${userId}/reset-password`,
+      {
+        body: JSON.stringify({ newPassword })
+      }
+    )
   }
 
   async updatePassword(
@@ -71,12 +68,11 @@ export class IdentityUserRepository implements UserRepository {
     oldPassword: string,
     newPassword: string
   ): Promise<void> {
-    const url = `${this.baseUrl}/users/${userId}/update-password`
-
-    await this.httpService.patch<void>(url, {
-      body: JSON.stringify({ oldPassword, newPassword })
-    })
-
-    return
+    await this.httpService.patch(
+      `${this.baseUrl}/users/${userId}/update-password`,
+      {
+        body: JSON.stringify({ oldPassword, newPassword })
+      }
+    )
   }
 }
