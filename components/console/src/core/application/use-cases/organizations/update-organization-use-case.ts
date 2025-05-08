@@ -1,14 +1,17 @@
+import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
-import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
+import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
+import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
 import { inject, injectable } from 'inversify'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import type {
   CreateOrganizationDto,
-  UpdateOrganizationDto,
-  OrganizationResponseDto
+  OrganizationResponseDto,
+  UpdateOrganizationDto
 } from '../../dto/organization-dto'
-import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { OrganizationMapper } from '../../mappers/organization-mapper'
 
 export interface UpdateOrganization {
   execute: (
@@ -21,7 +24,9 @@ export interface UpdateOrganization {
 export class UpdateOrganizationUseCase implements UpdateOrganization {
   constructor(
     @inject(OrganizationRepository)
-    private readonly organizationRepository: OrganizationRepository
+    private readonly organizationRepository: OrganizationRepository,
+    @inject(OrganizationAvatarRepository)
+    private readonly organizationAvatarRepository: OrganizationAvatarRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -29,8 +34,29 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
     organizationId: string,
     organization: Partial<UpdateOrganizationDto>
   ): Promise<OrganizationResponseDto> {
-    await validateAvatar(organization.metadata?.avatar)
+    const updatedOrganizationEntity = await this.updateOrganization(
+      organizationId,
+      organization
+    )
 
+    const updatedOrganizationAvatarEntity = await this.updateOrganizationAvatar(
+      organizationId,
+      organization.avatar
+    )
+
+    const organizationResponseDto: OrganizationResponseDto =
+      OrganizationMapper.toResponseDto(
+        updatedOrganizationEntity,
+        updatedOrganizationAvatarEntity?.avatar
+      )
+
+    return organizationResponseDto
+  }
+
+  private async updateOrganization(
+    organizationId: string,
+    organization: Partial<UpdateOrganizationDto>
+  ): Promise<OrganizationEntity> {
     const organizationEntity: Partial<OrganizationEntity> =
       OrganizationMapper.toDomain(organization as CreateOrganizationDto)
 
@@ -39,6 +65,28 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
       organizationEntity
     )
 
-    return OrganizationMapper.toResponseDto(updatedOrganizationEntity)
+    return updatedOrganizationEntity
+  }
+
+  private async updateOrganizationAvatar(
+    organizationId: string,
+    avatar?: string
+  ): Promise<OrganizationAvatarEntity | undefined> {
+    if (!avatar) {
+      return undefined
+    }
+
+    await validateAvatar(avatar)
+
+    const organizationAvatarEntity: OrganizationAvatarEntity =
+      OrganizationAvatarMapper.toDomain({
+        organizationId,
+        avatar
+      })
+
+    const organizationAvatarCreated =
+      await this.organizationAvatarRepository.create(organizationAvatarEntity)
+
+    return OrganizationAvatarMapper.toDomain(organizationAvatarCreated)
   }
 }

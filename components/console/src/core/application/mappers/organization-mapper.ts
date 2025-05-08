@@ -17,7 +17,8 @@ export class OrganizationMapper {
   }
 
   public static toResponseDto(
-    entity: OrganizationEntity
+    entity: OrganizationEntity,
+    avatar?: string
   ): OrganizationResponseDto {
     return {
       id: entity.id!,
@@ -26,6 +27,7 @@ export class OrganizationMapper {
       doingBusinessAs: entity.doingBusinessAs,
       legalDocument: entity.legalDocument,
       address: entity.address,
+      avatar,
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt!,
       updatedAt: entity.updatedAt!,

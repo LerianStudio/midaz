@@ -14,13 +14,13 @@ import { OrganizationAvatarEntity } from '../entities/organization-avatar-entity
  * This interface follows the repository pattern from Domain-Driven Design,
  * abstracting the persistence details from the domain layer.
  */
-export interface OrganizationAvatarRepository<T = unknown> {
+export abstract class OrganizationAvatarRepository<T = unknown> {
   /**
    * Creates a new organization avatar
    * @param organizationAvatar - The organization avatar entity to persist
    * @returns A promise that resolves to the persisted organization avatar entity
    */
-  create(
+  abstract create(
     organizationAvatar: OrganizationAvatarEntity
   ): Promise<OrganizationAvatarEntity>
 
@@ -29,7 +29,7 @@ export interface OrganizationAvatarRepository<T = unknown> {
    * @param organizationAvatar - The organization avatar entity with updated values
    * @returns A promise that resolves to the updated organization avatar entity
    */
-  update(
+  abstract update(
     organizationAvatar: OrganizationAvatarEntity
   ): Promise<OrganizationAvatarEntity>
 
@@ -38,7 +38,7 @@ export interface OrganizationAvatarRepository<T = unknown> {
    * @param organizationAvatarId - The ID of the organization whose avatar to delete
    * @returns A promise that resolves when deletion is complete
    */
-  delete(organizationAvatarId: string): Promise<void>
+  abstract delete(organizationAvatarId: string): Promise<void>
 
   /**
    * Retrieves an organization avatar by its organization ID
@@ -46,7 +46,7 @@ export interface OrganizationAvatarRepository<T = unknown> {
    * @returns A promise that resolves to the found organization avatar entity,
    * or undefined if none exists
    */
-  fetchById(
+  abstract fetchById(
     organizationAvatarId: string
   ): Promise<OrganizationAvatarEntity | undefined>
 
@@ -55,5 +55,5 @@ export interface OrganizationAvatarRepository<T = unknown> {
    * This allows access to the model for specialized operations
    * while maintaining the repository abstraction
    */
-  readonly model: T
+  abstract readonly model: T
 }

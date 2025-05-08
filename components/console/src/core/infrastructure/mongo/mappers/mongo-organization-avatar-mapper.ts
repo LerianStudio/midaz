@@ -23,7 +23,7 @@ export class OrganizationAvatarMapper {
   static toEntity(doc: OrganizationAvatarDocument): OrganizationAvatarEntity {
     return {
       organizationId: doc.organizationId,
-      imageBase64: doc.imageBase64
+      avatar: doc.avatar
     }
   }
 
@@ -35,7 +35,7 @@ export class OrganizationAvatarMapper {
   static toDomain(entity: OrganizationAvatarEntity) {
     return {
       organizationId: entity.organizationId,
-      imageBase64: entity.imageBase64
+      avatar: entity.avatar
     }
   }
 }

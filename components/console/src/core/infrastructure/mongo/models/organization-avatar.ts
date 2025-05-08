@@ -29,7 +29,7 @@ export interface OrganizationAvatarDocument
 const organizationAvatarSchema = new Schema<OrganizationAvatarDocument>(
   {
     organizationId: { type: String, required: true, index: true, unique: true },
-    imageBase64: { type: String, required: true }
+    avatar: { type: String, required: true }
   },
   {
     timestamps: true,
