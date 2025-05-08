@@ -3,6 +3,7 @@ import { container } from '@/core/infrastructure/container-registry/container-re
 import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-exceptions'
 import { HttpStatus, ApiException } from '@/lib/http'
 import { getIntl } from '@/lib/intl'
+import { AuthApiException } from '@/core/infrastructure/midaz-plugins/auth/exceptions/auth-exceptions'
 
 export interface ErrorResponse {
   message: string
@@ -11,7 +12,7 @@ export interface ErrorResponse {
 
 export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   const intl = await getIntl()
-  const midazLogger = container.get(LoggerAggregator)
+  const logger = container.get(LoggerAggregator)
 
   const errorMetadata = {
     errorType: error.constructor.name,
@@ -19,16 +20,21 @@ export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   }
 
   if (error instanceof MidazApiException) {
-    midazLogger.error(`Midaz error`, errorMetadata)
-    return { message: error.message, status: HttpStatus.BAD_REQUEST }
-  }
-
-  if (error instanceof ApiException) {
-    midazLogger.error(`Api error`, errorMetadata)
+    logger.error(`Midaz error`, errorMetadata)
     return { message: error.message, status: error.getStatus() }
   }
 
-  midazLogger.error(`Unknown error`, errorMetadata)
+  if (error instanceof AuthApiException) {
+    logger.error(`Auth error`, errorMetadata)
+    return { message: error.message, status: error.getStatus() }
+  }
+
+  if (error instanceof ApiException) {
+    logger.error(`Api error`, errorMetadata)
+    return { message: error.message, status: error.getStatus() }
+  }
+
+  logger.error(`Unknown error`, errorMetadata)
   return {
     message: intl.formatMessage({
       id: 'error.midaz.unknowError',

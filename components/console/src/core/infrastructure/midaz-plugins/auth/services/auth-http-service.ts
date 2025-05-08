@@ -107,7 +107,11 @@ export class AuthHttpService extends HttpService {
         )
       }
 
-      throw new AuthApiException(intl.formatMessage(message), error.code)
+      throw new AuthApiException(
+        intl.formatMessage(message),
+        error.code,
+        response.status
+      )
     }
 
     throw new InternalServerErrorApiException(
