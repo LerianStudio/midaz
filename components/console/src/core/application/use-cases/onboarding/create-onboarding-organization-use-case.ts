@@ -33,6 +33,8 @@ export class CreateOnboardingOrganizationUseCase
   async execute(
     organizationData: CreateOrganizationDto
   ): Promise<OrganizationResponseDto> {
+    console.log('organizationData', organizationData)
+
     const organizationCreated: OrganizationEntity =
       await this.createOrganization(organizationData)
 

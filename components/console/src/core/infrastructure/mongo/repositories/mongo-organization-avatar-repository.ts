@@ -8,9 +8,9 @@ import { OrganizationAvatarRepository } from '@/core/domain/repositories/organiz
 import { inject, injectable } from 'inversify'
 import { LoggerAggregator } from '../../logger/logger-aggregator'
 import { handleDatabaseError } from '../../utils/database-error-handler'
-import OrganizationAvatar from '../models/organization-avatar'
-import { MongoConfig } from '../mongo-config'
 import { OrganizationAvatarMapper } from '../mappers/mongo-organization-avatar-mapper'
+import OrganizationAvatar from '../models/organization-avatar'
+import { DBConfig } from '../mongo-config'
 
 /**
  * MongoOrganizationAvatarRepository handles CRUD operations for organization avatars in MongoDB.
@@ -31,7 +31,8 @@ export class MongoOrganizationAvatarRepository
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
-    @inject(MongoConfig) private readonly mongoConfig: MongoConfig
+    @inject(DBConfig)
+    private readonly mongoConfig: DBConfig<typeof OrganizationAvatar>
   ) {}
 
   /**
