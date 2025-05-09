@@ -1,3 +1,9 @@
+## [v2.2.0-beta.18] - 2025-05-09
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+- Bump Bubble Tea dependency from version 1.3.4 to 1.3.5
+
 ## [v2.2.0-beta.17] - 2025-05-09
 
 ### 📚 Documentation
