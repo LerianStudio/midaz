@@ -23,7 +23,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/redis/go-redis/v9 v9.7.3
+	github.com/redis/go-redis/v9 v9.8.0
 	github.com/rodaine/table v1.3.0
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/fiber-swagger v1.3.0
