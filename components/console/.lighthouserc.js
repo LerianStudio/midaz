@@ -2,8 +2,8 @@ module.exports = {
   ci: {
     collect: {
       startServerCommand: 'npm run start', // comando para iniciar o servidor
-      url: ['http://localhost:8081'],      // URL para executar o aplicativo
-      numberOfRuns: 3,
+      url: ['http://localhost:8081'], // URL para executar o aplicativo
+      numberOfRuns: 3
     },
     assert: {
       assertions: {
@@ -17,16 +17,16 @@ module.exports = {
         'unused-javascript': ['warn', { maxLength: 1 }],
         'uses-rel-preconnect': ['warn', { maxLength: 1 }],
         'uses-responsive-images': ['warn', { maxLength: 1 }],
-        'interactive': ['warn', { minScore: 0 }],
+        interactive: ['warn', { minScore: 0 }],
         'largest-contentful-paint': ['warn', { minScore: 0 }],
         'legacy-javascript': ['warn', { maxLength: 1 }],
-        'render-blocking-resources': ['warn', { maxLength: 1 }],
-      },
+        'render-blocking-resources': ['warn', { maxLength: 1 }]
+      }
     },
     upload: [
       {
-        target: 'temporary-public-storage', // Upload para o Google Cloud Storage
-      },
-    ],
+        target: 'temporary-public-storage' // Upload para o Google Cloud Storage
+      }
+    ]
   }
- };
+}

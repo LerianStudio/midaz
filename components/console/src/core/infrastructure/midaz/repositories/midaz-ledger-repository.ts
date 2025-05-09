@@ -40,9 +40,7 @@ export class MidazLedgerRepository implements LedgerRepository {
     const response = await this.httpService.get<
       MidazPaginationDto<MidazLedgerDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers${createQueryString(
-        { limit, page }
-      )}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers${createQueryString({ limit, page })}`
     )
     return MidazLedgerMapper.toPaginationEntity(response)
   }
