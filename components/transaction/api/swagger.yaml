@@ -850,31 +850,6 @@ definitions:
             type: integer
         type: object
     type: object
-  github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
-    description: Template-based transaction input for creating transactions from predefined
-      templates with variable substitution.
-    properties:
-      transactionType:
-        description: |-
-          Transaction type identifier
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-        format: uuid
-        type: string
-      transactionTypeCode:
-        description: |-
-          Transaction type code for reference
-          example: PAYMENT
-          maxLength: 50
-        maxLength: 50
-        type: string
-      variables:
-        additionalProperties: {}
-        description: |-
-          Variables to substitute in the transaction template
-          example: {"amount": 1000, "recipient": "@person2"}
-        type: object
-    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -2252,56 +2227,6 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Create a Transaction using JSON
-      tags:
-      - Transactions
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates:
-    post:
-      consumes:
-      - application/json
-      description: Create a Transaction with the input template
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Transaction Template Input
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
-        "400":
-          description: Bad Request
-          schema: {}
-        "401":
-          description: Unauthorized
-          schema: {}
-        "500":
-          description: Internal Server Error
-          schema: {}
-      summary: Create a Transaction Template
       tags:
       - Transactions
 swagger: "2.0"
