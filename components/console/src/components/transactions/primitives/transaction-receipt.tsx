@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { isNil } from 'lodash'
 import { AlignLeft, ArrowRight } from 'lucide-react'
 import { forwardRef, HTMLAttributes, ReactNode } from 'react'
 import { useIntl } from 'react-intl'
@@ -109,24 +110,36 @@ TransactionReceiptSubjects.displayName = 'TransactionReceiptSubjects'
 export type TransactionReceiptItemProps = HTMLAttributes<HTMLDivElement> & {
   label: string
   value: ReactNode
+  showNone?: boolean
 }
 
 export const TransactionReceiptItem = forwardRef<
   HTMLDivElement,
   TransactionReceiptItemProps
->(({ className, label, value, children, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'flex flex-row px-8 text-xs font-normal text-zinc-700',
-      className
-    )}
-    {...props}
-  >
-    <p className="flex-grow">{label}</p>
-    {value}
-  </div>
-))
+>(({ className, label, value, showNone, children, ...props }, ref) => {
+  const intl = useIntl()
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'flex flex-row px-8 text-xs font-normal text-zinc-700',
+        className
+      )}
+      {...props}
+    >
+      <p className="flex-grow">{label}</p>
+      {!showNone && value}
+      {showNone &&
+        (!isNil(value) && value !== ''
+          ? value
+          : intl.formatMessage({
+              id: 'common.none',
+              defaultMessage: 'None'
+            }))}
+    </div>
+  )
+})
 TransactionReceiptItem.displayName = 'TransactionReceiptTicket'
 
 export type TransactionReceiptOperationProps =

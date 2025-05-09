@@ -1,8 +1,5 @@
 import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
-import {
-  CreateTransactionDto,
-  TransactionResponseDto
-} from '../dto/transaction-dto'
+import { CreateTransactionDto, TransactionDto } from '../dto/transaction-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
 import { PaginationDto } from '../dto/pagination-dto'
@@ -20,7 +17,7 @@ export class TransactionMapper {
     }
   }
 
-  static toResponseDto(transaction: TransactionEntity): TransactionResponseDto {
+  static toResponseDto(transaction: TransactionEntity): TransactionDto {
     return {
       id: transaction.id!,
       ledgerId: transaction.ledgerId!,
@@ -41,12 +38,12 @@ export class TransactionMapper {
 
   static toPaginatedResponseDto(
     paginationEntity: PaginationEntity<TransactionEntity>
-  ): PaginationDto<TransactionResponseDto> {
+  ): PaginationDto<TransactionDto> {
     return PaginationMapper.toResponseDto(
       paginationEntity,
       TransactionMapper.toResponseDto as (
         transaction: TransactionEntity
-      ) => TransactionResponseDto
+      ) => TransactionDto
     )
   }
 }
