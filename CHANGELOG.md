@@ -1,3 +1,14 @@
+## [v2.2.0-beta.19] - 2025-05-09
+
+### 🐛 Bug Fixes
+- Adjust test to improve reliability
+
+### 🗑️ Removed
+- ⚠️ **Breaking Change**: Remove transaction templates API and update MongoDB connection string
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.18] - 2025-05-09
 
 ### 🔧 Maintenance
