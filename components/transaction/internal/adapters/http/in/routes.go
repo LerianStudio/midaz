@@ -32,7 +32,6 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CreateTransactionDSL)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/templates", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.InputDSL), th.CreateTransactionTemplate))
 
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CommitTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.RevertTransaction)

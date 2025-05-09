@@ -139,37 +139,6 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	return response
 }
 
-// CreateTransactionTemplate method that create transaction template
-//
-//	@Summary		Create a Transaction Template
-//	@Description	Create a Transaction with the input template
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			input			body		transaction.InputDSL	true	"Transaction Template Input"
-//	@Success		201				{object}	transaction.InputDSL
-//	@Failure		400				{object}	interface{}
-//	@Failure		401				{object}	interface{}
-//	@Failure		500				{object}	interface{}
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates [Post]
-func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-
-	tracer.Start(ctx, "handler.create_transaction_template")
-
-	payload := p.(*transaction.InputDSL)
-	logger.Infof("Request to create an transaction with details: %#v", payload)
-
-	return http.Created(c, payload)
-}
-
 // CommitTransaction method that commit transaction created before
 //
 //	@Summary		Commit a Transaction

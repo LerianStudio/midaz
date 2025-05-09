@@ -1075,69 +1075,6 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates:
-    post:
-      description: Create a Transaction with the input template
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
-        description: Transaction Template Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                type: object
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                type: object
-          description: Unauthorized
-        "500":
-          content:
-            application/json:
-              schema:
-                type: object
-          description: Internal Server Error
-      summary: Create a Transaction Template
-      tags:
-      - Transactions
-      x-codegen-request-body-name: input
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       description: Get a Transaction with the input ID
@@ -2371,37 +2308,6 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
-      type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
-      description: Template-based transaction input for creating transactions from
-        predefined templates with variable substitution.
-      example:
-        transactionType: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        variables:
-          key: '{}'
-        transactionTypeCode: transactionTypeCode
-      properties:
-        transactionType:
-          description: |-
-            Transaction type identifier
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          format: uuid
-          type: string
-        transactionTypeCode:
-          description: |-
-            Transaction type code for reference
-            example: PAYMENT
-            maxLength: 50
-          maxLength: 50
-          type: string
-        variables:
-          additionalProperties:
-            type: object
-          description: |-
-            Variables to substitute in the transaction template
-            example: {"amount": 1000, "recipient": "@person2"}
-          type: object
       type: object
     mmodel.Balance:
       description: Complete balance entity containing all fields including system-generated

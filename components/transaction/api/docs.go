@@ -1409,79 +1409,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates": {
-            "post": {
-                "description": "Create a Transaction with the input template",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Transactions"
-                ],
-                "summary": "Create a Transaction Template",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Transaction Template Input",
-                        "name": "input",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {}
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {}
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {}
-                    }
-                }
-            }
-        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
             "get": {
                 "description": "Get a Transaction with the input ID",
@@ -2649,27 +2576,6 @@ const docTemplate = `{
                             "type": "integer"
                         }
                     }
-                }
-            }
-        },
-        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL": {
-            "description": "Template-based transaction input for creating transactions from predefined templates with variable substitution.",
-            "type": "object",
-            "properties": {
-                "transactionType": {
-                    "description": "Transaction type identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "transactionTypeCode": {
-                    "description": "Transaction type code for reference\nexample: PAYMENT\nmaxLength: 50",
-                    "type": "string",
-                    "maxLength": 50
-                },
-                "variables": {
-                    "description": "Variables to substitute in the transaction template\nexample: {\"amount\": 1000, \"recipient\": \"@person2\"}",
-                    "type": "object",
-                    "additionalProperties": {}
                 }
             }
         },
