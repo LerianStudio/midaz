@@ -104,7 +104,7 @@ export const ComboBoxField = ({
                     })
                   }
                 />
-                <CommandList>
+                <CommandList className="custom-scrollbar">
                   <CommandEmpty>
                     {emptyMessage ??
                       intl.formatMessage({
