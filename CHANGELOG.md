@@ -1,3 +1,12 @@
+## [v2.2.0-beta.17] - 2025-05-09
+
+### 📚 Documentation
+- Update project description and features to reflect the latest changes
+
+### 🔧 Maintenance
+- Update CHANGELOG with the latest release information
+- Bump `github.com/redis/go-redis/v9` from version 9.7.3 to 9.8.0 for improved performance and new features
+
 ## [v2.2.0-beta.16] - 2025-05-06
 
 ### 🔧 Maintenance
