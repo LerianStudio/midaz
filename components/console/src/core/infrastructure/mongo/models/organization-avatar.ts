@@ -42,8 +42,9 @@ const organizationAvatarSchema = new Schema<OrganizationAvatarDocument>(
  * @description Compiled model used to perform CRUD operations on organization avatar documents
  */
 // Use mongoose.models to check if the model is already registered
+const MODEL_NAME = 'Organization-Avatar'
 const OrganizationAvatarModel: Model<OrganizationAvatarDocument> =
-  mongoose.models.OrganizationAvatar ||
-  mongoose.model('Organization-Avatar', organizationAvatarSchema)
+  mongoose.models[MODEL_NAME] ||
+  mongoose.model(MODEL_NAME, organizationAvatarSchema)
 
 export default OrganizationAvatarModel

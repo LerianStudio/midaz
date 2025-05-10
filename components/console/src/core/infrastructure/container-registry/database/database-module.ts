@@ -6,13 +6,11 @@ import { MongoOrganizationAvatarRepository } from '../../mongo/repositories/mong
 
 export const DatabaseModule = new ContainerModule((container: Container) => {
   container
-    .bind(DBConfig)
-    .toDynamicValue(async (context) => {
-      console.log('[INVERSIFY] DBConfig module ', context)
+    .bind<MongoConfig>(DBConfig)
+    .toDynamicValue(async (context: any) => {
+      const logger = context.container.get(LoggerAggregator)
 
-      const mongoConfig = new MongoConfig(
-        context.container.get(LoggerAggregator)
-      )
+      const mongoConfig = new MongoConfig(logger)
       const mongoURI = process.env.MONGODB_URI ?? ''
       const user = process.env.MONGODB_USER ?? ''
       const pass = process.env.MONGODB_PASS ?? ''
