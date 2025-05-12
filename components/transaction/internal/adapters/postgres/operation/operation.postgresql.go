@@ -607,7 +607,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		PlaceholderFormat(squirrel.Dollar)
 
 	if operationType != nil {
-		findAll = findAll.Where(squirrel.Expr("type = ?", &operationType))
+		findAll = findAll.Where(squirrel.Expr("type = ?", *operationType))
 	}
 
 	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
