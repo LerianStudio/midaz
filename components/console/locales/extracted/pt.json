@@ -337,6 +337,8 @@
   "ledgers.sheet.edit.description": "Visualizar e editar campos do ledger.",
   "ledgers.sheet.edit.title": "Editar \"{ledgerName}\"",
   "error.api.avatarSvgContainsUnsecureContent": "O arquivo SVG contém conteúdo inseguro.",
+  "error.api.avatarExtensionNotAllowed": "Avatar não é um arquivo de extensão permitido.",
+  "error.api.avatarInvalidFormat": "Avatar não é um tipo MIME válido.",
   "errors.custom.avatar.invalid_format": "O avatar deve ter um formato PNG ou SVG",
   "error.login": "Credenciais inválidas",
   "error.query.title": "Erro no Servidor",
