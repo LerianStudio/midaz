@@ -159,6 +159,8 @@
   "entity.user.password.tooltip": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
   "entity.user.username": "Username",
   "error.api.avatarSvgContainsUnsecureContent": "Avatar SVG contains unsecure content.",
+  "error.api.avatarExtensionNotAllowed": "Avatar is not a permitted extension file.",
+  "error.api.avatarInvalidFormat": "Avatar is not a valid mime type.",
   "error.login": "Invalid credentials",
   "error.midaz.unknowError": "Unknown error on Midaz.",
   "error.query.title": "Server Error",
