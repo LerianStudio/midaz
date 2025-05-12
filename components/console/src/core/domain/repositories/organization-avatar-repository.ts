@@ -51,6 +51,15 @@ export abstract class OrganizationAvatarRepository<T = unknown> {
   ): Promise<OrganizationAvatarEntity | undefined>
 
   /**
+   * Retrieves organization avatars filtered by a list of organization IDs
+   * @param organizationIds - List of organization IDs to filter by
+   * @returns A promise that resolves to an array of organization avatar entities
+   */
+  abstract fetchFilteredByOrganizationIdList(
+    organizationIds: string[]
+  ): Promise<OrganizationAvatarEntity[]>
+
+  /**
    * The underlying model used by the repository implementation
    * This allows access to the model for specialized operations
    * while maintaining the repository abstraction

@@ -148,4 +148,34 @@ export class MongoOrganizationAvatarRepository
       throw handleDatabaseError(error)
     }
   }
+
+  async fetchFilteredByOrganizationIdList(
+    organizationIds: string[]
+  ): Promise<OrganizationAvatarEntity[]> {
+    try {
+      const result = await this.model
+        .find({
+          organizationId: {
+            $in: organizationIds
+          }
+        })
+        .lean()
+
+      const organizationAvatarEntities = result.map(
+        OrganizationAvatarMapper.toEntity
+      )
+
+      return organizationAvatarEntities
+    } catch (error) {
+      this.logger.error(
+        '[ERROR] - MongoOrganizationAvatarRepository.fetchFilteredByOrganizationIdList',
+        {
+          error,
+          context: 'mongo'
+        }
+      )
+
+      throw handleDatabaseError(error)
+    }
+  }
 }
