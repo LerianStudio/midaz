@@ -239,6 +239,12 @@ const docTemplate = `{
                         "description": "Cursor",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "DEBIT, CREDIT",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2203,10 +2209,10 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "type": {
-                    "description": "Type of operation (e.g., creditCard, transfer, payment)\nexample: creditCard\nmaxLength: 50",
+                    "description": "Type of operation (e.g., DEBIT, CREDIT)\nexample: DEBIT\nmaxLength: 50",
                     "type": "string",
                     "maxLength": 50,
-                    "example": "creditCard"
+                    "example": "DEBIT"
                 },
                 "updatedAt": {
                     "description": "Timestamp when the operation was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",

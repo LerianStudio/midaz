@@ -412,10 +412,10 @@ definitions:
         type: string
       type:
         description: |-
-          Type of operation (e.g., creditCard, transfer, payment)
-          example: creditCard
+          Type of operation (e.g., DEBIT, CREDIT)
+          example: DEBIT
           maxLength: 50
-        example: creditCard
+        example: DEBIT
         maxLength: 50
         type: string
       updatedAt:
@@ -1142,6 +1142,10 @@ paths:
       - description: Cursor
         in: query
         name: cursor
+        type: string
+      - description: DEBIT, CREDIT
+        in: query
+        name: type
         type: string
       produces:
       - application/json

@@ -4970,6 +4970,12 @@
                   "value": "",
                   "description": "Cursor",
                   "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "DEBIT, CREDIT",
+                  "disabled": true
                 }
               ]
             },
