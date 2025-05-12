@@ -388,7 +388,7 @@
   "organizations.organizationForm.metadataRegisterCountText": "{count} added {count, plural, =0 {records} one {record} other {records}}",
   "organizations.organizationForm.newOrganization.description": "Fill in the details of the Organization you wish to create.",
   "organizations.organizationForm.parentOrganizationText": "Select if your Organization is affiliated with another",
-  "organizations.organizationView.avatarDialog.description": "Insert your SVG or PNG image URL.",
+  "organizations.organizationView.avatarDialog.description": "Select your SVG or PNG image.",
   "organizations.organizationView.avatarDialog.title": "Avatar",
   "organizations.organizationView.breadcrumbs.newOrganization": "New Organization",
   "organizations.organizationView.breadcrumbs.organizations": "Organizations",

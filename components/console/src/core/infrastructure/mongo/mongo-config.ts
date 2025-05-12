@@ -73,8 +73,6 @@ export class MongoConfig implements DBConfig<Mongoose> {
   async connect({ uri, dbName, user, pass }: DBConfigParams) {
     const intl = await this.getIntlSafe()
 
-    console.log('[MONGO] Connecting to MongoDB...', uri, dbName, user, pass)
-
     if (this.isConnected()) {
       return
     }

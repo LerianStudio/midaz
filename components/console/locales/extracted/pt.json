@@ -2,7 +2,7 @@
   "settingsDropdown.organizations": "Organizações",
   "settingsDropdown.settings": "Configurações",
   "settingsDropdown.system": "Sistema",
-  "organizations.organizationView.avatarDialog.description": "Insira a URL da imagem SVG ou PNG",
+  "organizations.organizationView.avatarDialog.description": "Selecione sua imagem SVG ou PNG",
   "organizations.organizationView.avatarDialog.title": "Avatar",
   "settings.tabs.organizations": "Organizações",
   "settings.title": "Configurações",

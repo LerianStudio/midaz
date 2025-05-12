@@ -24,17 +24,11 @@ describe('parseCreateData', () => {
       metadata: {
         key1: 'value1'
       },
-      accentColor: '#FF0000',
       avatar: 'avatar.png'
     }
 
     const expectedOutput = {
-      ...omit(input, ['accentColor', 'avatar']),
-      metadata: {
-        ...input.metadata,
-        accentColor: input.accentColor,
-        avatar: input.avatar
-      }
+      ...input
     }
 
     expect(parseCreateData(input)).toEqual(expectedOutput)
@@ -65,11 +59,9 @@ describe('parseUpdateData', () => {
     }
 
     const expectedOutput = {
-      ...omit(input, ['id', 'legalDocument', 'accentColor', 'avatar']),
+      ...omit(input, ['id', 'legalDocument']),
       metadata: {
-        ...input.metadata,
-        accentColor: input.accentColor,
-        avatar: input.avatar
+        ...input.metadata
       }
     }
 

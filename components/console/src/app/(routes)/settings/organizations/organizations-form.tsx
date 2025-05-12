@@ -67,21 +67,16 @@ const initialValues = {
 
 const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   ...data,
-  accentColor: data?.metadata?.accentColor,
-  avatar: data?.metadata?.avatar,
-  metadata:
-    omit(data?.metadata, ['accentColor', 'avatar']) || initialValues.metadata
+  metadata: data?.metadata || initialValues.metadata
 })
 
 const parseInputData = (data?: OrganizationsType) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
 const parseMetadata = (data?: Partial<OrganizationFormData>) => ({
-  ...omit(data, ['accentColor', 'avatar']),
+  ...data,
   metadata: {
-    ...data?.metadata,
-    accentColor: data?.accentColor,
-    avatar: data?.avatar
+    ...data?.metadata
   }
 })
 
@@ -105,6 +100,7 @@ export const OrganizationsForm = ({
     useCreateOrganization({
       onSuccess
     })
+
   const { mutate: updateOrganization, isPending: updatePending } =
     useUpdateOrganization({
       organizationId: data?.id!,

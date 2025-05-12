@@ -3,7 +3,7 @@ import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
-import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
+import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import type {
@@ -12,6 +12,8 @@ import type {
   UpdateOrganizationDto
 } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { IntlShape } from 'react-intl'
+import { getIntl } from '@/lib/intl'
 
 export interface UpdateOrganization {
   execute: (
@@ -34,6 +36,8 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
     organizationId: string,
     organization: Partial<UpdateOrganizationDto>
   ): Promise<OrganizationResponseDto> {
+    const intl = await getIntl()
+
     const updatedOrganizationEntity = await this.updateOrganization(
       organizationId,
       organization
@@ -41,6 +45,7 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
 
     const updatedOrganizationAvatarEntity = await this.updateOrganizationAvatar(
       organizationId,
+      intl,
       organization.avatar
     )
 
@@ -70,19 +75,27 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
 
   private async updateOrganizationAvatar(
     organizationId: string,
+    intl: IntlShape,
     avatar?: string
   ): Promise<OrganizationAvatarEntity | undefined> {
     if (!avatar) {
       return undefined
     }
 
-    await validateAvatar(avatar)
+    await validateImage(avatar, intl)
 
     const organizationAvatarEntity: OrganizationAvatarEntity =
       OrganizationAvatarMapper.toDomain({
         organizationId,
         avatar
       })
+
+    const organizationAvatarEntityExists =
+      await this.organizationAvatarRepository.fetchById(organizationId)
+
+    if (organizationAvatarEntityExists) {
+      return this.organizationAvatarRepository.update(organizationAvatarEntity)
+    }
 
     const organizationAvatarCreated =
       await this.organizationAvatarRepository.create(organizationAvatarEntity)

@@ -20,6 +20,7 @@ import { Control, ControllerRenderProps } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { isNil } from 'lodash'
 import messages from '@/lib/zod/messages'
+import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
@@ -42,12 +43,27 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
     const [error, setError] = React.useState(false)
     const [avatarURL, setAvatarURL] = React.useState('')
 
-    const validate = async (url: string) => {
-      if (!format.some((ext) => url.endsWith(`.${ext}`))) {
+    const validate = async (base64: string) => {
+      try {
+        await validateImage(base64, intl)
+        return true
+      } catch (error) {
         return false
       }
+    }
 
-      return true
+    const handleAvatarImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const base64 = reader.result as string
+        setAvatarURL(base64)
+      }
     }
 
     const handleReset = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -57,6 +73,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
     const handleChange = async (event: React.MouseEvent<HTMLButtonElement>) => {
       const valid = await validate(avatarURL)
+
       if (!valid) {
         setError(true)
         return
@@ -95,14 +112,15 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
             <DialogDescription className="mb-4 flex w-full items-center justify-center">
               {intl.formatMessage({
                 id: 'organizations.organizationView.avatarDialog.description',
-                defaultMessage: 'Insert your SVG or PNG image URL.'
+                defaultMessage: 'Select your SVG or PNG image.'
               })}
             </DialogDescription>
 
             <FormItem>
               <Input
                 placeholder="https://example.com/image.png"
-                onChange={(e) => setAvatarURL(e.target.value)}
+                onChange={handleAvatarImage}
+                type="file"
               />
               {error && (
                 <FormMessage>

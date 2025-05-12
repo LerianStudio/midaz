@@ -2,7 +2,6 @@ import { createContext, PropsWithChildren, useContext, useState } from 'react'
 import { useStepper } from '@/hooks/use-stepper'
 import { FormData } from './schemas'
 import { useRouter } from 'next/navigation'
-import { omit } from 'lodash'
 import { createQueryString } from '@/lib/search'
 import { OrganizationsType } from '@/types/organizations-type'
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
@@ -42,11 +41,7 @@ export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
     })
 
   const parse = (data: FormData) => ({
-    ...omit(data, ['accentColor', 'avatar']),
-    metadata: {
-      ...(data?.accentColor ? { accentColor: data?.accentColor } : {}),
-      ...(data?.avatar ? { avatar: data?.avatar } : {})
-    }
+    ...data
   })
 
   const handleCancel = () => router.push('/onboarding')

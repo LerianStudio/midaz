@@ -6,11 +6,13 @@ import type {
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { inject, injectable } from 'inversify'
-import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
+import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
+import { IntlShape } from 'react-intl'
+import { getIntl } from '@/lib/intl'
 
 export interface CreateOnboardingOrganization {
   execute: (
@@ -33,7 +35,7 @@ export class CreateOnboardingOrganizationUseCase
   async execute(
     organizationData: CreateOrganizationDto
   ): Promise<OrganizationResponseDto> {
-    console.log('organizationData', organizationData)
+    const intl = await getIntl()
 
     const organizationCreated: OrganizationEntity =
       await this.createOrganization(organizationData)
@@ -41,6 +43,7 @@ export class CreateOnboardingOrganizationUseCase
     const organizationAvatarCreated: OrganizationAvatarEntity | undefined =
       await this.createOrganizationAvatar(
         organizationCreated.id!,
+        intl,
         organizationData.avatar
       )
 
@@ -72,13 +75,14 @@ export class CreateOnboardingOrganizationUseCase
 
   private async createOrganizationAvatar(
     organizationId: string,
+    intl: IntlShape,
     avatar?: string
   ): Promise<OrganizationAvatarEntity | undefined> {
     if (!avatar) {
       return undefined
     }
 
-    await validateAvatar(avatar)
+    await validateImage(avatar, intl)
 
     const organizationAvatarEntity: OrganizationAvatarEntity =
       OrganizationAvatarMapper.toDomain({

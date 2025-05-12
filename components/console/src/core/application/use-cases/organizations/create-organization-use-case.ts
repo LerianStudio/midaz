@@ -4,13 +4,15 @@ import { OrganizationAvatarRepository } from '@/core/domain/repositories/organiz
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
-import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
+import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
 import { inject, injectable } from 'inversify'
 import type {
   CreateOrganizationDto,
   OrganizationResponseDto
 } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { getIntl } from '@/lib/intl'
+import { IntlShape } from 'react-intl'
 
 export interface CreateOrganization {
   execute: (
@@ -31,12 +33,15 @@ export class CreateOrganizationUseCase implements CreateOrganization {
   async execute(
     organizationData: CreateOrganizationDto
   ): Promise<OrganizationResponseDto> {
+    const intl = await getIntl()
+
     const organizationCreated: OrganizationEntity =
       await this.createOrganization(organizationData)
 
     const organizationAvatarCreated: OrganizationAvatarEntity | undefined =
       await this.createOrganizationAvatar(
         organizationCreated.id!,
+        intl,
         organizationData.avatar
       )
 
@@ -63,13 +68,14 @@ export class CreateOrganizationUseCase implements CreateOrganization {
 
   private async createOrganizationAvatar(
     organizationId: string,
+    intl: IntlShape,
     avatar?: string
   ): Promise<OrganizationAvatarEntity | undefined> {
     if (!avatar) {
       return undefined
     }
 
-    await validateAvatar(avatar)
+    await validateImage(avatar, intl)
 
     const organizationAvatarEntity: OrganizationAvatarEntity =
       OrganizationAvatarMapper.toDomain({

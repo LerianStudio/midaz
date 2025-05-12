@@ -13,15 +13,16 @@ import { IntlShape } from 'react-intl'
  * @param avatar - Base64 encoded image string with mime type (data:image/format;base64,...)
  * @throws {BadRequestApiException} When validation fails
  */
-export async function validateAvatar(avatar: string): Promise<void> {
+export async function validateImage(
+  avatar: string,
+  intl: IntlShape
+): Promise<void> {
   try {
-    const intl = await getIntl()
-
     // check if is a base64 image with mime type and extension permitted
-    validateAvatarBase64(avatar, intl)
+    const format = validateImageBase64(avatar, intl)
 
     // check if is a image format permitted
-    const format = validateAvatarFormat(avatar, intl)
+    validateImageFormat(format, intl)
 
     // check if is a svg and validate its content
     if (format === 'svg') {
@@ -40,10 +41,12 @@ export async function validateAvatar(avatar: string): Promise<void> {
  * @param intl - Internationalization object for error messages
  * @throws {BadRequestApiException} When the avatar is not a valid base64 image
  */
-function validateAvatarBase64(avatar: string, intl: IntlShape): void {
-  const match = avatar.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
+function validateImageBase64(avatar: string, intl: IntlShape): string {
+  const base64Regex = /^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/
 
-  if (!match) {
+  const match = avatar.match(base64Regex)
+
+  if (!match || !match[1]) {
     throw new BadRequestApiException(
       intl.formatMessage({
         id: 'error.api.avatarInvalidFormat',
@@ -51,24 +54,24 @@ function validateAvatarBase64(avatar: string, intl: IntlShape): void {
       })
     )
   }
+
+  return match[1]
 }
 
 /**
  * Validates if the image format is allowed based on environment configuration.
  * Extracts the format from the base64 mime type and checks against NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT.
  *
- * @param avatar - Base64 encoded image string to validate
+ * @param format - Format of the image to validate
  * @param intl - Internationalization object for error messages
  * @returns The validated image format
  * @throws {BadRequestApiException} When the image format is not allowed
  */
-function validateAvatarFormat(avatar: string, intl: IntlShape): string {
+function validateImageFormat(format: string, intl: IntlShape): string {
   const allowedFormats =
     process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',').map(
       (e) => e.trim().toLowerCase()
     ) ?? process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',')
-
-  const format = avatar.split(';')[0].split('/')[1]
 
   if (!allowedFormats?.includes(format)) {
     throw new BadRequestApiException(

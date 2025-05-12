@@ -23,8 +23,6 @@ import {
 export async function handleDatabaseError(error: unknown): Promise<void> {
   const intl = await getIntl()
 
-  console.log('[DATABASE ERROR]', error)
-
   if (error instanceof mongoose.Error) {
     const mapped = mapMongooseError(error, intl)
     throw mapped
@@ -53,6 +51,7 @@ function mapMongooseError(
       )
     case 'CastError':
       return invalidObjectError(error as mongoose.Error.CastError, intl)
+
     default:
       return unexpectedDatabaseError(intl)
   }
