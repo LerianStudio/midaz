@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"strings"
+
+	"github.com/LerianStudio/midaz/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -696,7 +697,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidAccountType.Error(),
 			Title:      "Invalid Account Type",
-			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
+			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace or creditCard. Please provide a valid type.",
 		},
 		constant.ErrInvalidMetadataNesting: ValidationError{
 			EntityType: entityType,
