@@ -8,8 +8,8 @@ export const SkeletonTransactionDialog = () => {
         <PageHeader.Wrapper>
           <div className="mb-10 flex w-full items-center justify-between">
             <div className="space-y-2">
-              <Skeleton className="h-8 w-[300px] bg-zinc-200" />
-              <Skeleton className="h-4 w-[200px] bg-zinc-200" />
+              <Skeleton className="h-10 w-[300px] bg-zinc-200" />
+              <Skeleton className="h-5 w-[200px] bg-zinc-200" />
             </div>
             <Skeleton className="h-8 w-[100px] bg-zinc-200" />
           </div>

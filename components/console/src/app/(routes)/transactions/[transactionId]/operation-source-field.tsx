@@ -7,7 +7,7 @@ export type OperationSourceFieldProps = {
   values?: TransactionOperationDto[] | []
 }
 
-export const OperationSourceFieldReadOnly = ({
+export const OperationSourceField = ({
   label,
   values = []
 }: OperationSourceFieldProps) => {

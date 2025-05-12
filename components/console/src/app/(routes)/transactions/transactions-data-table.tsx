@@ -43,11 +43,11 @@ import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import {
   TransactionOperationDto,
-  TransactionResponseDto
+  TransactionDto
 } from '@/core/application/dto/transaction-dto'
 
 type TransactionsDataTableProps = {
-  transactions: PaginationDto<TransactionResponseDto> | undefined
+  transactions: PaginationDto<TransactionDto> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
@@ -55,7 +55,7 @@ type TransactionsDataTableProps = {
 }
 
 type TransactionsRowProps = {
-  transaction: Row<TransactionResponseDto>
+  transaction: Row<TransactionDto>
 }
 
 const multipleItemsMessages = defineMessages({
