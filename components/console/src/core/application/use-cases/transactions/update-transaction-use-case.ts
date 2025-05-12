@@ -6,7 +6,7 @@ import {
   CreateTransactionDto,
   UpdateTransactionDto
 } from '../../dto/transaction-dto'
-import { TransactionResponseDto } from '../../dto/transaction-dto'
+import { TransactionDto } from '../../dto/transaction-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdateTransaction {
@@ -15,7 +15,7 @@ export interface UpdateTransaction {
     ledgerId: string,
     transactionId: string,
     transaction: Partial<UpdateTransactionDto>
-  ) => Promise<TransactionResponseDto>
+  ) => Promise<TransactionDto>
 }
 
 @injectable()
@@ -31,7 +31,7 @@ export class UpdateTransactionUseCase implements UpdateTransaction {
     ledgerId: string,
     transactionId: string,
     transaction: Partial<UpdateTransactionDto>
-  ): Promise<TransactionResponseDto> {
+  ): Promise<TransactionDto> {
     const transactionEntity = TransactionMapper.toDomain({
       description: transaction.description ?? '',
       metadata: transaction.metadata ?? {}
