@@ -1,3 +1,14 @@
+## [v2.2.0-beta.20] - 2025-05-13
+
+### ✨ Features
+- Add operation type filter to account operations for enhanced functionality, allowing users to refine their search and improve workflow efficiency.
+
+### 🐛 Bug Fixes
+- Update string formatting from '&' to '*' for improved clarity, ensuring consistent and clear presentation of information across the application.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes, ensuring documentation is up-to-date and accurately represents the current state of the project.
+
 ## [v2.2.0-beta.19] - 2025-05-09
 
 ### 🐛 Bug Fixes
