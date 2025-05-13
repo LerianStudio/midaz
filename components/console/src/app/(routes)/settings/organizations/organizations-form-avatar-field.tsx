@@ -77,6 +77,10 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
         setAvatar(base64)
       }
+
+      reader.onerror = () => {
+        setError(true)
+      }
     }
 
     const handleReset = (event: React.MouseEvent<HTMLButtonElement>) => {
