@@ -79,7 +79,7 @@ npm run docker-up
 
 ## Repo Activity
 
-![Alt](https://repobeats.axiom.co/api/embed/f428d2468cc360e813df4eb3c0e89777343d3da2.svg "Repobeats analytics image")
+![Alt](https://repobeats.axiom.co/api/embed/f428d2468cc360e813df4eb3c0e89777343d3da2.svg 'Repobeats analytics image')
 
 ## Contributing & License
 
