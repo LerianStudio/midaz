@@ -13,7 +13,7 @@ type OperationPostgreSQLModel struct {
 	ID                    string         // Unique identifier (UUID format)
 	TransactionID         string         // Parent transaction ID
 	Description           string         // Operation description
-	Type                  string         // Operation type (e.g., "creditCard", "transfer")
+	Type                  string         // Operation type (e.g., "DEBIT", "CREDIT")
 	AssetCode             string         // Asset code for the operation
 	Amount                *int64         // Operation amount value
 	AmountScale           *int64         // Decimal places for amount
@@ -46,7 +46,7 @@ type Status struct {
 	// example: ACTIVE
 	// maxLength: 100
 	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100"`
-	
+
 	// Optional descriptive text explaining the status
 	// example: Active status
 	// maxLength: 256
@@ -67,7 +67,7 @@ type Amount struct {
 	// example: 1500
 	// minimum: 0
 	Amount *int64 `json:"amount" example:"1500" minimum:"0"`
-	
+
 	// Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
 	// example: 2
 	// minimum: 0
@@ -88,12 +88,12 @@ type Balance struct {
 	// example: 1500
 	// minimum: 0
 	Available *int64 `json:"available" example:"1500" minimum:"0"`
-	
+
 	// Amount on hold and unavailable for transactions (in smallest unit of asset)
 	// example: 500
 	// minimum: 0
 	OnHold *int64 `json:"onHold" example:"500" minimum:"0"`
-	
+
 	// Decimal places for the balance (e.g., 2 for dollars/euros)
 	// example: 2
 	// minimum: 0
@@ -125,10 +125,10 @@ type Operation struct {
 	// maxLength: 256
 	Description string `json:"description" example:"Credit card operation" maxLength:"256"`
 
-	// Type of operation (e.g., creditCard, transfer, payment)
-	// example: creditCard
+	// Type of operation (e.g., DEBIT, CREDIT)
+	// example: DEBIT
 	// maxLength: 50
-	Type string `json:"type" example:"creditCard" maxLength:"50"`
+	Type string `json:"type" example:"DEBIT" maxLength:"50"`
 
 	// Asset code for the operation
 	// example: BRL
@@ -299,7 +299,7 @@ type UpdateOperationInput struct {
 	// example: Credit card operation
 	// maxLength: 256
 	Description string `json:"description" validate:"max=256" example:"Credit card operation" maxLength:"256"`
-	
+
 	// Additional custom attributes
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
@@ -338,55 +338,55 @@ type OperationLog struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Parent transaction identifier
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	TransactionID string `json:"transactionId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Type of operation (e.g., creditCard, transfer, payment)
 	// example: creditCard
 	// maxLength: 50
 	Type string `json:"type" example:"creditCard" maxLength:"50"`
-	
+
 	// Asset code for the operation
 	// example: BRL
 	// minLength: 2
 	// maxLength: 10
 	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
-	
+
 	// Chart of accounts code for accounting purposes
 	// example: 1000
 	// maxLength: 20
 	ChartOfAccounts string `json:"chartOfAccounts" example:"1000" maxLength:"20"`
-	
+
 	// Operation amount information
 	Amount Amount `json:"amount"`
-	
+
 	// Balance before the operation
 	Balance Balance `json:"balance"`
-	
+
 	// Balance after the operation
 	BalanceAfter Balance `json:"balanceAfter"`
-	
+
 	// Operation status information
 	Status Status `json:"status"`
-	
+
 	// Account identifier associated with this operation
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Human-readable alias for the account
 	// example: @person1
 	// maxLength: 256
 	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
-	
+
 	// Balance identifier affected by this operation
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	BalanceID string `json:"balanceId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	
+
 	// Timestamp when the operation log was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time

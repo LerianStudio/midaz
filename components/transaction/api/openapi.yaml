@@ -171,6 +171,11 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: DEBIT, CREDIT
+        in: query
+        name: type
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1787,7 +1792,7 @@ components:
         assetCode: BRL
         chartOfAccounts: "1000"
         description: Credit card operation
-        type: creditCard
+        type: DEBIT
         transactionId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -1928,10 +1933,10 @@ components:
           type: string
         type:
           description: |-
-            Type of operation (e.g., creditCard, transfer, payment)
-            example: creditCard
+            Type of operation (e.g., DEBIT, CREDIT)
+            example: DEBIT
             maxLength: 50
-          example: creditCard
+          example: DEBIT
           maxLength: 50
           type: string
         updatedAt:
@@ -2022,7 +2027,7 @@ components:
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2042,7 +2047,7 @@ components:
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2549,7 +2554,7 @@ components:
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2569,7 +2574,7 @@ components:
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2688,7 +2693,7 @@ components:
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -2708,7 +2713,7 @@ components:
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -2749,7 +2754,7 @@ components:
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
@@ -2769,7 +2774,7 @@ components:
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000

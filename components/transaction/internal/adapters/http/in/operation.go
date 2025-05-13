@@ -35,6 +35,7 @@ type OperationHandler struct {
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
+//	@Param			type			query		string	false	"DEBIT, CREDIT"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
