@@ -20,7 +20,11 @@ import { Control, ControllerRenderProps } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { isNil } from 'lodash'
 import messages from '@/lib/zod/messages'
-import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
+import {
+  validateImage,
+  validateImageBase64,
+  validateImageFormat
+} from '@/core/infrastructure/utils/avatar/validate-image'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
@@ -45,7 +49,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
     const validate = async (base64: string) => {
       try {
-        await validateImage(base64, intl)
+        validateImageFormat(base64, intl)
         return true
       } catch (error) {
         return false

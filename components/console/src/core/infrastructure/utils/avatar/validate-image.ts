@@ -18,16 +18,9 @@ export async function validateImage(
   intl: IntlShape
 ): Promise<void> {
   try {
-    // check if is a base64 image with mime type and extension permitted
-    const format = validateImageBase64(avatar, intl)
-
-    // check if is a image format permitted
-    validateImageFormat(format, intl)
-
-    // check if is a svg and validate its content
-    if (format === 'svg') {
-      await validateSvgContent(avatar, intl)
-    }
+    validateImageBase64(avatar, intl)
+    validateImageFormat(avatar, intl)
+    await validateSvgContent(avatar, intl)
   } catch (error) {
     console.error('[validateAvatar] error', error)
     throw error
@@ -41,7 +34,7 @@ export async function validateImage(
  * @param intl - Internationalization object for error messages
  * @throws {BadRequestApiException} When the avatar is not a valid base64 image
  */
-function validateImageBase64(avatar: string, intl: IntlShape): string {
+export function validateImageBase64(avatar: string, intl: IntlShape): void {
   const base64Regex = /^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/
 
   const match = avatar.match(base64Regex)
@@ -54,24 +47,24 @@ function validateImageBase64(avatar: string, intl: IntlShape): string {
       })
     )
   }
-
-  return match[1]
 }
 
 /**
  * Validates if the image format is allowed based on environment configuration.
  * Extracts the format from the base64 mime type and checks against NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT.
  *
- * @param format - Format of the image to validate
+ * @param avatar - Base64 encoded image string to validate
  * @param intl - Internationalization object for error messages
  * @returns The validated image format
  * @throws {BadRequestApiException} When the image format is not allowed
  */
-function validateImageFormat(format: string, intl: IntlShape): string {
+export function validateImageFormat(avatar: string, intl: IntlShape): string {
   const allowedFormats =
     process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',').map(
       (e) => e.trim().toLowerCase()
     ) ?? process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',')
+
+  const format = avatar.split(';')[0].split('/')[1]
 
   if (!allowedFormats?.includes(format)) {
     throw new BadRequestApiException(
@@ -96,6 +89,13 @@ async function validateSvgContent(
   avatar: string,
   intl: IntlShape
 ): Promise<void> {
+  console.log('[validateSvgContent] avatar', avatar)
+  const format = avatar.split(';')[0].split('/')[1]
+
+  if (format !== 'svg+xml' && format !== 'svg') {
+    return
+  }
+
   const file = await downloadFile(avatar)
 
   if (!validateSVG(file)) {
