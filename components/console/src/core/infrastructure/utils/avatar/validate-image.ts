@@ -22,7 +22,6 @@ export async function validateImage(
     validateImageFormat(avatar, intl)
     await validateSvgContent(avatar, intl)
   } catch (error) {
-    console.error('[validateAvatar] error', error)
     throw error
   }
 }
@@ -89,7 +88,6 @@ async function validateSvgContent(
   avatar: string,
   intl: IntlShape
 ): Promise<void> {
-  console.log('[validateSvgContent] avatar', avatar)
   const format = avatar.split(';')[0].split('/')[1]
 
   if (format !== 'svg+xml' && format !== 'svg') {
