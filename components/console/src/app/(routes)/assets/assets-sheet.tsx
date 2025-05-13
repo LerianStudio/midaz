@@ -1,4 +1,4 @@
-import { InputField, SelectField } from '@/components/form'
+import { InputField, SelectField, CurrencyField } from '@/components/form'
 import { MetadataField } from '@/components/form/metadata-field'
 import { Form } from '@/components/ui/form'
 import {
@@ -19,11 +19,8 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { assets } from '@/schema/assets'
 import { SelectItem } from '@/components/ui/select'
-import { currencyObjects } from '@/utils/currency-codes'
 import { useCreateAsset, useUpdateAsset } from '@/client/assets'
 import { AssetType } from '@/types/assets-type'
-import { CommandItem } from '@/components/ui/command'
-import { ComboBoxField } from '@/components/form'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
@@ -234,7 +231,7 @@ export const AssetsSheet = ({
                   />
 
                   {type === 'currency' ? (
-                    <ComboBoxField
+                    <CurrencyField
                       name="code"
                       label={intl.formatMessage({
                         id: 'common.code',
@@ -242,13 +239,7 @@ export const AssetsSheet = ({
                       })}
                       control={form.control}
                       required
-                    >
-                      {currencyObjects.map((currency) => (
-                        <CommandItem value={currency.code} key={currency.code}>
-                          {currency.code}
-                        </CommandItem>
-                      ))}
-                    </ComboBoxField>
+                    />
                   ) : (
                     <InputField
                       name="code"
