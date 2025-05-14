@@ -72,7 +72,7 @@ type CreateAccountInput struct {
 	// required: true
 	// example: deposit
 	// maxLength: 256
-	Type string `json:"type" validate:"required,max=256" example:"deposit"`
+	Type string `json:"type" validate:"required,max=256,invalidstrings=external" example:"deposit"`
 
 	// Custom key-value pairs for extending the account information
 	// required: false
@@ -203,7 +203,7 @@ type Account struct {
 	// maxLength: 100
 	Alias *string `json:"alias" example:"@treasury_checking" maxLength:"100"`
 
-	// Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+	// Type of the account.
 	// example: deposit
 	Type string `json:"type" example:"deposit"`
 

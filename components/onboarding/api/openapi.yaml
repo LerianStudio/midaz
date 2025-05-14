@@ -2586,7 +2586,7 @@ components:
           type: object
         type:
           description: |-
-            Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+            Type of the account.
             example: deposit
           example: deposit
           type: string
