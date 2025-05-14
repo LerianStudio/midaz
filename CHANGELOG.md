@@ -1,3 +1,19 @@
+## [v2.2.0-beta.21] - 2025-05-14
+
+### ✨ Features
+- Support multiple transactions with the same account in From/To fields
+
+### 🐛 Bug Fixes
+- Rollback recent changes to stabilize the system
+- Validate and handle invalid strings for account type, improving error handling
+- Change error message to 'Invalid Account Type' for better user feedback
+
+### 📚 Documentation
+- Update account type field description for clarity
+
+### 🔧 Maintenance
+- Apply linting corrections to codebase
+
 ## [v2.2.0-beta.20] - 2025-05-13
 
 ### ✨ Features
