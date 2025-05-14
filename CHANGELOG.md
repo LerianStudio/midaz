@@ -1,3 +1,14 @@
+## [v2.2.0-beta.23] - 2025-05-14
+
+### ✨ Features
+- Add endpoint to retrieve external accounts by code
+
+### 🐛 Bug Fixes
+- Resolve linter issues to ensure code quality and adherence to standards
+
+### 🔧 Maintenance
+- Remove unused class to improve codebase maintainability
+
 ## [v2.2.0-beta.21] - 2025-05-14
 
 ### ✨ Features
