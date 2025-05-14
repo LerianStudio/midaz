@@ -503,12 +503,17 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
 	defer spanValidateDSL.End()
 
+	var fromTo []libTransaction.FromTo
+
 	//Helper function to handle account and accountAlias fields - accountAlias is deprecated
 	handleAccountFields := func(entries []libTransaction.FromTo) {
 		for i := range entries {
-			if entries[i].Account == "" && entries[i].AccountAlias != "" {
-				entries[i].Account = entries[i].AccountAlias
-			}
+			newAlias := entries[i].ConcatAlias(i)
+
+			entries[i].Account = newAlias
+			entries[i].AccountAlias = newAlias
+
+			fromTo = append(fromTo, entries[i])
 		}
 	}
 
@@ -603,10 +608,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var operations []*operation.Operation
 
-	var fromTo []libTransaction.FromTo
-	fromTo = append(fromTo, parserDSL.Send.Source.From...)
-	fromTo = append(fromTo, parserDSL.Send.Distribute.To...)
-
 	for _, blc := range balances {
 		for i := range fromTo {
 			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
@@ -658,7 +659,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					BalanceAfter:    balanceAfter,
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
-					AccountAlias:    blc.Alias,
+					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),

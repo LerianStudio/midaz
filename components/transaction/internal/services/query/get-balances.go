@@ -134,36 +134,40 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	for _, balance := range balances {
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
 
-		operation := constant.CREDIT
-
-		amount := libTransaction.Amount{}
-		if from, exists := validate.From[balance.Alias]; exists {
-			amount = libTransaction.Amount{
-				Asset: from.Asset,
-				Value: from.Value,
-				Scale: from.Scale,
-			}
-			operation = constant.DEBIT
-		}
-
-		if to, exists := validate.To[balance.Alias]; exists {
-			amount = to
-		}
-
 		logger.Infof("Getting internal key: %s", internalKey)
 
-		b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, amount, operation)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+		for k, v := range validate.From {
+			if libTransaction.SplitAlias(k) == balance.Alias {
+				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.DEBIT)
+				if err != nil {
+					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 
-			logger.Error("Failed to lock balance", err)
+					logger.Error("Failed to lock balance", err)
 
-			return nil, err
+					return nil, err
+				}
+				b.Alias = k
+
+				newBalances = append(newBalances, b)
+			}
 		}
 
-		b.Alias = balance.Alias
+		for k, v := range validate.To {
+			if libTransaction.SplitAlias(k) == balance.Alias {
+				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.CREDIT)
+				if err != nil {
+					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 
-		newBalances = append(newBalances, b)
+					logger.Error("Failed to lock balance", err)
+
+					return nil, err
+				}
+				b.Alias = k
+
+				newBalances = append(newBalances, b)
+			}
+		}
+
 	}
 
 	return newBalances, nil
