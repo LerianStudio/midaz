@@ -147,7 +147,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 					return nil, err
 				}
 
-				b.Alias = balance.Alias
+				b.Alias = k
 
 				newBalances = append(newBalances, b)
 			}
@@ -164,7 +164,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 					return nil, err
 				}
 
-				b.Alias = balance.Alias
+				b.Alias = k
 
 				newBalances = append(newBalances, b)
 			}
