@@ -3060,7 +3060,7 @@ const docTemplate = `{
                     ]
                 },
                 "type": {
-                    "description": "Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external\nexample: deposit",
+                    "description": "Type of the account.\nexample: deposit",
                     "type": "string",
                     "example": "deposit"
                 },

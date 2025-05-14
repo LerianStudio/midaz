@@ -115,7 +115,7 @@ definitions:
         description: Current operating status of the account
       type:
         description: |-
-          Type of the account. Valid values are: deposit, savings, loans, marketplace, creditCard, external
+          Type of the account.
           example: deposit
         example: deposit
         type: string
