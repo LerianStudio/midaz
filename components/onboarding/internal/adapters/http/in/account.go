@@ -268,7 +268,6 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
 	return http.OK(c, account)
-
 }
 
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
