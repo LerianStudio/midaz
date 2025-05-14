@@ -2031,6 +2031,62 @@ paths:
       summary: Retrieve an account by alias
       tags:
       - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
+    get:
+      description: Returns detailed information about an account identified by its
+        alias within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account External Code (e.g. BRL)
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved account
+          schema:
+            $ref: '#/definitions/Account'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account with the specified alias, ledger, or organization not
+            found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve an account by alias
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       description: Returns a paginated list of assets within the specified ledger,
