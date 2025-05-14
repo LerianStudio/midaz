@@ -3,6 +3,9 @@
 # Script to sync Postman collection with OpenAPI documentation
 # This script converts OpenAPI specs to Postman collections with improved examples and descriptions
 
+# Exit on error
+set -e
+
 # Function to install Node.js
 install_nodejs() {
     echo "Node.js is not installed. Attempting to install..."
@@ -147,6 +150,11 @@ fi
 # Convert OpenAPI specs to Postman collections with environment templates
 echo "Converting OpenAPI specs to Postman collections with improved examples..."
 
+# Initialize failure flags
+ONBOARDING_FAILED=false
+TRANSACTION_FAILED=false
+WORKFLOW_FAILED=false
+
 # Process onboarding component
 if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     echo "Processing onboarding component..."
@@ -154,6 +162,7 @@ if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     if [ $? -ne 0 ]; then
         echo "Failed to convert onboarding API spec to Postman collection."
         echo "Continuing with other components..."
+        ONBOARDING_FAILED=true
     fi
 else
     echo "Onboarding API spec not found. Skipping..."
@@ -166,6 +175,7 @@ if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     if [ $? -ne 0 ]; then
         echo "Failed to convert transaction API spec to Postman collection."
         echo "Continuing with other components..."
+        TRANSACTION_FAILED=true
     fi
 else
     echo "Transaction API spec not found. Skipping..."
@@ -251,10 +261,23 @@ rm -rf "${TEMP_DIR}"
 # Add workflow sequence to the Postman collection
 echo "Adding workflow sequence to Postman collection..."
 if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ]; then
+    # Ensure uuid dependency is installed
+    echo "Checking for required dependencies..."
+    if ! grep -q "\"uuid\"" "${SCRIPTS_DIR}/package.json"; then
+        echo "Adding uuid dependency to package.json..."
+        # Use a temporary file to avoid issues with in-place editing
+        jq '.dependencies.uuid = "^9.0.1"' "${SCRIPTS_DIR}/package.json" > "${SCRIPTS_DIR}/package.json.tmp"
+        mv "${SCRIPTS_DIR}/package.json.tmp" "${SCRIPTS_DIR}/package.json"
+        
+        echo "Installing uuid dependency..."
+        (cd "${SCRIPTS_DIR}" && npm install uuid)
+    fi
+    
     if node "${MIDAZ_ROOT}/scripts/create-workflow.js" "${POSTMAN_COLLECTION}" "${MIDAZ_ROOT}/postman/WORKFLOW.md" "${POSTMAN_COLLECTION}"; then
         echo "[ok] Workflow sequence added to Postman collection ✔️"
     else
         echo "[warning] Failed to add workflow sequence to Postman collection ⚠️"
+        WORKFLOW_FAILED=true
     fi
 else
     echo "[warning] Could not add workflow sequence: missing files ⚠️"
@@ -265,3 +288,17 @@ echo "Note: The synced collection is available at ${POSTMAN_COLLECTION}"
 echo "The environment template is available at ${POSTMAN_ENVIRONMENT}"
 echo "Backups of previous files are available in ${BACKUP_DIR}"
 echo ""
+
+# Check if any critical operations failed
+if [ "${ONBOARDING_FAILED}" = true ] && [ "${TRANSACTION_FAILED}" = true ]; then
+    echo "[error] Both onboarding and transaction API conversions failed ❌"
+    exit 1
+fi
+
+if [ "${WORKFLOW_FAILED}" = true ] && [ ! -f "${POSTMAN_COLLECTION}" ]; then
+    echo "[error] Failed to create a valid Postman collection ❌"
+    exit 1
+fi
+
+# Success exit code
+exit 0
