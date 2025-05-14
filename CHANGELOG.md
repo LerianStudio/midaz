@@ -1,3 +1,48 @@
+## [v2.2.0-beta.20] - 2025-05-13
+
+### ✨ Features
+- Add operation type filter to account operations for enhanced functionality, allowing users to refine their search and improve workflow efficiency.
+
+### 🐛 Bug Fixes
+- Update string formatting from '&' to '*' for improved clarity, ensuring consistent and clear presentation of information across the application.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes, ensuring documentation is up-to-date and accurately represents the current state of the project.
+
+## [v2.2.0-beta.19] - 2025-05-09
+
+### 🐛 Bug Fixes
+- Adjust test to improve reliability
+
+### 🗑️ Removed
+- ⚠️ **Breaking Change**: Remove transaction templates API and update MongoDB connection string
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.18] - 2025-05-09
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+- Bump Bubble Tea dependency from version 1.3.4 to 1.3.5
+
+## [v2.2.0-beta.17] - 2025-05-09
+
+### 📚 Documentation
+- Update project description and features to reflect the latest changes
+
+### 🔧 Maintenance
+- Update CHANGELOG with the latest release information
+- Bump `github.com/redis/go-redis/v9` from version 9.7.3 to 9.8.0 for improved performance and new features
+
+## [v2.2.0-beta.16] - 2025-05-06
+
+### 🔧 Maintenance
+- Remove unused `APP_CONTEXT` environment variable to clean up configuration and improve code clarity.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and ensure accurate version tracking.
+
 ## [v2.2.0-beta.15] - 2025-05-05
 
 ### ✨ Features
