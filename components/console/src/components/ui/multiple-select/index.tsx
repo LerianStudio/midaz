@@ -80,8 +80,8 @@ export const MultipleSelectTrigger = React.forwardRef<
       className={cn(
         'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus-visible:outline-none dark:border-inherit md:text-sm [&>span]:line-clamp-1',
         {
-          'h-10': value.length === 0,
-          'min-h-10': value.length > 0,
+          'h-9': value.length === 0,
+          'min-h-9': value.length > 0,
           'cursor-text': !disabled && value.length !== 0,
           'cursor-not-allowed bg-shadcn-100 opacity-50': disabled
         },
