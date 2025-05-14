@@ -26,11 +26,13 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
+import { Input } from '@/components/ui/input'
 
 type CurrencySelectProps = SelectProps &
   Omit<ControllerRenderProps, 'ref'> & {
     placeholder?: string
     emptyMessage?: string
+    readOnly?: boolean
   }
 
 const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
@@ -41,6 +43,7 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
       placeholder,
       onChange,
       emptyMessage,
+      readOnly,
       ...others
     }: CurrencySelectProps,
     ref
@@ -61,6 +64,11 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
       },
       [options]
     )
+
+    if (readOnly) {
+      const displayValue = getDisplayValue(value) || placeholder || ''
+      return <Input value={displayValue} readOnly />
+    }
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -130,6 +138,7 @@ CurrencyComboBox.displayName = 'CurrencySelect'
 
 export type CurrencyFieldProps = Omit<SelectFieldProps, 'children'> & {
   emptyMessage?: string
+  readOnly?: boolean
 }
 
 export const CurrencyField = ({
@@ -137,6 +146,7 @@ export const CurrencyField = ({
   placeholder,
   emptyMessage,
   required,
+  readOnly,
   ...others
 }: CurrencyFieldProps) => {
   return (
@@ -148,6 +158,7 @@ export const CurrencyField = ({
           <CurrencyComboBox
             placeholder={placeholder}
             emptyMessage={emptyMessage}
+            readOnly={readOnly}
             {...field}
           />
           <FormMessage />

@@ -20,6 +20,7 @@ import { PasswordField } from '@/components/form/password-field'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 const initialValues = {
   firstName: '',
@@ -52,12 +53,14 @@ interface EditUserFormProps {
   user: UsersType
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
+  isReadOnly?: boolean
 }
 
 export const EditUserForm = ({
   user,
   onSuccess,
-  onOpenChange
+  onOpenChange,
+  isReadOnly = false
 }: EditUserFormProps) => {
   const intl = useIntl()
   const { toast } = useToast()
@@ -199,6 +202,7 @@ export const EditUserForm = ({
                         defaultMessage: 'Name'
                       })}
                       control={form.control}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -209,6 +213,7 @@ export const EditUserForm = ({
                         defaultMessage: 'Last Name'
                       })}
                       control={form.control}
+                      readOnly={isReadOnly}
                       required
                     />
                   </div>
@@ -220,6 +225,7 @@ export const EditUserForm = ({
                       defaultMessage: 'E-mail'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -234,6 +240,7 @@ export const EditUserForm = ({
                       defaultMessage: 'Select...'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     multi
                     required
                   >
@@ -251,6 +258,22 @@ export const EditUserForm = ({
                     })}
                   </p>
                 </div>
+
+                <div className="mt-auto">
+                  <Enforce resource="users" action="post, patch">
+                    <LoadingButton
+                      size="lg"
+                      type="submit"
+                      fullWidth
+                      loading={updatePending}
+                    >
+                      {intl.formatMessage({
+                        id: 'common.save',
+                        defaultMessage: 'Save'
+                      })}
+                    </LoadingButton>
+                  </Enforce>
+                </div>
               </form>
             </Form>
           </TabsContent>
@@ -262,19 +285,20 @@ export const EditUserForm = ({
                 className="flex flex-col"
                 onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
               >
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-grow flex-col gap-4">
                   <PasswordField
                     name="newPassword"
                     label={intl.formatMessage({
-                      id: 'entity.user.newPassword',
+                      id: 'common.newPassword',
                       defaultMessage: 'New Password'
                     })}
-                    control={passwordForm.control}
                     tooltip={intl.formatMessage({
                       id: 'entity.user.password.tooltip',
                       defaultMessage:
                         'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
                     })}
+                    control={passwordForm.control}
+                    disabled={isReadOnly}
                     required
                   />
 
@@ -290,36 +314,37 @@ export const EditUserForm = ({
                         'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
                     })}
                     control={passwordForm.control}
+                    disabled={isReadOnly}
                     required
                   />
+
+                  <p className="text-xs font-normal italic text-shadcn-400">
+                    {intl.formatMessage({
+                      id: 'common.requiredFields',
+                      defaultMessage: '(*) required fields.'
+                    })}
+                  </p>
+                </div>
+
+                <div className="mt-auto">
+                  <Enforce resource="users" action="post, patch">
+                    <LoadingButton
+                      size="lg"
+                      type="submit"
+                      fullWidth
+                      loading={resetPasswordPending}
+                    >
+                      {intl.formatMessage({
+                        id: 'common.resetPassword',
+                        defaultMessage: 'Reset Password'
+                      })}
+                    </LoadingButton>
+                  </Enforce>
                 </div>
               </form>
             </Form>
           </TabsContent>
         </React.Fragment>
-
-        <div className="mt-auto pt-4">
-          <LoadingButton
-            size="lg"
-            type="submit"
-            fullWidth
-            loading={
-              activeTab === 'personal-information'
-                ? updatePending
-                : resetPasswordPending
-            }
-            form={
-              activeTab === 'personal-information'
-                ? 'profile-form'
-                : 'password-form'
-            }
-          >
-            {intl.formatMessage({
-              id: 'common.save',
-              defaultMessage: 'Save'
-            })}
-          </LoadingButton>
-        </div>
       </Tabs>
     </React.Fragment>
   )

@@ -13,6 +13,7 @@ import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
 import { useToast } from '@/hooks/use-toast'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 const FormSchema = z
   .object({
@@ -44,11 +45,13 @@ const initialValues = {
 interface CreateUserFormProps {
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
+  isReadOnly?: boolean
 }
 
 export const CreateUserForm = ({
   onSuccess,
-  onOpenChange
+  onOpenChange,
+  isReadOnly = false
 }: CreateUserFormProps) => {
   const intl = useIntl()
   const { toast } = useToast()
@@ -100,6 +103,7 @@ export const CreateUserForm = ({
                 defaultMessage: 'Name'
               })}
               control={form.control}
+              readOnly={isReadOnly}
               required
             />
 
@@ -110,6 +114,7 @@ export const CreateUserForm = ({
                 defaultMessage: 'Last Name'
               })}
               control={form.control}
+              readOnly={isReadOnly}
               required
             />
           </div>
@@ -121,6 +126,7 @@ export const CreateUserForm = ({
               defaultMessage: 'Username'
             })}
             control={form.control}
+            readOnly={isReadOnly}
             required
           />
 
@@ -131,6 +137,7 @@ export const CreateUserForm = ({
               defaultMessage: 'E-mail'
             })}
             control={form.control}
+            readOnly={isReadOnly}
             required
           />
 
@@ -146,6 +153,7 @@ export const CreateUserForm = ({
               defaultMessage:
                 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
             })}
+            disabled={isReadOnly}
             required
           />
 
@@ -161,6 +169,7 @@ export const CreateUserForm = ({
                 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
             })}
             control={form.control}
+            disabled={isReadOnly}
             required
           />
 
@@ -175,6 +184,7 @@ export const CreateUserForm = ({
               defaultMessage: 'Select'
             })}
             control={form.control}
+            readOnly={isReadOnly}
             multi
             required
           >
@@ -196,17 +206,19 @@ export const CreateUserForm = ({
         </div>
 
         <div className="mt-4">
-          <LoadingButton
-            size="lg"
-            type="submit"
-            fullWidth
-            loading={createPending}
-          >
-            {intl.formatMessage({
-              id: 'common.save',
-              defaultMessage: 'Save'
-            })}
-          </LoadingButton>
+          <Enforce resource="users" action="post">
+            <LoadingButton
+              size="lg"
+              type="submit"
+              fullWidth
+              loading={createPending}
+            >
+              {intl.formatMessage({
+                id: 'common.save',
+                defaultMessage: 'Save'
+              })}
+            </LoadingButton>
+          </Enforce>
         </div>
       </form>
     </Form>

@@ -30,6 +30,8 @@ import {
   PaperCollapsibleContent
 } from '@/components/transactions/primitives/paper-collapsible'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 type OrganizationsViewProps = {
   data?: OrganizationsType
@@ -100,6 +102,7 @@ export const OrganizationsForm = ({
   const intl = useIntl()
   const router = useRouter()
   const isNewOrganization = !data
+  const { isReadOnly } = useFormPermissions('organizations')
 
   const { mutate: createOrganization, isPending: createPending } =
     useCreateOrganization({
@@ -141,10 +144,17 @@ export const OrganizationsForm = ({
                         defaultMessage:
                           'Fill in the details of the Organization you wish to create.'
                       })
-                    : intl.formatMessage({
-                        id: 'organizations.organizationForm.editOrganization.description',
-                        defaultMessage: 'View and edit the Organization fields.'
-                      })
+                    : isReadOnly
+                      ? intl.formatMessage({
+                          id: 'organizations.organizationForm.viewOrganization.description',
+                          defaultMessage:
+                            'View the Organization fields in read-only mode.'
+                        })
+                      : intl.formatMessage({
+                          id: 'organizations.organizationForm.editOrganization.description',
+                          defaultMessage:
+                            'View and edit the Organization fields.'
+                        })
                 }
                 className="space-x-0 space-y-0 p-6 text-sm font-medium normal-case text-zinc-400"
               />
@@ -178,6 +188,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <InputField
@@ -191,6 +202,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <InputField
@@ -204,7 +216,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
-                  readOnly={!isNewOrganization}
+                  readOnly={!isNewOrganization || isReadOnly}
                 />
               </CardContent>
 
@@ -222,6 +234,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <InputField
@@ -235,6 +248,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <CountryField
@@ -248,6 +262,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Select...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <StateField
@@ -261,6 +276,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Select...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <InputField
@@ -274,6 +290,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
 
                 <InputField
@@ -287,6 +304,7 @@ export const OrganizationsForm = ({
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
               </CardContent>
 
@@ -309,6 +327,7 @@ export const OrganizationsForm = ({
                       'Select if your Organization is affiliated with another'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
               </CardContent>
             </Card.Root>
@@ -337,7 +356,11 @@ export const OrganizationsForm = ({
               <PaperCollapsibleContent>
                 <Separator orientation="horizontal" />
                 <div className="p-6">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </div>
               </PaperCollapsibleContent>
             </PaperCollapsible>
@@ -362,6 +385,7 @@ export const OrganizationsForm = ({
                       'Organization Symbol, which will be applied in the UI. \nFormat: SVG or PNG, 512x512 px.'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
               </CardContent>
             </Card.Root>
@@ -384,6 +408,7 @@ export const OrganizationsForm = ({
                       'Brand color, which will be used specifically in the UI. \nFormat: Hexadecimal/HEX (Ex. #FF0000);'
                   })}
                   control={form.control}
+                  readOnly={isReadOnly}
                 />
               </CardContent>
             </Card.Root>
@@ -403,20 +428,17 @@ export const OrganizationsForm = ({
                   defaultMessage: 'Cancel'
                 })}
               </Button>
-              <LoadingButton
-                type="submit"
-                loading={createPending || updatePending}
-              >
-                {isNewOrganization
-                  ? intl.formatMessage({
-                      id: 'organizations.organizationForm.createOrganization',
-                      defaultMessage: 'Create Organization'
-                    })
-                  : intl.formatMessage({
-                      id: 'common.save',
-                      defaultMessage: 'Save'
-                    })}
-              </LoadingButton>
+              <Enforce resource="organizations" action="post, patch">
+                <LoadingButton
+                  type="submit"
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </div>
           </CardFooter>
         </div>

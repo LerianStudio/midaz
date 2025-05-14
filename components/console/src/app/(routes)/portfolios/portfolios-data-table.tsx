@@ -99,8 +99,8 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
                 }
               >
                 {intl.formatMessage({
-                  id: `common.edit`,
-                  defaultMessage: 'Edit'
+                  id: `common.details`,
+                  defaultMessage: 'Details'
                 })}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

@@ -35,6 +35,8 @@ import { SwitchField } from '@/components/form/switch-field'
 import { createQueryString } from '@/lib/search'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -83,6 +85,7 @@ export const AccountSheet = ({
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('accounts')
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -223,10 +226,15 @@ export const AccountSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'accounts.sheet.edit.description',
-                  defaultMessage: 'View and edit account fields.'
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'accounts.sheet.edit.description.readonly',
+                      defaultMessage: 'View account fields in read-only mode.'
+                    })
+                  : intl.formatMessage({
+                      id: 'accounts.sheet.edit.description',
+                      defaultMessage: 'View and edit account fields.'
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
@@ -270,6 +278,7 @@ export const AccountSheet = ({
                         id: 'accounts.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account'
                       })}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -285,6 +294,7 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -301,6 +311,7 @@ export const AccountSheet = ({
                             id: 'accounts.field.type.tooltip',
                             defaultMessage: 'The type of account'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           <SelectItem value="deposit">
@@ -358,6 +369,7 @@ export const AccountSheet = ({
                             defaultMessage:
                               'Identification number (EntityId) of the Account holder'
                           })}
+                          readOnly={isReadOnly}
                         />
                         <SelectField
                           control={form.control}
@@ -371,6 +383,7 @@ export const AccountSheet = ({
                             defaultMessage:
                               'Asset or currency that will be operated in this Account using balance'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           {assetListData?.map((asset) => (
@@ -394,6 +407,7 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Category (cluster) of clients with specific characteristics'
                       })}
+                      readOnly={isReadOnly}
                     >
                       {segmentListData?.map((segment) => (
                         <SelectItem key={segment.value} value={segment.value}>
@@ -410,7 +424,7 @@ export const AccountSheet = ({
                           id: 'accounts.field.allowSending',
                           defaultMessage: 'Allow Sending'
                         })}
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         disabledTooltip={
                           mode === 'create'
                             ? intl.formatMessage({
@@ -443,7 +457,7 @@ export const AccountSheet = ({
                               })
                             : undefined
                         }
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         required
                       />
                     </div>
@@ -527,22 +541,28 @@ export const AccountSheet = ({
                 </TabsContent>
 
                 <TabsContent value="metadata">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </TabsContent>
               </Tabs>
 
               <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <LoadingButton
-                  size="lg"
-                  type="submit"
-                  fullWidth
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
+                <Enforce resource="accounts" action="post, patch">
+                  <LoadingButton
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={createPending || updatePending}
+                  >
+                    {intl.formatMessage({
+                      id: 'common.save',
+                      defaultMessage: 'Save'
+                    })}
+                  </LoadingButton>
+                </Enforce>
               </SheetFooter>
             </form>
           </Form>

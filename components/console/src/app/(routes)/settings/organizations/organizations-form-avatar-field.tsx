@@ -23,6 +23,7 @@ import messages from '@/lib/zod/messages'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
+  readOnly?: boolean
 }
 
 export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
@@ -33,7 +34,8 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
       format = process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(
         ','
       ) ?? ['png', 'svg'],
-      onChange
+      onChange,
+      readOnly
     }: AvatarFieldProps,
     ref
   ) => {
@@ -72,15 +74,19 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
     return (
       <div className="mb-4 flex flex-col items-center justify-center gap-4">
-        <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
-          <DialogTrigger onClick={() => setOpen(true)}>
-            <Avatar className="flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow hover:border-zinc-400">
+        <Dialog open={open} onOpenChange={(open) => setOpen(open && !readOnly)}>
+          <DialogTrigger onClick={() => !readOnly && setOpen(true)}>
+            <Avatar
+              className={`flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow ${!readOnly && 'hover:border-zinc-400'}`}
+            >
               <AvatarImage
                 className="h-44 w-44 items-center justify-center gap-2 rounded-[30px] border border-zinc-200 shadow"
                 src={value}
                 alt="Organization Avatar"
               />
-              <AvatarFallback className="flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow hover:border-zinc-400">
+              <AvatarFallback
+                className={`flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow ${!readOnly && 'hover:border-zinc-400'}`}
+              >
                 <Camera className="relative h-6 w-6" />
               </AvatarFallback>
             </Avatar>
@@ -120,7 +126,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
           </DialogContent>
         </Dialog>
 
-        {value !== '' && (
+        {value !== '' && !readOnly && (
           <div className="flex w-full content-center items-center justify-center self-center">
             <Button variant="secondary" onClick={handleReset}>
               {intl.formatMessage({
@@ -140,10 +146,12 @@ export type OrganizationsFormAvatarFieldProps = {
   name: string
   description?: string
   control: Control<any>
+  readOnly?: boolean
 }
 
 export const OrganizationsFormAvatarField = ({
   description,
+  readOnly,
   ...others
 }: OrganizationsFormAvatarFieldProps) => {
   return (
@@ -151,7 +159,7 @@ export const OrganizationsFormAvatarField = ({
       {...others}
       render={({ field }) => (
         <FormItem>
-          <AvatarField {...field} />
+          <AvatarField {...field} readOnly={readOnly} />
           {description && (isNil(field.value) || field.value === '') && (
             <FormDescription className="mt-8">{description}</FormDescription>
           )}

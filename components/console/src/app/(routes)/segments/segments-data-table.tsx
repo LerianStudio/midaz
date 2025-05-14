@@ -73,8 +73,8 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => handleEdit(segment.original)}>
               {intl.formatMessage({
-                id: `common.edit`,
-                defaultMessage: 'Edit'
+                id: `common.details`,
+                defaultMessage: 'Details'
               })}
             </DropdownMenuItem>
             <DropdownMenuSeparator />

@@ -30,6 +30,7 @@ export type ComboBoxFieldProps = React.PropsWithChildren & {
   emptyMessage?: string
   control: Control<any>
   disabled?: boolean
+  readOnly?: boolean
   required?: boolean
 }
 
@@ -40,6 +41,7 @@ export const ComboBoxField = ({
   emptyMessage,
   required,
   children,
+  readOnly,
   ...others
 }: ComboBoxFieldProps) => {
   const intl = useIntl()
@@ -74,65 +76,72 @@ export const ComboBoxField = ({
       render={({ field }) => (
         <FormItem required={required}>
           {label && <FormLabel>{label}</FormLabel>}
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className={cn(
-                  'w-full justify-between',
-                  !field.value && 'text-muted-foreground'
-                )}
-              >
-                {getDisplayValue(field.value) ??
-                  intl.formatMessage({
-                    id: 'common.selectPlaceholder',
-                    defaultMessage: 'Select...'
-                  })}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-              <Command>
-                <CommandInput
-                  placeholder={
-                    placeholder ??
+
+          {readOnly ? (
+            <div className="flex h-10 w-full cursor-not-allowed items-center rounded-md border border-[#C7C7C7] bg-zinc-100 px-3 py-2 text-sm opacity-50">
+              {getDisplayValue(field.value) || field.value || placeholder || ''}
+            </div>
+          ) : (
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className={cn(
+                    'w-full justify-between',
+                    !field.value && 'text-muted-foreground'
+                  )}
+                >
+                  {getDisplayValue(field.value) ??
                     intl.formatMessage({
-                      id: 'common.search',
-                      defaultMessage: 'Search...'
-                    })
-                  }
-                />
-                <CommandList>
-                  <CommandEmpty>
-                    {emptyMessage ??
+                      id: 'common.selectPlaceholder',
+                      defaultMessage: 'Select...'
+                    })}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                <Command>
+                  <CommandInput
+                    placeholder={
+                      placeholder ??
                       intl.formatMessage({
-                        id: 'common.noOptions',
-                        defaultMessage: 'No options found.'
-                      })}
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {React.Children.map(
-                      React.Children.toArray(children),
-                      (child) =>
-                        React.isValidElement(child)
-                          ? React.cloneElement(child, {
-                              keywords: [child.props.children as string],
-                              onSelect: (value: string) => {
-                                field.onChange(
-                                  field.value !== value ? value : ''
-                                )
-                                setOpen(false)
-                              }
-                            } as any)
-                          : child
-                    )}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+                        id: 'common.search',
+                        defaultMessage: 'Search...'
+                      })
+                    }
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {emptyMessage ??
+                        intl.formatMessage({
+                          id: 'common.noOptions',
+                          defaultMessage: 'No options found.'
+                        })}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {React.Children.map(
+                        React.Children.toArray(children),
+                        (child) =>
+                          React.isValidElement(child)
+                            ? React.cloneElement(child, {
+                                keywords: [child.props.children as string],
+                                onSelect: (value: string) => {
+                                  field.onChange(
+                                    field.value !== value ? value : ''
+                                  )
+                                  setOpen(false)
+                                }
+                              } as any)
+                            : child
+                      )}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
           <FormMessage />
         </FormItem>
       )}
