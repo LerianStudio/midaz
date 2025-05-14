@@ -130,7 +130,6 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	newBalances := make([]*mmodel.Balance, 0)
-
 	for _, balance := range balances {
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
 
@@ -146,6 +145,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 					return nil, err
 				}
+
 				b.Alias = k
 
 				newBalances = append(newBalances, b)
@@ -162,6 +162,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 					return nil, err
 				}
+
 				b.Alias = k
 
 				newBalances = append(newBalances, b)
