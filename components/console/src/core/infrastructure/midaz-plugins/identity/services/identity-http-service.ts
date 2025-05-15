@@ -7,6 +7,8 @@ import { getIntl } from '@/lib/intl'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject } from 'inversify'
 import { getServerSession } from 'next-auth'
+import { IdentityApiException } from '../exceptions/identity-exceptions'
+import { identityApiMessages } from '../messages/messages'
 
 export class IdentityHttpService extends HttpService {
   constructor(
@@ -68,6 +70,58 @@ export class IdentityHttpService extends HttpService {
       status: response.status,
       response: error
     })
+
+    if (error?.code && error.code.includes('AUT')) {
+      const message =
+        identityApiMessages[error.code as keyof typeof identityApiMessages]
+
+      if (!message) {
+        this.logger.warn('[ERROR] - AuthHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
+        throw new IdentityApiException(
+          intl.formatMessage({
+            id: 'error.midaz.unknowError',
+            defaultMessage: 'Unknown error on Midaz.'
+          })
+        )
+      }
+
+      throw new IdentityApiException(
+        intl.formatMessage(message),
+        error.code,
+        response.status
+      )
+    }
+
+    if (error?.code) {
+      const message =
+        identityApiMessages[error.code as keyof typeof identityApiMessages]
+
+      if (!message) {
+        this.logger.warn('[ERROR] - MidazHttpService - Error code not found', {
+          url: request.url,
+          method: request.method,
+          status: response.status,
+          response: error
+        })
+        throw new IdentityApiException(
+          intl.formatMessage({
+            id: 'error.midaz.unknowError',
+            defaultMessage: 'Unknown error on Midaz.'
+          })
+        )
+      }
+
+      throw new IdentityApiException(
+        intl.formatMessage(message),
+        error.code,
+        response.status
+      )
+    }
 
     throw new InternalServerErrorApiException(
       intl.formatMessage({
