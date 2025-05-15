@@ -42,7 +42,7 @@ export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
     ) as string[]
 
     const organizationAvatars: OrganizationAvatarEntity[] =
-      await this.organizationAvatarRepository.fetchFilteredByOrganizationIdList(
+      await this.organizationAvatarRepository.fetchByOrganizationId(
         organizationIds
       )
 

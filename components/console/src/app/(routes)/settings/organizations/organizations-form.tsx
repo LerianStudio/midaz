@@ -73,18 +73,10 @@ const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
 const parseInputData = (data?: OrganizationsType) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
-const parseMetadata = (data?: Partial<OrganizationFormData>) => ({
-  ...data,
-  metadata: {
-    ...data?.metadata
-  }
-})
-
-export const parseCreateData = (data?: OrganizationFormData) =>
-  parseMetadata(data)
+export const parseCreateData = (data?: OrganizationFormData) => data
 
 export const parseUpdateData = (data?: OrganizationFormData) =>
-  parseMetadata(omit(data, ['id', 'legalDocument']))
+  omit(data, ['id', 'legalDocument'])
 
 export type OrganizationFormData = z.infer<typeof formSchema>
 

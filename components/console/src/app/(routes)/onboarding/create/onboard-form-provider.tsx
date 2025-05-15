@@ -40,16 +40,12 @@ export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
       }
     })
 
-  const parse = (data: FormData) => ({
-    ...data
-  })
-
   const handleCancel = () => router.push('/onboarding')
 
   const handleSubmit = (values: Partial<FormData> = {} as FormData) => {
     const newData = { ...data, ...values } as FormData
     setData(newData)
-    createOrganization(parse(newData) as any)
+    createOrganization(newData as any)
   }
 
   const setData = (values: Partial<FormData>) =>

@@ -149,8 +149,8 @@ export class MongoOrganizationAvatarRepository
     }
   }
 
-  async fetchFilteredByOrganizationIdList(
-    organizationIds: string[]
+  async fetchByOrganizationId(
+    organizationIds: string[] | string
   ): Promise<OrganizationAvatarEntity[]> {
     try {
       const result = await this.model

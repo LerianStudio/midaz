@@ -55,8 +55,8 @@ export abstract class OrganizationAvatarRepository<T = unknown> {
    * @param organizationIds - List of organization IDs to filter by
    * @returns A promise that resolves to an array of organization avatar entities
    */
-  abstract fetchFilteredByOrganizationIdList(
-    organizationIds: string[]
+  abstract fetchByOrganizationId(
+    organizationIds: string[] | string
   ): Promise<OrganizationAvatarEntity[]>
 
   /**
