@@ -90,7 +90,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
       onChange({ ...event, target: { ...event.target, name, value: '' } })
     }
 
-    const handleOpenClose = (open: boolean) => {
+    const handleOpenChange = (open: boolean) => {
       setFile(null)
       setAvatar(value)
       setOpen(open)
@@ -112,7 +112,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
     return (
       <div className="mb-4 flex flex-col items-center justify-center gap-4">
-        <Dialog open={open} onOpenChange={handleOpenClose}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger onClick={() => setOpen(true)}>
             <Avatar className="flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow hover:border-zinc-400">
               <AvatarImage
