@@ -128,7 +128,7 @@ func (e UnprocessableOperationError) Error() string {
 	return e.Message
 }
 
-// HTTPError indicates a http error raised in a http client.
+// HTTPError indicates an http error raised in an http client.
 type HTTPError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -859,7 +859,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrMessageBrokerUnavailable.Error(),
 			Title:      "Message Broker Unavailable",
-			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
+			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support."},
+		constant.ErrAccountAliasInvalid: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAliasInvalid.Error(),
+			Title:      "Invalid Account Alias",
+			Message:    "The alias contains invalid characters. Please verify the alias value and try again.",
 		},
 	}
 
