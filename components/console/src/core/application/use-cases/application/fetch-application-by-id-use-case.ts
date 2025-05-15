@@ -9,7 +9,7 @@ export interface FetchApplicationById {
 }
 
 @injectable()
-class FetchApplicationByIdUseCase implements FetchApplicationById {
+export class FetchApplicationByIdUseCase implements FetchApplicationById {
   constructor(
     @inject(ApplicationRepository)
     private readonly applicationRepository: ApplicationRepository
