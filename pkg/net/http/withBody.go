@@ -305,7 +305,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	})
 
 	_ = v.RegisterTranslation("invalidaliascharacters", trans, func(ut ut.Translator) error {
-		return ut.Add("keymax", "{0}", true)
+		return ut.Add("invalidaliascharacters", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaliascharacters", formatErrorFieldName(fe.Namespace()))
 
