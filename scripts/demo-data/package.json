@@ -1,0 +1,22 @@
+{
+  "name": "midaz-demo-data-generator",
+  "version": "1.0.0",
+  "description": "Gerador de dados de demonstração para o sistema Midaz",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Midaz Team",
+  "license": "ISC",
+  "dependencies": {
+    "@faker-js/faker": "^8.3.1",
+    "axios": "^1.6.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "ora": "^7.0.1",
+    "p-limit": "^4.0.0",
+    "uuid": "^9.0.1"
+  },
+  "type": "module"
+}
