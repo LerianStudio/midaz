@@ -6,7 +6,7 @@ import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operat
 import { ApplicationMapper } from '../../mappers/application-mapper'
 
 export interface FetchAllApplications {
-  execute: () => Promise<PaginationDto<ApplicationResponseDto>>
+  execute: () => Promise<ApplicationResponseDto[]>
 }
 
 @injectable()
@@ -17,9 +17,13 @@ export class FetchAllApplicationsUseCase implements FetchAllApplications {
   ) {}
 
   @LogOperation({ layer: 'application' })
-  async execute(): Promise<PaginationDto<ApplicationResponseDto>> {
+  async execute(): Promise<ApplicationResponseDto[]> {
     const applications = await this.applicationRepository.fetchAll()
 
-    return ApplicationMapper.toPaginationResponseDto(applications)
+    const applicationsResponseDto: ApplicationResponseDto[] = applications.map(
+      ApplicationMapper.toResponseDto
+    )
+
+    return applicationsResponseDto
   }
 }

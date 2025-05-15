@@ -1,8 +1,8 @@
-import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { UserResponseDto } from '../../dto/user-dto'
 import { UserMapper } from '../../mappers/user-mapper'
 import { inject } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface FetchAllUsers {
   execute: () => Promise<UserResponseDto[]>
