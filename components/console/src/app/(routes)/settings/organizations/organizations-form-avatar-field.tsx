@@ -11,15 +11,16 @@ import {
   FormDescription,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { validateImageFormat } from '@/core/infrastructure/utils/avatar/validate-image'
+import { isNil } from 'lodash'
 import { Camera } from 'lucide-react'
 import React from 'react'
 import { Control, ControllerRenderProps } from 'react-hook-form'
 import { useIntl } from 'react-intl'
-import { isNil } from 'lodash'
-import messages from '@/lib/zod/messages'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
@@ -40,31 +41,70 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
     const intl = useIntl()
     const [open, setOpen] = React.useState(false)
     const [error, setError] = React.useState(false)
-    const [avatarURL, setAvatarURL] = React.useState('')
+    const [avatar, setAvatar] = React.useState(value)
+    const [file, setFile] = React.useState<File | null>(null)
 
-    const validate = async (url: string) => {
-      if (!format.some((ext) => url.endsWith(`.${ext}`))) {
+    const validate = (base64: string) => {
+      try {
+        validateImageFormat(base64, intl)
+        return true
+      } catch (error) {
         return false
       }
+    }
 
-      return true
+    const handleAvatarImage = async (
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = event.target.files?.[0]
+      setError(false)
+      setFile(file ?? null)
+
+      if (!file) {
+        return
+      }
+
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const base64 = reader.result as string
+        const valid = validate(base64)
+
+        if (!valid) {
+          setError(true)
+          return
+        }
+
+        setAvatar(base64)
+      }
+
+      reader.onerror = () => {
+        setError(true)
+      }
     }
 
     const handleReset = (event: React.MouseEvent<HTMLButtonElement>) => {
-      setAvatarURL('')
+      setFile(null)
+      setAvatar('')
+      setError(false)
       onChange({ ...event, target: { ...event.target, name, value: '' } })
     }
 
+    const handleOpenChange = (open: boolean) => {
+      setFile(null)
+      setAvatar(value)
+      setOpen(open)
+      setError(false)
+    }
+
     const handleChange = async (event: React.MouseEvent<HTMLButtonElement>) => {
-      const valid = await validate(avatarURL)
-      if (!valid) {
-        setError(true)
+      if (error) {
         return
       }
 
       onChange({
         ...event,
-        target: { ...event.target, name, value: avatarURL }
+        target: { ...event.target, name, value: avatar }
       })
       setOpen(false)
       setError(false)
@@ -72,7 +112,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
 
     return (
       <div className="mb-4 flex flex-col items-center justify-center gap-4">
-        <Dialog open={open} onOpenChange={(open) => setOpen(open)}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger onClick={() => setOpen(true)}>
             <Avatar className="flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow hover:border-zinc-400">
               <AvatarImage
@@ -95,23 +135,52 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
             <DialogDescription className="mb-4 flex w-full items-center justify-center">
               {intl.formatMessage({
                 id: 'organizations.organizationView.avatarDialog.description',
-                defaultMessage: 'Insert your SVG or PNG image URL.'
+                defaultMessage: 'Select your SVG or PNG image.'
               })}
             </DialogDescription>
 
             <FormItem>
+              <FormLabel
+                htmlFor="avatar"
+                className="flex w-full cursor-pointer items-center justify-center"
+              >
+                {intl.formatMessage({
+                  id: 'organizations.organizationView.avatarDialog.fileInputLabel',
+                  defaultMessage: 'Select File...'
+                })}
+              </FormLabel>
+              {file && (
+                <FormDescription className="flex w-full items-center justify-center text-xs">
+                  {file.name}
+                </FormDescription>
+              )}
               <Input
+                id="avatar"
                 placeholder="https://example.com/image.png"
-                onChange={(e) => setAvatarURL(e.target.value)}
+                onChange={handleAvatarImage}
+                type="file"
+                className="hidden"
               />
               {error && (
-                <FormMessage>
-                  {intl.formatMessage(messages.custom_avatar_invalid_format)}
+                <FormMessage className="text-xs">
+                  {intl.formatMessage(
+                    {
+                      id: 'errors.custom.avatar.invalid_format',
+                      defaultMessage: 'Avatar should have a {format} format'
+                    },
+                    {
+                      format: format.join(', ')
+                    }
+                  )}
                 </FormMessage>
               )}
             </FormItem>
 
-            <Button variant="secondary" onClick={handleChange}>
+            <Button
+              variant="secondary"
+              onClick={handleChange}
+              disabled={!file || error}
+            >
               {intl.formatMessage({
                 id: 'common.send',
                 defaultMessage: 'Send'

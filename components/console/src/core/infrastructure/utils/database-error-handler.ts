@@ -6,12 +6,12 @@
 
 import { getIntl } from '@/lib/intl'
 import mongoose, { MongooseError } from 'mongoose'
+import { IntlShape } from 'react-intl'
 import {
   DatabaseException,
   InvalidObjectDatabaseException,
   ValidationFailedDatabaseException
 } from '../mongo/exceptions/database-exception'
-import { IntlShape } from 'react-intl'
 
 /**
  * Main entry point for handling database errors
@@ -51,6 +51,7 @@ function mapMongooseError(
       )
     case 'CastError':
       return invalidObjectError(error as mongoose.Error.CastError, intl)
+
     default:
       return unexpectedDatabaseError(intl)
   }

@@ -81,9 +81,9 @@ export class MongoConfig implements DBConfig<Mongoose> {
 
     try {
       await mongoose.connect(uri, {
-        dbName,
         user,
-        pass
+        pass,
+        dbName
       })
 
       if (!this.isConnected()) {

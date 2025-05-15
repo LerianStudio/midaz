@@ -8,9 +8,9 @@ import { OrganizationAvatarRepository } from '@/core/domain/repositories/organiz
 import { inject, injectable } from 'inversify'
 import { LoggerAggregator } from '../../logger/logger-aggregator'
 import { handleDatabaseError } from '../../utils/database-error-handler'
-import OrganizationAvatar from '../models/organization-avatar'
-import { MongoConfig } from '../mongo-config'
 import { OrganizationAvatarMapper } from '../mappers/mongo-organization-avatar-mapper'
+import OrganizationAvatar from '../models/organization-avatar'
+import { DBConfig } from '../mongo-config'
 
 /**
  * MongoOrganizationAvatarRepository handles CRUD operations for organization avatars in MongoDB.
@@ -31,7 +31,8 @@ export class MongoOrganizationAvatarRepository
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
-    @inject(MongoConfig) private readonly mongoConfig: MongoConfig
+    @inject(DBConfig)
+    private readonly mongoConfig: DBConfig<typeof OrganizationAvatar>
   ) {}
 
   /**
@@ -138,6 +139,36 @@ export class MongoOrganizationAvatarRepository
     } catch (error) {
       this.logger.error(
         '[ERROR] - MongoOrganizationAvatarRepository.fetchById',
+        {
+          error,
+          context: 'mongo'
+        }
+      )
+
+      throw handleDatabaseError(error)
+    }
+  }
+
+  async fetchByOrganizationId(
+    organizationIds: string[] | string
+  ): Promise<OrganizationAvatarEntity[]> {
+    try {
+      const result = await this.model
+        .find({
+          organizationId: {
+            $in: organizationIds
+          }
+        })
+        .lean()
+
+      const organizationAvatarEntities = result.map(
+        OrganizationAvatarMapper.toEntity
+      )
+
+      return organizationAvatarEntities
+    } catch (error) {
+      this.logger.error(
+        '[ERROR] - MongoOrganizationAvatarRepository.fetchFilteredByOrganizationIdList',
         {
           error,
           context: 'mongo'

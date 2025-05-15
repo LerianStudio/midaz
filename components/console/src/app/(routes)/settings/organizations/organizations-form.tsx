@@ -67,29 +67,16 @@ const initialValues = {
 
 const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   ...data,
-  accentColor: data?.metadata?.accentColor,
-  avatar: data?.metadata?.avatar,
-  metadata:
-    omit(data?.metadata, ['accentColor', 'avatar']) || initialValues.metadata
+  metadata: data?.metadata || initialValues.metadata
 })
 
 const parseInputData = (data?: OrganizationsType) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
-const parseMetadata = (data?: Partial<OrganizationFormData>) => ({
-  ...omit(data, ['accentColor', 'avatar']),
-  metadata: {
-    ...data?.metadata,
-    accentColor: data?.accentColor,
-    avatar: data?.avatar
-  }
-})
-
-export const parseCreateData = (data?: OrganizationFormData) =>
-  parseMetadata(data)
+export const parseCreateData = (data?: OrganizationFormData) => data
 
 export const parseUpdateData = (data?: OrganizationFormData) =>
-  parseMetadata(omit(data, ['id', 'legalDocument']))
+  omit(data, ['id', 'legalDocument'])
 
 export type OrganizationFormData = z.infer<typeof formSchema>
 
@@ -105,6 +92,7 @@ export const OrganizationsForm = ({
     useCreateOrganization({
       onSuccess
     })
+
   const { mutate: updateOrganization, isPending: updatePending } =
     useUpdateOrganization({
       organizationId: data?.id!,

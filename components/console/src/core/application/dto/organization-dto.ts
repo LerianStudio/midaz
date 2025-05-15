@@ -8,12 +8,14 @@ export type CreateOrganizationDto = {
   legalDocument: string
   address: AddressDto
   metadata?: MetadataDto
+  avatar?: string
 }
 
 export type UpdateOrganizationDto = {
   legalName?: string
   parentOrganizationId?: string
   doingBusinessAs?: string
+  avatar?: string
   address?: AddressDto
   metadata?: MetadataDto
 }
@@ -26,6 +28,7 @@ export type OrganizationResponseDto = {
   legalDocument: string
   address: AddressDto
   metadata?: MetadataDto
+  avatar?: string
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date

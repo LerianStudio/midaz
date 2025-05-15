@@ -3,6 +3,7 @@ import { CreateOrganizationDto } from '../dto/organization-dto'
 import { OrganizationResponseDto } from '../dto/organization-dto'
 import { PaginationMapper } from './pagination-mapper'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 
 export class OrganizationMapper {
   public static toDomain(dto: CreateOrganizationDto): OrganizationEntity {
@@ -17,7 +18,8 @@ export class OrganizationMapper {
   }
 
   public static toResponseDto(
-    entity: OrganizationEntity
+    entity: OrganizationEntity,
+    avatar?: string
   ): OrganizationResponseDto {
     return {
       id: entity.id!,
@@ -26,6 +28,7 @@ export class OrganizationMapper {
       doingBusinessAs: entity.doingBusinessAs,
       legalDocument: entity.legalDocument,
       address: entity.address,
+      avatar,
       metadata: entity.metadata ?? {},
       createdAt: entity.createdAt!,
       updatedAt: entity.updatedAt!,
@@ -34,11 +37,25 @@ export class OrganizationMapper {
   }
 
   public static toPaginationResponseDto(
-    result: PaginationEntity<OrganizationEntity>
+    result: PaginationEntity<OrganizationEntity>,
+    organizationAvatar?: OrganizationAvatarEntity[]
   ): PaginationEntity<OrganizationResponseDto> {
-    return PaginationMapper.toResponseDto(
-      result,
-      OrganizationMapper.toResponseDto
-    )
+    const items = result.items.map((item) => {
+      if (!organizationAvatar) {
+        return OrganizationMapper.toResponseDto(item)
+      }
+
+      const avatar = organizationAvatar.find(
+        (avatar) => avatar.organizationId === item.id
+      )
+
+      return OrganizationMapper.toResponseDto(item, avatar?.avatar)
+    })
+
+    return {
+      items,
+      limit: result.limit,
+      page: result.page
+    }
   }
 }
