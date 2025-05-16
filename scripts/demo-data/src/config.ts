@@ -44,7 +44,7 @@ export const VOLUME_METRICS: Record<VolumeSize, VolumeMetrics> = {
     assetsPerLedger: 8,
     portfoliosPerLedger: 5,
     segmentsPerLedger: 6,
-    accountsPerLedger: 100,
+    accountsPerLedger: 1000,
     transactionsPerAccount: 20,
   },
 };
@@ -125,7 +125,7 @@ export const DEPOSIT_AMOUNTS = {
  * Processing delay configuration in milliseconds
  */
 export const PROCESSING_DELAYS = {
-  BETWEEN_DEPOSIT_AND_TRANSFER: 3000, // 3 seconds
+  BETWEEN_DEPOSIT_AND_TRANSFER: 1000, // 1 second
 };
 
 /**
