@@ -3,13 +3,13 @@ import { MidazStatusDto } from './midaz-status-dto'
 
 export type MidazCreateAccountDto = {
   name: string
-  alias?: string
+  alias: string
   assetCode: string
   type: string
   entityId?: string | null
   parentAccountId?: string | null
   portfolioId?: string | null
-  segmentId?: string
+  segmentId?: string | null
   status?: MidazStatusDto
   metadata?: MidazMetadataDto
 }

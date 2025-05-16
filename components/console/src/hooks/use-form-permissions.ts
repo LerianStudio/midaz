@@ -18,9 +18,6 @@ export function useFormPermissions(resource: string) {
   return {
     hasReadPermission,
     hasWritePermission,
-    isReadOnly,
-    canView: hasReadPermission,
-    canEdit: hasWritePermission,
-    canSubmit: hasWritePermission
+    isReadOnly
   }
 }

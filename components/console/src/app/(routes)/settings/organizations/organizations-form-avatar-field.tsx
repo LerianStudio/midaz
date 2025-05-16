@@ -20,6 +20,7 @@ import { Control, ControllerRenderProps } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { isNil } from 'lodash'
 import messages from '@/lib/zod/messages'
+import { cn } from '@/lib/utils'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
@@ -77,7 +78,10 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
         <Dialog open={open} onOpenChange={(open) => setOpen(open && !readOnly)}>
           <DialogTrigger onClick={() => !readOnly && setOpen(true)}>
             <Avatar
-              className={`flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow ${!readOnly && 'hover:border-zinc-400'}`}
+              className={cn(
+                'flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow',
+                !readOnly && 'hover:border-zinc-400'
+              )}
             >
               <AvatarImage
                 className="h-44 w-44 items-center justify-center gap-2 rounded-[30px] border border-zinc-200 shadow"
@@ -85,7 +89,10 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
                 alt="Organization Avatar"
               />
               <AvatarFallback
-                className={`flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow ${!readOnly && 'hover:border-zinc-400'}`}
+                className={cn(
+                  'flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow',
+                  !readOnly && 'hover:border-zinc-400'
+                )}
               >
                 <Camera className="relative h-6 w-6" />
               </AvatarFallback>

@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 type ColorInputProps = Omit<ControllerRenderProps, 'ref'> & {
   readOnly?: boolean
@@ -35,7 +36,10 @@ const ColorInput = React.forwardRef<HTMLInputElement, ColorInputProps>(
           <div className="flex w-full gap-2">
             <PopoverTrigger asChild>
               <div
-                className={`h-9 w-9 flex-shrink-0 rounded-md border border-zinc-300 ${!readOnly ? 'cursor-pointer hover:border-zinc-400' : ''}`}
+                className={cn(
+                  'h-9 w-9 flex-shrink-0 rounded-md border border-zinc-300',
+                  !readOnly ? 'cursor-pointer hover:border-zinc-400' : ''
+                )}
                 style={{
                   backgroundColor: value !== '' ? value : '#FFFFFF'
                 }}

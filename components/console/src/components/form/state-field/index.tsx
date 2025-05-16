@@ -26,6 +26,7 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
+import { Input } from '@/components/ui/input'
 
 type StateSelectProps = SelectProps &
   Omit<ControllerRenderProps, 'ref'> & {
@@ -139,6 +140,7 @@ StateComboBox.displayName = 'Select'
 export type StateFieldProps = Omit<SelectFieldProps, 'children'> & {
   countryName?: string
   emptyMessage?: string
+  readOnly?: boolean
 }
 
 export const StateField = ({
@@ -147,20 +149,46 @@ export const StateField = ({
   placeholder,
   emptyMessage,
   required,
+  readOnly,
   ...others
 }: StateFieldProps) => {
+  const form = useFormContext()
+  const country = form.watch<string>(countryName)
+
+  const getDisplayValue = React.useCallback(
+    (value: string) => {
+      const states =
+        getStateCountry(country)?.map((state) => ({
+          value: state.code,
+          label: state.name
+        })) || []
+
+      return states.find((option) => option.value === value)?.label ?? value
+    },
+    [country]
+  )
+
   return (
     <FormField
       {...others}
       render={({ field }) => (
         <FormItem required={required}>
           {label && <FormLabel>{label}</FormLabel>}
-          <StateComboBox
-            countryName={countryName}
-            placeholder={placeholder}
-            emptyMessage={emptyMessage}
-            {...field}
-          />
+          {readOnly ? (
+            <Input
+              value={
+                getDisplayValue(field.value) || field.value || placeholder || ''
+              }
+              readOnly={true}
+            />
+          ) : (
+            <StateComboBox
+              countryName={countryName}
+              placeholder={placeholder}
+              emptyMessage={emptyMessage}
+              {...field}
+            />
+          )}
           <FormMessage />
         </FormItem>
       )}

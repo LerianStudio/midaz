@@ -32,6 +32,7 @@ import {
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@/providers/permission-provider/enforce'
+import { PageFooter, PageFooterSection } from '@/components/page-footer'
 
 type OrganizationsViewProps = {
   data?: OrganizationsType
@@ -415,33 +416,33 @@ export const OrganizationsForm = ({
           </div>
         </div>
 
-        <div className="relative h-10">
-          <CardFooter className="absolute inset-x-0 mb-20 inline-flex items-center justify-end gap-6 self-baseline rounded-none bg-white p-8 shadow">
-            <div className="mr-10 flex items-center justify-end gap-6">
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => router.back()}
+        <PageFooter open={form.formState.isDirty}>
+          <PageFooterSection>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => router.back()}
+            >
+              {intl.formatMessage({
+                id: 'common.cancel',
+                defaultMessage: 'Cancel'
+              })}
+            </Button>
+          </PageFooterSection>
+          <PageFooterSection>
+            <Enforce resource="organizations" action="post, patch">
+              <LoadingButton
+                type="submit"
+                loading={createPending || updatePending}
               >
                 {intl.formatMessage({
-                  id: 'common.cancel',
-                  defaultMessage: 'Cancel'
+                  id: 'common.save',
+                  defaultMessage: 'Save'
                 })}
-              </Button>
-              <Enforce resource="organizations" action="post, patch">
-                <LoadingButton
-                  type="submit"
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
-              </Enforce>
-            </div>
-          </CardFooter>
-        </div>
+              </LoadingButton>
+            </Enforce>
+          </PageFooterSection>
+        </PageFooter>
       </form>
     </Form>
   )

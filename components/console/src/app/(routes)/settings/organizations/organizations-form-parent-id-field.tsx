@@ -16,6 +16,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import React from 'react'
 import { Control, useFormContext } from 'react-hook-form'
+import { Input } from '@/components/ui/input'
 
 export type OrganizationsFormParentIdFieldProps = {
   name: string
@@ -44,6 +45,13 @@ export const OrganizationsFormParentIdField = ({
     [id, data?.items]
   )
 
+  const getOrganizationName = React.useCallback(
+    (orgId: string) => {
+      return options?.find((org) => org.id === orgId)?.legalName || orgId
+    },
+    [options]
+  )
+
   return (
     <FormField
       {...others}
@@ -51,28 +59,35 @@ export const OrganizationsFormParentIdField = ({
         <FormItem ref={ref}>
           {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
-            <>
+            <React.Fragment>
               {isPending && <Skeleton className="h-10 w-full" />}
 
-              {!isPending && (
-                <Select
-                  onValueChange={onChange}
-                  {...fieldOthers}
-                  disabled={readOnly}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={placeholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {options?.map((parent) => (
-                      <SelectItem key={parent.id} value={parent.id!}>
-                        {parent.legalName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {!isPending && readOnly ? (
+                <Input
+                  value={
+                    fieldOthers.value
+                      ? getOrganizationName(fieldOthers.value)
+                      : placeholder || ''
+                  }
+                  readOnly={true}
+                />
+              ) : (
+                !isPending && (
+                  <Select onValueChange={onChange} {...fieldOthers}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options?.map((parent) => (
+                        <SelectItem key={parent.id} value={parent.id!}>
+                          {parent.legalName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )
               )}
-            </>
+            </React.Fragment>
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
         </FormItem>

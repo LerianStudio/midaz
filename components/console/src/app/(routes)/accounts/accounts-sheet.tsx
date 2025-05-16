@@ -176,8 +176,7 @@ export const AccountSheet = ({
     }
   })
 
-  const handlePortfolioClick = () =>
-    router.push(pathname + createQueryString({ tab: 'portfolios' }))
+  const handlePortfolioClick = () => router.push('/portfolios')
 
   const handleSubmit = (data: FormData) => {
     const cleanedData = omitBy(data, (value) => value === '' || isNil(value))
@@ -371,6 +370,7 @@ export const AccountSheet = ({
                           })}
                           readOnly={isReadOnly}
                         />
+
                         <SelectField
                           control={form.control}
                           name="assetCode"
@@ -502,7 +502,7 @@ export const AccountSheet = ({
                       id: 'accounts.field.portfolio.tooltip',
                       defaultMessage: 'Portfolio that will receive this account'
                     })}
-                    disabled={portfolioListData.length === 0}
+                    readOnly={portfolioListData.length === 0 || isReadOnly}
                   >
                     {portfolioListData?.map((portfolio) => (
                       <SelectItem key={portfolio.value} value={portfolio.value}>
@@ -526,11 +526,13 @@ export const AccountSheet = ({
                             })}
                       </p>
                     </div>
+
                     <Button
                       variant="outline"
                       icon={<ChevronRight />}
                       iconPlacement="end"
                       onClick={handlePortfolioClick}
+                      type="button"
                     >
                       {intl.formatMessage({
                         id: 'common.portfolios',

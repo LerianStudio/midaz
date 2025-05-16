@@ -34,6 +34,7 @@ const MetadataWrapper = React.forwardRef<unknown, MetadataWrapperProps>(
           readOnly={readOnly}
           {...others}
         />
+
         <MetadataPreview
           name={name}
           value={value}

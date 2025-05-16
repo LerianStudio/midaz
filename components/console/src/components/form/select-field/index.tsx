@@ -20,13 +20,12 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { CommandGroup } from 'cmdk'
-import React, { PropsWithChildren, ReactNode, useMemo } from 'react'
+import React, { PropsWithChildren, ReactNode } from 'react'
 import { Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
-import { Input } from '@/components/ui/input'
-import { InputField } from '@/components/form/input-field'
+import { capitalizeFirstLetter } from '@/helpers'
 
 export type SelectFieldProps = PropsWithChildren & {
   name: string
@@ -59,77 +58,18 @@ export const SelectField = ({
 }: SelectFieldProps) => {
   const intl = useIntl()
 
-  // If in readOnly mode, render a separate InputField component
-  if (readOnly) {
-    return (
-      <FormField
-        name={name}
-        control={control}
-        render={({ field }) => {
-          // Find the selected option's display text for readOnly mode
-          const selectedOptionText = useMemo(() => {
-            if (!field.value) return ''
-
-            // Find the child with matching value to display its text content
-            let selectedLabel = ''
-
-            // Safely iterate through children to find matching value
-            React.Children.forEach(children, (child) => {
-              if (React.isValidElement(child)) {
-                // Type assertion to access props safely
-                const childElement = child as React.ReactElement<{
-                  value: string
-                  children: React.ReactNode
-                }>
-                if (childElement.props.value === field.value) {
-                  selectedLabel = String(
-                    childElement.props.children || field.value
-                  )
-                }
-              }
-            })
-
-            return selectedLabel || String(field.value)
-          }, [field.value])
-
-          // Override the field value with the display text
-          const customField = {
-            ...field,
-            value: selectedOptionText || placeholder || ''
-          }
-
-          return (
-            <FormItem required={required}>
-              {label && (
-                <FormLabel
-                  extra={
-                    tooltip ? <FormTooltip>{tooltip}</FormTooltip> : labelExtra
-                  }
-                >
-                  {label}
-                </FormLabel>
-              )}
-              <FormControl>
-                <Input readOnly={true} disabled={disabled} {...customField} />
-              </FormControl>
-              <FormMessage />
-              {description && <FormDescription>{description}</FormDescription>}
-            </FormItem>
-          )
-        }}
-      />
-    )
-  }
-
-  // Regular select version
   return (
     <FormField
       name={name}
       control={control}
       {...others}
-      render={({ field: { ref, onChange, value, ...fieldOthers } }) => {
+      render={({ field }) => {
+        const displayValue = field.value
+          ? capitalizeFirstLetter(field.value)
+          : ''
+
         return (
-          <FormItem ref={ref} required={required}>
+          <FormItem required={required}>
             {label && (
               <FormLabel
                 extra={
@@ -140,12 +80,19 @@ export const SelectField = ({
               </FormLabel>
             )}
 
-            {multi ? (
+            {readOnly ? (
+              <FormControl>
+                <Input
+                  value={displayValue || placeholder || ''}
+                  readOnly={true}
+                  disabled={disabled}
+                />
+              </FormControl>
+            ) : multi ? (
               <MultipleSelect
-                onValueChange={onChange}
+                onValueChange={field.onChange}
                 disabled={disabled}
-                value={value}
-                {...fieldOthers}
+                {...field}
               >
                 <MultipleSelectTrigger>
                   <MultipleSelectValue placeholder={placeholder} />
@@ -153,12 +100,13 @@ export const SelectField = ({
                 <MultipleSelectContent>{children}</MultipleSelectContent>
               </MultipleSelect>
             ) : (
-              <Select onValueChange={onChange} value={value} {...fieldOthers}>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={disabled}
+              >
                 <FormControl>
-                  <SelectTrigger
-                    disabled={disabled}
-                    className={cn(disabled && 'bg-shadcn-100')}
-                  >
+                  <SelectTrigger className={cn(disabled && 'bg-shadcn-100')}>
                     <SelectValue placeholder={placeholder} />
                   </SelectTrigger>
                 </FormControl>

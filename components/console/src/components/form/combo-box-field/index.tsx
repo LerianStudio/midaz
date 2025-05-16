@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ChevronsUpDown } from 'lucide-react'
 import { useIntl } from 'react-intl'
+import { Input } from '@/components/ui/input'
 
 export type ComboBoxFieldProps = React.PropsWithChildren & {
   name: string
@@ -78,9 +79,12 @@ export const ComboBoxField = ({
           {label && <FormLabel>{label}</FormLabel>}
 
           {readOnly ? (
-            <div className="flex h-10 w-full cursor-not-allowed items-center rounded-md border border-[#C7C7C7] bg-zinc-100 px-3 py-2 text-sm opacity-50">
-              {getDisplayValue(field.value) || field.value || placeholder || ''}
-            </div>
+            <Input
+              value={
+                getDisplayValue(field.value) || field.value || placeholder || ''
+              }
+              readOnly={true}
+            />
           ) : (
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>

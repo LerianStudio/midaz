@@ -258,22 +258,6 @@ export const EditUserForm = ({
                     })}
                   </p>
                 </div>
-
-                <div className="mt-auto">
-                  <Enforce resource="users" action="post, patch">
-                    <LoadingButton
-                      size="lg"
-                      type="submit"
-                      fullWidth
-                      loading={updatePending}
-                    >
-                      {intl.formatMessage({
-                        id: 'common.save',
-                        defaultMessage: 'Save'
-                      })}
-                    </LoadingButton>
-                  </Enforce>
-                </div>
               </form>
             </Form>
           </TabsContent>
@@ -285,7 +269,7 @@ export const EditUserForm = ({
                 className="flex flex-col"
                 onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
               >
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex flex-col gap-4">
                   <PasswordField
                     name="newPassword"
                     label={intl.formatMessage({
@@ -317,34 +301,36 @@ export const EditUserForm = ({
                     disabled={isReadOnly}
                     required
                   />
-
-                  <p className="text-xs font-normal italic text-shadcn-400">
-                    {intl.formatMessage({
-                      id: 'common.requiredFields',
-                      defaultMessage: '(*) required fields.'
-                    })}
-                  </p>
-                </div>
-
-                <div className="mt-auto">
-                  <Enforce resource="users" action="post, patch">
-                    <LoadingButton
-                      size="lg"
-                      type="submit"
-                      fullWidth
-                      loading={resetPasswordPending}
-                    >
-                      {intl.formatMessage({
-                        id: 'common.resetPassword',
-                        defaultMessage: 'Reset Password'
-                      })}
-                    </LoadingButton>
-                  </Enforce>
                 </div>
               </form>
             </Form>
           </TabsContent>
         </React.Fragment>
+
+        <div className="mt-auto pt-4">
+          <Enforce resource="users" action="post, patch">
+            <LoadingButton
+              size="lg"
+              type="submit"
+              fullWidth
+              loading={
+                activeTab === 'personal-information'
+                  ? updatePending
+                  : resetPasswordPending
+              }
+              form={
+                activeTab === 'personal-information'
+                  ? 'profile-form'
+                  : 'password-form'
+              }
+            >
+              {intl.formatMessage({
+                id: 'common.save',
+                defaultMessage: 'Save'
+              })}
+            </LoadingButton>
+          </Enforce>
+        </div>
       </Tabs>
     </React.Fragment>
   )
