@@ -327,9 +327,21 @@ export class TransactionGenerator {
               generatedOn: new Date().toISOString(),
             },
             operations: [
+              // Credit operation to the account (money going in)
               {
-                accountId: account.accountId,
+                accountId: account.accountAlias,
                 type: 'CREDIT',
+                amount: {
+                  value: account.depositAmount,
+                  scale: TRANSACTION_AMOUNTS.scale,
+                  assetCode: assetCode,
+                },
+              },
+              // Debit operation from an external source (money coming from somewhere)
+              // Using a special external account format for balance purposes
+              {
+                accountId: `@external/${assetCode}`,
+                type: 'DEBIT',
                 amount: {
                   value: account.depositAmount,
                   scale: TRANSACTION_AMOUNTS.scale,
@@ -443,7 +455,7 @@ export class TransactionGenerator {
       // Determine optimal concurrency for this asset group
       const concurrencyLevel = Math.min(
         Math.max(2, Math.floor(MAX_CONCURRENCY / accountsByAsset.size)), // Divide concurrency among asset types
-        10, // Never exceed 10 concurrent operations per asset type
+        10, // Never exceed 10 concurrent operations per asset type // @TODO: Adjust based on the config.ts inside src/ folder
         transactionPairs.length // Don't exceed number of transactions
       );
 
@@ -490,7 +502,7 @@ export class TransactionGenerator {
           operations: [
             // Debit operation from source account
             {
-              accountId: pair.sourceAccount.id, // Use ID instead of alias for API compatibility
+              accountId: pair.sourceAccount.alias,
               type: 'DEBIT' as const,
               amount: {
                 value: transferAmount,
@@ -500,7 +512,7 @@ export class TransactionGenerator {
             },
             // Credit operation to target account
             {
-              accountId: pair.targetAccount.id, // Use ID instead of alias for API compatibility
+              accountId: pair.targetAccount.alias,
               type: 'CREDIT' as const,
               amount: {
                 value: transferAmount,
@@ -519,7 +531,7 @@ export class TransactionGenerator {
           maxRetries: 3,
           useEnhancedRecovery: true,
           stopOnError: false,
-          delayBetweenTransactions: 50, // Small delay to avoid rate limiting
+          delayBetweenTransactions: 20, // Small delay to avoid rate limiting
           batchMetadata: {
             type: 'transfer-batch',
             assetCode,
