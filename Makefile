@@ -112,16 +112,6 @@ help:
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
-	@echo "Data Generation Commands:"
-	@echo "  make generate-demo-data          - Generate demo data using the SDK"
-	@echo "    SIZE=<size>                    - Data volume (small, medium, large)"
-	@echo "    BASE_URL=<url>                 - API base URL (default: http://localhost)"
-	@echo "    ONBOARDING_PORT=<port>         - Onboarding port (default: 3000)"
-	@echo "    TRANSACTION_PORT=<port>        - Transaction port (default: 3001)"
-	@echo "    CONCURRENCY=<level>            - Concurrency level (default: 1)"
-	@echo "    DEBUG=<true|false>             - Enable debug mode (default: false)"
-	@echo "    AUTH_TOKEN=<token>             - Authentication token (if required)"
-	@echo ""
 	@echo ""
 
 #-------------------------------------------------------
@@ -528,34 +518,6 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
-
-.PHONY: generate-demo-data
-generate-demo-data:
-	$(call title1,"Generating demo data using the SDK")
-	@echo "Running demo data generator with the following settings:"
-	@echo "Size: ${SIZE:-small}"
-	@echo "API Base URL: ${BASE_URL:-http://localhost}"
-	@echo "Onboarding Port: ${ONBOARDING_PORT:-3000}"
-	@echo "Transaction Port: ${TRANSACTION_PORT:-3001}"
-	@echo "Concurrency: ${CONCURRENCY:-1}"
-	@echo "Debug Mode: ${DEBUG:-false}"
-	@echo "Auth Token: ${AUTH_TOKEN:-NONE}"
-	@echo "Setting up environment..."
-	@cd scripts/demo-data && \
-	VOLUME="${SIZE:-small}" \
-	BASE_URL="${BASE_URL:-http://localhost}" \
-	ONBOARDING_PORT="${ONBOARDING_PORT:-3000}" \
-	TRANSACTION_PORT="${TRANSACTION_PORT:-3001}" \
-	CONCURRENCY="${CONCURRENCY:-1}" \
-	DEBUG="${DEBUG:-false}" \
-	AUTH_TOKEN="${AUTH_TOKEN:-NONE}" \
-	npx ts-node src/index.ts --volume "$${VOLUME}" \
-		--base-url "$${BASE_URL}" \
-		--onboarding-port "$${ONBOARDING_PORT}" \
-		--transaction-port "$${TRANSACTION_PORT}" \
-		--concurrency "$${CONCURRENCY}" \
-		$${DEBUG:+--debug} \
-		--auth-token "$${AUTH_TOKEN}"
 
 #-------------------------------------------------------
 # Developer Helper Commands

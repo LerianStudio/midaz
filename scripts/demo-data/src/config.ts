@@ -67,8 +67,8 @@ export const ASSET_TEMPLATES = [
   { code: 'EUR', name: 'Euro', symbol: '€', scale: 2 },
   { code: 'BTC', name: 'Bitcoin', symbol: '₿', scale: 8 },
   { code: 'ETH', name: 'Ethereum', symbol: 'Ξ', scale: 18 },
-  { code: 'GOLD', name: 'Gold', symbol: 'Au', scale: 6 },
-  { code: 'SILVER', name: 'Silver', symbol: 'Ag', scale: 6 },
+  { code: 'XAU', name: 'Gold', symbol: 'Au', scale: 6 },
+  { code: 'XAG', name: 'Silver', symbol: 'Ag', scale: 6 },
 ];
 
 /**

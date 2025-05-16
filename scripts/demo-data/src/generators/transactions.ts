@@ -546,7 +546,7 @@ export class TransactionGenerator {
           if (assetCode === 'BTC' || assetCode === 'ETH') {
             // For crypto, use very small amounts
             amount = generateAmount(0.01, 0.1, TRANSACTION_AMOUNTS.scale);
-          } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
+          } else if (assetCode === 'XAU' || assetCode === 'XAG') {
             // For commodities, use small amounts
             amount = generateAmount(0.1, 1, TRANSACTION_AMOUNTS.scale);
           } else {
@@ -747,7 +747,7 @@ export class TransactionGenerator {
     if (assetCode === 'BTC' || assetCode === 'ETH') {
       // For crypto, use very small amounts
       amount = generateAmount(0.1, 1, TRANSACTION_AMOUNTS.scale);
-    } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
+    } else if (assetCode === 'XAU' || assetCode === 'XAG') {
       // For commodities, use small amounts
       amount = generateAmount(1, 10, TRANSACTION_AMOUNTS.scale);
     } else {
