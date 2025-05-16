@@ -3305,7 +3305,7 @@ const docTemplate = `{
                     "example": "Corporate Checking Account"
                 },
                 "parentAccountId": {
-                    "description": "ID of the parent account if this is a sub-account (optional)\nrequired: false\nformat: uuid",
+                    "description": "ID of the parent account if this is a subaccount (optional)\nrequired: false\nformat: uuid",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -3340,7 +3340,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "code",
-                "name"
+                "name",
+                "type"
             ],
             "properties": {
                 "code": {

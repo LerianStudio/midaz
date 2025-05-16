@@ -31,7 +31,7 @@ type CreateAccountInput struct {
 	// maxLength: 256
 	Name string `json:"name" validate:"max=256" example:"Corporate Checking Account" maxLength:"256"`
 
-	// ID of the parent account if this is a sub-account (optional)
+	// ID of the parent account if this is a subaccount (optional)
 	// required: false
 	// format: uuid
 	ParentAccountID *string `json:"parentAccountId" validate:"omitempty,uuid" format:"uuid"`
@@ -66,7 +66,7 @@ type CreateAccountInput struct {
 	// required: false
 	// example: @treasury_checking
 	// maxLength: 100
-	Alias *string `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@treasury_checking" maxLength:"100"`
+	Alias *string `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix,invalidaliascharacters" example:"@treasury_checking" maxLength:"100"`
 
 	// Type of the account
 	// required: true

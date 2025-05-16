@@ -25,6 +25,7 @@ help:
 	@echo "$(BOLD)Console Component Commands$(NC)"
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
+	@echo "  make install            - Install dependencies"
 	@echo "  make dev                - Start development server"
 	@echo "  make build              - Build the application"
 	@echo "  make start              - Start the application"
@@ -59,9 +60,15 @@ dev:
 	$(call title1,"Starting development server")
 	npm run dev
 
+.PHONY: install
+install:
+	$(call title1,"Installing dependencies")
+	npm install
+
 .PHONY: build
 build:
 	$(call title1,"Building console")
+	$(MAKE) install
 	npm run build
 
 .PHONY: start

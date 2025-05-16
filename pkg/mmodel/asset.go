@@ -12,7 +12,7 @@ type CreateAssetInput struct {
 	Name string `json:"name" validate:"required,max=256" example:"US Dollar"`
 
 	// Type of the asset (e.g., currency, cryptocurrency, commodity, stock)
-	Type string `json:"type" example:"currency"`
+	Type string `json:"type" validate:"required" example:"currency"`
 
 	// Unique code/symbol for the asset (required, max length 100 characters)
 	Code string `json:"code" validate:"required,max=100" example:"USD"`
