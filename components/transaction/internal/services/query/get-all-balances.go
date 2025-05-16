@@ -73,9 +73,9 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 
 	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get account by alias on balance database", err)
+		libOpenTelemetry.HandleSpanError(&span, "Failed to list balances by alias on balance database", err)
 
-		logger.Error("Failed to get account by alias on balance database", err.Error())
+		logger.Error("Failed to list balances by alias on balance database", err.Error())
 
 		return nil, err
 	}

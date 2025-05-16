@@ -340,7 +340,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	return http.OK(c, op)
 }
 
-// GetBalancesByAlias retrieves a balances by Alias.
+// GetBalancesByAlias retrieves balances by Alias.
 //
 //	@Summary		Get Balances using Alias
 //	@Description	Get Balances with alias
@@ -370,7 +370,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	alias := c.Params("alias")
 
-	logger.Infof("Initiating retrieval of balances by code")
+	logger.Infof("Initiating retrieval of balances by alias")
 
 	balances, err := handler.Query.GetAllBalancesByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
