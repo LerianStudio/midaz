@@ -351,7 +351,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
-//	@Success		200				{object}	[]mmodel.Balance
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -383,7 +383,14 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved balances by alias")
 
-	return http.OK(c, balances)
+	if balances == nil || len(balances) == 0 {
+		balances = []*mmodel.Balance{}
+	}
+
+	return http.OK(c, libPostgres.Pagination{
+		Limit: 10,
+		Items: balances,
+	})
 }
 
 // GetBalancesExternalByCode retrieves external balances by code.
@@ -397,7 +404,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
-//	@Success		200				{object}	[]mmodel.Balance
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -430,5 +437,12 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved balances by code")
 
-	return http.OK(c, balances)
+	if balances == nil || len(balances) == 0 {
+		balances = []*mmodel.Balance{}
+	}
+
+	return http.OK(c, libPostgres.Pagination{
+		Limit: 10,
+		Items: balances,
+	})
 }

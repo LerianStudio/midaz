@@ -73,10 +73,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/mmodel.Balance"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/mmodel.Balance"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
@@ -156,10 +177,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/mmodel.Balance"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/mmodel.Balance"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {

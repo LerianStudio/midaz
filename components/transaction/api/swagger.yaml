@@ -1283,9 +1283,20 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/mmodel.Balance'
-            type: array
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+              type: object
         "401":
           description: Unauthorized access
           schema:
@@ -1339,9 +1350,20 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/mmodel.Balance'
-            type: array
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+              type: object
         "401":
           description: Unauthorized access
           schema:

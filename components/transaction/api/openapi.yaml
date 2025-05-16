@@ -51,9 +51,7 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/mmodel.Balance'
-                type: array
+                $ref: '#/components/schemas/inline_response_200'
           description: OK
         "401":
           content:
@@ -120,9 +118,7 @@ paths:
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/mmodel.Balance'
-                type: array
+                $ref: '#/components/schemas/inline_response_200'
           description: OK
         "401":
           content:
