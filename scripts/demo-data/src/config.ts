@@ -26,8 +26,8 @@ export const VOLUME_METRICS: Record<VolumeSize, VolumeMetrics> = {
     assetsPerLedger: 3,
     portfoliosPerLedger: 2,
     segmentsPerLedger: 2,
-    accountsPerLedger: 10,
-    transactionsPerAccount: 5,
+    accountsPerLedger: 100,
+    transactionsPerAccount: 20,
   },
   [VolumeSize.MEDIUM]: {
     organizations: 5,
@@ -36,7 +36,7 @@ export const VOLUME_METRICS: Record<VolumeSize, VolumeMetrics> = {
     portfoliosPerLedger: 3,
     segmentsPerLedger: 4,
     accountsPerLedger: 50,
-    transactionsPerAccount: 10,
+    transactionsPerAccount: 20,
   },
   [VolumeSize.LARGE]: {
     organizations: 10,

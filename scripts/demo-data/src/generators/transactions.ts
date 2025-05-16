@@ -2,7 +2,7 @@
  * Transaction generator
  */
 
-import * as faker from 'faker';
+// Import removed: faker is now imported through faker-pt-br utility
 import {
   MidazClient,
   TransactionBatchOptions,
@@ -320,7 +320,7 @@ export class TransactionGenerator {
             generator: 'bulk-initial-deposits',
             assetCode,
           },
-          onTransactionSuccess: (tx, index, result) => {
+          onTransactionSuccess: (tx: any, index: number, result: any) => {
             depositSuccessCount++;
 
             // Find the account this transaction was for
@@ -346,72 +346,119 @@ export class TransactionGenerator {
               }
             }
           },
-          onTransactionError: (tx, index, error) => {
-            const accountData = accountsWithSameAsset[index];
+          onTransactionError: (tx: any, index: number, error: any) => {
+            const accountAlias = accountsWithSameAsset[index]?.accountAlias || 'unknown';
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this.logger.error(
-              `Failed to create deposit for account ${
-                accountData?.accountAlias || 'unknown'
-              } in ledger ${ledgerId}`,
-              error
+              `Failed to create deposit for account ${accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
+              error instanceof Error ? error : new Error(String(error))
             );
-            this.stateManager.incrementErrorCount('transaction');
+            // IMPORTANT: Don't increment error count here to avoid double-counting
+            // The error will be counted in the batch result processing
           },
         };
 
-        // Create deposit transactions using account aliases (not IDs)
-        // Prepare deposit transactions
-        const depositTransactions: CreateTransactionInput[] = accountsWithSameAsset.map(
-          (account) => ({
+        // Execute the batch of deposits
+        const batchResult = await createTransactionBatch(
+          this.client,
+          organizationId,
+          ledgerId,
+          accountsWithSameAsset.map(account => ({
             description: `Initial deposit of ${assetCode} to ${account.accountAlias}`,
-            amount: account.depositAmount,
+            amount: account.depositAmount || 0,
             scale: TRANSACTION_AMOUNTS.scale,
-            assetCode: assetCode,
+            assetCode,
             metadata: {
               type: 'deposit',
               generatedOn: new Date().toISOString(),
             },
             operations: [
-              // Credit operation to the account (money going in)
               {
                 accountId: account.accountAlias,
                 type: 'CREDIT',
                 amount: {
-                  value: account.depositAmount,
+                  value: account.depositAmount || 0,
                   scale: TRANSACTION_AMOUNTS.scale,
-                  assetCode: assetCode,
+                  assetCode,
                 },
               },
-              // Debit operation from an external source (money coming from somewhere)
-              // Using a special external account format for balance purposes
               {
                 accountId: this.getExternalAccountId(assetCode),
                 type: 'DEBIT',
                 amount: {
-                  value: account.depositAmount,
+                  value: account.depositAmount || 0,
                   scale: TRANSACTION_AMOUNTS.scale,
-                  assetCode: assetCode,
+                  assetCode,
                 },
               },
             ],
-          })
-        );
-
-        // Use the SDK's createTransactionBatch for better batching and retry capabilities
-        await createTransactionBatch(
-          this.client,
-          organizationId,
-          ledgerId,
-          depositTransactions,
+          })),
           batchOptions
         );
-      } catch (error) {
-        this.logger.error(`Error processing deposits for asset ${assetCode}:`, error as Error);
+
+        // Log batch completion
+        this.logger.info(
+          `Completed batch of ${accountsWithSameAsset.length} deposits for asset ${assetCode}: ${batchResult.successCount} succeeded, ${batchResult.failureCount} failed`
+        );
+
+        // Track errors from the batch result - only count unique errors
+        // to avoid double-counting with the onTransactionError callback
+        const failedResults = batchResult.results.filter(r => r.status === 'failed');
+        if (failedResults.length > 0) {
+          // Count each unique error message to avoid duplicate counting
+          const uniqueErrorMessages = new Set(
+            failedResults
+              .map(r => r.error?.message || 'Unknown error')
+              .filter(Boolean)
+          );
+          
+          // Increment error count for each unique error - this is the ONLY place where we count errors
+          // from the batch processing to avoid double-counting
+          uniqueErrorMessages.forEach(() => {
+            this.stateManager.incrementErrorCount('transaction');
+          });
+        }
+      } catch (error: unknown) {
+        // Handle the error safely with proper type checking
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Batch processing failed for deposits with asset ${assetCode} in ledger ${ledgerId}: ${errorMessage}`,
+          error instanceof Error ? error : new Error(String(error))
+        );
+        
+        // Count this as a single batch error - this avoids double-counting individual transaction errors
         this.stateManager.incrementErrorCount('transaction');
+        
+        // Check if we have an object with a results property that's an array
+        // This handles partial batch failures where some transactions succeeded and others failed
+        if (error && typeof error === 'object' && 'results' in error && 
+            Array.isArray((error as any).results)) {
+          // We only want to count unique errors to avoid inflating the error count
+          const results = (error as any).results as Array<{ status: string; error?: { message: string } }>;
+          const failedResults = results.filter((r) => r.status === 'failed');
+          
+          // Use a Set to track unique error messages
+          const uniqueErrorMessages = new Set(
+            failedResults
+              .map(r => r.error?.message || 'Unknown error')
+              .filter(Boolean)
+          );
+          
+          // Only increment once per unique error message
+          uniqueErrorMessages.forEach(() => {
+            this.stateManager.incrementErrorCount('transaction');
+          });
+        }
       }
     }
 
+    const depositFailureCount = totalDepositTransactions - depositSuccessCount;
+    const statusMessage = depositFailureCount > 0 
+      ? `with ${depositFailureCount} failures` 
+      : 'successfully';
+      
     this.logger.info(
-      `Successfully created ${depositSuccessCount} deposits out of ${totalDepositTransactions} accounts`
+      `Created deposits for ${depositSuccessCount} out of ${totalDepositTransactions} accounts ${statusMessage}`
     );
 
     // Add a delay to ensure all deposits are processed before continuing to transfers
@@ -419,209 +466,8 @@ export class TransactionGenerator {
     this.logger.info('Waiting for deposits to be processed before starting transfers...');
     const depositSettlementDelay = PROCESSING_DELAYS?.BETWEEN_DEPOSIT_AND_TRANSFER ?? 3000; // Default: 3 seconds
     await new Promise((resolve) => setTimeout(resolve, depositSettlementDelay));
-
-    // Step 2: Create transactions between accounts using batch processing and concurrency
-    this.logger.info(
-      `Step 2: Creating ${count} transactions per account with concurrent processing`
-    );
-    let transferSuccessCount = 0;
-    let createdCount = 0;
-
-    // Group accounts by asset code
-    const accountsByAsset = new Map<string, { id: string; alias: string }[]>();
-
-    // First, get asset code for each account
-    for (let i = 0; i < accountIds.length; i++) {
-      const accountId = accountIds[i];
-      const accountAlias = accountAliases[i];
-      const assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
-
-      if (!accountsByAsset.has(assetCode)) {
-        accountsByAsset.set(assetCode, []);
-      }
-
-      accountsByAsset.get(assetCode)?.push({ id: accountId, alias: accountAlias });
-    }
-
-    // Calculate total possible transactions between accounts with the same asset code
-    let possibleTransactions = 0;
-    accountsByAsset.forEach((accounts, assetCode) => {
-      // Only count if we have at least 2 accounts with the same asset
-      if (accounts.length >= 2) {
-        // Each account can initiate 'count' transactions
-        possibleTransactions += accounts.length * count;
-        this.logger.info(`Found ${accounts.length} accounts with asset code ${assetCode}`);
-      } else if (accounts.length === 1) {
-        this.logger.warn(
-          `Only found 1 account with asset code ${assetCode} - no transactions possible`
-        );
-      }
-    });
-
-    const totalTransactions = possibleTransactions;
-    if (totalTransactions === 0) {
-      this.logger.warn('No possible transactions between accounts with matching asset codes');
-      return transactions;
-    }
-
-    this.logger.info(`Preparing to generate ${totalTransactions} transactions with concurrency`);
-
-    // Process each asset code group in parallel, with controlled concurrency per group
-    for (const [assetCode, accounts] of accountsByAsset.entries()) {
-      // Skip if fewer than 2 accounts share this asset code
-      if (accounts.length < 2) continue;
-
-      this.logger.info(`Processing ${accounts.length} accounts with asset code ${assetCode}`);
-
-      // Prepare all the transaction pairs we need to create
-      const transactionPairs: {
-        sourceAccount: { id: string; alias: string };
-        targetAccount: { id: string; alias: string };
-      }[] = [];
-
-      // For each account in this asset group
-      for (let i = 0; i < accounts.length; i++) {
-        const sourceAccount = accounts[i];
-
-        // Generate 'count' transactions for this account
-        for (let j = 0; j < count; j++) {
-          // Choose a random target account with same asset code, different from source
-          const otherAccounts = accounts.filter((acc) => acc.id !== sourceAccount.id);
-          const targetAccount = faker.random.arrayElement(otherAccounts);
-
-          // Add this transaction pair to our list
-          transactionPairs.push({
-            sourceAccount,
-            targetAccount,
-          });
-        }
-      }
-
-      // Determine optimal concurrency for this asset group
-      const concurrencyLevel = Math.min(
-        Math.max(2, Math.floor(MAX_CONCURRENCY / accountsByAsset.size)), // Divide concurrency among asset types
-        10, // Never exceed 10 concurrent operations per asset type // @TODO: Adjust based on the config.ts inside src/ folder
-        transactionPairs.length // Don't exceed number of transactions
-      );
-
-      this.logger.info(
-        `Processing ${transactionPairs.length} transactions for asset ${assetCode} with concurrency ${concurrencyLevel}`
-      );
-
-      // Use workerPool to process transactions with controlled concurrency
-      // Use transaction batch for more efficient processing of account-to-account transfers
-      // This uses the SDK's built-in batch processing with better error handling and retries
-      const transferInputs: CreateTransactionInput[] = transactionPairs.map((pair) => {
-        // Generate random amount for each transaction based on asset type - using helper method
-        const amountRange = this.getTransferAmountRange(assetCode);
-        const transferAmount = generateAmount(
-          amountRange.min,
-          amountRange.max, 
-          TRANSACTION_AMOUNTS.scale
-        ).value;
-
-        // Create a unique transaction ID
-        const transferId = `transfer-${Date.now()}-${Math.floor(
-          Math.random() * 1000
-        )}-${pair.sourceAccount.id.slice(-4)}-${pair.targetAccount.id.slice(-4)}`;
-
-        // Return transaction input object
-        return {
-          description: `Transfer between ${pair.sourceAccount.alias} and ${pair.targetAccount.alias}`,
-          amount: transferAmount,
-          scale: TRANSACTION_AMOUNTS.scale,
-          assetCode,
-          metadata: {
-            type: 'transfer',
-            batchProcessed: true,
-            transferId,
-            source: pair.sourceAccount.alias,
-            target: pair.targetAccount.alias,
-          },
-          operations: [
-            // Debit operation from source account
-            {
-              accountId: pair.sourceAccount.alias,
-              type: 'DEBIT' as const,
-              amount: {
-                value: transferAmount,
-                assetCode,
-                scale: TRANSACTION_AMOUNTS.scale,
-              },
-            },
-            // Credit operation to target account
-            {
-              accountId: pair.targetAccount.alias,
-              type: 'CREDIT' as const,
-              amount: {
-                value: transferAmount,
-                assetCode,
-                scale: TRANSACTION_AMOUNTS.scale,
-              },
-            },
-          ],
-        };
-      });
-
-      try {
-        // Batch options with retry logic and tracking
-        const batchOptions: TransactionBatchOptions = {
-          concurrency: concurrencyLevel,
-          maxRetries: BATCH_PROCESSING_CONFIG?.TRANSFERS?.maxRetries ?? 3,
-          useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.TRANSFERS?.useEnhancedRecovery ?? true,
-          stopOnError: BATCH_PROCESSING_CONFIG?.TRANSFERS?.stopOnError ?? false,
-          delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 20, // Small delay to avoid rate limiting
-          batchMetadata: {
-            ...TRANSACTION_METADATA?.TRANSFER,
-            type: 'transfer-batch',
-            assetCode,
-            batchId: `batch-${Date.now()}-${assetCode}`,
-          },
-          onTransactionSuccess: (_tx, _index, result) => {
-            transactions.push(result);
-            transferSuccessCount++;
-            createdCount++;
-
-            // Log progress at reasonable intervals
-            if (createdCount % 20 === 0 || createdCount === totalTransactions) {
-              this.logger.progress('Transactions created', createdCount, totalTransactions);
-            }
-          },
-          onTransactionError: (_tx, _index, error) => {
-            this.logger.error(
-              `Failed to create transfer transaction for asset code ${assetCode} in ledger ${ledgerId}`,
-              error as Error
-            );
-            this.stateManager.incrementErrorCount('transaction');
-          },
-        };
-
-        // Execute the batch of transfers
-        const batchResult = await createTransactionBatch(
-          this.client,
-          organizationId,
-          ledgerId,
-          transferInputs,
-          batchOptions
-        );
-
-        this.logger.info(
-          `Transfer batch for asset ${assetCode} completed: ` +
-            `${batchResult.successCount} successful, ${batchResult.failureCount} failed, ` +
-            `${batchResult.duplicateCount} duplicates`
-        );
-      } catch (error) {
-        this.logger.error(
-          `Batch processing failed for transfers with asset ${assetCode} in ledger ${ledgerId}`,
-          error as Error
-        );
-        this.stateManager.incrementErrorCount('transaction');
-      }
-    }
-
-    this.logger.info(
-      `Successfully generated ${transferSuccessCount} transactions between accounts in ledger: ${ledgerId}`
-    );
+    
+    // Return the transactions created
     return transactions;
   }
 
