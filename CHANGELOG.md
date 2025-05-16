@@ -1,3 +1,13 @@
+## [v2.2.0-beta.25] - 2025-05-16
+
+### ✨ Features
+- Add support for retrieving balances by alias and external code, enhancing the flexibility of balance queries.
+
+### 🐛 Bug Fixes
+- Resolve linter issues to improve code quality and maintainability.
+- Implement pagination in return values and update documentation to ensure efficient data handling and clarity in usage.
+- Update log messages for clarity, enhancing the readability and usefulness of log outputs.
+
 ## [v2.2.0-beta.23] - 2025-05-14
 
 ### ✨ Features
