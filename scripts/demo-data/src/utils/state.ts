@@ -253,7 +253,7 @@ export class StateManager {
   // Error tracking
   public incrementErrorCount(entityType?: string): void {
     this.metrics.errors++;
-    
+
     // Track errors by entity type if specified
     if (entityType) {
       switch (entityType.toLowerCase()) {

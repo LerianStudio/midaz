@@ -39,17 +39,17 @@ export class Generator {
   constructor(options: GeneratorOptions) {
     this.options = options;
     this.logger = new Logger(options);
-    
+
     // Initialize client
     this.client = initializeClient(options);
     this.logger.info(
       `Initialized Midaz client connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`
     );
-    
+
     // Get state manager
     this.stateManager = StateManager.getInstance();
     this.stateManager.reset();
-    
+
     // Initialize entity generators
     this.organizationGenerator = new OrganizationGenerator(this.client, this.logger);
     this.ledgerGenerator = new LedgerGenerator(this.client, this.logger);
@@ -65,62 +65,42 @@ export class Generator {
    */
   public async run(): Promise<void> {
     this.logger.info(`Starting data generation with volume: ${this.options.volume}`);
-    
+
     try {
       // Get the metrics for the selected volume
       const volumeMetrics = VOLUME_METRICS[this.options.volume];
-      
+
       // Generate organizations
-      const organizations = await this.organizationGenerator.generate(
-        volumeMetrics.organizations
-      );
-      
+      const organizations = await this.organizationGenerator.generate(volumeMetrics.organizations);
+
       // For each organization, generate ledgers and their nested entities
       for (const org of organizations) {
         this.logger.info(`Generating data for organization: ${org.id} (${org.legalName})`);
-        
+
         // Generate ledgers for this organization
-        const ledgers = await this.ledgerGenerator.generate(
-          volumeMetrics.ledgersPerOrg, 
-          org.id
-        );
-        
+        const ledgers = await this.ledgerGenerator.generate(volumeMetrics.ledgersPerOrg, org.id);
+
         // For each ledger, generate assets, portfolios, segments, accounts, and transactions
         for (const ledger of ledgers) {
           this.logger.info(`Generating data for ledger: ${ledger.id} (${ledger.name})`);
-          
+
           // Generate assets for this ledger
-          await this.assetGenerator.generate(
-            volumeMetrics.assetsPerLedger,
-            ledger.id
-          );
-          
+          await this.assetGenerator.generate(volumeMetrics.assetsPerLedger, ledger.id);
+
           // Generate portfolios for this ledger
-          await this.portfolioGenerator.generate(
-            volumeMetrics.portfoliosPerLedger,
-            ledger.id
-          );
-          
+          await this.portfolioGenerator.generate(volumeMetrics.portfoliosPerLedger, ledger.id);
+
           // Generate segments for this ledger
-          await this.segmentGenerator.generate(
-            volumeMetrics.segmentsPerLedger,
-            ledger.id
-          );
-          
+          await this.segmentGenerator.generate(volumeMetrics.segmentsPerLedger, ledger.id);
+
           // Generate accounts for this ledger
-          await this.accountGenerator.generate(
-            volumeMetrics.accountsPerLedger,
-            ledger.id
-          );
-          
+          await this.accountGenerator.generate(volumeMetrics.accountsPerLedger, ledger.id);
+
           // Generate transactions for this ledger
-          await this.transactionGenerator.generate(
-            volumeMetrics.transactionsPerAccount,
-            ledger.id
-          );
+          await this.transactionGenerator.generate(volumeMetrics.transactionsPerAccount, ledger.id);
         }
       }
-      
+
       // Generation complete, log metrics
       const finalMetrics = this.stateManager.completeGeneration();
       this.logger.metrics({
@@ -143,7 +123,6 @@ export class Generator {
         retries: finalMetrics.retries,
         duration: finalMetrics.duration(),
       });
-      
     } catch (error) {
       this.logger.error('Error during data generation:', error as Error);
       throw error;

@@ -30,9 +30,9 @@ export class OrganizationGenerator implements EntityGenerator<Organization> {
    */
   async generate(count: number): Promise<Organization[]> {
     this.logger.info(`Generating ${count} organizations`);
-    
+
     const organizations: Organization[] = [];
-    
+
     for (let i = 0; i < count; i++) {
       try {
         const org = await this.generateOne();
@@ -43,7 +43,7 @@ export class OrganizationGenerator implements EntityGenerator<Organization> {
         this.stateManager.incrementErrorCount();
       }
     }
-    
+
     this.logger.info(`Successfully generated ${organizations.length} organizations`);
     return organizations;
   }
@@ -54,54 +54,58 @@ export class OrganizationGenerator implements EntityGenerator<Organization> {
   async generateOne(): Promise<Organization> {
     const personData = generatePersonData();
     this.logger.debug(`Generating organization with data: ${JSON.stringify(personData)}`);
-    
+
     try {
       // Build the organization request
       const orgBuilder = createOrganizationBuilder(
         personData.name,
         personData.document,
         personData.tradingName || personData.name
-      ).withAddress({
-        line1: personData.address.line1,
-        line2: personData.address.line2,
-        city: personData.address.city,
-        state: personData.address.state,
-        zipCode: personData.address.zipCode,
-        country: personData.address.country
-      }).withMetadata({
-        personType: personData.type,
-        generator: 'midaz-demo-data'
-      });
-      
+      )
+        .withAddress({
+          line1: personData.address.line1,
+          line2: personData.address.line2,
+          city: personData.address.city,
+          state: personData.address.state,
+          zipCode: personData.address.zipCode,
+          country: personData.address.country,
+        })
+        .withMetadata({
+          personType: personData.type,
+          generator: 'midaz-demo-data',
+        });
+
       // Create the organization
       const organization = await this.client.entities.organizations.createOrganization(
         orgBuilder.build()
       );
-      
+
       // Store the organization ID in state
       this.stateManager.addOrganizationId(organization.id);
       this.logger.debug(`Created organization: ${organization.id}`);
-      
+
       return organization;
     } catch (error) {
       // Check if it's a conflict error (already exists)
-      if ((error as Error).message.includes('already exists') || 
-          (error as Error).message.includes('conflict')) {
-        this.logger.warn(`Organization with document ${personData.document} already exists, trying to retrieve it`);
-        
+      if (
+        (error as Error).message.includes('already exists') ||
+        (error as Error).message.includes('conflict')
+      ) {
+        this.logger.warn(
+          `Organization with document ${personData.document} already exists, trying to retrieve it`
+        );
+
         // Try to find the organization by listing all and filtering
         const orgs = await this.client.entities.organizations.listOrganizations();
-        const existingOrg = orgs.items.find(
-          org => org.legalDocument === personData.document
-        );
-        
+        const existingOrg = orgs.items.find((org) => org.legalDocument === personData.document);
+
         if (existingOrg) {
           this.logger.info(`Found existing organization: ${existingOrg.id}`);
           this.stateManager.addOrganizationId(existingOrg.id);
           return existingOrg;
         }
       }
-      
+
       // Re-throw the error for the caller to handle
       throw error;
     }

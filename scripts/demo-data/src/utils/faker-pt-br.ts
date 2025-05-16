@@ -31,17 +31,19 @@ export function generateCPF(): string {
 
   // Generate first 9 random digits
   const digits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
-  
+
   // Calculate first verification digit
   const digit1 = generateDigit(digits);
   digits.push(digit1);
-  
+
   // Calculate second verification digit
   const digit2 = generateDigit(digits);
   digits.push(digit2);
-  
+
   // Format as CPF: XXX.XXX.XXX-XX
-  return `${digits.slice(0, 3).join('')}.${digits.slice(3, 6).join('')}.${digits.slice(6, 9).join('')}-${digits.slice(9).join('')}`;
+  return `${digits.slice(0, 3).join('')}.${digits.slice(3, 6).join('')}.${digits
+    .slice(6, 9)
+    .join('')}-${digits.slice(9).join('')}`;
 }
 
 /**
@@ -60,19 +62,21 @@ export function generateCNPJ(): string {
 
   // Generate first 12 random digits (8 base + 4 branch)
   const digits = Array.from({ length: 12 }, () => Math.floor(Math.random() * 10));
-  
+
   // Calculate first verification digit
   const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
   const digit1 = generateDigit(digits, weights1);
   digits.push(digit1);
-  
+
   // Calculate second verification digit
   const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
   const digit2 = generateDigit(digits, weights2);
   digits.push(digit2);
-  
+
   // Format as CNPJ: XX.XXX.XXX/YYYY-ZZ
-  return `${digits.slice(0, 2).join('')}.${digits.slice(2, 5).join('')}.${digits.slice(5, 8).join('')}/${digits.slice(8, 12).join('')}-${digits.slice(12).join('')}`;
+  return `${digits.slice(0, 2).join('')}.${digits.slice(2, 5).join('')}.${digits
+    .slice(5, 8)
+    .join('')}/${digits.slice(8, 12).join('')}-${digits.slice(12).join('')}`;
 }
 
 /**
@@ -82,13 +86,13 @@ export function generateCNPJ(): string {
 export function generatePersonData(): PersonData {
   // Determine if this is an individual or company based on distribution
   const isIndividual = Math.random() * 100 < PERSON_TYPE_DISTRIBUTION.individualPercentage;
-  
+
   if (isIndividual) {
     // Generate data for individual (PF)
     const firstName = faker.name.firstName();
     const lastName = faker.name.lastName();
     const fullName = `${firstName} ${lastName}`;
-    
+
     return {
       type: PersonType.INDIVIDUAL,
       name: fullName,
@@ -106,7 +110,7 @@ export function generatePersonData(): PersonData {
     // Generate data for company (PJ)
     const companyName = faker.company.companyName();
     const tradingName = faker.company.companySuffix();
-    
+
     return {
       type: PersonType.COMPANY,
       name: companyName,
@@ -127,7 +131,11 @@ export function generatePersonData(): PersonData {
 /**
  * Generate a random amount in BRL cents within range
  */
-export function generateAmount(min = 10, max = 10000, scale = 2): {
+export function generateAmount(
+  min = 10,
+  max = 10000,
+  scale = 2
+): {
   value: number;
   formatted: string;
 } {
@@ -136,7 +144,7 @@ export function generateAmount(min = 10, max = 10000, scale = 2): {
   const minValue = min * scaleFactor;
   const maxValue = max * scaleFactor;
   const value = Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
-  
+
   // Format as BRL
   const formatted = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -144,7 +152,7 @@ export function generateAmount(min = 10, max = 10000, scale = 2): {
     minimumFractionDigits: scale,
     maximumFractionDigits: scale,
   }).format(value / scaleFactor);
-  
+
   return {
     value,
     formatted,
@@ -156,6 +164,8 @@ export function generateAmount(min = 10, max = 10000, scale = 2): {
  */
 export function generateAccountAlias(type: string, index: number): string {
   const prefix = type.slice(0, 3).toUpperCase();
-  const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const randomSuffix = Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, '0');
   return `${prefix}_${randomSuffix}_${index}`;
 }

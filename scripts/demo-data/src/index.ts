@@ -74,7 +74,10 @@ async function main() {
     .usage('Usage: $0 [options]')
     .example('$0 --volume small', 'Generate a small amount of demo data')
     .example('$0 --volume large --debug', 'Generate a large amount of demo data with debug logging')
-    .example('$0 --base-url http://localhost --onboarding-port 3000', 'Connect to specific API endpoints')
+    .example(
+      '$0 --base-url http://localhost --onboarding-port 3000',
+      'Connect to specific API endpoints'
+    )
     .epilogue('For more information, check the README.md file')
     .help()
     .alias('help', 'h').argv;
@@ -108,13 +111,15 @@ async function main() {
   };
 
   console.log(`Starting Midaz demo data generator with volume: ${options.volume}`);
-  console.log(`Connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`);
+  console.log(
+    `Connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`
+  );
 
   try {
     // Run the generator
     const generator = new Generator(options);
     await generator.run();
-    
+
     console.log('Demo data generation completed successfully!');
     process.exit(0);
   } catch (error) {

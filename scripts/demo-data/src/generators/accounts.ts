@@ -132,7 +132,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
     const index = _options?.index || 0;
     // The SDK defines AccountType as 'deposit'|'savings'|'loans'|'marketplace'|'creditCard'|'external'
     // These are actually the correct values expected by the API
-    const accountTypes: AccountType[] = ['deposit', 'savings', 'loans'];  // Using only the most common types
+    const accountTypes: AccountType[] = ['deposit', 'savings', 'loans']; // Using only the most common types
     // Skip some account types that may cause issues
     // 'marketplace' and 'creditCard' may not be fully implemented in the API
 

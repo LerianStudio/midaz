@@ -30,21 +30,26 @@ export class LedgerGenerator implements EntityGenerator<Ledger> {
    */
   async generate(count: number, organizationId: string): Promise<Ledger[]> {
     this.logger.info(`Generating ${count} ledgers for organization: ${organizationId}`);
-    
+
     const ledgers: Ledger[] = [];
-    
+
     for (let i = 0; i < count; i++) {
       try {
         const ledger = await this.generateOne(organizationId);
         ledgers.push(ledger);
         this.logger.progress('Ledgers created', i + 1, count);
       } catch (error) {
-        this.logger.error(`Failed to generate ledger ${i + 1} for organization ${organizationId}`, error as Error);
+        this.logger.error(
+          `Failed to generate ledger ${i + 1} for organization ${organizationId}`,
+          error as Error
+        );
         this.stateManager.incrementErrorCount();
       }
     }
-    
-    this.logger.info(`Successfully generated ${ledgers.length} ledgers for organization: ${organizationId}`);
+
+    this.logger.info(
+      `Successfully generated ${ledgers.length} ledgers for organization: ${organizationId}`
+    );
     return ledgers;
   }
 
@@ -54,47 +59,55 @@ export class LedgerGenerator implements EntityGenerator<Ledger> {
    */
   async generateOne(organizationId: string): Promise<Ledger> {
     // Generate a name for the ledger
-    const ledgerType = faker.random.arrayElement(['Main', 'Secondary', 'Operational', 'Trading', 'Custody', 'Investment']);
+    const ledgerType = faker.random.arrayElement([
+      'Main',
+      'Secondary',
+      'Operational',
+      'Trading',
+      'Custody',
+      'Investment',
+    ]);
     const name = `${ledgerType} Ledger`;
-    
+
     this.logger.debug(`Generating ledger: ${name} for organization: ${organizationId}`);
-    
+
     try {
       // Create the ledger
-      const ledger = await this.client.entities.ledgers.createLedger(
-        organizationId,
-        {
-          name,
-          metadata: {
-            type: ledgerType.toLowerCase(),
-            generator: 'midaz-demo-data',
-            generated_at: new Date().toISOString()
-          }
-        }
-      );
-      
+      const ledger = await this.client.entities.ledgers.createLedger(organizationId, {
+        name,
+        metadata: {
+          type: ledgerType.toLowerCase(),
+          generator: 'midaz-demo-data',
+          generated_at: new Date().toISOString(),
+        },
+      });
+
       // Store the ledger ID in state
       this.stateManager.addLedgerId(organizationId, ledger.id);
       this.logger.debug(`Created ledger: ${ledger.id}`);
-      
+
       return ledger;
     } catch (error) {
       // Check if it's a conflict error (already exists)
-      if ((error as Error).message.includes('already exists') || 
-          (error as Error).message.includes('conflict')) {
-        this.logger.warn(`Ledger with name "${name}" may already exist for organization ${organizationId}, trying to retrieve it`);
-        
+      if (
+        (error as Error).message.includes('already exists') ||
+        (error as Error).message.includes('conflict')
+      ) {
+        this.logger.warn(
+          `Ledger with name "${name}" may already exist for organization ${organizationId}, trying to retrieve it`
+        );
+
         // Try to find the ledger by listing all and filtering
         const ledgers = await this.client.entities.ledgers.listLedgers(organizationId);
-        const existingLedger = ledgers.items.find(l => l.name === name);
-        
+        const existingLedger = ledgers.items.find((l) => l.name === name);
+
         if (existingLedger) {
           this.logger.info(`Found existing ledger: ${existingLedger.id}`);
           this.stateManager.addLedgerId(organizationId, existingLedger.id);
           return existingLedger;
         }
       }
-      
+
       // Re-throw the error for the caller to handle
       throw error;
     }

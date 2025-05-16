@@ -34,27 +34,30 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
     if (!ledgerId) {
       throw new Error('Cannot generate segments without a ledger ID');
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       throw new Error('Cannot generate segments without any organizations');
     }
     this.logger.info(`Generating ${count} segments for ledger: ${ledgerId}`);
-    
+
     const segments: Segment[] = [];
-    
+
     for (let i = 0; i < count; i++) {
       try {
         const segment = await this.generateOne(ledgerId);
         segments.push(segment);
         this.logger.progress('Segments created', i + 1, count);
       } catch (error) {
-        this.logger.error(`Failed to generate segment ${i + 1} for ledger ${ledgerId}`, error as Error);
+        this.logger.error(
+          `Failed to generate segment ${i + 1} for ledger ${ledgerId}`,
+          error as Error
+        );
         this.stateManager.incrementErrorCount();
       }
     }
-    
+
     this.logger.info(`Successfully generated ${segments.length} segments for ledger: ${ledgerId}`);
     return segments;
   }
@@ -69,61 +72,68 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
     if (!ledgerId) {
       throw new Error('Cannot generate segment without a ledger ID');
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       throw new Error('Cannot generate segment without any organizations');
     }
-    
+
     const organizationId = organizationIds[0];
     // Generate a name for the segment
     const segmentTypes = [
-      'Retail', 'Private', 'Corporate', 'SME', 'Enterprise',
-      'Investment', 'Institutional', 'Government', 'International'
+      'Retail',
+      'Private',
+      'Corporate',
+      'SME',
+      'Enterprise',
+      'Investment',
+      'Institutional',
+      'Government',
+      'International',
     ];
     const segmentType = faker.random.arrayElement(segmentTypes);
     const name = `${segmentType} Segment`;
-    
+
     this.logger.debug(`Generating segment: ${name} for ledger: ${ledgerId}`);
-    
+
     try {
       // Create the segment
-      const segment = await this.client.entities.segments.createSegment(
-        organizationId,
-        ledgerId,
-        {
-          name,
-          metadata: {
-            type: segmentType.toLowerCase(),
-            generator: 'midaz-demo-data',
-            generated_at: new Date().toISOString()
-          }
-        }
-      );
-      
+      const segment = await this.client.entities.segments.createSegment(organizationId, ledgerId, {
+        name,
+        metadata: {
+          type: segmentType.toLowerCase(),
+          generator: 'midaz-demo-data',
+          generated_at: new Date().toISOString(),
+        },
+      });
+
       // Store the segment ID in state
       this.stateManager.addSegmentId(ledgerId, segment.id);
       this.logger.debug(`Created segment: ${segment.id}`);
-      
+
       return segment;
     } catch (error) {
       // Check if it's a conflict error (already exists)
-      if ((error as Error).message.includes('already exists') || 
-          (error as Error).message.includes('conflict')) {
-        this.logger.warn(`Segment with name "${name}" may already exist for ledger ${ledgerId}, trying to retrieve it`);
-        
+      if (
+        (error as Error).message.includes('already exists') ||
+        (error as Error).message.includes('conflict')
+      ) {
+        this.logger.warn(
+          `Segment with name "${name}" may already exist for ledger ${ledgerId}, trying to retrieve it`
+        );
+
         // Try to find the segment by listing all and filtering
         const segments = await this.client.entities.segments.listSegments(organizationId, ledgerId);
-        const existingSegment = segments.items.find(s => s.name === name);
-        
+        const existingSegment = segments.items.find((s) => s.name === name);
+
         if (existingSegment) {
           this.logger.info(`Found existing segment: ${existingSegment.id}`);
           this.stateManager.addSegmentId(ledgerId, existingSegment.id);
           return existingSegment;
         }
       }
-      
+
       // Re-throw the error for the caller to handle
       throw error;
     }
@@ -141,14 +151,14 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
       this.logger.warn(`Cannot check if segment exists without a ledger ID: ${id}`);
       return false;
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       this.logger.warn(`Cannot check if segment exists without any organizations: ${id}`);
       return false;
     }
-    
+
     const organizationId = organizationIds[0];
     try {
       await this.client.entities.segments.getSegment(organizationId, ledgerId, id);

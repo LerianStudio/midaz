@@ -34,30 +34,35 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
     if (!ledgerId) {
       throw new Error('Cannot generate portfolios without a ledger ID');
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       throw new Error('Cannot generate portfolios without any organizations');
     }
-    
+
     const organizationId = organizationIds[0];
     this.logger.info(`Generating ${count} portfolios for ledger: ${ledgerId}`);
-    
+
     const portfolios: Portfolio[] = [];
-    
+
     for (let i = 0; i < count; i++) {
       try {
         const portfolio = await this.generateOne(ledgerId);
         portfolios.push(portfolio);
         this.logger.progress('Portfolios created', i + 1, count);
       } catch (error) {
-        this.logger.error(`Failed to generate portfolio ${i + 1} for ledger ${ledgerId}`, error as Error);
+        this.logger.error(
+          `Failed to generate portfolio ${i + 1} for ledger ${ledgerId}`,
+          error as Error
+        );
         this.stateManager.incrementErrorCount();
       }
     }
-    
-    this.logger.info(`Successfully generated ${portfolios.length} portfolios for ledger: ${ledgerId}`);
+
+    this.logger.info(
+      `Successfully generated ${portfolios.length} portfolios for ledger: ${ledgerId}`
+    );
     return portfolios;
   }
 
@@ -71,24 +76,30 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
     if (!ledgerId) {
       throw new Error('Cannot generate portfolio without a ledger ID');
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       throw new Error('Cannot generate portfolio without any organizations');
     }
-    
+
     const organizationId = organizationIds[0];
     // Generate a name for the portfolio
     const portfolioTypes = [
-      'Retail', 'Institutional', 'Corporate', 'Investment', 
-      'Trading', 'Custody', 'Banking', 'Treasury'
+      'Retail',
+      'Institutional',
+      'Corporate',
+      'Investment',
+      'Trading',
+      'Custody',
+      'Banking',
+      'Treasury',
     ];
     const portfolioType = faker.random.arrayElement(portfolioTypes);
     const name = `${portfolioType} Portfolio`;
-    
+
     this.logger.debug(`Generating portfolio: ${name} for ledger: ${ledgerId}`);
-    
+
     try {
       // Create the portfolio
       const portfolio = await this.client.entities.portfolios.createPortfolio(
@@ -100,33 +111,40 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
           metadata: {
             type: portfolioType.toLowerCase(),
             generator: 'midaz-demo-data',
-            generated_at: new Date().toISOString()
-          }
+            generated_at: new Date().toISOString(),
+          },
         }
       );
-      
+
       // Store the portfolio ID in state
       this.stateManager.addPortfolioId(ledgerId, portfolio.id);
       this.logger.debug(`Created portfolio: ${portfolio.id}`);
-      
+
       return portfolio;
     } catch (error) {
       // Check if it's a conflict error (already exists)
-      if ((error as Error).message.includes('already exists') || 
-          (error as Error).message.includes('conflict')) {
-        this.logger.warn(`Portfolio with name "${name}" may already exist for ledger ${ledgerId}, trying to retrieve it`);
-        
+      if (
+        (error as Error).message.includes('already exists') ||
+        (error as Error).message.includes('conflict')
+      ) {
+        this.logger.warn(
+          `Portfolio with name "${name}" may already exist for ledger ${ledgerId}, trying to retrieve it`
+        );
+
         // Try to find the portfolio by listing all and filtering
-        const portfolios = await this.client.entities.portfolios.listPortfolios(organizationId, ledgerId);
-        const existingPortfolio = portfolios.items.find(p => p.name === name);
-        
+        const portfolios = await this.client.entities.portfolios.listPortfolios(
+          organizationId,
+          ledgerId
+        );
+        const existingPortfolio = portfolios.items.find((p) => p.name === name);
+
         if (existingPortfolio) {
           this.logger.info(`Found existing portfolio: ${existingPortfolio.id}`);
           this.stateManager.addPortfolioId(ledgerId, existingPortfolio.id);
           return existingPortfolio;
         }
       }
-      
+
       // Re-throw the error for the caller to handle
       throw error;
     }
@@ -144,14 +162,14 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
       this.logger.warn(`Cannot check if portfolio exists without a ledger ID: ${id}`);
       return false;
     }
-    
+
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
       this.logger.warn(`Cannot check if portfolio exists without any organizations: ${id}`);
       return false;
     }
-    
+
     const organizationId = organizationIds[0];
     try {
       await this.client.entities.portfolios.getPortfolio(organizationId, ledgerId, id);
