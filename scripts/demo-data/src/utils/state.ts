@@ -3,7 +3,7 @@
  * Keeps track of all generated entities and their relationships
  */
 
-import { GeneratorState, GenerationMetrics } from '../types';
+import { GenerationMetrics, GeneratorState } from '../types';
 
 /**
  * Generator state singleton
@@ -33,12 +33,20 @@ export class StateManager {
     totalSegments: 0,
     totalAccounts: 0,
     totalTransactions: 0,
+    // Add error counters per entity type
+    organizationErrors: 0,
+    ledgerErrors: 0,
+    assetErrors: 0,
+    portfolioErrors: 0,
+    segmentErrors: 0,
+    accountErrors: 0,
+    transactionErrors: 0,
     errors: 0,
     retries: 0,
-    duration: function() {
+    duration: function () {
       const end = this.endTime || new Date();
       return end.getTime() - this.startTime.getTime();
-    }
+    },
   };
 
   /**
@@ -77,12 +85,20 @@ export class StateManager {
       totalSegments: 0,
       totalAccounts: 0,
       totalTransactions: 0,
+      // Add error counters per entity type
+      organizationErrors: 0,
+      ledgerErrors: 0,
+      assetErrors: 0,
+      portfolioErrors: 0,
+      segmentErrors: 0,
+      accountErrors: 0,
+      transactionErrors: 0,
       errors: 0,
       retries: 0,
-      duration: function() {
+      duration: function () {
         const end = this.endTime || new Date();
         return end.getTime() - this.startTime.getTime();
-      }
+      },
     };
   }
 
@@ -113,7 +129,7 @@ export class StateManager {
     this.state.organizationIds.push(id);
     this.metrics.totalOrganizations++;
   }
-  
+
   public getOrganizationIds(): string[] {
     return this.state.organizationIds;
   }
@@ -126,14 +142,14 @@ export class StateManager {
     this.state.ledgerIds.get(orgId)?.push(ledgerId);
     this.metrics.totalLedgers++;
   }
-  
+
   public getLedgerIds(orgId: string): string[] {
     return this.state.ledgerIds.get(orgId) || [];
   }
-  
+
   public getAllLedgerIds(): string[] {
     const allIds: string[] = [];
-    this.state.ledgerIds.forEach(ids => allIds.push(...ids));
+    this.state.ledgerIds.forEach((ids) => allIds.push(...ids));
     return allIds;
   }
 
@@ -147,11 +163,11 @@ export class StateManager {
     this.state.assetCodes.get(ledgerId)?.push(assetCode);
     this.metrics.totalAssets++;
   }
-  
+
   public getAssetIds(ledgerId: string): string[] {
     return this.state.assetIds.get(ledgerId) || [];
   }
-  
+
   public getAssetCodes(ledgerId: string): string[] {
     return this.state.assetCodes.get(ledgerId) || [];
   }
@@ -164,7 +180,7 @@ export class StateManager {
     this.state.portfolioIds.get(ledgerId)?.push(portfolioId);
     this.metrics.totalPortfolios++;
   }
-  
+
   public getPortfolioIds(ledgerId: string): string[] {
     return this.state.portfolioIds.get(ledgerId) || [];
   }
@@ -177,7 +193,7 @@ export class StateManager {
     this.state.segmentIds.get(ledgerId)?.push(segmentId);
     this.metrics.totalSegments++;
   }
-  
+
   public getSegmentIds(ledgerId: string): string[] {
     return this.state.segmentIds.get(ledgerId) || [];
   }
@@ -194,15 +210,15 @@ export class StateManager {
     }
     this.metrics.totalAccounts++;
   }
-  
+
   public getAccountIds(ledgerId: string): string[] {
     return this.state.accountIds.get(ledgerId) || [];
   }
-  
+
   public getAccountAliases(ledgerId: string): string[] {
     return this.state.accountAliases.get(ledgerId) || [];
   }
-  
+
   /**
    * Associate an asset code with an account
    * This helps track which asset type is used for each account
@@ -213,10 +229,9 @@ export class StateManager {
     }
     this.state.accountAssets.get(ledgerId)?.set(accountId, assetCode);
   }
-  
+
   /**
    * Get the asset code associated with an account
-   * Returns default 'BRL' if not found
    */
   public getAccountAsset(ledgerId: string, accountId: string): string {
     return this.state.accountAssets.get(ledgerId)?.get(accountId) || 'BRL';
@@ -230,14 +245,41 @@ export class StateManager {
     this.state.transactionIds.get(ledgerId)?.push(transactionId);
     this.metrics.totalTransactions++;
   }
-  
+
   public getTransactionIds(ledgerId: string): string[] {
     return this.state.transactionIds.get(ledgerId) || [];
   }
 
   // Error tracking
-  public incrementErrorCount(): void {
+  public incrementErrorCount(entityType?: string): void {
     this.metrics.errors++;
+    
+    // Track errors by entity type if specified
+    if (entityType) {
+      switch (entityType.toLowerCase()) {
+        case 'organization':
+          this.metrics.organizationErrors = (this.metrics.organizationErrors || 0) + 1;
+          break;
+        case 'ledger':
+          this.metrics.ledgerErrors = (this.metrics.ledgerErrors || 0) + 1;
+          break;
+        case 'asset':
+          this.metrics.assetErrors = (this.metrics.assetErrors || 0) + 1;
+          break;
+        case 'portfolio':
+          this.metrics.portfolioErrors = (this.metrics.portfolioErrors || 0) + 1;
+          break;
+        case 'segment':
+          this.metrics.segmentErrors = (this.metrics.segmentErrors || 0) + 1;
+          break;
+        case 'account':
+          this.metrics.accountErrors = (this.metrics.accountErrors || 0) + 1;
+          break;
+        case 'transaction':
+          this.metrics.transactionErrors = (this.metrics.transactionErrors || 0) + 1;
+          break;
+      }
+    }
   }
 
   // Retry tracking

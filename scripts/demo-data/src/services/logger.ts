@@ -78,6 +78,14 @@ export class Logger {
     totalSegments: number;
     totalAccounts: number;
     totalTransactions: number;
+    // Add error counts per entity type
+    organizationErrors?: number;
+    ledgerErrors?: number;
+    assetErrors?: number;
+    portfolioErrors?: number;
+    segmentErrors?: number;
+    accountErrors?: number;
+    transactionErrors?: number;
     errors: number;
     retries: number;
     duration: number;
@@ -87,15 +95,24 @@ export class Logger {
     console.log('\n------------------------------------------');
     console.log(' GENERATION METRICS');
     console.log('------------------------------------------');
-    console.log(` Organizations:  ${metrics.totalOrganizations}`);
-    console.log(` Ledgers:        ${metrics.totalLedgers}`);
-    console.log(` Assets:         ${metrics.totalAssets}`);
-    console.log(` Portfolios:     ${metrics.totalPortfolios}`);
-    console.log(` Segments:       ${metrics.totalSegments}`);
-    console.log(` Accounts:       ${metrics.totalAccounts}`);
-    console.log(` Transactions:   ${metrics.totalTransactions}`);
+    // Format each line to show: Total / Errors
+    const orgErrors = metrics.organizationErrors || 0;
+    const ledgerErrors = metrics.ledgerErrors || 0;
+    const assetErrors = metrics.assetErrors || 0;
+    const portfolioErrors = metrics.portfolioErrors || 0;
+    const segmentErrors = metrics.segmentErrors || 0;
+    const accountErrors = metrics.accountErrors || 0;
+    const txErrors = metrics.transactionErrors || 0;
+    
+    console.log(` Organizations:  ${metrics.totalOrganizations}/${orgErrors}`);
+    console.log(` Ledgers:        ${metrics.totalLedgers}/${ledgerErrors}`);
+    console.log(` Assets:         ${metrics.totalAssets}/${assetErrors}`);
+    console.log(` Portfolios:     ${metrics.totalPortfolios}/${portfolioErrors}`);
+    console.log(` Segments:       ${metrics.totalSegments}/${segmentErrors}`);
+    console.log(` Accounts:       ${metrics.totalAccounts}/${accountErrors}`);
+    console.log(` Transactions:   ${metrics.totalTransactions}/${txErrors}`);
     console.log('------------------------------------------');
-    console.log(` Errors:         ${metrics.errors}`);
+    console.log(` Total Errors:   ${metrics.errors}`);
     console.log(` Retries:        ${metrics.retries}`);
     console.log(` Duration:       ${durationSec.toFixed(2)}s`);
     console.log('------------------------------------------');

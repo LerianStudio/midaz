@@ -76,6 +76,14 @@ export interface GenerationMetrics {
   totalSegments: number;
   totalAccounts: number;
   totalTransactions: number;
+  // Error counts per entity type
+  organizationErrors?: number;
+  ledgerErrors?: number;
+  assetErrors?: number;
+  portfolioErrors?: number;
+  segmentErrors?: number;
+  accountErrors?: number;
+  transactionErrors?: number;
   errors: number;
   retries: number;
   duration(): number;

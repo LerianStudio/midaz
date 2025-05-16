@@ -6,10 +6,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "generate": "ts-node --transpile-only --skip-project src/index.ts",
-    "generate:small": "ts-node --transpile-only --skip-project src/index.ts --volume small",
-    "generate:medium": "ts-node --transpile-only --skip-project src/index.ts --volume medium",
-    "generate:large": "ts-node --transpile-only --skip-project src/index.ts --volume large",
+    "generate": "ts-node --project tsconfig-ts-node.json src/index.ts",
+    "generate:small": "ts-node --project tsconfig-ts-node.json src/index.ts --volume small",
+    "generate:medium": "ts-node --project tsconfig-ts-node.json src/index.ts --volume medium",
+    "generate:large": "ts-node --project tsconfig-ts-node.json src/index.ts --volume large",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "clean": "rimraf dist"

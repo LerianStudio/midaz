@@ -539,14 +539,23 @@ generate-demo-data:
 	@echo "Transaction Port: ${TRANSACTION_PORT:-3001}"
 	@echo "Concurrency: ${CONCURRENCY:-1}"
 	@echo "Debug Mode: ${DEBUG:-false}"
-	@echo "Auth Token: ${AUTH_TOKEN:-None}"
-	@cd scripts/demo-data && ./run-generator.sh ${SIZE:-small} \
-		--base-url ${BASE_URL:-http://localhost} \
-		--onboarding-port ${ONBOARDING_PORT:-3000} \
-		--transaction-port ${TRANSACTION_PORT:-3001} \
-		--concurrency ${CONCURRENCY:-1} \
-		${DEBUG:+--debug} \
-		${AUTH_TOKEN:+--auth-token $AUTH_TOKEN}
+	@echo "Auth Token: ${AUTH_TOKEN:-NONE}"
+	@echo "Setting up environment..."
+	@cd scripts/demo-data && \
+	VOLUME="${SIZE:-small}" \
+	BASE_URL="${BASE_URL:-http://localhost}" \
+	ONBOARDING_PORT="${ONBOARDING_PORT:-3000}" \
+	TRANSACTION_PORT="${TRANSACTION_PORT:-3001}" \
+	CONCURRENCY="${CONCURRENCY:-1}" \
+	DEBUG="${DEBUG:-false}" \
+	AUTH_TOKEN="${AUTH_TOKEN:-NONE}" \
+	npx ts-node src/index.ts --volume "$${VOLUME}" \
+		--base-url "$${BASE_URL}" \
+		--onboarding-port "$${ONBOARDING_PORT}" \
+		--transaction-port "$${TRANSACTION_PORT}" \
+		--concurrency "$${CONCURRENCY}" \
+		$${DEBUG:+--debug} \
+		--auth-token "$${AUTH_TOKEN}"
 
 #-------------------------------------------------------
 # Developer Helper Commands

@@ -47,9 +47,10 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     // Get organization ID from state
     const organizationIds = this.stateManager.getOrganizationIds();
     if (organizationIds.length === 0) {
-      throw new Error('Cannot generate transactions without any organizations');
+      this.logger.warn('Cannot generate transactions without any organizations');
+      this.stateManager.incrementErrorCount('transaction');
+      return [];
     }
-    const organizationId = organizationIds[0];
 
     // Get accounts for this ledger
     const accountIds = this.stateManager.getAccountIds(ledgerId);
@@ -59,6 +60,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
       this.logger.warn(
         `Need at least 2 accounts to create transactions in ledger ${ledgerId}, found: ${accountIds.length}`
       );
+      this.stateManager.incrementErrorCount('transaction');
       return [];
     }
 
@@ -90,7 +92,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
           // Get the account details to check status and ensure it's ready
           try {
             const account = await this.client.entities.accounts.getAccount(
-              organizationId,
+              this.stateManager.getOrganizationIds()[0],
               ledgerId,
               accountId
             );
@@ -116,17 +118,54 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
             }
           } catch (accountError) {
             this.logger.error(`Failed to retrieve account ${accountAlias}`, accountError as Error);
-            this.stateManager.incrementErrorCount();
+            this.stateManager.incrementErrorCount('transaction');
             continue; // Skip this account and move to next
           }
 
-          // Get the asset code for this account
-          // In a real implementation, we would have account->asset mapping
-          // For demo purposes, we'll pick a random asset or use default BRL
-          let assetCode = 'BRL';
-          if (assetCodes.length > 0) {
-            // Either pick the one that matches the account index or pick a random one
-            assetCode = assetCodes[i % assetCodes.length] || assetCodes[0];
+          // Get the asset code for this account by retrieving its details
+          let assetCode;
+          try {
+            // Query the account to get its actual asset code
+            const accountDetails = await this.client.entities.accounts.getAccount(
+              this.stateManager.getOrganizationIds()[0], 
+              ledgerId, 
+              accountId
+            );
+            
+            // Get the asset code directly from the account
+            assetCode = accountDetails.assetCode;
+            this.logger.debug(`Retrieved asset code ${assetCode} from account ${accountAlias}`);
+            
+            // Store this asset code in our state for future use
+            this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
+          } catch (error) {
+            // If we can't get the account details, try to use what we have in state
+            assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
+            
+            if (!assetCode || assetCode === 'ERROR') {
+              // Ultimate fallback - use first available asset code
+              if (assetCodes.length > 0) {
+                assetCode = assetCodes[0];
+                this.logger.warn(`Using fallback asset code ${assetCode} for account ${accountAlias}`);
+              } else {
+                // Last resort - use BRL
+                assetCode = 'BRL';
+                this.logger.warn(`No asset codes available, using default BRL for account ${accountAlias}`);
+              }
+            }
+          }
+          
+          // Fallback: if we couldn't get the asset code or it's invalid
+          if (!assetCode || assetCode === 'ERROR') {
+            // Use the first available valid asset code
+            if (assetCodes.length > 0) {
+              assetCode = assetCodes[0];
+              this.logger.info(`Using fallback asset code ${assetCode} for account ${accountAlias}`);
+            } else {
+              // Hard fallback to BRL if no asset codes are available
+              assetCode = 'BRL';
+              this.logger.warn(`No valid asset codes found for ledger ${ledgerId}, using default BRL`);
+            }
           }
 
           // Initial deposit amount - use appropriate amount based on asset
@@ -150,6 +189,10 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
           // Simplified transaction model - keep it minimal
           const depositInput: CreateTransactionInput = {
             description: `Initial deposit of ${assetCode} to ${accountAlias}`,
+            // Include transaction-level fields
+            amount: depositAmount,
+            scale: TRANSACTION_AMOUNTS.scale,
+            assetCode: assetCode,
             metadata: {
               type: 'deposit', // Use 'type' instead of 'transactionType'
             },
@@ -166,7 +209,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
               },
               // Credit operation to target account
               {
-                accountId,
+                accountId, // Use actual account ID, not the alias
                 type: 'CREDIT',
                 amount: {
                   value: depositAmount,
@@ -186,7 +229,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
             try {
               // Create the deposit transaction
               transaction = await this.client.entities.transactions.createTransaction(
-                organizationId,
+                this.stateManager.getOrganizationIds()[0],
                 ledgerId,
                 depositInput
               );
@@ -224,7 +267,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
             `Failed to create deposit for account ${accountBatch[j]} in ledger ${ledgerId}`,
             error as Error
           );
-          this.stateManager.incrementErrorCount();
+          this.stateManager.incrementErrorCount('transaction');
         }
       }
     }
@@ -275,7 +318,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
             `Failed to generate transaction for accounts ${sourceAccountId} → ??? in ledger ${ledgerId}`,
             error as Error
           );
-          this.stateManager.incrementErrorCount();
+          this.stateManager.incrementErrorCount('transaction');
         }
       }
     }
@@ -324,10 +367,51 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
       throw new Error('Cannot generate transaction without source and target account details');
     }
 
-    // Get the asset associated with the source account
-    // This ensures we use the same asset that was used for the initial deposit
-    const assetCode = this.stateManager.getAccountAsset(ledgerId, sourceAccountId);
-    this.logger.debug(`Using asset ${assetCode} for transaction between accounts`);
+    // Get the asset associated with both source and target accounts
+    // Both accounts must have the same asset code for a valid transaction
+    let sourceAssetCode;
+    let targetAssetCode;
+    
+    try {
+      // Get source account details
+      const sourceAccount = await this.client.entities.accounts.getAccount(
+        organizationId,
+        ledgerId,
+        sourceAccountId
+      );
+      sourceAssetCode = sourceAccount.assetCode;
+      
+      // Get target account details
+      const targetAccount = await this.client.entities.accounts.getAccount(
+        organizationId,
+        ledgerId,
+        targetAccountId
+      );
+      targetAssetCode = targetAccount.assetCode;
+      
+      // Save these asset codes in our state
+      this.stateManager.setAccountAsset(ledgerId, sourceAccountId, sourceAssetCode);
+      this.stateManager.setAccountAsset(ledgerId, targetAccountId, targetAssetCode);
+      
+      // Verify that both accounts use the same asset
+      if (sourceAssetCode !== targetAssetCode) {
+        this.logger.warn(`Source account uses ${sourceAssetCode} but target account uses ${targetAssetCode}. Skipping transaction.`);
+        throw new Error(`Cannot create transaction between accounts with different assets (${sourceAssetCode} vs ${targetAssetCode})`);
+      }
+      
+      this.logger.debug(`Using asset ${sourceAssetCode} for transaction between accounts`);
+    } catch (error) {
+      // If we can't get the account details or assets don't match, fall back to state
+      sourceAssetCode = this.stateManager.getAccountAsset(ledgerId, sourceAccountId);
+      targetAssetCode = this.stateManager.getAccountAsset(ledgerId, targetAccountId);
+      
+      if (sourceAssetCode !== targetAssetCode) {
+        this.logger.warn(`Source account uses ${sourceAssetCode} but target account uses ${targetAssetCode}. Using source asset code.`);
+      }
+    }
+    
+    // Use the source asset code for the transaction
+    const assetCode = sourceAssetCode;
 
     // Generate a random amount based on the asset type
     let amount;
@@ -526,7 +610,9 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         });
       }
 
-      // Re-throw the error for the caller to handle
+      // Track this error as a transaction error and re-throw
+      this.logger.error('Error generating transaction:', error as Error);
+      this.stateManager.incrementErrorCount('transaction');
       throw error;
     }
   }
@@ -541,8 +627,39 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     accountAlias: string,
     amount: number
   ): Promise<Transaction> {
-    // Get the asset associated with the account
-    const assetCode = this.stateManager.getAccountAsset(ledgerId, accountId) || 'BRL';
+    // Get the correct asset code for this specific account by retrieving its details
+    let assetCode;
+    try {
+      // Query the account to get its actual asset code
+      const accountDetails = await this.client.entities.accounts.getAccount(
+        organizationId, 
+        ledgerId, 
+        accountId
+      );
+      
+      // Get the asset code directly from the account
+      assetCode = accountDetails.assetCode;
+      this.logger.debug(`Retrieved asset code ${assetCode} from account ${accountAlias}`);
+      
+      // Store this asset code in our state for future use
+      this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
+    } catch (error) {
+      // If we can't get the account details, try to use what we have in state
+      assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
+      
+      // If we still don't have a valid asset code, fall back to first available
+      if (!assetCode || assetCode === 'ERROR') {
+        const assetCodes = this.stateManager.getAssetCodes(ledgerId);
+        if (assetCodes.length > 0) {
+          assetCode = assetCodes[0];
+          this.logger.warn(`Using fallback asset code ${assetCode} for account ${accountAlias}`);
+        } else {
+          // Last resort - use BRL
+          assetCode = 'BRL';
+          this.logger.warn(`No asset codes available, using default BRL for account ${accountAlias}`);
+        }
+      }
+    }
 
     // Create simple description
     const description = `Deposit to ${accountAlias}`;
@@ -557,6 +674,10 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     const depositInput: CreateTransactionInput = {
       description,
       externalId,
+      // Include transaction-level fields
+      amount,
+      scale: TRANSACTION_AMOUNTS.scale,
+      assetCode,
       metadata: {
         transactionType: 'deposit',
       },
@@ -573,7 +694,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         },
         // Credit to the target account
         {
-          accountId: accountAlias,
+          accountId, // Use the actual account ID, not the alias
           type: 'CREDIT',
           amount: {
             value: amount,
