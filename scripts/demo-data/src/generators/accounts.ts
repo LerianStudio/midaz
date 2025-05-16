@@ -9,12 +9,12 @@ import {
   AccountType,
   createAccountBuilder,
 } from '../../midaz-sdk-typescript/src/models/account';
+import { workerPool } from '../../midaz-sdk-typescript/src/util/concurrency/worker-pool';
+import { MAX_CONCURRENCY } from '../config';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { generateAccountAlias } from '../utils/faker-pt-br';
 import { StateManager } from '../utils/state';
-import { workerPool } from '../../midaz-sdk-typescript/src/util/concurrency/worker-pool';
-import { MAX_CONCURRENCY } from '../config';
 
 /**
  * Options for batch account creation
@@ -86,7 +86,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
   ): Promise<AccountBatchResult> {
     // Set default options
     const {
-      concurrency = 5,
+      concurrency = 50,
       maxRetries = 3,
       delayBetweenAccounts = 100,
       stopOnError = false,
@@ -117,7 +117,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
           try {
             // Add a small delay between account creations to avoid rate limiting
             if (index > 0 && delayBetweenAccounts > 0) {
-              await new Promise(resolve => setTimeout(resolve, delayBetweenAccounts));
+              await new Promise((resolve) => setTimeout(resolve, delayBetweenAccounts));
             }
 
             // Build the account
@@ -182,23 +182,26 @@ export class AccountGenerator implements EntityGenerator<Account> {
 
               try {
                 // Try to find the account by listing all and filtering
-                const accounts = await this.client.entities.accounts.listAccounts(organizationId, ledgerId);
+                const accounts = await this.client.entities.accounts.listAccounts(
+                  organizationId,
+                  ledgerId
+                );
                 const existingAccount = accounts.items.find((a) => a.alias === accountInput.alias);
 
                 if (existingAccount) {
                   this.logger.info(
                     `Found existing account: ${existingAccount.id} (${existingAccount.alias})`
                   );
-                  
+
                   // Use the existing account
                   account = existingAccount;
                   success = true;
-                  
+
                   // Call success callback if provided
                   if (onAccountSuccess) {
                     onAccountSuccess(accountInput, index, account);
                   }
-                  
+
                   // Update result
                   result.successCount++;
                   result.results.push({
@@ -206,7 +209,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
                     account,
                     index,
                   });
-                  
+
                   // Break out of retry loop
                   break;
                 }
@@ -214,20 +217,20 @@ export class AccountGenerator implements EntityGenerator<Account> {
                 this.logger.warn(`Failed to list accounts to find existing account: ${listError}`);
               }
             }
-            
+
             // If enhanced recovery is enabled, add exponential backoff
             if (useEnhancedRecovery && retryCount < maxRetries) {
               const delay = Math.min(100 * Math.pow(2, retryCount), 2000);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              await new Promise((resolve) => setTimeout(resolve, delay));
             }
-            
+
             // If it's the last retry and still failed
             if (retryCount > maxRetries && !success) {
               // Call error callback if provided
               if (onAccountError) {
                 onAccountError(accountInput, index, error);
               }
-              
+
               // Update result
               result.failureCount++;
               result.results.push({
@@ -235,7 +238,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
                 error,
                 index,
               });
-              
+
               // If stopOnError is true, throw the error to stop the batch
               if (stopOnError) {
                 throw error;
@@ -243,7 +246,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
             }
           }
         }
-        
+
         return account;
       },
       {
@@ -253,7 +256,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
         batchDelay: 0, // We're already handling delays in the worker function
       }
     );
-    
+
     return result;
   }
 
@@ -275,7 +278,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
       throw new Error('Cannot generate accounts without any organizations');
     }
     const organizationId = organizationIds[0];
-    
+
     this.logger.info(`Generating ${count} accounts for ledger: ${ledgerId}`);
 
     const accounts: Account[] = [];
@@ -292,10 +295,10 @@ export class AccountGenerator implements EntityGenerator<Account> {
 
     // Prepare account creation inputs
     const accountInputs: CreateAccountInput[] = [];
-    
+
     // Define the account types to use
     const accountTypes: AccountType[] = ['deposit', 'savings', 'loans'];
-    
+
     for (let i = 0; i < count; i++) {
       // Choose random portfolio, segment, and asset code
       const portfolioId =
@@ -304,7 +307,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
       const segmentId = segmentIds.length > 0 ? faker.random.arrayElement(segmentIds) : undefined;
 
       const assetCode = faker.random.arrayElement(assetCodes);
-      
+
       // Generate account details
       const accountType = faker.random.arrayElement(accountTypes);
       const accountName = `${faker.name.firstName()}'s ${faker.random.arrayElement([
@@ -317,7 +320,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
 
       // Generate a unique alias
       const alias = generateAccountAlias(accountType, i);
-      
+
       // Create the account input
       accountInputs.push({
         name: accountName,
@@ -332,14 +335,14 @@ export class AccountGenerator implements EntityGenerator<Account> {
         },
       });
     }
-    
+
     // Calculate optimal concurrency
     const concurrencyLevel = Math.min(
       Math.max(2, Math.floor(MAX_CONCURRENCY / 2)), // Use half of max concurrency to avoid rate limits
       10, // Never exceed 10 concurrent operations
       accountInputs.length // Don't exceed actual number of accounts
     );
-    
+
     // Prepare batch options
     const batchOptions: AccountBatchOptions = {
       concurrency: concurrencyLevel,
@@ -353,10 +356,10 @@ export class AccountGenerator implements EntityGenerator<Account> {
       onAccountSuccess: (accountInput: any, index: number, result: any) => {
         // Store the account ID and alias in state
         this.stateManager.addAccountId(ledgerId, result.id, result.alias);
-        
+
         // Add to the accounts array
         accounts.push(result);
-        
+
         // Log progress
         this.logger.progress('Accounts created', accounts.length, count);
       },
@@ -370,7 +373,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
         // The error will be counted in the batch result processing
       },
     };
-    
+
     try {
       // Execute the batch of account creations
       const batchResult = await this.createAccountBatch(
@@ -379,21 +382,20 @@ export class AccountGenerator implements EntityGenerator<Account> {
         accountInputs,
         batchOptions
       );
-      
+
       // Log batch completion
       this.logger.info(
         `Completed batch of ${accountInputs.length} accounts: ${batchResult.successCount} succeeded, ${batchResult.failureCount} failed`
       );
-      
+
       // Track errors from the batch result
       const failedResults = batchResult.results.filter((r: any) => r.status === 'failed');
       if (failedResults.length > 0) {
         // Count each unique error message to avoid duplicate counting
         const uniqueErrorMessages = new Set(
-          failedResults
-            .map((r: any) => r.error?.message || 'Unknown error')
+          failedResults.map((r: any) => r.error?.message || 'Unknown error')
         );
-        
+
         // Increment error count once for each unique error message
         uniqueErrorMessages.forEach(() => {
           this.stateManager.incrementErrorCount();

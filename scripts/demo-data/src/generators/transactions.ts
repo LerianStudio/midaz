@@ -15,14 +15,14 @@ import {
 import { workerPool } from '../../midaz-sdk-typescript/src/util/concurrency/worker-pool';
 // Use string literals to match exactly what the API expects for status codes
 import {
-  MAX_CONCURRENCY, 
-  TRANSACTION_AMOUNTS, 
-  TRANSACTION_TRANSFER_AMOUNTS,
-  DEPOSIT_AMOUNTS,
-  PROCESSING_DELAYS,
-  BATCH_PROCESSING_CONFIG,
   ACCOUNT_FORMATS,
-  TRANSACTION_METADATA
+  BATCH_PROCESSING_CONFIG,
+  DEPOSIT_AMOUNTS,
+  MAX_CONCURRENCY,
+  PROCESSING_DELAYS,
+  TRANSACTION_AMOUNTS,
+  TRANSACTION_METADATA,
+  TRANSACTION_TRANSFER_AMOUNTS,
 } from '../config';
 import { Logger } from '../services/logger';
 // Import any types we need from types.ts
@@ -114,17 +114,17 @@ export class TransactionGenerator {
     if (assetCode === 'BTC' || assetCode === 'ETH') {
       return {
         min: TRANSACTION_TRANSFER_AMOUNTS?.CRYPTO?.min ?? 0.1,
-        max: TRANSACTION_TRANSFER_AMOUNTS?.CRYPTO?.max ?? 1
+        max: TRANSACTION_TRANSFER_AMOUNTS?.CRYPTO?.max ?? 1,
       };
     } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
       return {
         min: TRANSACTION_TRANSFER_AMOUNTS?.COMMODITIES?.min ?? 1,
-        max: TRANSACTION_TRANSFER_AMOUNTS?.COMMODITIES?.max ?? 10
+        max: TRANSACTION_TRANSFER_AMOUNTS?.COMMODITIES?.max ?? 10,
       };
     } else {
       return {
         min: TRANSACTION_TRANSFER_AMOUNTS?.CURRENCIES?.min ?? 100,
-        max: TRANSACTION_TRANSFER_AMOUNTS?.CURRENCIES?.max ?? 500
+        max: TRANSACTION_TRANSFER_AMOUNTS?.CURRENCIES?.max ?? 500,
       };
     }
   }
@@ -199,7 +199,7 @@ export class TransactionGenerator {
         }
       },
       {
-        concurrency: Math.min(MAX_CONCURRENCY, 10), // Use up to 10 concurrent requests
+        concurrency: Math.min(MAX_CONCURRENCY, 100), // Use up to 10 concurrent requests
         preserveOrder: true, // Keep results in same order as inputs
         continueOnError: true, // Continue even if some requests fail
       }
@@ -313,7 +313,8 @@ export class TransactionGenerator {
           maxRetries: BATCH_PROCESSING_CONFIG?.DEPOSITS?.maxRetries ?? 3,
           useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.DEPOSITS?.useEnhancedRecovery ?? true,
           stopOnError: BATCH_PROCESSING_CONFIG?.DEPOSITS?.stopOnError ?? false,
-          delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.DEPOSITS?.delayBetweenTransactions ?? 100,
+          delayBetweenTransactions:
+            BATCH_PROCESSING_CONFIG?.DEPOSITS?.delayBetweenTransactions ?? 100,
           batchMetadata: {
             ...TRANSACTION_METADATA?.DEPOSIT,
             type: 'deposit',
@@ -363,7 +364,7 @@ export class TransactionGenerator {
           this.client,
           organizationId,
           ledgerId,
-          accountsWithSameAsset.map(account => ({
+          accountsWithSameAsset.map((account) => ({
             description: `Initial deposit of ${assetCode} to ${account.accountAlias}`,
             amount: account.depositAmount || 0,
             scale: TRANSACTION_AMOUNTS.scale,
@@ -403,15 +404,13 @@ export class TransactionGenerator {
 
         // Track errors from the batch result - only count unique errors
         // to avoid double-counting with the onTransactionError callback
-        const failedResults = batchResult.results.filter(r => r.status === 'failed');
+        const failedResults = batchResult.results.filter((r) => r.status === 'failed');
         if (failedResults.length > 0) {
           // Count each unique error message to avoid duplicate counting
           const uniqueErrorMessages = new Set(
-            failedResults
-              .map(r => r.error?.message || 'Unknown error')
-              .filter(Boolean)
+            failedResults.map((r) => r.error?.message || 'Unknown error').filter(Boolean)
           );
-          
+
           // Increment error count for each unique error - this is the ONLY place where we count errors
           // from the batch processing to avoid double-counting
           uniqueErrorMessages.forEach(() => {
@@ -425,25 +424,30 @@ export class TransactionGenerator {
           `Batch processing failed for deposits with asset ${assetCode} in ledger ${ledgerId}: ${errorMessage}`,
           error instanceof Error ? error : new Error(String(error))
         );
-        
+
         // Count this as a single batch error - this avoids double-counting individual transaction errors
         this.stateManager.incrementErrorCount('transaction');
-        
+
         // Check if we have an object with a results property that's an array
         // This handles partial batch failures where some transactions succeeded and others failed
-        if (error && typeof error === 'object' && 'results' in error && 
-            Array.isArray((error as any).results)) {
+        if (
+          error &&
+          typeof error === 'object' &&
+          'results' in error &&
+          Array.isArray((error as any).results)
+        ) {
           // We only want to count unique errors to avoid inflating the error count
-          const results = (error as any).results as Array<{ status: string; error?: { message: string } }>;
+          const results = (error as any).results as Array<{
+            status: string;
+            error?: { message: string };
+          }>;
           const failedResults = results.filter((r) => r.status === 'failed');
-          
+
           // Use a Set to track unique error messages
           const uniqueErrorMessages = new Set(
-            failedResults
-              .map(r => r.error?.message || 'Unknown error')
-              .filter(Boolean)
+            failedResults.map((r) => r.error?.message || 'Unknown error').filter(Boolean)
           );
-          
+
           // Only increment once per unique error message
           uniqueErrorMessages.forEach(() => {
             this.stateManager.incrementErrorCount('transaction');
@@ -453,10 +457,9 @@ export class TransactionGenerator {
     }
 
     const depositFailureCount = totalDepositTransactions - depositSuccessCount;
-    const statusMessage = depositFailureCount > 0 
-      ? `with ${depositFailureCount} failures` 
-      : 'successfully';
-      
+    const statusMessage =
+      depositFailureCount > 0 ? `with ${depositFailureCount} failures` : 'successfully';
+
     this.logger.info(
       `Created deposits for ${depositSuccessCount} out of ${totalDepositTransactions} accounts ${statusMessage}`
     );
@@ -466,30 +469,27 @@ export class TransactionGenerator {
     this.logger.info('Waiting for deposits to be processed before starting transfers...');
     const depositSettlementDelay = PROCESSING_DELAYS?.BETWEEN_DEPOSIT_AND_TRANSFER ?? 3000; // Default: 3 seconds
     await new Promise((resolve) => setTimeout(resolve, depositSettlementDelay));
-    
+
     // Step 2: Create peer-to-peer transactions between accounts with the same asset type
     this.logger.info(
       `Step 2: Creating peer-to-peer transactions between accounts with the same asset type (${count} per account)`
     );
 
     // Group accounts by asset code for efficient transfer generation
-    const accountsByAsset = new Map<
-      string,
-      { accountId: string; accountAlias: string }[]
-    >();
+    const accountsByAsset = new Map<string, { accountId: string; accountAlias: string }[]>();
 
     // Organize accounts by asset code
     accountIds.forEach((accountId, index) => {
       const accountAlias = accountAliases[index];
       const assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
-      
+
       if (!accountsByAsset.has(assetCode)) {
         accountsByAsset.set(assetCode, []);
       }
 
       accountsByAsset.get(assetCode)?.push({
         accountId,
-        accountAlias
+        accountAlias,
       });
     });
 
@@ -528,19 +528,19 @@ export class TransactionGenerator {
       for (const sourceAccount of accountsWithSameAsset) {
         // Create (count - 1) transfers from this account to other accounts
         const transfersToCreate = count - 1; // Subtract 1 because we already created a deposit
-        
+
         // Create transfers in batches for efficiency
         const transferBatch = [];
-        
+
         for (let i = 0; i < transfersToCreate; i++) {
           // Select a random target account that's different from the source account
           let targetAccountIndex;
           do {
             targetAccountIndex = Math.floor(Math.random() * accountsWithSameAsset.length);
           } while (accountsWithSameAsset[targetAccountIndex].accountId === sourceAccount.accountId);
-          
+
           const targetAccount = accountsWithSameAsset[targetAccountIndex];
-          
+
           // Generate a random amount based on the asset type - keeping amounts small to avoid insufficient funds
           let amount;
           if (assetCode === 'BTC' || assetCode === 'ETH') {
@@ -557,10 +557,10 @@ export class TransactionGenerator {
               TRANSACTION_AMOUNTS.scale
             );
           }
-          
+
           // Generate a simple description
           const description = `Transfer from ${sourceAccount.accountAlias} to ${targetAccount.accountAlias}`;
-          
+
           // Add to batch
           transferBatch.push({
             description,
@@ -593,24 +593,25 @@ export class TransactionGenerator {
             ],
           });
         }
-        
+
         // Skip if no transfers to create
         if (transferBatch.length === 0) continue;
-        
+
         try {
           // Calculate optimal concurrency
           const concurrencyLevel = Math.min(
             5, // Lower concurrency for transfers to avoid rate limits
             transferBatch.length
           );
-          
+
           // Prepare batch options
           const batchOptions: TransactionBatchOptions = {
             concurrency: concurrencyLevel,
             maxRetries: BATCH_PROCESSING_CONFIG?.TRANSFERS?.maxRetries ?? 2,
             useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.TRANSFERS?.useEnhancedRecovery ?? true,
             stopOnError: BATCH_PROCESSING_CONFIG?.TRANSFERS?.stopOnError ?? false,
-            delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 150,
+            delayBetweenTransactions:
+              BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 150,
             batchMetadata: {
               ...TRANSACTION_METADATA?.TRANSFER,
               type: 'transfer',
@@ -619,13 +620,13 @@ export class TransactionGenerator {
             },
             onTransactionSuccess: (tx: any, index: number, result: any) => {
               transferSuccessCount++;
-              
+
               // Store the transaction
               this.stateManager.addTransactionId(ledgerId, result.id);
-              
+
               // Track the transaction
               transactions.push(result);
-              
+
               // Only log progress at intervals or at the end
               if (
                 transferSuccessCount % 50 === 0 ||
@@ -648,7 +649,7 @@ export class TransactionGenerator {
               // The error will be counted in the batch result processing
             },
           };
-          
+
           // Execute the batch of transfers
           const batchResult = await createTransactionBatch(
             this.client,
@@ -657,22 +658,21 @@ export class TransactionGenerator {
             transferBatch,
             batchOptions
           );
-          
+
           // Log batch completion
           this.logger.info(
             `Completed batch of ${transferBatch.length} transfers for account ${sourceAccount.accountAlias} with asset ${assetCode}: ${batchResult.successCount} succeeded, ${batchResult.failureCount} failed`
           );
-          
+
           // Track errors from the batch result - only count unique errors
           // to avoid double-counting with the onTransactionError callback
-          const failedResults = batchResult.results.filter(r => r.status === 'failed');
+          const failedResults = batchResult.results.filter((r) => r.status === 'failed');
           if (failedResults.length > 0) {
             // Count each unique error message to avoid duplicate counting
             const uniqueErrorMessages = new Set(
-              failedResults
-                .map(r => r.error?.message || 'Unknown error')
+              failedResults.map((r) => r.error?.message || 'Unknown error')
             );
-            
+
             // Increment error count once for each unique error message
             uniqueErrorMessages.forEach(() => {
               this.stateManager.incrementErrorCount('transaction');
@@ -687,7 +687,7 @@ export class TransactionGenerator {
         }
       }
     }
-    
+
     this.logger.info(
       `Completed peer-to-peer transactions: ${transferSuccessCount} transfers created`
     );
