@@ -1,22 +1,34 @@
 {
   "name": "midaz-demo-data-generator",
-  "version": "1.0.0",
-  "description": "Gerador de dados de demonstração para o sistema Midaz",
-  "main": "src/index.js",
+  "version": "0.1.0",
+  "description": "Realistic demo data generator for Midaz using Faker.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "generate": "ts-node --transpile-only --skip-project src/index.ts",
+    "generate:small": "ts-node --transpile-only --skip-project src/index.ts --volume small",
+    "generate:medium": "ts-node --transpile-only --skip-project src/index.ts --volume medium",
+    "generate:large": "ts-node --transpile-only --skip-project src/index.ts --volume large",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "clean": "rimraf dist"
   },
-  "author": "Midaz Team",
-  "license": "ISC",
   "dependencies": {
-    "@faker-js/faker": "^8.3.1",
-    "axios": "^1.6.2",
-    "commander": "^11.1.0",
-    "dotenv": "^16.3.1",
-    "ora": "^7.0.1",
-    "p-limit": "^4.0.0",
-    "uuid": "^9.0.1"
+    "faker": "^5.5.3",
+    "midaz-sdk": "file:midaz-sdk-typescript",
+    "yargs": "^17.7.2"
   },
-  "type": "module"
+  "devDependencies": {
+    "@types/faker": "^5.5.9",
+    "@types/node": "^18.16.0",
+    "@types/yargs": "^17.0.24",
+    "@typescript-eslint/eslint-plugin": "^5.59.0",
+    "@typescript-eslint/parser": "^5.59.0",
+    "eslint": "^8.39.0",
+    "prettier": "^2.8.8",
+    "rimraf": "^5.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
 }

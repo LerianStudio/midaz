@@ -1,124 +1,208 @@
 # Midaz Demo Data Generator
 
-A tool to generate realistic demo data for the Midaz financial system.
+A realistic data generator for the Midaz platform using Faker.js and the TypeScript SDK. This tool creates hierarchical financial data with Brazilian-specific attributes following the standard entity relationships:
 
-## Overview
-
-This tool creates a complete set of demo data for Midaz, following the natural entity hierarchy and interdependencies:
-
-1. Organizations (both individuals and companies)
-2. Ledgers
-3. Assets (BRL, USD, GBP)
-4. Segments
-5. Portfolios
-6. Accounts
-7. Transactions (including initial deposits and transfers between accounts)
+`Organizations → Ledgers → Assets → Portfolios → Segments → Accounts → Transactions`
 
 ## Features
 
-- Generates realistic Brazilian financial data using Faker.js
-- Creates a mix of individual and company organizations
-- Supports different data volumes (small, medium, large)
-- Randomized but realistic metadata for financial transactions
-- Concurrent API requests with rate limiting
-- Visual progress indicators
-- Detailed summary of created entities
+- Generates realistic Brazilian financial data (70% PF / 30% PJ with valid CPF/CNPJ)
+- Supports configurable volume sizes (small, medium, large)
+- Uses standard Midaz SDK methods for all API interactions
+- Maintains relationship integrity between entities
+- Supports idempotent execution (safe to run multiple times)
+- Includes exponential backoff retry for transient errors
+- Comprehensive logging and metrics
+- Configurable randomness with seed support for reproducible runs
+
+## Implementation Details
+
+### Error Handling
+
+The generator implements robust error handling to manage API interactions with the Midaz services:
+
+- Exponential backoff retry for transient network errors
+- Proper handling of validation errors from the Onboarding and Transaction services
+- Recognition of specific error types returned by Midaz APIs (EntityNotFoundError, ValidationError, EntityConflictError, etc.)
+
+### State Management
+
+A singleton `StateManager` class keeps track of all generated entities and their relationships.
+
+## Setup
+
+1. Install dependencies:
+
+```bash
+cd scripts/demo-data
+npm install
+```
+
+2. Build the project:
+
+```bash
+npm run build
+```
 
 ## Usage
 
-### Via Makefile (Recommended)
+### Using Makefile Targets
 
-The simplest way to run the generator is through the Midaz Makefile:
+The simplest way to run the data generator is using the provided Makefile targets:
 
 ```bash
-# Generate using default settings (small volume)
-make generate-demo-data
+# Generate a small volume of data (default)
+make generate
 
-# Generate with a specific volume
+# Generate a specific volume size
+make generate-small
+make generate-medium
+make generate-large
+
+# Build the project first then generate data
+make build generate
+```
+
+### Using the Shell Script
+
+You can also use the provided shell script directly:
+
+```bash
+# Make the script executable if needed
+chmod +x run-generator.sh
+
+# Run with a specific volume size
+./run-generator.sh small
+./run-generator.sh medium
+./run-generator.sh large
+```
+
+### CLI Options
+
+```
+Usage: npm run generate -- [options]
+
+Options:
+  --volume, -v <size>             Data volume size (small, medium, large) (default: "small")
+  --base-url, -u <url>            API base URL (default: "http://localhost")
+  --onboarding-port, -o <port>    Onboarding service port (default: 3000)
+  --transaction-port, -t <port>   Transaction service port (default: 3001)
+  --concurrency, -c <level>       Concurrency level (default: 1)
+  --debug, -d                     Enable debug mode (default: false)
+  --auth-token, -a <token>        Authentication token
+  --seed, -s <value>              Random seed for reproducible runs
+  --help, -h                      Display help
+```
+
+### Examples
+
+Generate a small dataset (default):
+
+```bash
+npm run generate
+```
+
+Generate a medium dataset:
+
+```bash
+npm run generate -- --volume medium
+```
+
+Generate a large dataset with debug information:
+
+```bash
+npm run generate -- --volume large --debug
+```
+
+Use specific API endpoints:
+
+```bash
+npm run generate -- --base-url http://api.example.com --onboarding-port 8080 --transaction-port 8081
+```
+
+Use with authentication token:
+
+```bash
+npm run generate -- --auth-token "your-auth-token"
+```
+
+Generate reproducible data using a seed:
+
+```bash
+npm run generate -- --seed 12345
+```
+
+### Makefile Integration
+
+The generator is integrated into the main Midaz Makefile and can be run using:
+
+```bash
+# From the project root
 make generate-demo-data VOLUME=medium
-
-# Generate with authentication token
-make generate-demo-data AUTH_TOKEN=your_token
-
-# Combine options
-make generate-demo-data VOLUME=large AUTH_TOKEN=your_token
 ```
 
-### Direct Usage
+Available options:
 
-You can also run the generator directly:
+- `VOLUME`: Data volume size (small, medium, large)
+- `BASE_URL`: API base URL
+- `ONBOARDING_PORT`: Onboarding service port
+- `TRANSACTION_PORT`: Transaction service port
+- `CONCURRENCY`: Concurrency level
+- `DEBUG`: Enable debug mode (true/false)
+- `AUTH_TOKEN`: Authentication token
 
-```bash
-# Navigate to the script directory
-cd scripts/demo-data
+## Data Schema
 
-# Install dependencies (first time only)
-npm install
+### Data Volume Metrics
 
-# Run the generator with options
-node src/index.js --volume medium --auth-token your_token
-```
+| Entity Type   | Small | Medium | Large |
+|---------------|-------|--------|-------|
+| Organizations | 2     | 5      | 10    |
+| Ledgers/Org   | 2     | 3      | 5     |
+| Assets/Ledger | 3     | 5      | 8     |
+| Portfolios    | 2     | 3      | 5     |
+| Segments      | 2     | 4      | 6     |
+| Accounts      | 10    | 50     | 100   |
+| Tx/Account    | 5     | 10     | 20    |
 
-## Configuration
+### Generated Data
 
-The generator uses the following environment variables, which can also be specified as command-line arguments:
+- **Organizations**: Mix of individuals (PF, 70%) and companies (PJ, 30%)
+  - Valid CPF/CNPJ numbers
+  - Brazilian addresses
+  - Realistic company and individual names
 
-- `AUTH_TOKEN`: Authentication token for API access
-- `API_BASE_URL`: Base URL for the API (default: http://localhost)
-- `ONBOARDING_PORT`: Port for the onboarding service (default: 3000)
-- `TRANSACTION_PORT`: Port for the transaction service (default: 3001)
+- **Accounts**: Various types (deposit, savings, loans, marketplace, creditCard, external)
+  - Linked to portfolios and segments
+  - Unique aliases for identification
 
-## Data Volumes
-
-The following volumes are available:
-
-- **small**: 2 organizations, 1 ledger per organization, 10 accounts per ledger, 5 transactions per account
-- **medium**: 5 organizations, 2 ledgers per organization, 25 accounts per ledger, 15 transactions per account
-- **large**: 10 organizations, 2 ledgers per organization, 50 accounts per ledger, 30 transactions per account
-
-## Generated Data
-
-The tool creates a complete, interconnected set of financial data:
-
-### Organizations
-- Mix of individuals (70%) and companies (30%)
-- Brazilian addresses and contact information
-- Valid CPF/CNPJ documents
-
-### Accounts
-- Distribution across checking, savings, investment, and loan accounts
-- Realistic account naming patterns
-- Segment classification
-
-### Transactions
-- Initial deposits from external sources
-- PIX transactions with various types (transfer, payment, withdrawal)
-- TED bank transfers
-- Boleto payments with barcode and due date
-- P2P platform transactions
+- **Transactions**: Transfer operations between accounts
+  - Realistic BRL amounts
+  - Metadata with transaction types and descriptions
+  - Automatic deposit handling for accounts with insufficient balance
 
 ## Development
 
-The tool is built with Node.js and uses the following dependencies:
+### Project Structure
 
-- Faker.js for data generation
-- Axios for API communication
-- Commander for CLI interface
-- Ora for spinner animations
-- p-limit for concurrency control
+```
+/scripts/demo-data/
+├── src/
+│   ├── generators/       # Entity generators
+│   ├── services/         # SDK client and utilities
+│   ├── utils/            # Helper functions
+│   ├── generator.ts      # Main orchestration
+│   ├── config.ts         # Configuration settings
+│   ├── types.ts          # Type definitions
+│   └── index.ts          # CLI entry point
+├── dist/                 # Compiled JavaScript
+└── README.md             # Documentation
+```
 
-The code is organized into:
+### Adding New Features
 
-- Entity generators (organizations, ledgers, accounts, etc.)
-- API client for Midaz API communication
-- Orchestrator for managing the generation process
-- CLI interface for user interaction
+To add new entity types or customize data generation:
 
-## Troubleshooting
-
-If you encounter issues:
-
-1. Ensure the Midaz services are running (onboarding and transaction)
-2. Verify your API authentication token if required
-3. Check the connection details (base URL and ports)
-4. Look for error messages in the console output
+1. Add new generator implementations in `src/generators/`
+2. Update volume metrics in `src/config.ts`
+3. Modify the main orchestration in `src/generator.ts`
