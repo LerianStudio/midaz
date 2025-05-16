@@ -24,7 +24,6 @@
     "prepare": "husky",
     "format": "prettier --write .",
     "lhci": "lhci autorun",
-    "preinstall": "bash ./scripts/check-node-version.sh",
     "format:check": "prettier --check ."
   },
   "dependencies": {
