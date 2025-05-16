@@ -26,7 +26,9 @@ export class FetchParentOrganizationsUseCase
     )
 
     const parentOrganizations: OrganizationResponseDto[] =
-      parentOrganizationsFiltered.map(OrganizationMapper.toResponseDto)
+      parentOrganizationsFiltered.map((organization) => {
+        return OrganizationMapper.toResponseDto(organization, undefined)
+      })
 
     return parentOrganizations
   }

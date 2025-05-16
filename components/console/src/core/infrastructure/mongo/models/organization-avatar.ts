@@ -29,7 +29,7 @@ export interface OrganizationAvatarDocument
 const organizationAvatarSchema = new Schema<OrganizationAvatarDocument>(
   {
     organizationId: { type: String, required: true, index: true, unique: true },
-    imageBase64: { type: String, required: true }
+    avatar: { type: String, required: true }
   },
   {
     timestamps: true,
@@ -41,7 +41,10 @@ const organizationAvatarSchema = new Schema<OrganizationAvatarDocument>(
  * Mongoose model for organization avatars
  * @description Compiled model used to perform CRUD operations on organization avatar documents
  */
+// Use mongoose.models to check if the model is already registered
+const MODEL_NAME = 'Organization-Avatar'
 const OrganizationAvatarModel: Model<OrganizationAvatarDocument> =
-  mongoose.model('OrganizationAvatar', organizationAvatarSchema)
+  mongoose.models[MODEL_NAME] ||
+  mongoose.model(MODEL_NAME, organizationAvatarSchema)
 
 export default OrganizationAvatarModel

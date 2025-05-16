@@ -1,4 +1,4 @@
 export interface OrganizationAvatarEntity {
   organizationId: string
-  imageBase64: string
+  avatar: string
 }

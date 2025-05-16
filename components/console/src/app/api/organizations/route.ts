@@ -22,7 +22,10 @@ export const GET = applyMiddleware(
   async (request: Request) => {
     try {
       const fetchAllOrganizationsUseCase: FetchAllOrganizations =
-        container.get<FetchAllOrganizations>(FetchAllOrganizationsUseCase)
+        await container.getAsync<FetchAllOrganizations>(
+          FetchAllOrganizationsUseCase
+        )
+
       const { searchParams } = new URL(request.url)
       const limit = Number(searchParams.get('limit')) || 10
       const page = Number(searchParams.get('page')) || 1
@@ -51,7 +54,8 @@ export const POST = applyMiddleware(
   async (request: Request) => {
     try {
       const createOrganizationUseCase: CreateOrganization =
-        container.get<CreateOrganization>(CreateOrganizationUseCase)
+        await container.getAsync<CreateOrganization>(CreateOrganizationUseCase)
+
       const body = await request.json()
       const result = await createOrganizationUseCase.execute(body)
 

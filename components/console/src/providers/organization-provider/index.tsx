@@ -10,13 +10,14 @@ import { serverFetcher } from '@/lib/fetcher'
 import { OrganizationProviderClient } from './organization-provider-client'
 import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 
-const fetchAllOrganizationsUseCase = container.get<FetchAllOrganizations>(
-  FetchAllOrganizationsUseCase
-)
-
 export const OrganizationProvider = async ({
   children
 }: React.PropsWithChildren) => {
+  const fetchAllOrganizationsUseCase =
+    await container.getAsync<FetchAllOrganizations>(
+      FetchAllOrganizationsUseCase
+    )
+
   /**
    * TODO: Call the proper get organizations for user
    * For now we setting the first organization as the current one
