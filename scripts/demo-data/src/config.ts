@@ -93,3 +93,78 @@ export const PERSON_TYPE_DISTRIBUTION = {
  * Maximum concurrent operations
  */
 export const MAX_CONCURRENCY = 100;
+
+/**
+ * Transaction transfer amounts by asset type
+ */
+export const TRANSACTION_TRANSFER_AMOUNTS = {
+  CRYPTO: {
+    min: 0.1,
+    max: 1,
+  },
+  COMMODITIES: {
+    min: 1,
+    max: 10,
+  },
+  CURRENCIES: {
+    min: 100,
+    max: 500,
+  },
+};
+
+/**
+ * Deposit amounts by asset type
+ */
+export const DEPOSIT_AMOUNTS = {
+  CRYPTO: 10000, // For BTC, ETH (100.00 units)
+  COMMODITIES: 500000, // For GOLD, SILVER (5000.00 units)
+  DEFAULT: 1000000, // Default value for currencies (10000.00 in cent-precision)
+};
+
+/**
+ * Processing delay configuration in milliseconds
+ */
+export const PROCESSING_DELAYS = {
+  BETWEEN_DEPOSIT_AND_TRANSFER: 3000, // 3 seconds
+};
+
+/**
+ * Batch processing configuration
+ */
+export const BATCH_PROCESSING_CONFIG = {
+  DEPOSITS: {
+    maxRetries: 3,
+    useEnhancedRecovery: true,
+    stopOnError: false,
+    delayBetweenTransactions: 0,
+    maxConcurrentOperationsPerAsset: 100,
+  },
+  TRANSFERS: {
+    maxRetries: 3,
+    useEnhancedRecovery: true,
+    stopOnError: false,
+    delayBetweenTransactions: 0,
+    maxConcurrentOperationsPerAsset: 100,
+  },
+};
+
+/**
+ * Standard account formats
+ */
+export const ACCOUNT_FORMATS = {
+  EXTERNAL_SOURCE: '@external/{assetCode}',
+};
+
+/**
+ * Transaction metadata templates
+ */
+export const TRANSACTION_METADATA = {
+  DEPOSIT: {
+    type: 'deposit',
+    generator: 'bulk-initial-deposits',
+  },
+  TRANSFER: {
+    type: 'transfer',
+    batchProcessed: true,
+  },
+};

@@ -14,7 +14,16 @@ import {
 } from '../../midaz-sdk-typescript/src/models/transaction';
 import { workerPool } from '../../midaz-sdk-typescript/src/util/concurrency/worker-pool';
 // Use string literals to match exactly what the API expects for status codes
-import { MAX_CONCURRENCY, TRANSACTION_AMOUNTS } from '../config';
+import {
+  MAX_CONCURRENCY, 
+  TRANSACTION_AMOUNTS, 
+  TRANSACTION_TRANSFER_AMOUNTS,
+  DEPOSIT_AMOUNTS,
+  PROCESSING_DELAYS,
+  BATCH_PROCESSING_CONFIG,
+  ACCOUNT_FORMATS,
+  TRANSACTION_METADATA
+} from '../config';
 import { Logger } from '../services/logger';
 // Import any types we need from types.ts
 import { generateAmount } from '../utils/faker-pt-br';
@@ -85,6 +94,50 @@ export class TransactionGenerator {
   }
 
   /**
+   * Helper method to get deposit amount based on asset code with fallback
+   */
+  private getDepositAmount(assetCode: string): number {
+    // Calculate appropriate deposit amount based on asset type
+    if (assetCode === 'BTC' || assetCode === 'ETH') {
+      return DEPOSIT_AMOUNTS?.CRYPTO ?? 10000; // Crypto gets 100.00 units
+    } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
+      return DEPOSIT_AMOUNTS?.COMMODITIES ?? 500000; // 5000.00 for commodities
+    } else {
+      return DEPOSIT_AMOUNTS?.DEFAULT ?? 1000000; // Default: 10000.00 in cent-precision
+    }
+  }
+
+  /**
+   * Helper method to get transfer amount range based on asset code with fallback
+   */
+  private getTransferAmountRange(assetCode: string): { min: number; max: number } {
+    if (assetCode === 'BTC' || assetCode === 'ETH') {
+      return {
+        min: TRANSACTION_TRANSFER_AMOUNTS?.CRYPTO?.min ?? 0.1,
+        max: TRANSACTION_TRANSFER_AMOUNTS?.CRYPTO?.max ?? 1
+      };
+    } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
+      return {
+        min: TRANSACTION_TRANSFER_AMOUNTS?.COMMODITIES?.min ?? 1,
+        max: TRANSACTION_TRANSFER_AMOUNTS?.COMMODITIES?.max ?? 10
+      };
+    } else {
+      return {
+        min: TRANSACTION_TRANSFER_AMOUNTS?.CURRENCIES?.min ?? 100,
+        max: TRANSACTION_TRANSFER_AMOUNTS?.CURRENCIES?.max ?? 500
+      };
+    }
+  }
+
+  /**
+   * Helper method to get external account ID format
+   */
+  private getExternalAccountId(assetCode: string): string {
+    const template = ACCOUNT_FORMATS?.EXTERNAL_SOURCE ?? '@external/{assetCode}';
+    return template.replace('{assetCode}', assetCode);
+  }
+
+  /**
    * Helper method to prepare accounts for deposit transactions
    * Fetches asset code information for each account
    */
@@ -114,13 +167,8 @@ export class TransactionGenerator {
           // Store asset code in state for future use
           this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
 
-          // Calculate appropriate deposit amount based on asset type
-          let depositAmount = 1000000; // Default: 10000.00 in cent-precision
-          if (assetCode === 'BTC' || assetCode === 'ETH') {
-            depositAmount = 10000; // Crypto gets 100.00 units
-          } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
-            depositAmount = 500000; // 5000.00 for commodities
-          }
+          // Calculate appropriate deposit amount based on asset type using helper
+          const depositAmount = this.getDepositAmount(assetCode);
 
           return { accountId, accountAlias, assetCode, depositAmount };
         } catch (error) {
@@ -144,13 +192,8 @@ export class TransactionGenerator {
             }
           }
 
-          // Calculate appropriate deposit amount based on asset type
-          let depositAmount = 1000000; // Default: 10000.00 in cent-precision
-          if (assetCode === 'BTC' || assetCode === 'ETH') {
-            depositAmount = 10000; // Crypto gets 100.00 units
-          } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
-            depositAmount = 500000; // 5000.00 for commodities
-          }
+          // Calculate appropriate deposit amount based on asset type using helper
+          const depositAmount = this.getDepositAmount(assetCode);
 
           return { accountId, accountAlias, assetCode, depositAmount };
         }
@@ -267,11 +310,12 @@ export class TransactionGenerator {
         // Prepare batch options with progress tracking
         const batchOptions: TransactionBatchOptions = {
           concurrency: concurrencyLevel,
-          maxRetries: 3,
-          useEnhancedRecovery: true,
-          stopOnError: false,
-          delayBetweenTransactions: 100,
+          maxRetries: BATCH_PROCESSING_CONFIG?.DEPOSITS?.maxRetries ?? 3,
+          useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.DEPOSITS?.useEnhancedRecovery ?? true,
+          stopOnError: BATCH_PROCESSING_CONFIG?.DEPOSITS?.stopOnError ?? false,
+          delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.DEPOSITS?.delayBetweenTransactions ?? 100,
           batchMetadata: {
+            ...TRANSACTION_METADATA?.DEPOSIT,
             type: 'deposit',
             generator: 'bulk-initial-deposits',
             assetCode,
@@ -340,7 +384,7 @@ export class TransactionGenerator {
               // Debit operation from an external source (money coming from somewhere)
               // Using a special external account format for balance purposes
               {
-                accountId: `@external/${assetCode}`,
+                accountId: this.getExternalAccountId(assetCode),
                 type: 'DEBIT',
                 amount: {
                   value: account.depositAmount,
@@ -373,7 +417,8 @@ export class TransactionGenerator {
     // Add a delay to ensure all deposits are processed before continuing to transfers
     // This is necessary as balance updates may take a moment to complete in the backend
     this.logger.info('Waiting for deposits to be processed before starting transfers...');
-    await new Promise((resolve) => setTimeout(resolve, 3000)); // 3 second delay
+    const depositSettlementDelay = PROCESSING_DELAYS?.BETWEEN_DEPOSIT_AND_TRANSFER ?? 3000; // Default: 3 seconds
+    await new Promise((resolve) => setTimeout(resolve, depositSettlementDelay));
 
     // Step 2: Create transactions between accounts using batch processing and concurrency
     this.logger.info(
@@ -467,19 +512,13 @@ export class TransactionGenerator {
       // Use transaction batch for more efficient processing of account-to-account transfers
       // This uses the SDK's built-in batch processing with better error handling and retries
       const transferInputs: CreateTransactionInput[] = transactionPairs.map((pair) => {
-        // Generate random amount for each transaction based on asset type - much smaller to avoid insufficient funds
-        let transferAmount;
-        if (assetCode === 'BTC' || assetCode === 'ETH') {
-          transferAmount = generateAmount(0.1, 1, TRANSACTION_AMOUNTS.scale).value;
-        } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
-          transferAmount = generateAmount(1, 10, TRANSACTION_AMOUNTS.scale).value;
-        } else {
-          transferAmount = generateAmount(
-            100, // Much lower than default minimum
-            500, // Much lower than default maximum
-            TRANSACTION_AMOUNTS.scale
-          ).value;
-        }
+        // Generate random amount for each transaction based on asset type - using helper method
+        const amountRange = this.getTransferAmountRange(assetCode);
+        const transferAmount = generateAmount(
+          amountRange.min,
+          amountRange.max, 
+          TRANSACTION_AMOUNTS.scale
+        ).value;
 
         // Create a unique transaction ID
         const transferId = `transfer-${Date.now()}-${Math.floor(
@@ -528,11 +567,12 @@ export class TransactionGenerator {
         // Batch options with retry logic and tracking
         const batchOptions: TransactionBatchOptions = {
           concurrency: concurrencyLevel,
-          maxRetries: 3,
-          useEnhancedRecovery: true,
-          stopOnError: false,
-          delayBetweenTransactions: 20, // Small delay to avoid rate limiting
+          maxRetries: BATCH_PROCESSING_CONFIG?.TRANSFERS?.maxRetries ?? 3,
+          useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.TRANSFERS?.useEnhancedRecovery ?? true,
+          stopOnError: BATCH_PROCESSING_CONFIG?.TRANSFERS?.stopOnError ?? false,
+          delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 20, // Small delay to avoid rate limiting
           batchMetadata: {
+            ...TRANSACTION_METADATA?.TRANSFER,
             type: 'transfer-batch',
             assetCode,
             batchId: `batch-${Date.now()}-${assetCode}`,
@@ -790,8 +830,8 @@ export class TransactionGenerator {
       }
     }
 
-    // Use correct external account format (@external/assetCode)
-    const externalAccountId = `@external/${assetCode}`;
+    // Use correct external account format from config
+    const externalAccountId = this.getExternalAccountId(assetCode);
 
     // Create the deposit transaction input
     const depositInput: CreateTransactionInput = {
