@@ -467,7 +467,232 @@ export class TransactionGenerator {
     const depositSettlementDelay = PROCESSING_DELAYS?.BETWEEN_DEPOSIT_AND_TRANSFER ?? 3000; // Default: 3 seconds
     await new Promise((resolve) => setTimeout(resolve, depositSettlementDelay));
     
-    // Return the transactions created
+    // Step 2: Create peer-to-peer transactions between accounts with the same asset type
+    this.logger.info(
+      `Step 2: Creating peer-to-peer transactions between accounts with the same asset type (${count} per account)`
+    );
+
+    // Group accounts by asset code for efficient transfer generation
+    const accountsByAsset = new Map<
+      string,
+      { accountId: string; accountAlias: string }[]
+    >();
+
+    // Organize accounts by asset code
+    accountIds.forEach((accountId, index) => {
+      const accountAlias = accountAliases[index];
+      const assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
+      
+      if (!accountsByAsset.has(assetCode)) {
+        accountsByAsset.set(assetCode, []);
+      }
+
+      accountsByAsset.get(assetCode)?.push({
+        accountId,
+        accountAlias
+      });
+    });
+
+    // Process transfers by asset type
+    let transferSuccessCount = 0;
+    let totalTransfersToCreate = 0;
+
+    // Calculate how many transfers we need to create
+    // We'll create (count - 1) transfers per account (since each account already has 1 deposit)
+    accountsByAsset.forEach((accounts) => {
+      // We can only create transfers if there are at least 2 accounts with the same asset
+      if (accounts.length >= 2) {
+        totalTransfersToCreate += accounts.length * (count - 1);
+      }
+    });
+
+    this.logger.info(
+      `Planning to create ${totalTransfersToCreate} peer-to-peer transfers between accounts`
+    );
+
+    // Process transfers for each asset code
+    for (const [assetCode, accountsWithSameAsset] of accountsByAsset.entries()) {
+      // Skip if there are fewer than 2 accounts for this asset (can't transfer between accounts)
+      if (accountsWithSameAsset.length < 2) {
+        this.logger.warn(
+          `Skipping transfers for asset ${assetCode}: need at least 2 accounts, found ${accountsWithSameAsset.length}`
+        );
+        continue;
+      }
+
+      this.logger.info(
+        `Creating peer-to-peer transfers for ${accountsWithSameAsset.length} accounts with asset ${assetCode}`
+      );
+
+      // For each account, create (count - 1) transfers to other accounts
+      for (const sourceAccount of accountsWithSameAsset) {
+        // Create (count - 1) transfers from this account to other accounts
+        const transfersToCreate = count - 1; // Subtract 1 because we already created a deposit
+        
+        // Create transfers in batches for efficiency
+        const transferBatch = [];
+        
+        for (let i = 0; i < transfersToCreate; i++) {
+          // Select a random target account that's different from the source account
+          let targetAccountIndex;
+          do {
+            targetAccountIndex = Math.floor(Math.random() * accountsWithSameAsset.length);
+          } while (accountsWithSameAsset[targetAccountIndex].accountId === sourceAccount.accountId);
+          
+          const targetAccount = accountsWithSameAsset[targetAccountIndex];
+          
+          // Generate a random amount based on the asset type - keeping amounts small to avoid insufficient funds
+          let amount;
+          if (assetCode === 'BTC' || assetCode === 'ETH') {
+            // For crypto, use very small amounts
+            amount = generateAmount(0.01, 0.1, TRANSACTION_AMOUNTS.scale);
+          } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
+            // For commodities, use small amounts
+            amount = generateAmount(0.1, 1, TRANSACTION_AMOUNTS.scale);
+          } else {
+            // For currencies, use small amounts
+            amount = generateAmount(
+              10, // Much lower than default min
+              50, // Much lower than default max
+              TRANSACTION_AMOUNTS.scale
+            );
+          }
+          
+          // Generate a simple description
+          const description = `Transfer from ${sourceAccount.accountAlias} to ${targetAccount.accountAlias}`;
+          
+          // Add to batch
+          transferBatch.push({
+            description,
+            amount: amount.value,
+            scale: TRANSACTION_AMOUNTS.scale,
+            assetCode,
+            metadata: {
+              type: 'transfer',
+              generatedOn: new Date().toISOString(),
+            },
+            operations: [
+              {
+                accountId: sourceAccount.accountAlias,
+                type: 'DEBIT' as const,
+                amount: {
+                  value: amount.value,
+                  scale: TRANSACTION_AMOUNTS.scale,
+                  assetCode,
+                },
+              },
+              {
+                accountId: targetAccount.accountAlias,
+                type: 'CREDIT' as const,
+                amount: {
+                  value: amount.value,
+                  scale: TRANSACTION_AMOUNTS.scale,
+                  assetCode,
+                },
+              },
+            ],
+          });
+        }
+        
+        // Skip if no transfers to create
+        if (transferBatch.length === 0) continue;
+        
+        try {
+          // Calculate optimal concurrency
+          const concurrencyLevel = Math.min(
+            5, // Lower concurrency for transfers to avoid rate limits
+            transferBatch.length
+          );
+          
+          // Prepare batch options
+          const batchOptions: TransactionBatchOptions = {
+            concurrency: concurrencyLevel,
+            maxRetries: BATCH_PROCESSING_CONFIG?.TRANSFERS?.maxRetries ?? 2,
+            useEnhancedRecovery: BATCH_PROCESSING_CONFIG?.TRANSFERS?.useEnhancedRecovery ?? true,
+            stopOnError: BATCH_PROCESSING_CONFIG?.TRANSFERS?.stopOnError ?? false,
+            delayBetweenTransactions: BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 150,
+            batchMetadata: {
+              ...TRANSACTION_METADATA?.TRANSFER,
+              type: 'transfer',
+              generator: 'peer-to-peer-transfers',
+              assetCode,
+            },
+            onTransactionSuccess: (tx: any, index: number, result: any) => {
+              transferSuccessCount++;
+              
+              // Store the transaction
+              this.stateManager.addTransactionId(ledgerId, result.id);
+              
+              // Track the transaction
+              transactions.push(result);
+              
+              // Only log progress at intervals or at the end
+              if (
+                transferSuccessCount % 50 === 0 ||
+                transferSuccessCount === totalTransfersToCreate
+              ) {
+                this.logger.progress(
+                  'Transfers created',
+                  transferSuccessCount,
+                  totalTransfersToCreate
+                );
+              }
+            },
+            onTransactionError: (tx: any, index: number, error: any) => {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              this.logger.error(
+                `Failed to create transfer for account ${sourceAccount.accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
+                error instanceof Error ? error : new Error(String(error))
+              );
+              // IMPORTANT: Don't increment error count here to avoid double-counting
+              // The error will be counted in the batch result processing
+            },
+          };
+          
+          // Execute the batch of transfers
+          const batchResult = await createTransactionBatch(
+            this.client,
+            organizationId,
+            ledgerId,
+            transferBatch,
+            batchOptions
+          );
+          
+          // Log batch completion
+          this.logger.info(
+            `Completed batch of ${transferBatch.length} transfers for account ${sourceAccount.accountAlias} with asset ${assetCode}: ${batchResult.successCount} succeeded, ${batchResult.failureCount} failed`
+          );
+          
+          // Track errors from the batch result - only count unique errors
+          // to avoid double-counting with the onTransactionError callback
+          const failedResults = batchResult.results.filter(r => r.status === 'failed');
+          if (failedResults.length > 0) {
+            // Count each unique error message to avoid duplicate counting
+            const uniqueErrorMessages = new Set(
+              failedResults
+                .map(r => r.error?.message || 'Unknown error')
+            );
+            
+            // Increment error count once for each unique error message
+            uniqueErrorMessages.forEach(() => {
+              this.stateManager.incrementErrorCount('transaction');
+            });
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to process transfer batch for account ${sourceAccount.accountAlias} in ledger ${ledgerId}`,
+            error instanceof Error ? error : new Error(String(error))
+          );
+          this.stateManager.incrementErrorCount('transaction');
+        }
+      }
+    }
+    
+    this.logger.info(
+      `Completed peer-to-peer transactions: ${transferSuccessCount} transfers created`
+    );
+
+    // Return all transactions created (deposits + transfers)
     return transactions;
   }
 
