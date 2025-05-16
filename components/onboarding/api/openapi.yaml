@@ -2862,7 +2862,7 @@ components:
           type: string
         parentAccountId:
           description: |-
-            ID of the parent account if this is a sub-account (optional)
+            ID of the parent account if this is a subaccount (optional)
             required: false
             format: uuid
           format: uuid
@@ -2943,6 +2943,7 @@ components:
       required:
       - code
       - name
+      - type
       type: object
     CreateLedgerInput:
       description: Request payload for creating a new ledger. Contains the ledger
