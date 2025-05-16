@@ -15,18 +15,20 @@ export class IdentityApplicationRepository implements ApplicationRepository {
   ) {}
 
   async fetchAll(): Promise<ApplicationEntity[]> {
-    const response = await this.httpService.get<ApplicationEntity[]>(
+    const response = await this.httpService.get<IdentityApplicationDto[]>(
       `${this.baseUrl}/applications`
     )
 
-    return response
+    return response.map((application) =>
+      IdentityApplicationMapper.toEntity(application)
+    )
   }
 
   async fetchById(applicationId: string): Promise<ApplicationEntity> {
-    const response = await this.httpService.get<ApplicationEntity>(
+    const response = await this.httpService.get<IdentityApplicationDto>(
       `${this.baseUrl}/applications/${applicationId}`
     )
-    return response
+    return IdentityApplicationMapper.toEntity(response)
   }
 
   async create(application: ApplicationEntity): Promise<ApplicationEntity> {
