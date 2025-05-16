@@ -14,8 +14,11 @@ import { GeneratorOptions } from '../types';
 export function initializeClient(options: GeneratorOptions): MidazClient {
   const { baseUrl, onboardingPort, transactionPort, authToken, debug } = options;
 
-  // Create configuration builder
-  const configBuilder = createClientConfigBuilder('')
+  // Create configuration builder with a dummy API key when auth is disabled
+  // This is necessary because the SDK requires either apiKey or authToken
+  const apiKey = (authToken && authToken !== 'NONE') ? '' : 'dummy-api-key-for-dev';
+  
+  const configBuilder = createClientConfigBuilder(apiKey)
     .withBaseUrls({
       'onboarding': `${baseUrl}:${onboardingPort}`,
       'transaction': `${baseUrl}:${transactionPort}`
@@ -37,8 +40,8 @@ export function initializeClient(options: GeneratorOptions): MidazClient {
     },
   });
 
-  // Set authentication if provided
-  if (authToken) {
+  // Set authentication if provided and not 'NONE'
+  if (authToken && authToken !== 'NONE') {
     configBuilder.withAuthToken(authToken);
   }
 
