@@ -179,3 +179,6 @@ networks:
   infra-network:
     name: infra-network
     driver: bridge
+  plugin-auth-network:
+    name: plugin-auth-network
+    driver: bridge
