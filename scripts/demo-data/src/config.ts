@@ -12,7 +12,7 @@ export const DEFAULT_OPTIONS = {
   baseUrl: 'http://localhost',
   onboardingPort: 3000,
   transactionPort: 3001,
-  concurrency: 1,
+  concurrency: 10,
   debug: false,
 };
 
@@ -92,4 +92,4 @@ export const PERSON_TYPE_DISTRIBUTION = {
 /**
  * Maximum concurrent operations
  */
-export const MAX_CONCURRENCY = 5;
+export const MAX_CONCURRENCY = 100;

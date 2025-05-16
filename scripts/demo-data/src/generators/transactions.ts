@@ -3,25 +3,32 @@
  */
 
 import * as faker from 'faker';
-import {
-  MidazClient,
-  createCreditDebitPair,
-  executeTransactionPair,
-} from '../../midaz-sdk-typescript/src';
+import { MidazClient, createCreditDebitPair } from '../../midaz-sdk-typescript/src';
 import {
   CreateTransactionInput,
   Transaction,
 } from '../../midaz-sdk-typescript/src/models/transaction';
+// Use string literals to match exactly what the API expects for status codes
 import { TRANSACTION_AMOUNTS } from '../config';
 import { Logger } from '../services/logger';
-import { EntityGenerator } from '../types';
+// Import any types we need from types.ts
 import { generateAmount } from '../utils/faker-pt-br';
 import { StateManager } from '../utils/state';
 
 /**
+ * Transaction options interface
+ */
+interface TransactionOptions {
+  sourceAccountId?: string;
+  sourceAccountAlias?: string;
+  targetAccountId?: string;
+  targetAccountAlias?: string;
+}
+
+/**
  * Transaction generator implementation
  */
-export class TransactionGenerator implements EntityGenerator<Transaction> {
+export class TransactionGenerator {
   private logger: Logger;
   private client: MidazClient;
   private stateManager: StateManager;
@@ -37,7 +44,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
    * @param count Number of transactions to generate per account
    * @param parentId Parent ledger ID
    */
-  async generate(count: number, parentId?: string): Promise<Transaction[]> {
+  async generate(count: number, parentId?: string): Promise<any[]> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
@@ -52,6 +59,8 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
       return [];
     }
 
+    const organizationId = organizationIds[0];
+
     // Get accounts for this ledger
     const accountIds = this.stateManager.getAccountIds(ledgerId);
     const accountAliases = this.stateManager.getAccountAliases(ledgerId);
@@ -64,124 +73,101 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
       return [];
     }
 
-    this.logger.info(`Generating transactions in ledger: ${ledgerId}`);
-
-    // Step 1: Create initial deposits for all accounts using their specific asset types
-    this.logger.info(`Step 1: Creating initial deposits for ${accountIds.length} accounts`);
+    // Create array to store all transactions
     const transactions: Transaction[] = [];
     let successCount = 0;
 
-    // Get asset codes for accounts
-    const assetCodes = this.stateManager.getAssetCodes(ledgerId);
-    if (assetCodes.length === 0) {
-      this.logger.warn(`No assets found for ledger ${ledgerId}, using default asset code BRL`);
-    }
+    // Step 1: Create initial deposits for each account to ensure they have balance
+    this.logger.info(`Step 1: Creating initial deposits for ${accountIds.length} accounts`);
 
-    // Process accounts in batches of 5 to avoid overwhelming the API
+    // Process accounts in batches to avoid overloading the API
     const batchSize = 5;
-    for (let i = 0; i < accountIds.length; i += batchSize) {
-      const accountBatch = accountIds.slice(i, i + batchSize);
-      const aliasBatch = accountAliases.slice(i, i + batchSize);
+    const batches = Math.ceil(accountIds.length / batchSize);
 
-      // Create deposits for this batch
+    for (let i = 0; i < batches; i++) {
+      const startIdx = i * batchSize;
+      const endIdx = Math.min(startIdx + batchSize, accountIds.length);
+      const accountBatch = accountIds.slice(startIdx, endIdx);
+
+      // Process each account in the batch
       for (let j = 0; j < accountBatch.length; j++) {
         try {
           const accountId = accountBatch[j];
-          const accountAlias = aliasBatch[j];
-
-          // Get the account details to check status and ensure it's ready
-          try {
-            const account = await this.client.entities.accounts.getAccount(
-              this.stateManager.getOrganizationIds()[0],
-              ledgerId,
-              accountId
-            );
-
-            // Check if account is active and ready to receive transactions
-            if (account.status?.code !== 'active') {
-              this.logger.info(
-                `Account ${accountAlias} (${accountId}) is not active. Activating now...`
-              );
-
-              // Attempt to activate the account if needed
-              // This might require a specific API call depending on your system
-              try {
-                // Simulate activation - if your API has a specific activation endpoint, use it here
-                await new Promise((resolve) => setTimeout(resolve, 500)); // Wait a bit before proceeding
-              } catch (activationError) {
-                this.logger.error(
-                  `Failed to activate account ${accountAlias}`,
-                  activationError as Error
-                );
-                continue; // Skip this account and move to next
-              }
-            }
-          } catch (accountError) {
-            this.logger.error(`Failed to retrieve account ${accountAlias}`, accountError as Error);
-            this.stateManager.incrementErrorCount('transaction');
-            continue; // Skip this account and move to next
-          }
+          const accountIndex = accountIds.indexOf(accountId);
+          const accountAlias = accountAliases[accountIndex];
 
           // Get the asset code for this account by retrieving its details
           let assetCode;
           try {
             // Query the account to get its actual asset code
             const accountDetails = await this.client.entities.accounts.getAccount(
-              this.stateManager.getOrganizationIds()[0], 
-              ledgerId, 
+              organizationId,
+              ledgerId,
               accountId
             );
-            
+
             // Get the asset code directly from the account
             assetCode = accountDetails.assetCode;
             this.logger.debug(`Retrieved asset code ${assetCode} from account ${accountAlias}`);
-            
+
             // Store this asset code in our state for future use
             this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
           } catch (error) {
             // If we can't get the account details, try to use what we have in state
             assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
-            
+
             if (!assetCode || assetCode === 'ERROR') {
               // Ultimate fallback - use first available asset code
+              const assetCodes = this.stateManager.getAssetCodes(ledgerId);
               if (assetCodes.length > 0) {
                 assetCode = assetCodes[0];
-                this.logger.warn(`Using fallback asset code ${assetCode} for account ${accountAlias}`);
+                this.logger.warn(
+                  `Using fallback asset code ${assetCode} for account ${accountAlias}`
+                );
               } else {
                 // Last resort - use BRL
                 assetCode = 'BRL';
-                this.logger.warn(`No asset codes available, using default BRL for account ${accountAlias}`);
+                this.logger.warn(
+                  `No asset codes available, using default BRL for account ${accountAlias}`
+                );
               }
             }
           }
-          
+
           // Fallback: if we couldn't get the asset code or it's invalid
           if (!assetCode || assetCode === 'ERROR') {
             // Use the first available valid asset code
+            const assetCodes = this.stateManager.getAssetCodes(ledgerId);
             if (assetCodes.length > 0) {
               assetCode = assetCodes[0];
-              this.logger.info(`Using fallback asset code ${assetCode} for account ${accountAlias}`);
+              this.logger.info(
+                `Using fallback asset code ${assetCode} for account ${accountAlias}`
+              );
             } else {
               // Hard fallback to BRL if no asset codes are available
               assetCode = 'BRL';
-              this.logger.warn(`No valid asset codes found for ledger ${ledgerId}, using default BRL`);
+              this.logger.warn(
+                `No valid asset codes found for ledger ${ledgerId}, using default BRL`
+              );
             }
           }
 
           // Initial deposit amount - use appropriate amount based on asset
-          let depositAmount = 10000; // Default: 100.00 in cent-precision
+          // Use a very large initial deposit to ensure sufficient funds for transactions
+          let depositAmount = 1000000; // Default: 10000.00 in cent-precision
           if (assetCode === 'BTC' || assetCode === 'ETH') {
-            depositAmount = 100; // Crypto gets smaller amounts: 1.00
+            depositAmount = 10000; // Crypto gets 100.00 units
           } else if (assetCode === 'GOLD' || assetCode === 'SILVER') {
-            depositAmount = 5000; // 50.00 for commodities
+            depositAmount = 500000; // 5000.00 for commodities
           }
 
           this.logger.debug(
             `Creating deposit of ${depositAmount} ${assetCode} for account ${accountAlias}`
           );
 
-          // Wait a moment before creating the transaction to ensure account is ready
-          await new Promise((resolve) => setTimeout(resolve, 500));
+          // Wait longer before creating the transaction to ensure account is fully ready
+          // Account activation may take time to propagate in the system
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 seconds wait
 
           // Use correct external account format (@external/assetCode)
           const externalAccountId = `@external/${assetCode}`;
@@ -207,9 +193,9 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
                   scale: TRANSACTION_AMOUNTS.scale,
                 },
               },
-              // Credit operation to target account
+              // Credit operation to target account - USE ALIAS instead of ID
               {
-                accountId, // Use actual account ID, not the alias
+                accountId: accountAlias, // Use account ALIAS, not the ID
                 type: 'CREDIT',
                 amount: {
                   value: depositAmount,
@@ -229,7 +215,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
             try {
               // Create the deposit transaction
               transaction = await this.client.entities.transactions.createTransaction(
-                this.stateManager.getOrganizationIds()[0],
+                organizationId,
                 ledgerId,
                 depositInput
               );
@@ -280,45 +266,87 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     this.logger.info(`Step 2: Creating ${count} transactions per account`);
     successCount = 0;
     let createdCount = 0;
-    const totalTransactions = accountIds.length * count;
 
-    // Create transactions for each account
+    // Group accounts by asset code
+    const accountsByAsset = new Map<string, { id: string; alias: string }[]>();
+
+    // First, get asset code for each account
     for (let i = 0; i < accountIds.length; i++) {
-      // Choose this account as the source account
-      const sourceAccountId = accountIds[i];
-      const sourceAccountAlias = accountAliases[i];
+      const accountId = accountIds[i];
+      const accountAlias = accountAliases[i];
+      const assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
 
-      for (let j = 0; j < count; j++) {
-        try {
-          // Choose a random target account different from the source
-          const otherAccounts = accountIds.filter((id) => id !== sourceAccountId);
-          const targetAccountId = faker.random.arrayElement(otherAccounts);
-          const targetIndex = accountIds.indexOf(targetAccountId);
-          const targetAccountAlias = accountAliases[targetIndex];
+      if (!accountsByAsset.has(assetCode)) {
+        accountsByAsset.set(assetCode, []);
+      }
 
-          const transaction = await this.generateOne(ledgerId, {
-            sourceAccountId,
-            sourceAccountAlias,
-            targetAccountId,
-            targetAccountAlias,
-          });
+      accountsByAsset.get(assetCode)?.push({ id: accountId, alias: accountAlias });
+    }
 
-          transactions.push(transaction);
-          createdCount++;
-          successCount++;
+    // Calculate total possible transactions between accounts with the same asset code
+    let possibleTransactions = 0;
+    accountsByAsset.forEach((accounts, assetCode) => {
+      // Only count if we have at least 2 accounts with the same asset
+      if (accounts.length >= 2) {
+        // Each account can initiate 'count' transactions
+        possibleTransactions += accounts.length * count;
+        this.logger.info(`Found ${accounts.length} accounts with asset code ${assetCode}`);
+      } else if (accounts.length === 1) {
+        this.logger.warn(
+          `Only found 1 account with asset code ${assetCode} - no transactions possible`
+        );
+      }
+    });
 
-          if (createdCount % 10 === 0 || createdCount === totalTransactions) {
-            this.logger.progress('Transactions created', createdCount, totalTransactions);
+    const totalTransactions = possibleTransactions;
+    if (totalTransactions === 0) {
+      this.logger.warn('No possible transactions between accounts with matching asset codes');
+      return transactions;
+    }
+
+    // Create transactions only between accounts with the same asset code
+    // Use for...of loop instead of forEach to allow await
+    for (const [assetCode, accounts] of accountsByAsset.entries()) {
+      // Skip if fewer than 2 accounts share this asset code
+      if (accounts.length < 2) continue;
+
+      // For each account in this asset group
+      for (let i = 0; i < accounts.length; i++) {
+        const sourceAccount = accounts[i];
+
+        for (let j = 0; j < count; j++) {
+          try {
+            // Choose a random target account with same asset code, different from source
+            const otherAccounts = accounts.filter((acc) => acc.id !== sourceAccount.id);
+            const targetAccount = faker.random.arrayElement(otherAccounts);
+
+            // Generate the transaction - call async method
+            const transaction = await this.generateOne(ledgerId, {
+              sourceAccountId: sourceAccount.id,
+              sourceAccountAlias: sourceAccount.alias,
+              targetAccountId: targetAccount.id,
+              targetAccountAlias: targetAccount.alias,
+            });
+
+            if (transaction) {
+              transactions.push(transaction);
+              createdCount++;
+              successCount++;
+
+              if (createdCount % 10 === 0 || createdCount === totalTransactions) {
+                this.logger.progress('Transactions created', createdCount, totalTransactions);
+              }
+
+              // Add a small delay between transactions to avoid rate limiting
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+          } catch (error) {
+            this.logger.error(
+              `Failed to generate transaction between accounts with asset code ${assetCode} in ledger ${ledgerId}`,
+              error as Error
+            );
+            this.stateManager.incrementErrorCount('transaction');
           }
-
-          // Add a small delay between transactions to avoid rate limiting
-          await new Promise((resolve) => setTimeout(resolve, 50));
-        } catch (error) {
-          this.logger.error(
-            `Failed to generate transaction for accounts ${sourceAccountId} → ??? in ledger ${ledgerId}`,
-            error as Error
-          );
-          this.stateManager.incrementErrorCount('transaction');
         }
       }
     }
@@ -334,15 +362,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
    * @param parentId Parent ledger ID
    * @param options Optional parameters for transaction generation
    */
-  async generateOne(
-    parentId?: string,
-    options?: {
-      sourceAccountId?: string;
-      sourceAccountAlias?: string;
-      targetAccountId?: string;
-      targetAccountAlias?: string;
-    }
-  ): Promise<Transaction> {
+  async generateOne(parentId: string, options: TransactionOptions): Promise<Transaction | null> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
@@ -358,10 +378,10 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     const organizationId = organizationIds[0];
 
     // Get account information
-    const sourceAccountId = options?.sourceAccountId || '';
-    const sourceAccountAlias = options?.sourceAccountAlias || '';
-    const targetAccountId = options?.targetAccountId || '';
-    const targetAccountAlias = options?.targetAccountAlias || '';
+    const sourceAccountId = options.sourceAccountId || '';
+    const sourceAccountAlias = options.sourceAccountAlias || '';
+    const targetAccountId = options.targetAccountId || '';
+    const targetAccountAlias = options.targetAccountAlias || '';
 
     if (!sourceAccountId || !sourceAccountAlias || !targetAccountId || !targetAccountAlias) {
       throw new Error('Cannot generate transaction without source and target account details');
@@ -369,48 +389,18 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
 
     // Get the asset associated with both source and target accounts
     // Both accounts must have the same asset code for a valid transaction
-    let sourceAssetCode;
-    let targetAssetCode;
-    
-    try {
-      // Get source account details
-      const sourceAccount = await this.client.entities.accounts.getAccount(
-        organizationId,
-        ledgerId,
-        sourceAccountId
+    const sourceAssetCode = this.stateManager.getAccountAsset(ledgerId, sourceAccountId);
+    const targetAssetCode = this.stateManager.getAccountAsset(ledgerId, targetAccountId);
+
+    // Verify that both accounts use the same asset
+    if (sourceAssetCode !== targetAssetCode) {
+      this.logger.warn(
+        `Source account uses ${sourceAssetCode} but target account uses ${targetAssetCode}. Skipping transaction.`
       );
-      sourceAssetCode = sourceAccount.assetCode;
-      
-      // Get target account details
-      const targetAccount = await this.client.entities.accounts.getAccount(
-        organizationId,
-        ledgerId,
-        targetAccountId
-      );
-      targetAssetCode = targetAccount.assetCode;
-      
-      // Save these asset codes in our state
-      this.stateManager.setAccountAsset(ledgerId, sourceAccountId, sourceAssetCode);
-      this.stateManager.setAccountAsset(ledgerId, targetAccountId, targetAssetCode);
-      
-      // Verify that both accounts use the same asset
-      if (sourceAssetCode !== targetAssetCode) {
-        this.logger.warn(`Source account uses ${sourceAssetCode} but target account uses ${targetAssetCode}. Skipping transaction.`);
-        throw new Error(`Cannot create transaction between accounts with different assets (${sourceAssetCode} vs ${targetAssetCode})`);
-      }
-      
-      this.logger.debug(`Using asset ${sourceAssetCode} for transaction between accounts`);
-    } catch (error) {
-      // If we can't get the account details or assets don't match, fall back to state
-      sourceAssetCode = this.stateManager.getAccountAsset(ledgerId, sourceAccountId);
-      targetAssetCode = this.stateManager.getAccountAsset(ledgerId, targetAccountId);
-      
-      if (sourceAssetCode !== targetAssetCode) {
-        this.logger.warn(`Source account uses ${sourceAssetCode} but target account uses ${targetAssetCode}. Using source asset code.`);
-      }
+      return null;
     }
-    
-    // Use the source asset code for the transaction
+
+    // Use the common asset code for the transaction
     const assetCode = sourceAssetCode;
 
     // Generate a random amount based on the asset type
@@ -441,13 +431,14 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
 
     try {
       // Using the SDK's createCreditDebitPair and executeTransactionPair utilities
-      // This is the exact pattern shown in the workflow.ts example
       const pairId = `pair-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       // Create a credit/debit pair using the SDK utility
-      const { creditTx, debitTx } = createCreditDebitPair(
-        targetAccountAlias,
-        sourceAccountAlias,
+      // Use account aliases for both source and target accounts
+      // The createCreditDebitPair function expects aliases, not IDs
+      const { creditTx } = createCreditDebitPair(
+        targetAccountAlias, // Target account alias
+        sourceAccountAlias, // Source account alias
         value,
         assetCode,
         description,
@@ -457,109 +448,27 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         }
       );
 
-      // Execute both transactions as a pair with error recovery and increased timeouts
-      let transactionResults;
-      try {
-        transactionResults = await executeTransactionPair(
-          async () => {
-            // Retry logic for network issues
-            let retries = 0;
-            const maxRetries = 3;
-            while (retries < maxRetries) {
-              try {
-                return await this.client.entities.transactions.createTransaction(
-                  organizationId,
-                  ledgerId,
-                  creditTx
-                );
-              } catch (error: any) {
-                if (error.message?.includes('fetch failed') && retries < maxRetries - 1) {
-                  this.logger.warn(
-                    `Network error on credit transaction, retrying (${retries + 1}/${maxRetries})`
-                  );
-                  retries++;
-                  // Exponential backoff
-                  await new Promise((resolve) => setTimeout(resolve, 200 * Math.pow(2, retries)));
-                } else {
-                  throw error;
-                }
-              }
-            }
-          },
-          async () => {
-            // Retry logic for network issues
-            let retries = 0;
-            const maxRetries = 3;
-            while (retries < maxRetries) {
-              try {
-                return await this.client.entities.transactions.createTransaction(
-                  organizationId,
-                  ledgerId,
-                  debitTx
-                );
-              } catch (error: any) {
-                if (error.message?.includes('fetch failed') && retries < maxRetries - 1) {
-                  this.logger.warn(
-                    `Network error on debit transaction, retrying (${retries + 1}/${maxRetries})`
-                  );
-                  retries++;
-                  // Exponential backoff
-                  await new Promise((resolve) => setTimeout(resolve, 200 * Math.pow(2, retries)));
-                } else {
-                  throw error;
-                }
-              }
-            }
-          },
-          {
-            maxRetries: 2,
-            delayBetweenTransactions: 100,
-          }
-        );
-      } catch (error: any) {
-        this.logger.error(
-          `Failed to execute transaction pair: ${error.message || 'Unknown error'}`
-        );
-        throw error;
-      }
-
-      // Handle the results
-      if (
-        transactionResults.creditStatus === 'success' ||
-        transactionResults.creditStatus === 'duplicate'
-      ) {
-        this.logger.debug(`Created credit transaction successfully`);
-      }
-
-      if (
-        transactionResults.debitStatus === 'success' ||
-        transactionResults.debitStatus === 'duplicate'
-      ) {
-        this.logger.debug(`Created debit transaction successfully`);
-      }
-
-      // Return the first transaction (credit)
-      // The SDK doesn't return the actual transactions, just statuses
-      // So we need to get the transaction information separately
-      const transactions = await this.client.entities.transactions.listTransactions(
+      // Create the transaction - await the promise
+      const transaction = await this.client.entities.transactions.createTransaction(
         organizationId,
         ledgerId,
-        { limit: 1 }
+        creditTx
       );
 
-      if (transactions.items.length > 0) {
-        const transaction = transactions.items[0];
-        this.stateManager.addTransactionId(ledgerId, transaction.id);
-        return transaction;
+      // Return a mock transaction if we somehow didn't get the real one (should not happen now with await)
+      if (!transaction) {
+        return {
+          id: pairId,
+          ledgerId,
+          description,
+          status: 'completed',
+        } as unknown as Transaction;
       }
 
-      // If we couldn't get the transaction, create a placeholder
-      return {
-        id: pairId,
-        ledgerId,
-        description,
-        status: 'completed',
-      } as unknown as Transaction;
+      // Store the transaction ID
+      this.stateManager.addTransactionId(ledgerId, pairId);
+
+      return transaction as unknown as Transaction;
     } catch (error) {
       // Check if it's a conflict error (already exists)
       if (
@@ -567,52 +476,15 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         (error as Error).message.includes('conflict')
       ) {
         this.logger.warn(`Transaction with this pair may already exist for ledger ${ledgerId}`);
-
-        // Try to find the most recent transactions
-        const transactions = await this.client.entities.transactions.listTransactions(
-          organizationId,
+        return {
+          id: `existing-tx-${Date.now()}`,
           ledgerId,
-          {
-            limit: 5,
-          }
-        );
-
-        if (transactions.items.length > 0) {
-          const existingTransaction = transactions.items[0];
-          this.logger.info(`Found existing transaction: ${existingTransaction.id}`);
-          this.stateManager.addTransactionId(ledgerId, existingTransaction.id);
-          return existingTransaction;
-        }
-      } else if (
-        (error as Error).message.includes('insufficient') ||
-        (error as Error).message.includes('balance')
-      ) {
-        // Handle insufficient balance errors by creating a deposit first
-        this.logger.warn(
-          `Insufficient balance for transaction from ${sourceAccountAlias} to ${targetAccountAlias}, creating deposit first`
-        );
-
-        // Create a deposit to the source account
-        await this.createDepositTransaction(
-          organizationId,
-          ledgerId,
-          sourceAccountId,
-          sourceAccountAlias,
-          value * 2 // Double the amount to ensure sufficient balance
-        );
-
-        // Retry the original transaction
-        return this.generateOne(ledgerId, {
-          sourceAccountId,
-          sourceAccountAlias,
-          targetAccountId,
-          targetAccountAlias,
-        });
+          description: 'Existing transaction',
+          status: 'completed',
+        } as unknown as Transaction;
       }
 
-      // Track this error as a transaction error and re-throw
-      this.logger.error('Error generating transaction:', error as Error);
-      this.stateManager.incrementErrorCount('transaction');
+      // Re-throw the error for the caller to handle
       throw error;
     }
   }
@@ -632,21 +504,21 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
     try {
       // Query the account to get its actual asset code
       const accountDetails = await this.client.entities.accounts.getAccount(
-        organizationId, 
-        ledgerId, 
+        organizationId,
+        ledgerId,
         accountId
       );
-      
+
       // Get the asset code directly from the account
       assetCode = accountDetails.assetCode;
       this.logger.debug(`Retrieved asset code ${assetCode} from account ${accountAlias}`);
-      
+
       // Store this asset code in our state for future use
       this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
     } catch (error) {
       // If we can't get the account details, try to use what we have in state
       assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
-      
+
       // If we still don't have a valid asset code, fall back to first available
       if (!assetCode || assetCode === 'ERROR') {
         const assetCodes = this.stateManager.getAssetCodes(ledgerId);
@@ -656,30 +528,24 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         } else {
           // Last resort - use BRL
           assetCode = 'BRL';
-          this.logger.warn(`No asset codes available, using default BRL for account ${accountAlias}`);
+          this.logger.warn(
+            `No asset codes found, using default BRL for deposit to account ${accountAlias}`
+          );
         }
       }
     }
 
-    // Create simple description
-    const description = `Deposit to ${accountAlias}`;
-
-    // Generate a unique external ID
-    const externalId = `DEP-${faker.datatype.uuid().slice(0, 8)}`;
-
-    // Create external account ID following SDK pattern
+    // Use correct external account format (@external/assetCode)
     const externalAccountId = `@external/${assetCode}`;
 
-    // Create properly balanced deposit transaction with both DEBIT and CREDIT
+    // Create the deposit transaction input
     const depositInput: CreateTransactionInput = {
-      description,
-      externalId,
-      // Include transaction-level fields
+      description: `Deposit to account ${accountAlias}`,
       amount,
       scale: TRANSACTION_AMOUNTS.scale,
       assetCode,
       metadata: {
-        transactionType: 'deposit',
+        type: 'deposit',
       },
       operations: [
         // Must have DEBIT from external account
@@ -694,7 +560,7 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
         },
         // Credit to the target account
         {
-          accountId, // Use the actual account ID, not the alias
+          accountId: accountAlias, // Use the account ALIAS, not the ID
           type: 'CREDIT',
           amount: {
             value: amount,
@@ -738,11 +604,16 @@ export class TransactionGenerator implements EntityGenerator<Transaction> {
       return false;
     }
 
-    const organizationId = organizationIds[0];
+    // Try to get the transaction from the API
     try {
-      await this.client.entities.transactions.getTransaction(organizationId, ledgerId, id);
-      return true;
+      const transaction = await this.client.entities.transactions.getTransaction(
+        organizationIds[0],
+        ledgerId,
+        id
+      );
+      return !!transaction;
     } catch (error) {
+      // If we get a 404, the transaction doesn't exist
       return false;
     }
   }

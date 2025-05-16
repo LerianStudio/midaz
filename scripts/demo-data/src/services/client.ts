@@ -12,7 +12,8 @@ import { GeneratorOptions } from '../types';
  * Initialize the Midaz SDK client
  */
 export function initializeClient(options: GeneratorOptions): MidazClient {
-  const { baseUrl, onboardingPort, transactionPort, authToken, debug } = options;
+  const { baseUrl, onboardingPort, transactionPort, authToken } = options;
+  // debug parameter is now always true (always enabled)
 
   // Create configuration builder with a dummy API key when auth is disabled
   // This is necessary because the SDK requires either apiKey or authToken
@@ -45,10 +46,8 @@ export function initializeClient(options: GeneratorOptions): MidazClient {
     configBuilder.withAuthToken(authToken);
   }
 
-  // Enable debug mode if requested
-  if (debug) {
-    configBuilder.withDebugMode(true);
-  }
+  // Always enable debug mode to help troubleshoot API issues
+  configBuilder.withDebugMode(true);
 
   // Create and return the client
   return new MidazClient(configBuilder);
