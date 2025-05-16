@@ -383,7 +383,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved balances by alias")
 
-	if balances == nil || len(balances) == 0 {
+	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
 	}
 
@@ -437,7 +437,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved balances by code")
 
-	if balances == nil || len(balances) == 0 {
+	if len(balances) == 0 {
 		balances = []*mmodel.Balance{}
 	}
 
