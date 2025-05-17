@@ -79,12 +79,12 @@ start:
 .PHONY: test
 test:
 	$(call title1,"Running tests")
-	npm run test
+	npm install && npm run test
 
 .PHONY: test\:e2e
 test\:e2e:
 	$(call title1,"Running end-to-end tests")
-	npm run test:e2e
+	npm install && npm run test:e2e
 
 .PHONY: lint
 lint:

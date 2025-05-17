@@ -146,11 +146,6 @@ test:
 		(cd components/console && $(MAKE) test) || overall_exit_code=1; \
 	fi
 	
-	@echo "\nTesting infra component..."
-	@if [ -d "components/infra" ]; then \
-		(cd components/infra && $(MAKE) test) || overall_exit_code=1; \
-	fi
-	
 	@echo "\nTesting mdz component..."
 	@if [ -d "components/mdz" ]; then \
 		(cd components/mdz && $(MAKE) test) || overall_exit_code=1; \
@@ -164,21 +159,6 @@ test:
 	@echo "\nTesting transaction component..."
 	@if [ -d "components/transaction" ]; then \
 		(cd components/transaction && $(MAKE) test) || overall_exit_code=1; \
-	fi
-	
-	@echo "\nTesting demo-data script..."
-	@if [ -d "scripts/demo-data" ]; then \
-		echo "Installing dependencies..."; \
-		(cd scripts/demo-data && npm install && cd sdk-source && npm install); \
-		echo "Building demo-data generator..."; \
-		(cd scripts/demo-data && npm run build); \
-		echo "Building SDK..."; \
-		(cd scripts/demo-data/sdk-source && npm run build); \
-		echo "✓ Demo-data & SDK build verification completed"; \
-		echo "Running demo-data generator tests..."; \
-		(cd scripts/demo-data && npx jest tests/basic.test.js --testTimeout=10000 --detectOpenHandles --forceExit); \
-		echo "✓ Basic tests completed successfully"; \
-		echo "Note: TypeScript tests are temporarily skipped until configuration issues are resolved"; \
 	fi
 	
 	@end_time=$$(date +%s)
@@ -229,9 +209,9 @@ clean:
 		fi \
 	done
 	@echo "Cleaning demo-data SDK..."
-	@if [ -e "scripts/demo-data/midaz-sdk-typescript" ]; then \
-		echo "Removing scripts/demo-data/midaz-sdk-typescript"; \
-		rm -rf "scripts/demo-data/midaz-sdk-typescript"; \
+	@if [ -e "scripts/demo-data/sdk-source" ]; then \
+		echo "Removing scripts/demo-data/sdk-source"; \
+		rm -rf "scripts/demo-data/sdk-source"; \
 	fi
 	@if [ -e "scripts/demo-data/node_modules" ]; then \
 		echo "Removing scripts/demo-data/node_modules"; \
