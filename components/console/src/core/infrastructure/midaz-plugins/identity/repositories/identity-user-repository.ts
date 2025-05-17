@@ -1,9 +1,9 @@
 import { UserEntity } from '@/core/domain/entities/user-entity'
-import { UserRepository } from '@/core/domain/repositories/user-repository'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 import { inject, injectable } from 'inversify'
-import { IdentityHttpService } from '../services/identity-http-service'
-import { IdentityUserMapper } from '../mappers/identity-user-mapper'
 import { IdentityUserDto } from '../dto/identity-user-dto'
+import { IdentityUserMapper } from '../mappers/identity-user-mapper'
+import { IdentityHttpService } from '../services/identity-http-service'
 
 @injectable()
 export class IdentityUserRepository implements UserRepository {

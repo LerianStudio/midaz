@@ -1,4 +1,4 @@
-import { UserRepository } from '@/core/domain/repositories/user-repository'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 import { inject } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 

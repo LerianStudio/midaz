@@ -1,8 +1,9 @@
 import { inject, injectable } from 'inversify'
 import type { CreateUserDto, UserResponseDto } from '../../dto/user-dto'
-import { UserRepository } from '@/core/domain/repositories/user-repository'
+
 import { UserMapper } from '../../mappers/user-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface CreateUser {
   execute: (user: CreateUserDto) => Promise<UserResponseDto>
