@@ -6,29 +6,34 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "generate": "ts-node --project tsconfig-ts-node.json src/index.ts",
-    "generate:small": "ts-node --project tsconfig-ts-node.json src/index.ts --volume small",
-    "generate:medium": "ts-node --project tsconfig-ts-node.json src/index.ts --volume medium",
-    "generate:large": "ts-node --project tsconfig-ts-node.json src/index.ts --volume large",
+    "small": "ts-node --project tsconfig-ts-node.json src/index.ts --volume small",
+    "medium": "ts-node --project tsconfig-ts-node.json src/index.ts --volume medium",
+    "large": "ts-node --project tsconfig-ts-node.json src/index.ts --volume large",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "test": "jest --testTimeout=10000 --detectOpenHandles --forceExit",
+    "test:watch": "jest --watch --testTimeout=10000 --detectOpenHandles",
+    "test:coverage": "jest --coverage --testTimeout=10000 --detectOpenHandles --forceExit"
   },
   "dependencies": {
     "faker": "^5.5.3",
-    "midaz-sdk": "file:midaz-sdk-typescript",
+    "midaz-sdk": "file:sdk-source",
     "yargs": "^17.7.2"
   },
   "devDependencies": {
     "@types/faker": "^5.5.9",
+    "@types/jest": "^29.5.14",
     "@types/node": "^18.19.100",
-    "@types/yargs": "^17.0.24",
+    "@types/yargs": "^17.0.33",
     "@typescript-eslint/eslint-plugin": "^5.59.0",
     "@typescript-eslint/parser": "^5.59.0",
     "eslint": "^8.39.0",
+    "jest": "^29.7.0",
     "prettier": "^2.8.8",
     "rimraf": "^5.0.0",
-    "ts-node": "^10.9.1",
+    "ts-jest": "^29.3.4",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.4"
   }
 }

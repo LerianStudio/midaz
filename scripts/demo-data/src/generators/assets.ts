@@ -3,12 +3,12 @@
  */
 
 import * as faker from 'faker';
-import { MidazClient } from '../../midaz-sdk-typescript/src';
-import { Asset } from '../../midaz-sdk-typescript/src/models/asset';
+import { MidazClient } from 'midaz-sdk/src';
+import { Asset } from 'midaz-sdk/src/models/asset';
+import { ASSET_TEMPLATES } from '../config';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
-import { ASSET_TEMPLATES } from '../config';
 
 /**
  * Asset generator implementation

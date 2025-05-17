@@ -2,12 +2,11 @@
  * Organization generator
  */
 
-import { MidazClient } from '../../midaz-sdk-typescript/src';
-import { Organization } from '../../midaz-sdk-typescript/src/models/organization';
-import { createOrganizationBuilder } from '../../midaz-sdk-typescript/src/models/organization';
+import { MidazClient } from 'midaz-sdk/src';
+import { Organization, createOrganizationBuilder } from 'midaz-sdk/src/models/organization';
 import { Logger } from '../services/logger';
-import { generatePersonData } from '../utils/faker-pt-br';
 import { EntityGenerator } from '../types';
+import { generatePersonData } from '../utils/faker-pt-br';
 import { StateManager } from '../utils/state';
 
 /**

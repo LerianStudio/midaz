@@ -177,3 +177,21 @@ i18n:
 	$(call title1,"Running i18n tasks")
 	$(MAKE) extract-i18n
 	$(MAKE) compile-i18n
+
+#-------------------------------------------------------
+# Cleanup Commands
+#-------------------------------------------------------
+
+clean:
+	$(call title1,"Cleaning build artifacts")
+	@echo "Cleaning $(SERVICE_NAME) artifacts..."
+	@rm -rf $(BUILD_DIR) $(ARTIFACTS_DIR) coverage coverage.out coverage.html *.tmp
+	@if [ -d "node_modules" ]; then \
+		echo "Removing node_modules..."; \
+		rm -rf node_modules; \
+	fi
+	@if [ -d ".next" ]; then \
+		echo "Removing .next..."; \
+		rm -rf .next; \
+	fi
+	@echo "$(OK_COLOR)[ok] Artifacts cleaned successfully ✔️$(NO_COLOR)"

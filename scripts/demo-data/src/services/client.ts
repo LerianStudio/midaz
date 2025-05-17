@@ -2,7 +2,7 @@
  * SDK client initialization and configuration
  */
 
-import { MidazClient, createClientConfigBuilder } from '../../midaz-sdk-typescript/src';
+import { MidazClient, createClientConfigBuilder } from 'midaz-sdk/src';
 import { GeneratorOptions } from '../types';
 
 /**

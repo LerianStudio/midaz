@@ -116,6 +116,9 @@ help:
 	@echo "  make demo-data                   - Generate demo data with small volume"
 	@echo "  make demo-data-medium            - Generate demo data with medium volume"
 	@echo "  make demo-data-large             - Generate demo data with large volume"
+	@echo "  make demo-data-test              - Run simplified tests for demo data generator"
+	@echo "  make demo-data-test-full         - Run full Jest tests for demo data generator"
+	@echo "  make demo-data-test-mode         - Test demo data generator in test mode"
 	@echo ""
 	@echo ""
 
@@ -174,7 +177,7 @@ clean:
 		(cd $$dir && $(MAKE) clean) || exit 1; \
 		echo "Ensuring thorough cleanup in $$dir..."; \
 		(cd $$dir && \
-			for item in bin dist coverage.out coverage.html artifacts *.tmp; do \
+			for item in bin dist coverage.out coverage.html artifacts *.tmp node_modules; do \
 				if [ -e "$$item" ]; then \
 					echo "Removing $$dir/$$item"; \
 					rm -rf "$$item"; \
@@ -183,12 +186,36 @@ clean:
 		) || true; \
 	done
 	@echo "Cleaning root-level build artifacts..."
-	@for item in bin dist coverage.out coverage.html *.tmp; do \
+	@for item in bin dist coverage.out coverage.html *.tmp node_modules; do \
 		if [ -e "$$item" ]; then \
 			echo "Removing $$item"; \
 			rm -rf "$$item"; \
 		fi \
 	done
+	@echo "Cleaning demo-data SDK..."
+	@if [ -e "scripts/demo-data/midaz-sdk-typescript" ]; then \
+		echo "Removing scripts/demo-data/midaz-sdk-typescript"; \
+		rm -rf "scripts/demo-data/midaz-sdk-typescript"; \
+	fi
+	@if [ -e "scripts/demo-data/node_modules" ]; then \
+		echo "Removing scripts/demo-data/node_modules"; \
+		rm -rf "scripts/demo-data/node_modules"; \
+	fi
+	
+	@echo "Deep cleaning project..."
+	@echo "Finding and removing coverage.out files..."
+	@find . -name "coverage.out" -type f -delete -print || true
+	@echo "Finding and removing coverage.html files..."
+	@find . -name "coverage.html" -type f -delete -print || true
+	@echo "Finding and removing bin directories..."
+	@find . -name "bin" -type d -exec rm -rf {} \; -prune -or -true | grep -v "Permission denied" || true
+	@echo "Finding and removing dist directories..."
+	@find . -name "dist" -type d -exec rm -rf {} \; -prune -or -true | grep -v "Permission denied" || true
+	@echo "Finding and removing node_modules directories..."
+	@find . -name "node_modules" -type d -exec rm -rf {} \; -prune -or -true | grep -v "Permission denied" || true
+	@echo "Finding and removing .env files (preserving examples)..."
+	@find . -name ".env" -o -name ".env.local" -o -name ".env.development" -o -name ".env.production" -o -name ".env.test" -type f -delete -print || true
+	
 	@echo "[ok] All artifacts cleaned successfully"
 
 .PHONY: cover
@@ -528,7 +555,7 @@ generate-docs:
 # Demo Data Commands
 #-------------------------------------------------------
 
-.PHONY: demo-data demo-data-small demo-data-medium demo-data-large
+.PHONY: demo-data demo-data-small demo-data-medium demo-data-large demo-data-test demo-data-test-watch demo-data-test-coverage
 
 demo-data: demo-data-small
 

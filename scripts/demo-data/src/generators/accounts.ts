@@ -3,13 +3,9 @@
  */
 
 import * as faker from 'faker';
-import { MidazClient } from '../../midaz-sdk-typescript/src';
-import {
-  Account,
-  AccountType,
-  createAccountBuilder,
-} from '../../midaz-sdk-typescript/src/models/account';
-import { workerPool } from '../../midaz-sdk-typescript/src/util/concurrency/worker-pool';
+import { MidazClient } from 'midaz-sdk/src';
+import { Account, AccountType, createAccountBuilder } from 'midaz-sdk/src/models/account';
+import { workerPool } from 'midaz-sdk/src/util/concurrency/worker-pool';
 import { MAX_CONCURRENCY } from '../config';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';

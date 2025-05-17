@@ -3,8 +3,8 @@
  */
 
 import * as faker from 'faker';
-import { MidazClient } from '../../midaz-sdk-typescript/src';
-import { Ledger } from '../../midaz-sdk-typescript/src/models/ledger';
+import { MidazClient } from 'midaz-sdk/src';
+import { Ledger } from 'midaz-sdk/src/models/ledger';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
