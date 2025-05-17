@@ -165,7 +165,8 @@ export class TransactionGenerator {
 
           return { accountId, accountAlias, assetCode, depositAmount };
         } catch (error) {
-          // If we can't get account details, try to use what we have in state
+          // If we can't get account details, log the error and try to use what we have in state
+          this.logger.debug(`Error retrieving account details for ${accountId}: ${error instanceof Error ? error.message : String(error)}`);
           let assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
 
           // Fallback to a valid asset code if necessary
@@ -342,10 +343,22 @@ export class TransactionGenerator {
           },
           onTransactionError: (tx: any, index: number, error: any) => {
             const accountAlias = accountsWithSameAsset[index]?.accountAlias || 'unknown';
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            // Improved error handling to properly format and log the error
+            let errorMessage = 'Unknown error';
+            
+            if (error instanceof Error) {
+              errorMessage = error.message;
+            } else if (typeof error === 'object' && error !== null) {
+              // Handle case when error is an object but not an Error instance
+              errorMessage = error.message || JSON.stringify(error);
+            } else if (error !== undefined && error !== null) {
+              // Handle primitive error values
+              errorMessage = String(error);
+            }
+            
             this.logger.error(
               `Failed to create deposit for account ${accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
-              error instanceof Error ? error : new Error(String(error))
+              error instanceof Error ? error : new Error(errorMessage)
             );
             // IMPORTANT: Don't increment error count here to avoid double-counting
             // The error will be counted in the batch result processing
@@ -633,10 +646,22 @@ export class TransactionGenerator {
               }
             },
             onTransactionError: (tx: any, index: number, error: any) => {
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              // Improved error handling to properly format and log the error
+              let errorMessage = 'Unknown error';
+              
+              if (error instanceof Error) {
+                errorMessage = error.message;
+              } else if (typeof error === 'object' && error !== null) {
+                // Handle case when error is an object but not an Error instance
+                errorMessage = error.message || JSON.stringify(error);
+              } else if (error !== undefined && error !== null) {
+                // Handle primitive error values
+                errorMessage = String(error);
+              }
+              
               this.logger.error(
                 `Failed to create transfer for account ${sourceAccount.accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
-                error instanceof Error ? error : new Error(String(error))
+                error instanceof Error ? error : new Error(errorMessage)
               );
               // IMPORTANT: Don't increment error count here to avoid double-counting
               // The error will be counted in the batch result processing
@@ -875,7 +900,8 @@ export class TransactionGenerator {
       // Store this asset code in our state for future use
       this.stateManager.setAccountAsset(ledgerId, accountId, assetCode);
     } catch (error) {
-      // If we can't get the account details, try to use what we have in state
+      // If we can't get the account details, log the error and try to use what we have in state
+      this.logger.debug(`Error retrieving account details for ${accountId}: ${error instanceof Error ? error.message : String(error)}`);
       assetCode = this.stateManager.getAccountAsset(ledgerId, accountId);
 
       // If we still don't have a valid asset code, fall back to first available
@@ -972,7 +998,8 @@ export class TransactionGenerator {
       );
       return !!transaction;
     } catch (error) {
-      // If we get a 404, the transaction doesn't exist
+      // If we get a 404 or other error, the transaction doesn't exist or can't be accessed
+      this.logger.debug(`Error checking if transaction ${id} exists: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     }
   }
