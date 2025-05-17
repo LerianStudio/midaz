@@ -11,9 +11,13 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
-# Include shared color definitions and utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define local utility functions
+define title1
+	@echo ""
+	@echo "------------------------"
+	@echo "   📝 $(1)  "
+	@echo "------------------------"
+endef
 
 #-------------------------------------------------------
 # Core Commands
