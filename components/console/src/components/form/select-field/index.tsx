@@ -64,10 +64,6 @@ export const SelectField = ({
       control={control}
       {...others}
       render={({ field }) => {
-        const displayValue = field.value
-          ? capitalizeFirstLetter(field.value)
-          : ''
-
         return (
           <FormItem required={required}>
             {label && (
@@ -80,21 +76,13 @@ export const SelectField = ({
               </FormLabel>
             )}
 
-            {readOnly ? (
-              <FormControl>
-                <Input
-                  value={displayValue || placeholder || ''}
-                  readOnly={true}
-                  disabled={disabled}
-                />
-              </FormControl>
-            ) : multi ? (
+            {multi ? (
               <MultipleSelect
                 onValueChange={field.onChange}
                 disabled={disabled}
                 {...field}
               >
-                <MultipleSelectTrigger>
+                <MultipleSelectTrigger readOnly={readOnly}>
                   <MultipleSelectValue placeholder={placeholder} />
                 </MultipleSelectTrigger>
                 <MultipleSelectContent>{children}</MultipleSelectContent>
@@ -104,9 +92,14 @@ export const SelectField = ({
                 onValueChange={field.onChange}
                 value={field.value}
                 disabled={disabled}
+                open={readOnly ? false : undefined}
+                onOpenChange={readOnly ? () => {} : undefined}
               >
                 <FormControl>
-                  <SelectTrigger className={cn(disabled && 'bg-shadcn-100')}>
+                  <SelectTrigger
+                    className={cn(disabled && 'bg-shadcn-100')}
+                    readOnly={readOnly}
+                  >
                     <SelectValue placeholder={placeholder} />
                   </SelectTrigger>
                 </FormControl>

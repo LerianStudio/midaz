@@ -26,7 +26,6 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { Input } from '@/components/ui/input'
 
 type CurrencySelectProps = SelectProps &
   Omit<ControllerRenderProps, 'ref'> & {
@@ -65,18 +64,18 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
       [options]
     )
 
-    if (readOnly) {
-      const displayValue = getDisplayValue(value) || placeholder || ''
-      return <Input value={displayValue} readOnly />
-    }
-
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={readOnly ? false : open}
+        onOpenChange={readOnly ? () => {} : setOpen}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={readOnly ? false : open}
+            readOnly={readOnly}
+            tabIndex={0}
             className={cn(
               'w-full justify-between',
               !value && 'text-muted-foreground'
@@ -87,7 +86,9 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
                 id: 'common.selectPlaceholder',
                 defaultMessage: 'Select...'
               })}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            {!readOnly && (
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent

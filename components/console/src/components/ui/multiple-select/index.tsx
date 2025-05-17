@@ -56,8 +56,9 @@ const useMultipleSelect = () => {
 
 export const MultipleSelectTrigger = React.forwardRef<
   HTMLDivElement,
-  React.PropsWithChildren & React.HtmlHTMLAttributes<HTMLDivElement>
->(({ className, children }, ref) => {
+  React.PropsWithChildren &
+    React.HtmlHTMLAttributes<HTMLDivElement> & { readOnly?: boolean }
+>(({ className, children, readOnly }, ref) => {
   const _ref = React.useRef<HTMLDivElement>(null)
   const { open, setOpen, onScrollbar, disabled, value, inputRef, handleClear } =
     useMultipleSelect()
@@ -78,18 +79,30 @@ export const MultipleSelectTrigger = React.forwardRef<
     <div
       ref={_ref}
       className={cn(
-        'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus-visible:outline-none dark:border-inherit md:text-sm [&>span]:line-clamp-1',
+        'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0 focus-visible:outline-none dark:border-inherit md:text-sm [&>span]:line-clamp-1',
         {
           'h-10': value.length === 0,
           'min-h-10': value.length > 0,
-          'cursor-text': !disabled && value.length !== 0,
+          'cursor-text': !disabled && !readOnly && value.length !== 0,
           'cursor-not-allowed bg-shadcn-100 opacity-50': disabled
         },
+        readOnly && [
+          'data-[read-only]:cursor-default',
+          'data-[read-only]:select-text',
+          'data-[read-only]:text-select-all',
+          'data-[read-only]:bg-zinc-100',
+          'data-[read-only]:opacity-50',
+          'data-[read-only]:pointer-events-none',
+          'data-[read-only]:focus:outline-none',
+          'data-[read-only]:focus:ring-0'
+        ],
         className
       )}
-      onClick={() => {
+      data-read-only={readOnly ? '' : undefined}
+      onClick={(e) => {
         // Redirect focus to the input field when clicking on the container
-        if (disabled) {
+        if (disabled || readOnly) {
+          e.preventDefault()
           return
         }
 
@@ -106,7 +119,7 @@ export const MultipleSelectTrigger = React.forwardRef<
       <div className="flex flex-1 items-center justify-end">
         <button
           type="button"
-          className={cn((disabled || value.length < 1) && 'hidden')}
+          className={cn((disabled || readOnly || value.length < 1) && 'hidden')}
         >
           <X
             className="mx-2 h-4 cursor-pointer text-muted-foreground"
@@ -120,11 +133,16 @@ export const MultipleSelectTrigger = React.forwardRef<
           orientation="vertical"
           className={cn(
             'flex h-full min-h-6',
-            (disabled || value.length < 1) && 'hidden'
+            (disabled || readOnly || value.length < 1) && 'hidden'
           )}
         />
         <SelectPrimitive.Icon>
-          <ChevronDown className="mx-3 my-2 h-4 w-4 cursor-pointer opacity-50" />
+          <ChevronDown
+            className={cn(
+              'mx-3 my-2 h-4 w-4 cursor-pointer opacity-50',
+              readOnly && 'hidden'
+            )}
+          />
         </SelectPrimitive.Icon>
       </div>
     </div>

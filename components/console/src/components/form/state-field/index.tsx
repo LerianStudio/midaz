@@ -26,13 +26,13 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { Input } from '@/components/ui/input'
 
 type StateSelectProps = SelectProps &
   Omit<ControllerRenderProps, 'ref'> & {
     countryName: string
     placeholder?: string
     emptyMessage?: string
+    readOnly?: boolean
   }
 
 const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
@@ -44,7 +44,7 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
       onChange,
       countryName,
       emptyMessage,
-      ...others
+      readOnly
     }: StateSelectProps,
     ref
   ) => {
@@ -75,12 +75,17 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
     )
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={readOnly ? false : open}
+        onOpenChange={readOnly ? () => {} : setOpen}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={readOnly ? false : open}
+            readOnly={readOnly}
+            tabIndex={0}
             className={cn(
               'w-full justify-between',
               !value && 'text-muted-foreground'
@@ -91,7 +96,9 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
                 id: 'common.selectPlaceholder',
                 defaultMessage: 'Select...'
               })}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            {!readOnly && (
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
@@ -174,21 +181,13 @@ export const StateField = ({
       render={({ field }) => (
         <FormItem required={required}>
           {label && <FormLabel>{label}</FormLabel>}
-          {readOnly ? (
-            <Input
-              value={
-                getDisplayValue(field.value) || field.value || placeholder || ''
-              }
-              readOnly={true}
-            />
-          ) : (
-            <StateComboBox
-              countryName={countryName}
-              placeholder={placeholder}
-              emptyMessage={emptyMessage}
-              {...field}
-            />
-          )}
+          <StateComboBox
+            countryName={countryName}
+            placeholder={placeholder}
+            emptyMessage={emptyMessage}
+            readOnly={readOnly}
+            {...field}
+          />
           <FormMessage />
         </FormItem>
       )}
