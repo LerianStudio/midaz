@@ -6,10 +6,17 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "noEmit": true,
-    "allowJs": true
+    "allowJs": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "paths": {
+      "midaz-sdk": ["sdk-source/src"],
+      "midaz-sdk/*": ["sdk-source/src/*"]
+    }
   },
   "include": [
     "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "tests/**/*.js"
   ]
 }

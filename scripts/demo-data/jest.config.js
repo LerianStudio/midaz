@@ -9,20 +9,16 @@ module.exports = {
     '**/tests/**/*.test.ts'
   ],
   
+  // Exclude sdk-source directory from testing
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/sdk-source/'
+  ],
+  
   // Transform TypeScript files
+  preset: 'ts-jest',
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      // Use a simpler tsconfig for tests
-      tsconfig: {
-        "compilerOptions": {
-          "target": "es6",
-          "module": "commonjs",
-          "esModuleInterop": true,
-          "strict": false,
-          "noImplicitAny": false
-        }
-      }
-    }]
+    '^.+\\.tsx?$': 'ts-jest'
   },
   
   // Setup files to run before tests
@@ -38,8 +34,7 @@ module.exports = {
   
   // Ensure the mock SDK module is available
   moduleNameMapper: {
-    '^midaz-sdk-typescript/(.*)$': '<rootDir>/node_modules/midaz-sdk-typescript/$1',
-    '^../../midaz-sdk-typescript/(.*)$': '<rootDir>/node_modules/midaz-sdk-typescript/$1',
-    '^../../../midaz-sdk-typescript/(.*)$': '<rootDir>/node_modules/midaz-sdk-typescript/$1'
+    '^midaz-sdk$': '<rootDir>/sdk-source/src',
+    '^midaz-sdk/(.*)$': '<rootDir>/sdk-source/src/$1'
   }
 };

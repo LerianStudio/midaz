@@ -2,21 +2,21 @@
  * Main generator orchestration
  */
 
-import { MidazClient } from '../midaz-sdk-typescript/src';
-import { GeneratorOptions } from './types';
-import { Logger } from './services/logger';
-import { initializeClient } from './services/client';
-import { StateManager } from './utils/state';
+import { MidazClient } from 'midaz-sdk/src';
 import { VOLUME_METRICS } from './config';
 import {
-  OrganizationGenerator,
-  LedgerGenerator,
+  AccountGenerator,
   AssetGenerator,
+  LedgerGenerator,
+  OrganizationGenerator,
   PortfolioGenerator,
   SegmentGenerator,
-  AccountGenerator,
   TransactionGenerator,
 } from './generators';
+import { initializeClient } from './services/client';
+import { Logger } from './services/logger';
+import { GeneratorOptions } from './types';
+import { StateManager } from './utils/state';
 
 /**
  * Main generator class

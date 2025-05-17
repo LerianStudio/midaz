@@ -12,9 +12,9 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "clean": "rimraf dist",
-    "test": "jest --testTimeout=10000 --detectOpenHandles --forceExit",
-    "test:watch": "jest --watch --testTimeout=10000 --detectOpenHandles",
-    "test:coverage": "jest --coverage --testTimeout=10000 --detectOpenHandles --forceExit"
+    "test": "jest --testTimeout=10000 --detectOpenHandles --forceExit --testPathIgnorePatterns=sdk-source",
+    "test:watch": "jest --watch --testTimeout=10000 --detectOpenHandles --testPathIgnorePatterns=sdk-source",
+    "test:coverage": "jest --coverage --testTimeout=10000 --detectOpenHandles --forceExit --testPathIgnorePatterns=sdk-source"
   },
   "dependencies": {
     "faker": "^5.5.3",

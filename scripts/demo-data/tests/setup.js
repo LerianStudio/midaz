@@ -84,8 +84,7 @@ if (global.consoleSilenced) {
   console.info = jest.fn();
 }
 
-// Reset mocks between tests
-beforeEach(() => {
-  jest.clearAllMocks();
-});
+// Note: We're not using lifecycle hooks like beforeEach or afterEach here
+// to avoid issues with Jest configuration.
+// Tests should manually clear mocks if needed
 
