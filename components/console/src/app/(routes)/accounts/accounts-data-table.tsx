@@ -116,8 +116,8 @@ const AccountRow: React.FC<AccountRowProps> = ({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleEdit(account.original)}>
                 {intl.formatMessage({
-                  id: `common.edit`,
-                  defaultMessage: 'Edit'
+                  id: `common.details`,
+                  defaultMessage: 'Details'
                 })}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

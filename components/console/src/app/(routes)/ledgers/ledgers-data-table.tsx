@@ -160,8 +160,8 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => handleEdit(ledger.original)}>
                   {intl.formatMessage({
-                    id: `common.edit`,
-                    defaultMessage: 'Edit'
+                    id: `common.details`,
+                    defaultMessage: 'Details'
                   })}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

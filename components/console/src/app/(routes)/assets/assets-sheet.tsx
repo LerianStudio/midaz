@@ -25,6 +25,8 @@ import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
+import { Enforce } from '@/providers/permission-provider/enforce'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
 
 export type AssetsSheetProps = DialogProps & {
   ledgerId: string
@@ -60,6 +62,7 @@ export const AssetsSheet = ({
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('assets')
 
   const { mutate: createAsset, isPending: createPending } = useCreateAsset({
     organizationId: currentOrganization.id!,
@@ -150,10 +153,15 @@ export const AssetsSheet = ({
               )}
             </SheetTitle>
             <SheetDescription>
-              {intl.formatMessage({
-                id: 'ledgers.assets.sheet.edit.description',
-                defaultMessage: 'View and edit asset fields.'
-              })}
+              {isReadOnly
+                ? intl.formatMessage({
+                    id: 'ledgers.assets.sheet.edit.description.readonly',
+                    defaultMessage: 'View asset fields in read-only mode.'
+                  })
+                : intl.formatMessage({
+                    id: 'ledgers.assets.sheet.edit.description',
+                    defaultMessage: 'View and edit asset fields.'
+                  })}
             </SheetDescription>
           </SheetHeader>
         )}
@@ -191,7 +199,7 @@ export const AssetsSheet = ({
                       defaultMessage: 'Select'
                     })}
                     control={form.control}
-                    disabled={mode === 'edit'}
+                    readOnly={mode === 'edit' || isReadOnly}
                     required
                   >
                     <SelectItem value="crypto">
@@ -227,6 +235,7 @@ export const AssetsSheet = ({
                       defaultMessage: 'Asset Name'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -238,6 +247,7 @@ export const AssetsSheet = ({
                         defaultMessage: 'Code'
                       })}
                       control={form.control}
+                      readOnly={isReadOnly}
                       required
                     />
                   ) : (
@@ -248,7 +258,7 @@ export const AssetsSheet = ({
                         defaultMessage: 'Code'
                       })}
                       control={form.control}
-                      disabled={mode === 'edit'}
+                      readOnly={isReadOnly}
                       required
                     />
                   )}
@@ -262,22 +272,28 @@ export const AssetsSheet = ({
                 </div>
               </TabsContent>
               <TabsContent value="metadata">
-                <MetadataField name="metadata" control={form.control} />
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
               </TabsContent>
             </Tabs>
 
             <SheetFooter>
-              <LoadingButton
-                size="lg"
-                type="submit"
-                fullWidth
-                loading={createPending || updatePending}
-              >
-                {intl.formatMessage({
-                  id: 'common.save',
-                  defaultMessage: 'Save'
-                })}
-              </LoadingButton>
+              <Enforce resource="assets" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  type="submit"
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </SheetFooter>
           </form>
         </Form>

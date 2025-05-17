@@ -24,6 +24,8 @@ import { LedgerType } from '@/types/ledgers-type'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type LedgersSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -53,6 +55,7 @@ export const LedgersSheet = ({
   const intl = useIntl()
   const { currentOrganization, setLedger } = useOrganization()
   const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('ledgers')
 
   const { mutate: createLedger, isPending: createPending } = useCreateLedger({
     organizationId: currentOrganization.id!,
@@ -142,10 +145,15 @@ export const LedgersSheet = ({
               )}
             </SheetTitle>
             <SheetDescription>
-              {intl.formatMessage({
-                id: 'ledgers.sheet.edit.description',
-                defaultMessage: 'View and edit ledger fields.'
-              })}
+              {isReadOnly
+                ? intl.formatMessage({
+                    id: 'ledgers.sheet.edit.description.readonly',
+                    defaultMessage: 'View ledger fields in read-only mode.'
+                  })
+                : intl.formatMessage({
+                    id: 'ledgers.sheet.edit.description',
+                    defaultMessage: 'View and edit ledger fields.'
+                  })}
             </SheetDescription>
           </SheetHeader>
         )}
@@ -182,6 +190,7 @@ export const LedgersSheet = ({
                       defaultMessage: 'Ledger Name'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -194,22 +203,28 @@ export const LedgersSheet = ({
                 </div>
               </TabsContent>
               <TabsContent value="metadata">
-                <MetadataField name="metadata" control={form.control} />
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
               </TabsContent>
             </Tabs>
 
             <SheetFooter>
-              <LoadingButton
-                size="lg"
-                type="submit"
-                fullWidth
-                loading={createPending || updatePending}
-              >
-                {intl.formatMessage({
-                  id: 'common.save',
-                  defaultMessage: 'Save'
-                })}
-              </LoadingButton>
+              <Enforce resource="ledgers" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  type="submit"
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </SheetFooter>
           </form>
         </Form>

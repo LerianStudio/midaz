@@ -31,6 +31,7 @@ type CurrencySelectProps = SelectProps &
   Omit<ControllerRenderProps, 'ref'> & {
     placeholder?: string
     emptyMessage?: string
+    readOnly?: boolean
   }
 
 const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
@@ -41,6 +42,7 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
       placeholder,
       onChange,
       emptyMessage,
+      readOnly,
       ...others
     }: CurrencySelectProps,
     ref
@@ -63,12 +65,17 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
     )
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={readOnly ? false : open}
+        onOpenChange={readOnly ? () => {} : setOpen}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={readOnly ? false : open}
+            readOnly={readOnly}
+            tabIndex={0}
             className={cn(
               'w-full justify-between',
               !value && 'text-muted-foreground'
@@ -79,7 +86,9 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
                 id: 'common.selectPlaceholder',
                 defaultMessage: 'Select...'
               })}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            {!readOnly && (
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -130,6 +139,7 @@ CurrencyComboBox.displayName = 'CurrencySelect'
 
 export type CurrencyFieldProps = Omit<SelectFieldProps, 'children'> & {
   emptyMessage?: string
+  readOnly?: boolean
 }
 
 export const CurrencyField = ({
@@ -137,6 +147,7 @@ export const CurrencyField = ({
   placeholder,
   emptyMessage,
   required,
+  readOnly,
   ...others
 }: CurrencyFieldProps) => {
   return (
@@ -148,6 +159,7 @@ export const CurrencyField = ({
           <CurrencyComboBox
             placeholder={placeholder}
             emptyMessage={emptyMessage}
+            readOnly={readOnly}
             {...field}
           />
           <FormMessage />

@@ -23,6 +23,7 @@ export class MidazAccountRepository implements AccountRepository {
     account: AccountEntity
   ): Promise<AccountEntity> {
     const dto = MidazAccountMapper.toCreateDto(account)
+
     const response = await this.httpService.post<MidazAccountDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts`,
       {

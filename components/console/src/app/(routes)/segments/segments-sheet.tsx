@@ -22,6 +22,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCreateSegment, useUpdateSegment } from '@/client/segments'
 import { SegmentType } from '@/types/segment-type'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
@@ -52,6 +54,7 @@ export const SegmentsSheet = ({
 }: SegmentsSheetProps) => {
   const intl = useIntl()
   const { currentOrganization } = useOrganization()
+  const { isReadOnly } = useFormPermissions('segments')
 
   const { mutate: createSegment, isPending: createPending } = useCreateSegment({
     organizationId: currentOrganization.id!,
@@ -122,10 +125,15 @@ export const SegmentsSheet = ({
               )}
             </SheetTitle>
             <SheetDescription>
-              {intl.formatMessage({
-                id: 'ledgers.segments.sheet.edit.description',
-                defaultMessage: 'View and edit segment fields.'
-              })}
+              {isReadOnly
+                ? intl.formatMessage({
+                    id: 'ledgers.segments.sheet.edit.description.readonly',
+                    defaultMessage: 'View segment fields in read-only mode.'
+                  })
+                : intl.formatMessage({
+                    id: 'ledgers.segments.sheet.edit.description',
+                    defaultMessage: 'View and edit segment fields.'
+                  })}
             </SheetDescription>
           </SheetHeader>
         )}
@@ -159,6 +167,7 @@ export const SegmentsSheet = ({
                       defaultMessage: 'Segment Name'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -171,22 +180,28 @@ export const SegmentsSheet = ({
                 </div>
               </TabsContent>
               <TabsContent value="metadata">
-                <MetadataField name="metadata" control={form.control} />
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
               </TabsContent>
             </Tabs>
 
             <SheetFooter>
-              <LoadingButton
-                size="lg"
-                type="submit"
-                fullWidth
-                loading={createPending || updatePending}
-              >
-                {intl.formatMessage({
-                  id: 'common.save',
-                  defaultMessage: 'Save'
-                })}
-              </LoadingButton>
+              <Enforce resource="segments" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  type="submit"
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </SheetFooter>
           </form>
         </Form>

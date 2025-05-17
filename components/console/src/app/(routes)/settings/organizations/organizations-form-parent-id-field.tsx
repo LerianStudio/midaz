@@ -23,6 +23,7 @@ export type OrganizationsFormParentIdFieldProps = {
   placeholder?: string
   description?: string
   disabled?: boolean
+  readOnly?: boolean
   control: Control<any>
 }
 
@@ -30,6 +31,7 @@ export const OrganizationsFormParentIdField = ({
   label,
   placeholder,
   description,
+  readOnly,
   ...others
 }: OrganizationsFormParentIdFieldProps) => {
   const form = useFormContext<{ id: string }>()
@@ -49,12 +51,11 @@ export const OrganizationsFormParentIdField = ({
         <FormItem ref={ref}>
           {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
-            <>
+            <React.Fragment>
               {isPending && <Skeleton className="h-10 w-full" />}
-
               {!isPending && (
                 <Select onValueChange={onChange} {...fieldOthers}>
-                  <SelectTrigger>
+                  <SelectTrigger readOnly={readOnly}>
                     <SelectValue placeholder={placeholder} />
                   </SelectTrigger>
                   <SelectContent>
@@ -66,7 +67,7 @@ export const OrganizationsFormParentIdField = ({
                   </SelectContent>
                 </Select>
               )}
-            </>
+            </React.Fragment>
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
         </FormItem>

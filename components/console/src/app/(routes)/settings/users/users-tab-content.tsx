@@ -161,8 +161,8 @@ export const UsersTabContent = () => {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleEdit(user)}>
                             {intl.formatMessage({
-                              id: `common.edit`,
-                              defaultMessage: 'Edit'
+                              id: `common.details`,
+                              defaultMessage: 'Details'
                             })}
                           </DropdownMenuItem>
                           {user.id !== session?.user?.id && (
