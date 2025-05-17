@@ -1,3 +1,11 @@
+## [v2.2.0-beta.26] - 2025-05-17
+
+### 🐛 Bug Fixes
+- Correct console output in Makefile build script to ensure accurate logging during builds.
+
+### 🔧 Maintenance
+- Update `docker-compose.yml` configuration for improved setup and deployment processes. [#810]
+
 ## [v2.2.0-beta.23] - 2025-05-14
 
 ### ✨ Features
