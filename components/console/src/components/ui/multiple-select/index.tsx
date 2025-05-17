@@ -89,7 +89,6 @@ export const MultipleSelectTrigger = React.forwardRef<
         readOnly && [
           'data-[read-only]:cursor-default',
           'data-[read-only]:select-text',
-          'data-[read-only]:text-select-all',
           'data-[read-only]:bg-zinc-100',
           'data-[read-only]:opacity-50',
           'data-[read-only]:pointer-events-none',

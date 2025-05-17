@@ -101,12 +101,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'data-[read-only]:select-text',
             'data-[read-only]:bg-zinc-100',
             'data-[read-only]:opacity-50',
-            'data-[read-only]:hover:bg-zinc-100',
-            'data-[read-only]:hover:text-current',
             'data-[read-only]:focus:outline-none',
-            'data-[read-only]:focus:ring-0',
-            'data-[read-only]:focus:ring-offset-0',
-            'data-[read-only]:caret-transparent'
+            'data-[read-only]:focus:ring-0'
           ]
         )}
         data-read-only={readOnly ? '' : undefined}

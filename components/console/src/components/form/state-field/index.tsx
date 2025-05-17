@@ -159,22 +159,6 @@ export const StateField = ({
   readOnly,
   ...others
 }: StateFieldProps) => {
-  const form = useFormContext()
-  const country = form.watch<string>(countryName)
-
-  const getDisplayValue = React.useCallback(
-    (value: string) => {
-      const states =
-        getStateCountry(country)?.map((state) => ({
-          value: state.code,
-          label: state.name
-        })) || []
-
-      return states.find((option) => option.value === value)?.label ?? value
-    },
-    [country]
-  )
-
   return (
     <FormField
       {...others}

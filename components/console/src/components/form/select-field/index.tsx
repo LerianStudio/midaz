@@ -20,12 +20,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import React, { PropsWithChildren, ReactNode } from 'react'
 import { Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
-import { capitalizeFirstLetter } from '@/helpers'
 
 export type SelectFieldProps = PropsWithChildren & {
   name: string

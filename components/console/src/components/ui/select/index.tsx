@@ -27,13 +27,9 @@ const SelectTrigger = React.forwardRef<
         'data-[read-only]:select-text',
         'data-[read-only]:bg-zinc-100',
         'data-[read-only]:opacity-50',
-        'data-[read-only]:hover:bg-zinc-100',
         'data-[read-only]:pointer-events-none',
-        'data-[read-only]:hover:text-current',
         'data-[read-only]:focus:outline-none',
-        'data-[read-only]:focus:ring-0',
-        'data-[read-only]:focus:ring-offset-0',
-        'data-[read-only]:caret-transparent'
+        'data-[read-only]:focus:ring-0'
       ],
       'disabled:cursor-not-allowed disabled:opacity-50',
       className
