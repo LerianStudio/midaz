@@ -70,6 +70,10 @@ define check_env_files
 	fi
 endef
 
+# Choose docker compose command depending on installed version
+DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
+export DOCKER_CMD
+
 #-------------------------------------------------------
 # Help Command
 #-------------------------------------------------------
@@ -364,7 +368,7 @@ down:
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Stopping services in component: $$component_name"; \
-			(cd $$dir && (docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down)) || exit 1; \
+			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down)) || exit 1; \
 		else \
 			echo "No docker-compose.yml found in $$component_name, skipping"; \
 		fi; \
@@ -429,7 +433,7 @@ logs:
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Logs for component: $$component_name"; \
-			(cd $$dir && (docker compose -f docker-compose.yml logs --tail=50 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=50)) || exit 1; \
+			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml logs --tail=50)) || exit 1; \
 			echo ""; \
 		fi; \
 	done
