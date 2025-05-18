@@ -580,16 +580,19 @@ check_dependencies() {
   else
     log_success "Docker found: $(docker --version)"
     
-    # Check for docker-compose plugin
-    if ! docker compose version >/dev/null 2>&1; then
-      log_warning "Docker Compose plugin not found"
-      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Docker Compose plugin? (Y/n): "; then
+    # Check for docker-compose plugin or legacy binary
+    if docker compose version >/dev/null 2>&1; then
+      log_success "Docker Compose plugin found: $(docker compose version --short)"
+    elif command -v docker-compose >/dev/null 2>&1; then
+      log_success "Legacy docker-compose binary found: $(docker-compose --version)"
+      log_warning "Consider upgrading to the Docker Compose plugin (v2) for best experience"
+    else
+      log_warning "Docker Compose not found"
+      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Docker Compose plugin? (Y/n): " ; then
         install_docker
       else
-        die "Docker Compose plugin is required but not installed."
+        die "Docker Compose is required but not installed."
       fi
-    else
-      log_success "Docker Compose plugin found: $(docker compose version --short)"
     fi
   fi
   
