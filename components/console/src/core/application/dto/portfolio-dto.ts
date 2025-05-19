@@ -1,4 +1,4 @@
-import { AccountResponseDto } from './account-dto'
+import { AccountDto } from './account-dto'
 import { MetadataDto } from './metadata-dto'
 
 export type CreatePortfolioDto = {
@@ -24,5 +24,5 @@ export type PortfolioResponseDto = {
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
-  accounts?: AccountResponseDto[]
+  accounts?: AccountDto[]
 }

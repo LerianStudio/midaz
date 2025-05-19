@@ -7,6 +7,9 @@ import { MidazAccountDto } from '../dto/midaz-account-dto'
 import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 import { MidazAccountMapper } from '../mappers/midaz-account-mapper'
 import { createQueryString } from '@/lib/search'
+import { MidazApiException } from '../exceptions/midaz-exceptions'
+import { isEmpty } from 'lodash'
+import { AccountSearchParamDto } from '@/core/application/dto/account-dto'
 
 @injectable()
 export class MidazAccountRepository implements AccountRepository {
@@ -35,9 +38,34 @@ export class MidazAccountRepository implements AccountRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    query?: AccountSearchParamDto
   ): Promise<PaginationEntity<AccountEntity>> {
+    const { alias, page = 1, limit = 10 } = query ?? {}
+
+    if (alias && alias.includes('@external/')) {
+      const asset = alias.replace('@external/', '')
+
+      const response = await this.fetchExternalAccount(
+        organizationId,
+        ledgerId,
+        asset
+      )
+      return {
+        items: isEmpty(response) ? [] : [response],
+        page,
+        limit
+      }
+    }
+
+    if (alias) {
+      const response = await this.fetchByAlias(organizationId, ledgerId, alias)
+      return {
+        items: isEmpty(response) ? [] : [response],
+        page,
+        limit
+      }
+    }
+
     const response = await this.httpService.get<
       MidazPaginationDto<MidazAccountDto>
     >(
@@ -55,6 +83,46 @@ export class MidazAccountRepository implements AccountRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
     )
     return MidazAccountMapper.toEntity(response)
+  }
+
+  async fetchByAlias(
+    organizationId: string,
+    ledgerId: string,
+    alias: string
+  ): Promise<AccountEntity> {
+    try {
+      const response = await this.httpService.get<MidazAccountDto>(
+        `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/alias/${alias}`
+      )
+      return MidazAccountMapper.toEntity(response)
+    } catch (error) {
+      if (error instanceof MidazApiException) {
+        if (error.code === '0085') {
+          return {} as AccountEntity
+        }
+      }
+      throw error
+    }
+  }
+
+  async fetchExternalAccount(
+    organizationId: string,
+    ledgerId: string,
+    asset: string
+  ): Promise<AccountEntity> {
+    try {
+      const response = await this.httpService.get<MidazAccountDto>(
+        `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/external/${asset}`
+      )
+      return MidazAccountMapper.toEntity(response)
+    } catch (error) {
+      if (error instanceof MidazApiException) {
+        if (error.code === '0085') {
+          return {} as AccountEntity
+        }
+      }
+      throw error
+    }
   }
 
   async update(

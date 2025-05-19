@@ -1,12 +1,15 @@
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
-import { AccountResponseDto, UpdateAccountDto } from '../../dto/account-dto'
-import { AccountMapper } from '../../mappers/account-mapper'
+import {
+  AccountDto,
+  UpdateAccountDto
+} from '@/core/application/dto/account-dto'
+import { AccountMapper } from '@/core/application/mappers/account-mapper'
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { inject, injectable } from 'inversify'
 import { BalanceEntity } from '@/core/domain/entities/balance-entity'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
-import { BalanceMapper } from '../../mappers/balance-mapper'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { BalanceMapper } from '@/core/application/mappers/balance-mapper'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdateAccount {
   execute: (
@@ -14,7 +17,7 @@ export interface UpdateAccount {
     ledgerId: string,
     accountId: string,
     account: Partial<UpdateAccountDto>
-  ) => Promise<AccountResponseDto>
+  ) => Promise<AccountDto>
 }
 
 @injectable()
@@ -32,7 +35,7 @@ export class UpdateAccountUseCase implements UpdateAccount {
     ledgerId: string,
     accountId: string,
     account: Partial<UpdateAccountDto>
-  ): Promise<AccountResponseDto> {
+  ): Promise<AccountDto> {
     const { alias, ...accountEntity }: Partial<AccountEntity> =
       AccountMapper.toDomain(account)
 

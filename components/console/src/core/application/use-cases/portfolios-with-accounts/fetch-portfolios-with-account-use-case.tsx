@@ -43,8 +43,10 @@ export class FetchPortfoliosWithAccountsUseCase
     const allAccountsResult = await this.accountRepository.fetchAll(
       organizationId,
       ledgerId,
-      limit,
-      page
+      {
+        limit,
+        page
+      }
     )
 
     const accountsGrouped = groupBy(

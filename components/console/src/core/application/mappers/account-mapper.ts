@@ -1,6 +1,6 @@
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import {
-  AccountResponseDto,
+  AccountDto,
   CreateAccountDto,
   UpdateAccountDto
 } from '../dto/account-dto'
@@ -11,7 +11,7 @@ import { BalanceEntity } from '@/core/domain/entities/balance-entity'
 export class AccountMapper {
   public static toDto(
     account: AccountEntity & Partial<BalanceEntity>
-  ): AccountResponseDto {
+  ): AccountDto {
     return {
       id: account.id!,
       entityId: account.entityId!,
@@ -51,7 +51,7 @@ export class AccountMapper {
 
   static toPaginationResponseDto(
     result: PaginationEntity<AccountEntity>
-  ): PaginationEntity<AccountResponseDto> {
+  ): PaginationEntity<AccountDto> {
     return PaginationMapper.toResponseDto(result, AccountMapper.toDto)
   }
 }
