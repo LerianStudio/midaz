@@ -1,5 +1,6 @@
 import { Container, ContainerModule } from '../../utils/di/container'
 import { AccountUseCaseModule } from './account-module'
+import { ApplicationModule } from './application-module'
 import { AssetUseCaseModule } from './asset-module'
 import { AuthUseCaseModule } from './auth-module'
 import { GroupUseCaseModule } from './group-module'
@@ -23,4 +24,5 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(UserUseCaseModule)
   container.load(TransactionUseCaseModule)
   container.load(GroupUseCaseModule)
+  container.load(ApplicationModule)
 })

@@ -1,11 +1,11 @@
+import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { UserEntity } from '@/core/domain/entities/user-entity'
+import { IdentityPaginationDto } from '../dto/identity-pagination-dto'
 import {
   IdentityCreateUserDto,
   IdentityUpdateUserDto,
   IdentityUserDto
 } from '../dto/identity-user-dto'
-import { IdentityPaginationDto } from '../dto/identity-pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { IdentityPaginationMapper } from './identity-pagination-mapper'
 
 export class IdentityUserMapper {

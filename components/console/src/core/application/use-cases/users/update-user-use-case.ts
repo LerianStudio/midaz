@@ -1,9 +1,9 @@
-import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { UpdateUserDto, UserResponseDto } from '../../dto/user-dto'
 import { UserMapper } from '../../mappers/user-mapper'
 import { UserEntity } from '@/core/domain/entities/user-entity'
 import { inject } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface UpdateUser {
   execute: (

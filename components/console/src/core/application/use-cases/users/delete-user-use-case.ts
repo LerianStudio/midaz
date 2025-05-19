@@ -1,6 +1,6 @@
-import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { inject } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface DeleteUser {
   execute: (userId: string) => Promise<void>

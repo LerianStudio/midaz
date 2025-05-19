@@ -1,5 +1,5 @@
 # Use an official Node.js runtime as the base image
-FROM node:22-alpine3.19
+FROM node:22-alpine
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
@@ -9,6 +9,7 @@ COPY package*.json ./
 
 # Configure npm to use GitHub token temporarily, without exposing it in the Dockerfile
 RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
+    apk update && apk add bash && \
     npm install && \
     npm cache clean --force && \
     rm -f ~/.npmrc
