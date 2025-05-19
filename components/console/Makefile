@@ -11,9 +11,13 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
-# Include shared color definitions and utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define local utility functions
+define title1
+	@echo ""
+	@echo "------------------------"
+	@echo "   📝 $(1)  "
+	@echo "------------------------"
+endef
 
 #-------------------------------------------------------
 # Core Commands
@@ -79,12 +83,12 @@ start:
 .PHONY: test
 test:
 	$(call title1,"Running tests")
-	npm run test
+	npm install && npm run test
 
 .PHONY: test\:e2e
 test\:e2e:
 	$(call title1,"Running end-to-end tests")
-	npm run test:e2e
+	npm install && npm run test:e2e
 
 .PHONY: lint
 lint:
@@ -177,3 +181,21 @@ i18n:
 	$(call title1,"Running i18n tasks")
 	$(MAKE) extract-i18n
 	$(MAKE) compile-i18n
+
+#-------------------------------------------------------
+# Cleanup Commands
+#-------------------------------------------------------
+
+clean:
+	$(call title1,"Cleaning build artifacts")
+	@echo "Cleaning $(SERVICE_NAME) artifacts..."
+	@rm -rf $(BUILD_DIR) $(ARTIFACTS_DIR) coverage coverage.out coverage.html *.tmp
+	@if [ -d "node_modules" ]; then \
+		echo "Removing node_modules..."; \
+		rm -rf node_modules; \
+	fi
+	@if [ -d ".next" ]; then \
+		echo "Removing .next..."; \
+		rm -rf .next; \
+	fi
+	@echo "$(OK_COLOR)[ok] Artifacts cleaned successfully ✔️$(NO_COLOR)"

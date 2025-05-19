@@ -19,7 +19,27 @@ BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
 COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
 
 # Include shared utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define common utility functions
+define print_title
+	@echo ""
+	@echo "------------------------------------------"
+	@echo "   📝 $(1)  "
+	@echo "------------------------------------------"
+endef
+
+# Check if a command is available
+define check_command
+	@which $(1) > /dev/null || (echo "Error: $(1) is required but not installed. $(2)" && exit 1)
+endef
+
+# Check if environment files exist
+define check_env_files
+	@for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
+			echo "Warning: $$dir/.env file is missing. Consider running 'make set-env'."; \
+		fi; \
+	done
+endef
 
 # Shell utility functions
 define print_logo
@@ -49,6 +69,10 @@ define check_env_files
 		$(MAKE) set-env; \
 	fi
 endef
+
+# Choose docker compose command depending on installed version
+DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
+export DOCKER_CMD
 
 #-------------------------------------------------------
 # Help Command
@@ -112,6 +136,14 @@ help:
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
+	@echo "Demo Data Commands:"
+	@echo "  make demo-data                   - Generate demo data with small volume"
+	@echo "  make demo-data-medium            - Generate demo data with medium volume"
+	@echo "  make demo-data-large             - Generate demo data with large volume"
+	@echo "  make demo-data-test              - Run simplified tests for demo data generator"
+	@echo "  make demo-data-test-full         - Run full Jest tests for demo data generator"
+	@echo "  make demo-data-test-mode         - Test demo data generator in test mode"
+	@echo ""
 	@echo ""
 
 #-------------------------------------------------------
@@ -120,41 +152,11 @@ help:
 
 .PHONY: test
 test:
-	$(call title1,"Running tests on all components")
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@echo "Starting tests at $$(date)"
-	@start_time=$$(date +%s); \
-	test_output=$$(go test -v ./... 2>&1); \
-	exit_code=$$?; \
-	end_time=$$(date +%s); \
-	duration=$$((end_time - start_time)); \
-	echo "$$test_output"; \
-	echo ""; \
-	echo "Test Summary:"; \
-	echo "----------------------------------------"; \
-	passed=$$(echo "$$test_output" | grep -c "PASS"); \
-	failed=$$(echo "$$test_output" | grep -c "FAIL"); \
-	skipped=$$(echo "$$test_output" | grep -c "\[no test"); \
-	total=$$((passed + failed)); \
-	echo "Passed:  $$passed tests"; \
-	if [ $$failed -gt 0 ]; then \
-		echo "Failed:  $$failed tests"; \
-	else \
-		echo "Failed:  $$failed tests"; \
-	fi; \
-	echo "Skipped: $$skipped packages [no test files]"; \
-	echo "Duration: $$(printf '%dm:%02ds' $$((duration / 60)) $$((duration % 60)))"; \
-	echo "----------------------------------------"; \
-	if [ $$failed -eq 0 ]; then \
-		echo "All tests passed successfully!"; \
-	else \
-		echo "Some tests failed. Please check the output above for details."; \
-	fi; \
-	exit $$exit_code
+	@./scripts/run-tests.sh
 
 .PHONY: build
 build:
-	$(call title1,"Building all components")
+	$(call print_title,"Building all components")
 	@for dir in $(COMPONENTS); do \
 		echo "Building in $$dir..."; \
 		(cd $$dir && $(MAKE) build) || exit 1; \
@@ -163,32 +165,11 @@ build:
 
 .PHONY: clean
 clean:
-	$(call title1,"Cleaning all build artifacts")
-	@for dir in $(COMPONENTS); do \
-		echo "Cleaning in $$dir..."; \
-		(cd $$dir && $(MAKE) clean) || exit 1; \
-		echo "Ensuring thorough cleanup in $$dir..."; \
-		(cd $$dir && \
-			for item in bin dist coverage.out coverage.html artifacts *.tmp; do \
-				if [ -e "$$item" ]; then \
-					echo "Removing $$dir/$$item"; \
-					rm -rf "$$item"; \
-				fi \
-			done \
-		) || true; \
-	done
-	@echo "Cleaning root-level build artifacts..."
-	@for item in bin dist coverage.out coverage.html *.tmp; do \
-		if [ -e "$$item" ]; then \
-			echo "Removing $$item"; \
-			rm -rf "$$item"; \
-		fi \
-	done
-	@echo "[ok] All artifacts cleaned successfully"
+	@./scripts/clean-artifacts.sh
 
 .PHONY: cover
 cover:
-	$(call title1,"Generating test coverage report")
+	$(call print_title,"Generating test coverage report")
 	@echo "Note: PostgreSQL repository tests are excluded from coverage metrics."
 	@echo "See coverage report for details on why and what is being tested."
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
@@ -209,7 +190,7 @@ cover:
 
 .PHONY: up-backend
 up-backend:
-	$(call title1,"Starting backend services")
+	$(call print_title,"Starting backend services")
 	$(call check_env_files)
 	@echo "Starting infrastructure services first..."
 	@cd $(INFRA_DIR) && $(MAKE) up
@@ -224,7 +205,7 @@ up-backend:
 
 .PHONY: down-backend
 down-backend:
-	$(call title1,"Stopping backend services")
+	$(call print_title,"Stopping backend services")
 	@echo "Stopping backend components..."
 	@for dir in $(BACKEND_COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
@@ -238,7 +219,7 @@ down-backend:
 
 .PHONY: restart-backend
 restart-backend:
-	$(call title1,"Restarting backend services")
+	$(call print_title,"Restarting backend services")
 	@make down-backend && make up-backend
 	@echo "[ok] Backend services restarted successfully ✔️"
 
@@ -248,7 +229,7 @@ restart-backend:
 
 .PHONY: lint
 lint:
-	$(call title1,"Running linters on all components")
+	$(call print_title,"Running linters on all components")
 	@for dir in $(COMPONENTS); do \
 		echo "Checking for Go files in $$dir..."; \
 		if find "$$dir" -name "*.go" -type f | grep -q .; then \
@@ -262,7 +243,7 @@ lint:
 
 .PHONY: format
 format:
-	$(call title1,"Formatting code in all components")
+	$(call print_title,"Formatting code in all components")
 	@for dir in $(COMPONENTS); do \
 		echo "Checking for Go files in $$dir..."; \
 		if find "$$dir" -name "*.go" -type f | grep -q .; then \
@@ -276,26 +257,26 @@ format:
 
 .PHONY: tidy
 tidy:
-	$(call title1,"Cleaning dependencies in root directory")
+	$(call print_title,"Cleaning dependencies in root directory")
 	@echo "Tidying root go.mod..."
 	@go mod tidy
 	@echo "[ok] Dependencies cleaned successfully"
 
 .PHONY: check-logs
 check-logs:
-	$(call title1,"Verifying error logging in usecases")
+	$(call print_title,"Verifying error logging in usecases")
 	@sh ./scripts/check-logs.sh
 	@echo "[ok] Error logging verification completed"
 
 .PHONY: check-tests
 check-tests:
-	$(call title1,"Verifying test coverage for components")
+	$(call print_title,"Verifying test coverage for components")
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
 .PHONY: sec
 sec:
-	$(call title1,"Running security checks using gosec")
+	$(call print_title,"Running security checks using gosec")
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
@@ -314,13 +295,13 @@ sec:
 
 .PHONY: setup-git-hooks
 setup-git-hooks:
-	$(call title1,"Installing and configuring git hooks")
+	$(call print_title,"Installing and configuring git hooks")
 	@sh ./scripts/setup-git-hooks.sh
 	@echo "[ok] Git hooks installed successfully"
 
 .PHONY: check-hooks
 check-hooks:
-	$(call title1,"Verifying git hooks installation status")
+	$(call print_title,"Verifying git hooks installation status")
 	@err=0; \
 	for hook_dir in .githooks/*; do \
 		hook_name=$$(basename $$hook_dir); \
@@ -340,7 +321,7 @@ check-hooks:
 
 .PHONY: check-envs
 check-envs:
-	$(call title1,"Checking if github hooks are installed and secret env files are not exposed")
+	$(call print_title,"Checking if github hooks are installed and secret env files are not exposed")
 	@sh ./scripts/check-envs.sh
 	@echo "[ok] Environment check completed"
 
@@ -350,7 +331,7 @@ check-envs:
 
 .PHONY: set-env
 set-env:
-	$(call title1,"Setting up environment files")
+	$(call print_title,"Setting up environment files")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
 			echo "Creating .env in $$dir from .env.example"; \
@@ -369,7 +350,7 @@ set-env:
 
 .PHONY: up
 up:
-	$(call title1,"Starting all services with Docker Compose")
+	$(call print_title,"Starting all services with Docker Compose")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
@@ -382,12 +363,12 @@ up:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping all services with Docker Compose")
+	$(call print_title,"Stopping all services with Docker Compose")
 	@for dir in $(COMPONENTS); do \
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Stopping services in component: $$component_name"; \
-			(cd $$dir && (docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down)) || exit 1; \
+			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml down)) || exit 1; \
 		else \
 			echo "No docker-compose.yml found in $$component_name, skipping"; \
 		fi; \
@@ -396,7 +377,7 @@ down:
 
 .PHONY: start
 start:
-	$(call title1,"Starting all containers")
+	$(call print_title,"Starting all containers")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Starting containers in $$dir..."; \
@@ -432,7 +413,7 @@ rebuild-up:
 
 .PHONY: clean-docker
 clean-docker:
-	$(call title1,"Cleaning all Docker resources")
+	$(call print_title,"Cleaning all Docker resources")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Cleaning Docker resources in $$dir..."; \
@@ -447,12 +428,12 @@ clean-docker:
 
 .PHONY: logs
 logs:
-	$(call title1,"Showing logs for all services")
+	$(call print_title,"Showing logs for all services")
 	@for dir in $(COMPONENTS); do \
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Logs for component: $$component_name"; \
-			(cd $$dir && (docker compose -f docker-compose.yml logs --tail=50 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=50)) || exit 1; \
+			(cd $$dir && ($(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || $(DOCKER_CMD) -f docker-compose.yml logs --tail=50)) || exit 1; \
 			echo ""; \
 		fi; \
 	done
@@ -460,7 +441,7 @@ logs:
 # Component-specific command execution
 .PHONY: infra mdz onboarding transaction console all-components
 infra:
-	$(call title1,"Running command in infra component")
+	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -468,7 +449,7 @@ infra:
 	@cd $(INFRA_DIR) && $(MAKE) $(COMMAND)
 
 mdz:
-	$(call title1,"Running command in mdz component")
+	$(call print_title,"Running command in mdz component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -476,7 +457,7 @@ mdz:
 	@cd $(MDZ_DIR) && $(MAKE) $(COMMAND)
 
 onboarding:
-	$(call title1,"Running command in onboarding component")
+	$(call print_title,"Running command in onboarding component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -484,7 +465,7 @@ onboarding:
 	@cd $(ONBOARDING_DIR) && $(MAKE) $(COMMAND)
 
 transaction:
-	$(call title1,"Running command in transaction component")
+	$(call print_title,"Running command in transaction component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -492,7 +473,7 @@ transaction:
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
 
 console:
-	$(call title1,"Running command in console component")
+	$(call print_title,"Running command in console component")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -500,7 +481,7 @@ console:
 	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
-	$(call title1,"Running command across all components")
+	$(call print_title,"Running command across all components")
 	@if [ -z "$(COMMAND)" ]; then \
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
@@ -520,12 +501,38 @@ generate-docs:
 	@./scripts/generate-docs.sh
 
 #-------------------------------------------------------
+# Demo Data Commands
+#-------------------------------------------------------
+
+.PHONY: demo-data demo-data-small demo-data-medium demo-data-large demo-data-test demo-data-test-watch demo-data-test-coverage
+
+demo-data: demo-data-small
+
+demo-data-small:
+	$(call print_title,"Generating demo data with small volume")
+	@echo "Running demo data generator with small volume..."
+	@cd scripts/demo-data && ./run-generator.sh small none
+	@echo "[ok] Demo data generated successfully with small volume"
+
+demo-data-medium:
+	$(call print_title,"Generating demo data with medium volume")
+	@echo "Running demo data generator with medium volume..."
+	@cd scripts/demo-data && ./run-generator.sh medium none
+	@echo "[ok] Demo data generated successfully with medium volume"
+
+demo-data-large:
+	$(call print_title,"Generating demo data with large volume")
+	@echo "Running demo data generator with large volume..."
+	@cd scripts/demo-data && ./run-generator.sh large none
+	@echo "[ok] Demo data generated successfully with large volume"
+
+#-------------------------------------------------------
 # Developer Helper Commands
 #-------------------------------------------------------
 
 .PHONY: dev-setup
 dev-setup:
-	$(call title1,"Setting up development environment for all components")
+	$(call print_title,"Setting up development environment for all components")
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
