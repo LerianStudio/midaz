@@ -52,7 +52,8 @@ export class UpdateAccountUseCase implements UpdateAccount {
 
     return AccountMapper.toDto({
       ...updatedAccount,
-      ...BalanceMapper.toDomain(balance)
+      allowReceiving: balance.allowReceiving,
+      allowSending: balance.allowSending
     })
   }
 }

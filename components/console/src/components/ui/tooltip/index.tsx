@@ -7,7 +7,39 @@ import { cn } from '@/lib/utils'
 
 const TooltipProvider = TooltipPrimitive.Provider
 
-const Tooltip = TooltipPrimitive.Root
+export type TooltipProps = React.ComponentPropsWithoutRef<
+  typeof TooltipPrimitive.Root
+> & {
+  disabled?: boolean
+}
+
+const Tooltip = ({
+  open: _open,
+  onOpenChange,
+  disabled,
+  ...props
+}: TooltipProps) => {
+  const [open, setOpen] = React.useState(_open)
+
+  const handleOpenChange = (open: boolean) => {
+    if (disabled) {
+      onOpenChange?.(false)
+      setOpen(false)
+      return
+    }
+
+    setOpen(open)
+    onOpenChange?.(open)
+  }
+
+  return (
+    <TooltipPrimitive.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  )
+}
 
 const TooltipTrigger = TooltipPrimitive.Trigger
 

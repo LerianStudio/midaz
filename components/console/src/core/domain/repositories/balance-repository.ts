@@ -2,6 +2,13 @@ import { BalanceEntity } from '../entities/balance-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class BalanceRepository {
+  abstract fetchAll(
+    organizationId: string,
+    ledgerId: string,
+    accountId?: string,
+    limit?: number
+  ): Promise<PaginationEntity<BalanceEntity>>
+
   abstract getByAccountId(
     organizationId: string,
     ledgerId: string,
