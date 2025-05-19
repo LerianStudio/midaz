@@ -1,10 +1,10 @@
 name: Lighthouse CI
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
       - develop
+      - main
     paths:
       - 'components/console/**'
 
@@ -109,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-html-report
-          path: reports/*.html
+          path: ${{ github.workspace }}/components/console/reports/*.html
           if-no-files-found: error
 
       # Upload JSON reports as artifacts
@@ -118,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-json-report
-          path: reports/*.json
+          path: ${{ github.workspace }}/components/console/reports/*.json
           if-no-files-found: error
 
       # Clean up by killing the Node.js server process

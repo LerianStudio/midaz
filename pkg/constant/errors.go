@@ -102,4 +102,6 @@ var (
 	ErrNoBalancesFound                          = errors.New("0092")
 	ErrBalancesCantDeleted                      = errors.New("0093")
 	ErrInvalidRequestBody                       = errors.New("0094")
+	ErrMessageBrokerUnavailable                 = errors.New("0095")
+	ErrAccountAliasInvalid                      = errors.New("0096")
 )

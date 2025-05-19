@@ -22,6 +22,16 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Infof("Trying to create asset: %v", cii)
 
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
+
+		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+
+		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
+	}
+
 	var status mmodel.Status
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{

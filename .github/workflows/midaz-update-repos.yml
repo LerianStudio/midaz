@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags-ignore:
-      - '**'
+      - "**"
 
 jobs:
   update-submodule-on-midaz-stack:
@@ -112,7 +112,7 @@ jobs:
 
           make tidy
 
-          make generate-docs-all
+          make generate-docs  
 
           cd ..
 

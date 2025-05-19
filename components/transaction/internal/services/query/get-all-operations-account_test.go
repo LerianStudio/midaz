@@ -42,12 +42,13 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		trans := []*operation.Operation{{}}
+		var operationType *string
 		mockOperationRepo.
 			EXPECT().
-			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
+			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, operationType, filter.ToCursorPagination()).
 			Return(trans, mockCur, nil).
 			Times(1)
-		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, filter.ToCursorPagination())
+		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, operationType, filter.ToCursorPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -56,12 +57,13 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
+		var operationType *string
 		mockOperationRepo.
 			EXPECT().
-			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
+			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, operationType, filter.ToCursorPagination()).
 			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
-		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, filter.ToCursorPagination())
+		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, operationType, filter.ToCursorPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

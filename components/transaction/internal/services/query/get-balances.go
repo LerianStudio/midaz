@@ -6,18 +6,30 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"reflect"
 )
 
-// GetBalances methods responsible to get balances from database.
+// GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
 	defer span.End()
+
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
+
+		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+
+		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
+	}
 
 	balances := make([]*mmodel.Balance, 0)
 
@@ -122,36 +134,41 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	for _, balance := range balances {
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
 
-		operation := constant.CREDIT
-
-		amount := libTransaction.Amount{}
-		if from, exists := validate.From[balance.Alias]; exists {
-			amount = libTransaction.Amount{
-				Asset: from.Asset,
-				Value: from.Value,
-				Scale: from.Scale,
-			}
-			operation = constant.DEBIT
-		}
-
-		if to, exists := validate.To[balance.Alias]; exists {
-			amount = to
-		}
-
 		logger.Infof("Getting internal key: %s", internalKey)
 
-		b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, amount, operation)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+		for k, v := range validate.From {
+			if libTransaction.SplitAlias(k) == balance.Alias {
+				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.DEBIT)
+				if err != nil {
+					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 
-			logger.Error("Failed to lock balance", err)
+					logger.Error("Failed to lock balance", err)
 
-			return nil, err
+					return nil, err
+				}
+
+				b.Alias = k
+
+				newBalances = append(newBalances, b)
+			}
 		}
 
-		b.Alias = balance.Alias
+		for k, v := range validate.To {
+			if libTransaction.SplitAlias(k) == balance.Alias {
+				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.CREDIT)
+				if err != nil {
+					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 
-		newBalances = append(newBalances, b)
+					logger.Error("Failed to lock balance", err)
+
+					return nil, err
+				}
+
+				b.Alias = k
+
+				newBalances = append(newBalances, b)
+			}
+		}
 	}
 
 	return newBalances, nil
