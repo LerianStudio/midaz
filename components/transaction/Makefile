@@ -13,8 +13,13 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
 # Include shared color definitions and utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define local utility functions
+define title1
+	@echo ""
+	@echo "------------------------"
+	@echo "   📝 $(1)  "
+	@echo "------------------------"
+endef
 
 #-------------------------------------------------------
 # Core Commands
@@ -154,9 +159,9 @@ start:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers, networks, and volumes")
+	$(call title1,"Stopping and removing containers|networks|volumes")
 	@if [ -f "docker-compose.yml" ]; then \
-		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
 	else \
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
 	fi
@@ -279,7 +284,7 @@ run:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger API documentation")
+	$(call title1,"Generating Swagger API documentation - Transaction")
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \

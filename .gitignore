@@ -3,6 +3,9 @@
 .idea/
 *.iml
 ide/
+tmp/
+CLAUDE.md
+.claude/
 .run/onboarding.run.xml
 .run/transaction.run.xml
 
@@ -26,6 +29,9 @@ components/onboarding/_docker-compose.yml
 # Dependencies
 node_modules/
 scripts/node_modules/
+scripts/demo-data/node_modules/
+scripts/demo-data/dist/
+scripts/demo-data/sdk-source/
 
 # Other
 postman/backups

@@ -1,3 +1,125 @@
+## [v2.2.0-beta.26] - 2025-05-17
+
+### 🐛 Bug Fixes
+- Correct console output in Makefile build script to ensure accurate logging during builds.
+
+### 🔧 Maintenance
+- Update `docker-compose.yml` configuration for improved setup and deployment processes. [#810]
+
+## [v2.2.0-beta.25] - 2025-05-16
+
+### ✨ Features
+- Add support for retrieving balances by alias and external code, enhancing the flexibility of balance queries.
+
+### 🐛 Bug Fixes
+- Resolve linter issues to improve code quality and maintainability.
+- Implement pagination in return values and update documentation to ensure efficient data handling and clarity in usage.
+- Update log messages for clarity, enhancing the readability and usefulness of log outputs.
+
+
+## [v2.2.0-beta.23] - 2025-05-14
+
+### ✨ Features
+- Add endpoint to retrieve external accounts by code
+
+### 🐛 Bug Fixes
+- Resolve linter issues to ensure code quality and adherence to standards
+
+### 🔧 Maintenance
+- Remove unused class to improve codebase maintainability
+
+## [v2.2.0-beta.21] - 2025-05-14
+
+### ✨ Features
+- Support multiple transactions with the same account in From/To fields
+
+### 🐛 Bug Fixes
+- Rollback recent changes to stabilize the system
+- Validate and handle invalid strings for account type, improving error handling
+- Change error message to 'Invalid Account Type' for better user feedback
+
+### 📚 Documentation
+- Update account type field description for clarity
+
+### 🔧 Maintenance
+- Apply linting corrections to codebase
+
+## [v2.2.0-beta.20] - 2025-05-13
+
+### ✨ Features
+- Add operation type filter to account operations for enhanced functionality, allowing users to refine their search and improve workflow efficiency.
+
+### 🐛 Bug Fixes
+- Update string formatting from '&' to '*' for improved clarity, ensuring consistent and clear presentation of information across the application.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes, ensuring documentation is up-to-date and accurately represents the current state of the project.
+
+## [v2.2.0-beta.19] - 2025-05-09
+
+### 🐛 Bug Fixes
+- Adjust test to improve reliability
+
+### 🗑️ Removed
+- ⚠️ **Breaking Change**: Remove transaction templates API and update MongoDB connection string
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.18] - 2025-05-09
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+- Bump Bubble Tea dependency from version 1.3.4 to 1.3.5
+
+## [v2.2.0-beta.17] - 2025-05-09
+
+### 📚 Documentation
+- Update project description and features to reflect the latest changes
+
+### 🔧 Maintenance
+- Update CHANGELOG with the latest release information
+- Bump `github.com/redis/go-redis/v9` from version 9.7.3 to 9.8.0 for improved performance and new features
+
+## [v2.2.0-beta.16] - 2025-05-06
+
+### 🔧 Maintenance
+- Remove unused `APP_CONTEXT` environment variable to clean up configuration and improve code clarity.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and ensure accurate version tracking.
+
+## [v2.2.0-beta.15] - 2025-05-05
+
+### ✨ Features
+- ⚠️ **Breaking Change**: Remove account type enum constraint, allowing more flexibility in account type definitions. This change may affect existing implementations relying on previous constraints.
+
+### 🐛 Bug Fixes
+- Map invalid account types correctly to ensure proper handling of unexpected inputs.
+- Implement code review suggestions to enhance code quality and address minor issues identified during the review process.
+
+### 📚 Documentation
+- Update documentation for the account type field to reflect recent changes and improve clarity.
+
+## [v2.2.0-beta.14] - 2025-05-02
+
+### ✨ Features
+- Clean temporary files before executing Goreleaser to ensure a clean build environment
+
+## [v2.2.0-beta.12] - 2025-04-29
+
+### ✨ Features
+- Configure commit process with push bot application ID
+
+
+## [v2.2.0-beta.11] - 2025-04-29
+
+### ✨ Features
+- Update `goreleaser` configuration to improve the release process, enhancing the efficiency and reliability of software releases.
+
+### 🔧 Maintenance
+- Ignore dirty files during `goreleaser` execution by using `git clean`, ensuring a clean working directory and preventing potential release issues.
+
 ## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
 
 

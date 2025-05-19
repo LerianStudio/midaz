@@ -52,4 +52,17 @@ export const PaperCollapsibleTrigger = forwardRef<
 ))
 PaperCollapsibleTrigger.displayName = 'PaperCollapsibleTrigger'
 
-export const PaperCollapsibleContent = CollapsibleContent
+export const PaperCollapsibleContent = forwardRef<
+  ElementRef<typeof CollapsibleContent>,
+  HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <CollapsibleContent
+    ref={ref}
+    className={cn(
+      'overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      className
+    )}
+    {...props}
+  />
+))
+PaperCollapsibleContent.displayName = 'PaperCollapsibleContent'

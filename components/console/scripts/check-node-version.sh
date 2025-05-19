@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
+# Check if shell supports pipefail (bash 3.0+)
+if [ -n "$BASH_VERSION" ] && ([ "${BASH_VERSINFO[0]}" -gt 3 ] || ([ "${BASH_VERSINFO[0]}" -eq 3 ] && [ "${BASH_VERSINFO[1]}" -ge 0 ])); then
+  set -euo pipefail
+else
+  # For shells that don't support pipefail
+  set -eu
+fi
 
 # Check if running in GitHub Actions
 if [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITHUB_WORKFLOW:-}" ]]; then

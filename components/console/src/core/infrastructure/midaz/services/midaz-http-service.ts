@@ -117,7 +117,8 @@ export class MidazHttpService extends HttpService {
           intl.formatMessage({
             id: 'error.midaz.unknowError',
             defaultMessage: 'Unknown error on Midaz.'
-          })
+          }),
+          error.code
         )
       }
 

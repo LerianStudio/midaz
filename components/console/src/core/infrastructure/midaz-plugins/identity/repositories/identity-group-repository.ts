@@ -1,9 +1,9 @@
 import { GroupEntity } from '@/core/domain/entities/group-entity'
 import { GroupRepository } from '@/core/domain/repositories/group-repository'
 import { inject, injectable } from 'inversify'
-import { IdentityHttpService } from '../services/identity-http-service'
-import { IdentityGroupMapper } from '../mappers/identity-group-mapper'
 import { IdentityGroupDto } from '../dto/identity-group-dto'
+import { IdentityGroupMapper } from '../mappers/identity-group-mapper'
+import { IdentityHttpService } from '../services/identity-http-service'
 
 @injectable()
 export class IdentityGroupRepository implements GroupRepository {
