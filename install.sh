@@ -22,15 +22,14 @@
 #
 # It performs the following actions:
 #  1. Detects the operating system and package manager
-#  2. Verifies and installs all required dependencies:
+#  2. Verifies required dependencies are installed:
 #     - Git (for cloning the repository)
 #     - Docker + Docker Compose (for containerization)
 #     - Make (for running build processes)
-#     - Go 1.22+ (for building backend services)
-#     - Node.js 20+ (for frontend applications)
 #  3. Clones the Midaz repository (with branch selection)
-#  4. Starts the services using Docker Compose
-#  5. Optionally generates demo data for testing
+#  4. Ensures Docker daemon is running
+#  5. Starts the services using Docker Compose
+#  6. Optionally generates demo data for testing
 #
 # Usage:
 #   curl -fsSL https://get.midaz.dev | sh
@@ -881,256 +880,14 @@ detect_os() {
 }
 
 # ============================================================================
-# Dependency Installation Functions
+# Docker Management Functions
 # ============================================================================
 #
-# These functions handle the installation of each required dependency. They're
-# designed to work across different operating systems, using the appropriate
-# package manager for each platform.
+# These functions handle Docker daemon management and permission verification
+# across different operating systems and environments.
 #
-# Each installation function:
-# 1. Uses the detected package manager for the current OS
-# 2. Installs the tool in the most appropriate way for that platform
-# 3. Verifies the installation was successful
-# 4. Checks that version requirements are met
-#
-# The script minimizes system modifications by installing only what's needed
-# and uses official distribution methods wherever possible (e.g., official
-# repositories, vendor-provided installation scripts).
-
-# Installs Git version control system
-install_git() {
-  log "Installing git..."
-  case "${OS_PACKAGE_MANAGER}" in
-    apt)
-      run_sudo apt-get update && run_sudo apt-get install -y git
-      ;;
-    dnf|yum)
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y git
-      ;;
-    pacman)
-      run_sudo pacman -Sy --noconfirm git
-      ;;
-    brew)
-      brew install git
-      ;;
-    *)
-      die "Cannot install git. Please install git manually and try again."
-      ;;
-  esac
-  
-  # Verify installation
-  verify_installation "git" "git --version" || log_warning "Git installation may have failed. Please check manually."
-}
-
-# Installs Docker and Docker Compose
-install_docker() {
-  log "Installing Docker..."
-  case "${OS_PACKAGE_MANAGER}" in
-    apt)
-      run_sudo apt-get update
-      run_sudo apt-get install -y ca-certificates curl gnupg
-      if [ ! -d /etc/apt/keyrings ]; then
-        run_sudo mkdir -p /etc/apt/keyrings
-      fi
-      run_sudo curl -fsSL https://download.docker.com/linux/${OS_NAME}/gpg -o /tmp/docker.gpg
-      run_sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_NAME} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | run_sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-      run_sudo apt-get update
-      run_sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-      run_sudo usermod -aG docker "$(whoami)"
-      ;;
-    dnf|yum)
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y dnf-plugins-core
-      run_sudo "${OS_PACKAGE_MANAGER}" config-manager --add-repo https://download.docker.com/linux/${OS_NAME}/docker-ce.repo
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-      run_sudo systemctl enable docker || true
-      start_docker_daemon
-      run_sudo usermod -aG docker "$(whoami)"
-      ;;
-    pacman)
-      run_sudo pacman -Sy --noconfirm docker docker-compose
-      run_sudo systemctl enable docker || true
-      start_docker_daemon
-      run_sudo usermod -aG docker "$(whoami)"
-      ;;
-    brew)
-      brew install --cask docker
-      log "Please open the Docker Desktop application to complete installation"
-      ;;
-    apk)
-      # Alpine Linux Docker installation
-      log "Installing Docker on Alpine Linux..."
-      # Install Docker and Docker Compose
-      run_sudo apk add --update docker docker-compose
-      # Add current user to docker group
-      run_sudo addgroup "$(whoami)" docker 2>/dev/null || true
-      # Enable and start Docker service
-      run_sudo rc-update add docker boot || true
-      start_docker_daemon
-      ;;
-    *)
-      die "Cannot install Docker. Please install Docker manually and try again."
-      ;;
-  esac
-  
-  # Verify Docker installation
-  verify_installation "docker" "docker --version" || log_warning "Docker installation may have failed. Please check manually."
-  
-  # Verify Docker Compose installation for non-macOS
-  if [ "${OS_FAMILY}" != "darwin" ]; then
-    if docker compose version >/dev/null 2>&1; then
-      log_success "Docker Compose plugin installed successfully: $(docker compose version --short)"
-    elif command -v docker-compose >/dev/null 2>&1; then
-      log_success "Legacy docker-compose binary installed: $(docker-compose --version)"
-    else
-      log_warning "Docker Compose doesn't appear to be installed correctly"
-    fi
-  else
-    log "For macOS, Docker Compose is included with Docker Desktop"
-  fi
-}
-
-# Installs GNU Make build automation tool
-install_make() {
-  log "Installing make..."
-  case "${OS_PACKAGE_MANAGER}" in
-    apt)
-      run_sudo apt-get update && run_sudo apt-get install -y make
-      ;;
-    dnf|yum)
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y make
-      ;;
-    pacman)
-      run_sudo pacman -Sy --noconfirm make
-      ;;
-    brew)
-      brew install make
-      ;;
-    *)
-      die "Cannot install make. Please install make manually and try again."
-      ;;
-  esac
-  
-  # Verify installation
-  verify_installation "make" "make --version | head -1" || log_warning "Make installation may have failed. Please check manually."
-}
-
-# Installs Go programming language toolchain
-install_go() {
-  log "Installing Go (Latest Stable Version)..."
-  case "${OS_PACKAGE_MANAGER}" in
-    apt)
-      run_sudo apt-get update
-      run_sudo apt-get install -y wget
-      GO_TMP_DIR=$(mktemp -d)
-      GO_LATEST_VERSION=$(curl -s https://go.dev/VERSION?m=text | head -1)
-      
-      # Select appropriate architecture
-      GO_ARCH="amd64"
-      if [ "${ARCH}" = "arm64" ]; then
-        GO_ARCH="arm64"
-      elif [ "${ARCH}" = "armv7" ]; then
-        GO_ARCH="armv6l"
-      fi
-      
-      wget -q -O "${GO_TMP_DIR}/go.tar.gz" "https://golang.org/dl/${GO_LATEST_VERSION}.linux-${GO_ARCH}.tar.gz"
-      run_sudo rm -rf /usr/local/go
-      run_sudo tar -C /usr/local -xzf "${GO_TMP_DIR}/go.tar.gz"
-      rm -rf "${GO_TMP_DIR}"
-      if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "$HOME/.profile"; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> "$HOME/.profile"
-      fi
-      export PATH=$PATH:/usr/local/go/bin
-      ;;
-    dnf|yum)
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y wget
-      GO_TMP_DIR=$(mktemp -d)
-      GO_LATEST_VERSION=$(curl -s https://go.dev/VERSION?m=text | head -1)
-      
-      # Select appropriate architecture
-      GO_ARCH="amd64"
-      if [ "${ARCH}" = "arm64" ]; then
-        GO_ARCH="arm64"
-      elif [ "${ARCH}" = "armv7" ]; then
-        GO_ARCH="armv6l"
-      fi
-      
-      wget -q -O "${GO_TMP_DIR}/go.tar.gz" "https://golang.org/dl/${GO_LATEST_VERSION}.linux-${GO_ARCH}.tar.gz"
-      run_sudo rm -rf /usr/local/go
-      run_sudo tar -C /usr/local -xzf "${GO_TMP_DIR}/go.tar.gz"
-      rm -rf "${GO_TMP_DIR}"
-      if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "$HOME/.profile"; then
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> "$HOME/.profile"
-      fi
-      export PATH=$PATH:/usr/local/go/bin
-      ;;
-    pacman)
-      run_sudo pacman -Sy --noconfirm go
-      ;;
-    brew)
-      brew install go
-      ;;
-    *)
-      die "Cannot install Go. Please install Go 1.22+ manually and try again."
-      ;;
-  esac
-  
-  # Verify installation
-  verify_installation "go" "go version" || log_warning "Go installation may have failed. Please check manually."
-  
-  # Check if Go meets version requirements
-  if check_command go && ! check_version go "go version" "1.22"; then
-    log_warning "Go was installed but version is below 1.22. This might cause compatibility issues."
-  fi
-}
-
-# Installs Node.js JavaScript runtime and npm package manager
-install_node() {
-  log "Installing Node.js 20+..."
-  case "${OS_PACKAGE_MANAGER}" in
-    apt)
-      run_sudo apt-get update
-      run_sudo apt-get install -y ca-certificates curl gnupg
-      if [ ! -d /etc/apt/keyrings ]; then
-        run_sudo mkdir -p /etc/apt/keyrings
-      fi
-      run_sudo curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.gpg
-      run_sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg /tmp/nodesource.gpg
-      echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | run_sudo tee /etc/apt/sources.list.d/nodesource.list > /dev/null
-      run_sudo apt-get update
-      run_sudo apt-get install -y nodejs
-      ;;
-    dnf|yum)
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y https://rpm.nodesource.com/pub_20.x/nodistro/repo/nodesource-release-nodistro-1.noarch.rpm
-      run_sudo "${OS_PACKAGE_MANAGER}" install -y nodejs
-      ;;
-    pacman)
-      run_sudo pacman -Sy --noconfirm nodejs npm
-      ;;
-    brew)
-      brew install node@20
-      ;;
-    *)
-      die "Cannot install Node.js. Please install Node.js 20+ manually and try again."
-      ;;
-  esac
-  
-  # Verify installation
-  verify_installation "node" "node --version" || log_warning "Node.js installation may have failed. Please check manually."
-  
-  # Check if Node.js meets version requirements
-  if check_command node && ! check_version node "node --version" "20.0"; then
-    log_warning "Node.js was installed but version is below 20.0. This might cause compatibility issues."
-  fi
-  
-  # Also verify npm is available
-  if check_command npm; then
-    log_success "npm is available: $(npm --version)"
-  else
-    log_warning "npm is not available. This might cause issues when building Node.js components."
-  fi
-}
+# The script checks if Docker is running and attempts to start it if needed,
+# using the appropriate method for the detected operating system.
 
 # ============================================================================
 # Repository Cloning
@@ -1334,6 +1091,18 @@ run_midaz() {
      [ ! -f "${MIDAZ_DIR}/components/transaction/.env" ]; then
     log "Setting up environment configuration..."
     make set-env || die "Failed to set up environment files. Please check error messages above."
+  fi
+  
+  # Ensure Docker daemon is running before proceeding
+  log "Verifying Docker daemon status..."
+  if ! docker info >/dev/null 2>&1; then
+    log_warning "Docker daemon is not running. Attempting to start it..."
+    start_docker_daemon || log_warning "Could not start Docker daemon automatically. Services may fail to start."
+    
+    # Verify Docker permissions after starting
+    verify_docker_permissions
+  else
+    log_success "Docker daemon is running"
   fi
   
   # Build the components first
@@ -1675,27 +1444,20 @@ verify_docker_permissions() {
 
 check_dependencies() {
   log "Checking for required dependencies..."
+  MISSING_DEPS=0
   
   # Check for Git
   if ! check_command git; then
-    log_warning "Git not found"
-    if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Git? (Y/n): "; then
-      install_git
-    else
-      die "Git is required for installation"
-    fi
+    log_warning "Git not found. Please install Git before continuing."
+    MISSING_DEPS=1
   else
     log_success "Git found: $(git --version)"
   fi
   
   # Check for Docker
   if ! check_command docker; then
-    log_warning "Docker not found"
-    if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Docker? (Y/n): "; then
-      install_docker
-    else
-      die "Docker is required for installation"
-    fi
+    log_warning "Docker not found. Please install Docker before continuing."
+    MISSING_DEPS=1
   else
     log_success "Docker found: $(docker --version)"
     
@@ -1719,12 +1481,8 @@ check_dependencies() {
     elif command -v docker-compose >/dev/null 2>&1; then
       log_success "Legacy docker-compose found: $(docker-compose --version)"
     else
-      log_warning "Docker Compose not found"
-      if [ "${OS_PACKAGE_MANAGER}" = "brew" ]; then
-        log "On macOS, Docker Compose is included with Docker Desktop"
-      else
-        log_warning "Docker Compose might need to be installed separately"
-      fi
+      log_warning "Docker Compose not found. Please install Docker Compose before continuing."
+      MISSING_DEPS=1
     fi
     
     # Verify Docker permissions
@@ -1733,71 +1491,18 @@ check_dependencies() {
   
   # Check for make
   if ! check_command make; then
-    log_warning "Make not found"
-    if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Make? (Y/n): "; then
-      install_make
-    else
-      die "Make is required for installation"
-    fi
+    log_warning "Make not found. Please install Make before continuing."
+    MISSING_DEPS=1
   else
     log_success "Make found: $(make --version | head -1)"
   fi
   
-  # Check for Go
-  if ! check_command go; then
-    log_warning "Go not found"
-    if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Go? (Y/n): "; then
-      install_go
-    else
-      die "Go is required for installation"
-    fi
-  else
-    GO_VERSION=$(go version)
-    log_success "Go found: ${GO_VERSION}"
-    
-    # Verify Go version is at least 1.22
-    if ! check_version go "go version" "1.22"; then
-      log_warning "Go version is below the recommended minimum (1.22+)"
-      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Upgrade Go? (Y/n): "; then
-        install_go
-      else
-        log_warning "Proceeding with older Go version, which may cause compatibility issues"
-      fi
-    fi
+  # If any dependencies are missing, exit with error
+  if [ "${MISSING_DEPS}" -eq 1 ]; then
+    die "One or more required dependencies are missing. Please install them and try again."
   fi
   
-  # Check for Node.js
-  if ! check_command node; then
-    log_warning "Node.js not found"
-    if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Install Node.js? (Y/n): "; then
-      install_node
-    else
-      die "Node.js is required for installation"
-    fi
-  else
-    NODE_VERSION=$(node --version)
-    log_success "Node.js found: ${NODE_VERSION}"
-    
-    # Verify Node.js version is at least 20.0
-    if ! check_version node "node --version" "20.0"; then
-      log_warning "Node.js version is below the recommended minimum (20.0+)"
-      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Upgrade Node.js? (Y/n): "; then
-        install_node
-      else
-        log_warning "Proceeding with older Node.js version, which may cause compatibility issues"
-      fi
-    fi
-    
-    # Verify npm is available
-    if check_command npm; then
-      log_success "npm found: $(npm --version)"
-    else
-      log_warning "npm not found but Node.js is installed"
-      log_warning "Proceeding, but installation may encounter issues"
-    fi
-  fi
-  
-  log_success "All required dependencies found or installed"
+  log_success "All required dependencies found"
 }
 
 # ============================================================================
