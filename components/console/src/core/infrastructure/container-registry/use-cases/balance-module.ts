@@ -7,6 +7,8 @@ import {
 
 export const BalanceUseCaseModule = new ContainerModule(
   (container: Container) => {
-    container.bind<FetchBalanceByAccountId>(FetchBalanceByAccountIdUseCase).toSelf()
+    container
+      .bind<FetchBalanceByAccountId>(FetchBalanceByAccountIdUseCase)
+      .toSelf()
   }
 )
