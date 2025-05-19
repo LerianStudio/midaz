@@ -1,0 +1,30 @@
+FROM debian:11
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    make \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for testing
+RUN useradd -m testuser && echo "testuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/testuser
+
+# Set working directory
+WORKDIR /home/testuser
+
+# Copy the install script
+COPY --chown=testuser:testuser ../install.sh /home/testuser/install.sh
+RUN chmod +x /home/testuser/install.sh
+
+# Switch to testuser
+USER testuser
+
+# Set environment variables for non-interactive installation
+ENV MIDAZ_DIR=/home/testuser/midaz
+ENV MIDAZ_REF=main
+ENV INSTALL_FLAGS=-y
+
+# Command to run the install script
+CMD ["./install.sh", "--yes"]
