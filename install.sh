@@ -636,39 +636,6 @@ get_downloader() {
   fi
 }
 
-# Verifies that the system has internet connectivity
-# Tries to connect to GitHub and Docker Hub, which are essential for installation
-check_internet_connectivity() {
-  log "Verifying internet connectivity..."
-  
-  # Use the appropriate download tool
-  DOWNLOADER=$(get_downloader)
-  
-  # Install ping if it's missing (common in Alpine)
-  if [ "${OS_FAMILY}" = "alpine" ] && ! command -v ping >/dev/null 2>&1; then
-    log "Installing ping utility for connectivity checks..."
-    run_sudo apk add --no-cache iputils || true
-  fi
-  
-  # Check GitHub connectivity (needed for repository cloning)
-  if ! $DOWNLOADER https://github.com >/dev/null 2>&1; then
-    log_warning "Cannot connect to GitHub. Check your internet connection."
-    if [ "${MIDAZ_AUTOCONFIRM}" -ne 1 ] && ! prompt "Continue anyway? (y/N): "; then
-      die "Internet connectivity is required for installation."
-    fi
-  fi
-  
-  # Check Docker Hub connectivity (needed for container images)
-  if ! $DOWNLOADER https://hub.docker.com >/dev/null 2>&1; then
-    log_warning "Cannot connect to Docker Hub. Container images may fail to download."
-    if [ "${MIDAZ_AUTOCONFIRM}" -ne 1 ] && ! prompt "Continue anyway? (y/N): "; then
-      die "Internet connectivity is required for installation."
-    fi
-  fi
-  
-  log_success "Internet connectivity verified"
-}
-
 # ============================================================================
 # Operating System Detection
 # ============================================================================
@@ -1307,9 +1274,6 @@ main() {
   CURRENT_INSTALL_STATE="detecting_os"
   
   detect_os
-  CURRENT_INSTALL_STATE="checking_connectivity"
-  
-  check_internet_connectivity
   CURRENT_INSTALL_STATE="checking_deps"
   
   check_dependencies
