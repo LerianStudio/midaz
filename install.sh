@@ -118,25 +118,13 @@ MIDAZ_REPO="https://github.com/lerianstudio/midaz"
 # This is set to 1 when -y or --yes flag is passed
 MIDAZ_AUTOCONFIRM=0
 
-# Flag to track if we're running inside a container
-# This affects how we handle services like Docker
-RUNNING_IN_CONTAINER=0
-
 # Installation flags from environment - used to enable non-interactive mode
 # Typically set to "-y" to automatically confirm all prompts
 INSTALL_FLAGS="${INSTALL_FLAGS:-}"
 
 # Branch selection timeout (in seconds)
 # How long to wait for user input when selecting a branch before defaulting to main
-BRANCH_SELECTION_TIMEOUT=2
-
-# Define text formatting (all empty, no colors)
-RESET=""
-RED=""
-GREEN=""
-YELLOW=""
-BLUE=""
-BOLD=""
+BRANCH_SELECTION_TIMEOUT=10
 
 # ============================================================================
 # Installation State Tracking and Recovery
