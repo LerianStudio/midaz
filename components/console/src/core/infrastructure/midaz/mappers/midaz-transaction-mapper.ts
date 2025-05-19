@@ -25,7 +25,7 @@ export class MidazTransactionMapper {
               omitBy(
                 {
                   account: source.account,
-                  amount: lib.findScale(source.asset, source.value, 0),
+                  amount: lib.findScale(transaction.asset, source.value, 0),
                   description: source.description,
                   chartOfAccounts: source.chartOfAccounts,
                   metadata: source.metadata
@@ -40,7 +40,7 @@ export class MidazTransactionMapper {
                 {
                   account: destination.account,
                   amount: lib.findScale(
-                    destination.asset,
+                    transaction.asset,
                     destination.value,
                     0
                   ),
