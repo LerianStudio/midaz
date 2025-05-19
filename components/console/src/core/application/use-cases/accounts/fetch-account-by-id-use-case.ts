@@ -43,7 +43,7 @@ export class FetchAccountByIdUseCase implements FetchAccountById {
 
     return AccountMapper.toDto({
       ...account,
-      ...BalanceMapper.toDomain(balance)
+      ...BalanceMapper.toPaginationResponseDto(balance)
     })
   }
 }
