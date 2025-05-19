@@ -657,6 +657,12 @@ check_internet_connectivity() {
   # Use the appropriate download tool
   DOWNLOADER=$(get_downloader)
   
+  # Install ping if it's missing (common in Alpine)
+  if [ "${OS_FAMILY}" = "alpine" ] && ! command -v ping >/dev/null 2>&1; then
+    log "Installing ping utility for connectivity checks..."
+    run_sudo apk add --no-cache iputils || true
+  fi
+  
   # Check GitHub connectivity (needed for repository cloning)
   if ! $DOWNLOADER https://github.com >/dev/null 2>&1; then
     log_warning "Cannot connect to GitHub. Check your internet connection."
@@ -951,6 +957,17 @@ install_docker() {
     brew)
       brew install --cask docker
       log "Please open the Docker Desktop application to complete installation"
+      ;;
+    apk)
+      # Alpine Linux Docker installation
+      log "Installing Docker on Alpine Linux..."
+      # Install Docker and Docker Compose
+      run_sudo apk add --update docker docker-compose
+      # Add current user to docker group
+      run_sudo addgroup "$(whoami)" docker 2>/dev/null || true
+      # Enable and start Docker service
+      run_sudo rc-update add docker boot || true
+      start_docker_daemon
       ;;
     *)
       die "Cannot install Docker. Please install Docker manually and try again."
@@ -1583,6 +1600,20 @@ start_docker_daemon() {
     # Give it a moment to start
     log "Waiting for Docker daemon to start..."
     sleep 5
+    # Check if Docker is now running
+    if docker info >/dev/null 2>&1; then
+      log_success "Docker daemon started successfully"
+      return 0
+    else
+      log_warning "Could not start Docker daemon. Docker commands may fail."
+      return 1
+    fi
+  elif [ "${OS_FAMILY}" = "alpine" ]; then
+    # Alpine uses OpenRC instead of systemd
+    log "Starting Docker daemon with OpenRC on Alpine"
+    run_sudo /etc/init.d/docker start || true
+    # Give it a moment to start
+    sleep 3
     # Check if Docker is now running
     if docker info >/dev/null 2>&1; then
       log_success "Docker daemon started successfully"
