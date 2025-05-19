@@ -1,3 +1,11 @@
+## [v2.2.0-beta.27] - 2025-05-19
+
+### ✨ Features
+- Set up demo data for feature development, facilitating easier testing and demonstration of new functionalities (#812)
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
 ## [v2.2.0-beta.26] - 2025-05-17
 
 ### 🐛 Bug Fixes
