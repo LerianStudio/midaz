@@ -3,8 +3,8 @@ version: '3.8'
 services:
   ubuntu:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.ubuntu
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.ubuntu
     volumes:
       - ./logs:/home/testuser/logs
     environment:
@@ -19,8 +19,8 @@ services:
 
   debian:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.debian
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.debian
     volumes:
       - ./logs:/home/testuser/logs
     environment:
@@ -35,8 +35,8 @@ services:
 
   fedora:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.fedora
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.fedora
     volumes:
       - ./logs:/home/testuser/logs
     environment:
@@ -51,8 +51,8 @@ services:
 
   alpine:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.alpine
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.alpine
     volumes:
       - ./logs:/home/testuser/logs
     environment:
@@ -67,8 +67,8 @@ services:
 
   wsl:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.wsl
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.wsl
     volumes:
       - ./logs:/home/testuser/logs
     environment:
@@ -83,8 +83,8 @@ services:
 
   arm:
     build:
-      context: ..
-      dockerfile: ./test-install-script/Dockerfile.arm
+      context: ../..
+      dockerfile: ./scripts/test-install-script/Dockerfile.arm
     platform: linux/arm64
     volumes:
       - ./logs:/home/testuser/logs

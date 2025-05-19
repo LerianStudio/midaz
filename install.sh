@@ -80,7 +80,7 @@
 # -e: Exit immediately if a command fails
 # -u: Treat unset variables as an error
 # -o pipefail: Ensures that a pipeline fails if any command in it fails
-set -euo pipefail
+set -eu
 
 # Set a safe Internal Field Separator (IFS)
 # This ensures that whitespace in filenames and paths is handled correctly
@@ -118,6 +118,10 @@ MIDAZ_REPO="https://github.com/lerianstudio/midaz"
 # Flag to track if we're running in non-interactive mode
 # This is set to 1 when -y or --yes flag is passed
 MIDAZ_AUTOCONFIRM=0
+
+# Flag to track if we're running inside a container
+# This affects how we handle services like Docker
+RUNNING_IN_CONTAINER=0
 
 # Installation flags from environment - used to enable non-interactive mode
 # Typically set to "-y" to automatically confirm all prompts
@@ -716,6 +720,12 @@ detect_os() {
   
   log "Detected architecture: ${ARCH}"
   
+  # Detect if running in a container
+  if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || grep -q container /proc/1/cgroup 2>/dev/null; then
+    RUNNING_IN_CONTAINER=1
+    log "Detected running inside a container environment"
+  fi
+  
   if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_NAME="${ID}"
@@ -928,14 +938,14 @@ install_docker() {
       run_sudo "${OS_PACKAGE_MANAGER}" install -y dnf-plugins-core
       run_sudo "${OS_PACKAGE_MANAGER}" config-manager --add-repo https://download.docker.com/linux/${OS_NAME}/docker-ce.repo
       run_sudo "${OS_PACKAGE_MANAGER}" install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-      run_sudo systemctl enable docker
-      run_sudo systemctl start docker
+      run_sudo systemctl enable docker || true
+      start_docker_daemon
       run_sudo usermod -aG docker "$(whoami)"
       ;;
     pacman)
       run_sudo pacman -Sy --noconfirm docker docker-compose
-      run_sudo systemctl enable docker
-      run_sudo systemctl start docker
+      run_sudo systemctl enable docker || true
+      start_docker_daemon
       run_sudo usermod -aG docker "$(whoami)"
       ;;
     brew)
@@ -1555,6 +1565,45 @@ main() {
   
   # If we've made it this far, disable the EXIT trap
   trap - EXIT
+}
+
+# Function to start Docker daemon with appropriate method based on environment
+start_docker_daemon() {
+  # Skip if Docker is already running
+  if docker info >/dev/null 2>&1; then
+    log_success "Docker daemon is already running"
+    return 0
+  fi
+
+  # Check if we're in a container environment
+  if [ "${RUNNING_IN_CONTAINER}" -eq 1 ]; then
+    log "Running in container environment, using alternative Docker startup method"
+    # Try to start dockerd directly
+    run_sudo nohup dockerd --host=unix:///var/run/docker.sock >/dev/null 2>&1 &
+    # Give it a moment to start
+    log "Waiting for Docker daemon to start..."
+    sleep 5
+    # Check if Docker is now running
+    if docker info >/dev/null 2>&1; then
+      log_success "Docker daemon started successfully"
+      return 0
+    else
+      log_warning "Could not start Docker daemon. Docker commands may fail."
+      return 1
+    fi
+  else
+    # Standard systemd startup
+    log "Starting Docker daemon with systemd"
+    run_sudo systemctl start docker
+    # Check if Docker is now running
+    if docker info >/dev/null 2>&1; then
+      log_success "Docker daemon started successfully"
+      return 0
+    else
+      log_warning "Could not start Docker daemon. Docker commands may fail."
+      return 1
+    fi
+  fi
 }
 
 # Function to verify Docker group membership

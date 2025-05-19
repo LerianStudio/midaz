@@ -29,7 +29,7 @@ REPORT_FILE="${SCRIPT_DIR}/test-report.md"
 # No color codes - removed for better compatibility
 
 # Default options
-CLEAN=0
+CLEAN=1
 REPORT_ONLY=0
 PARALLEL=0
 SPECIFIC_DISTRO=""
