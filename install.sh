@@ -435,7 +435,7 @@ install_make() {
 }
 
 install_go() {
-  log "Installing Go 1.22+..."
+  log "Installing Go (Latest Stable Version)..."
   case "${OS_PACKAGE_MANAGER}" in
     apt)
       run_sudo apt-get update
@@ -528,15 +528,6 @@ check_internet_connectivity() {
   else
     log_warning "Could not ping GitHub. This might cause issues when cloning the repository."
     # Continue anyway - git clone will fail if truly unreachable
-  fi
-  
-  # Check Docker Hub connectivity - needed for pulling Docker images
-  log "Verifying access to Docker Hub (container registry)..."
-  if ping -c 1 hub.docker.com >/dev/null 2>&1; then
-    log_success "Docker Hub connectivity verified"
-  else
-    log_warning "Could not ping Docker Hub. This might cause issues when pulling Docker images."
-    # Continue anyway - docker pull will fail if truly unreachable
   fi
   
   log_success "Internet connectivity to required services verified"
@@ -727,8 +718,8 @@ run_midaz() {
   fi
   
   # Build the components first
-  log "Building all components..."
-  make build || log_warning "Build step encountered issues, but continuing with deployment"
+  # log "Building all components..."
+  # make build || log_warning "Build step encountered issues, but continuing with deployment"
   
   # Start all services
   log "Starting all services..."
