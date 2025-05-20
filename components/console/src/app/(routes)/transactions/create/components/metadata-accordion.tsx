@@ -24,7 +24,7 @@ export const MetadataAccordion = ({
 
   return (
     <>
-      <h6 className="mb-6 text-sm font-medium">
+      <h6 className="mb-5 text-sm font-medium text-zinc-700">
         {intl.formatMessage({
           id: 'transactions.metadata.title',
           defaultMessage: 'Transaction Metadata'

@@ -64,7 +64,7 @@ export default function TransactionDetailsPage() {
   }
 
   return (
-    <>
+    <div className="p-16">
       <Breadcrumb
         paths={getBreadcrumbPaths([
           {
@@ -258,6 +258,6 @@ export default function TransactionDetailsPage() {
           <TransactionOperationTab data={transaction} onSuccess={refetch} />
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   )
 }
