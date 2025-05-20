@@ -3,9 +3,9 @@ import { metadata } from './metadata'
 
 const name = z.string().min(3).max(255)
 
-const alias = z.string().min(1).max(255)
+const alias = z.string().min(1).max(255).optional().or(z.literal(''))
 
-const entityId = z.string().nullable().optional()
+const entityId = z.string().min(1).max(255).optional().or(z.literal(''))
 
 const assetCode = z.string()
 
