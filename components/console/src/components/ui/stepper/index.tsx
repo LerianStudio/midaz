@@ -1,11 +1,7 @@
 import { cn } from '@/lib/utils'
 import { CircleCheck } from 'lucide-react'
-import {
-  forwardRef,
-  HTMLAttributes,
-  MouseEventHandler,
-  PropsWithChildren
-} from 'react'
+import { forwardRef, HTMLAttributes, PropsWithChildren } from 'react'
+import { Skeleton } from '../skeleton'
 
 export const Stepper = forwardRef<
   HTMLDivElement,
@@ -96,3 +92,10 @@ export type StepperControlProps = PropsWithChildren & {
 export const StepperContent = ({ active, children }: StepperControlProps) => {
   return active ? <>{children}</> : null
 }
+
+export const StepperItemSkeleton = () => (
+  <div className="flex flex-row items-center gap-3">
+    <Skeleton className="h-8 w-8 rounded-full bg-zinc-200" />
+    <Skeleton className="h-5 w-32 bg-zinc-200" />
+  </div>
+)
