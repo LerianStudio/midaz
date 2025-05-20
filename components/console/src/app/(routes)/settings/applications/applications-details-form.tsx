@@ -4,7 +4,7 @@ import { useIntl } from 'react-intl'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ApplicationType } from './applications-sheet'
+import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
 import { getInitialValues } from '@/lib/form'
 import { applications } from '@/schema/application'
 
@@ -25,7 +25,9 @@ const initialValues = {
 }
 
 interface ApplicationDetailsFormProps {
-  application: ApplicationType
+  application: ApplicationResponseDto
+  onSuccess?: () => void
+  onOpenChange?: (open: boolean) => void
 }
 
 export const ApplicationDetailsForm = ({

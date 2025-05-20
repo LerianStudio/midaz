@@ -10,8 +10,6 @@ import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
-
 export const GET = applyMiddleware(
   [
     loggerMiddleware({

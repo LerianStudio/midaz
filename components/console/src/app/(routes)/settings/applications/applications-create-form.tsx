@@ -5,13 +5,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useToast } from '@/hooks/use-toast'
 import { Enforce } from '@/providers/permission-provider/enforce'
 import { ComboBoxField } from '@/components/form/combo-box-field'
 import { CommandItem } from '@/components/ui/command'
-import { useState } from 'react'
 import { SheetFooter } from '@/components/ui/sheet'
 import { applications } from '@/schema/application'
+import { useCreateApplication } from '@/client/applications'
+import { useToast } from '@/hooks/use-toast'
 
 const FormSchema = z.object({
   name: applications.name,
@@ -25,13 +25,10 @@ const initialValues = {
   description: ''
 }
 
-const applicationTemplates = [
-  { value: 'web-app', label: 'Web Application' },
-  { value: 'mobile-app', label: 'Mobile Application' },
-  { value: 'server-app', label: 'Server Application' },
-  { value: 'single-page-app', label: 'Single Page Application' },
-  { value: 'native-app', label: 'Native Application' }
-]
+const getApplicationOptions = () =>
+  process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS?.split(',').map((option) =>
+    option.trim()
+  ) ?? []
 
 interface CreateApplicationFormProps {
   onSuccess?: () => void
@@ -44,30 +41,41 @@ export const CreateApplicationForm = ({
 }: CreateApplicationFormProps) => {
   const intl = useIntl()
   const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const applicationOptions = getApplicationOptions()
+
+  const createApplicationMutation = useCreateApplication({
+    onSuccess: () => {
+      toast({
+        description: intl.formatMessage({
+          id: 'success.applications.create',
+          defaultMessage: 'Application successfully created'
+        }),
+        variant: 'success'
+      })
+      onOpenChange?.(false)
+      onSuccess?.()
+    },
+    onError: () => {
+      toast({
+        description: intl.formatMessage({
+          id: 'error.applications.create',
+          defaultMessage: 'Failed to create application'
+        }),
+        variant: 'destructive'
+      })
+    }
+  })
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues: initialValues
   })
 
-  const handleSubmit = () => {
-    setIsSubmitting(true)
-
-    setTimeout(() => {
-      setIsSubmitting(false)
-
-      toast({
-        description: intl.formatMessage({
-          id: 'success.applications.create',
-          defaultMessage: 'Application created successfully'
-        }),
-        variant: 'success'
-      })
-
-      onOpenChange?.(false)
-      onSuccess?.()
-    }, 500)
+  const handleSubmit = async (data: FormData) => {
+    createApplicationMutation.mutate({
+      name: data.name,
+      description: data.description ?? ''
+    })
   }
 
   return (
@@ -81,15 +89,19 @@ export const CreateApplicationForm = ({
           <ComboBoxField
             name="name"
             control={form.control}
+            label={intl.formatMessage({
+              id: 'common.name',
+              defaultMessage: 'Name'
+            })}
             placeholder={intl.formatMessage({
               id: 'combobox.placeholder',
               defaultMessage: 'Type...'
             })}
             required
           >
-            {applicationTemplates.map((template) => (
-              <CommandItem key={template.value} value={template.value}>
-                {template.label}
+            {applicationOptions.map((name) => (
+              <CommandItem key={name} value={name}>
+                {name}
               </CommandItem>
             ))}
           </ComboBoxField>
@@ -122,7 +134,7 @@ export const CreateApplicationForm = ({
             type="submit"
             form="application-create-form"
             fullWidth
-            loading={isSubmitting}
+            loading={createApplicationMutation.isPending}
           >
             {intl.formatMessage({
               id: 'common.save',

@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { MoreVertical, AlertTriangle } from 'lucide-react'
-import React, { useState } from 'react'
+import React from 'react'
 import { useIntl } from 'react-intl'
 import { EntityBox } from '@/components/entity-box'
 import {
@@ -24,73 +24,41 @@ import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-d
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useToast } from '@/hooks/use-toast'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { ApplicationsSheet, ApplicationType } from './applications-sheet'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-
-const mockApplications: ApplicationType[] = [
-  {
-    id: '1',
-    name: 'Web Dashboard',
-    description: 'Main web dashboard application for Midaz UI',
-    clientId: 'web-dashboard-123',
-    clientSecret: 'secret-key-abc-123',
-    status: 'active',
-    createdAt: new Date('2023-01-15T10:30:00')
-  },
-  {
-    id: '2',
-    name: 'Mobile App',
-    description: 'Native mobile application for iOS and Android',
-    clientId: 'mobile-app-456',
-    clientSecret: 'secret-key-def-456',
-    status: 'active',
-    createdAt: new Date('2023-03-22T14:45:00')
-  },
-  {
-    id: '3',
-    name: 'Legacy Integration',
-    description: 'Integration with legacy accounting systems',
-    clientId: 'legacy-int-789',
-    clientSecret: 'secret-key-ghi-789',
-    status: 'inactive',
-    createdAt: new Date('2022-11-05T09:15:00')
-  }
-]
+import { ApplicationsSheet } from './applications-sheet'
+import { useApplications, useDeleteApplication } from '@/client/applications'
+import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
+import { useToast } from '@/hooks/use-toast'
+import { ApplicationsSecurityAlert } from './applications-security-alert'
 
 export const ApplicationsTabContent = () => {
   const intl = useIntl()
+  const { data: applications = [], isLoading, refetch } = useApplications()
   const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
-  const [applications, setApplications] = useState(mockApplications)
 
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<ApplicationType>({
+    useCreateUpdateSheet<ApplicationResponseDto>({
       enableRouting: true
     })
 
-  const deleteApplication = (id: string) => {
-    setApplications(applications.filter((app) => app.id !== id))
-    toast({
-      description: intl.formatMessage({
-        id: 'success.applications.delete',
-        defaultMessage: 'Application successfully deleted'
-      }),
-      variant: 'success'
+  const { mutate: deleteApplication, isPending: deleteApplicationPending } =
+    useDeleteApplication({
+      onSuccess: () => {
+        handleDialogClose()
+        refetch()
+        toast({
+          description: intl.formatMessage({
+            id: 'success.applications.delete',
+            defaultMessage: 'Application successfully deleted'
+          }),
+          variant: 'success'
+        })
+      }
     })
-  }
-
-  const handleSheetSuccess = () => {
-    console.log('Application operation completed successfully')
-  }
 
   const { handleDialogOpen, dialogProps, handleDialogClose } = useConfirmDialog(
     {
-      onConfirm: (id: string) => {
-        deleteApplication(id)
-        handleDialogClose()
-      }
+      onConfirm: (id: string) => deleteApplication({ id })
     }
   )
 
@@ -107,7 +75,7 @@ export const ApplicationsTabContent = () => {
             'Deletion revokes access to all connected services. It is irreversible and permanently removes the Application.'
         })}
         icon={<AlertTriangle size={24} className="text-yellow-500" />}
-        loading={false}
+        loading={deleteApplicationPending}
         cancelLabel={intl.formatMessage({
           id: 'common.changeMyMind',
           defaultMessage: 'I changed my mind'
@@ -119,74 +87,7 @@ export const ApplicationsTabContent = () => {
         {...dialogProps}
       />
 
-      <Alert variant="warning" className="mb-6">
-        <AlertTriangle size={24} />
-        <AlertTitle className="ml-2 text-sm font-bold text-yellow-800">
-          Security Warning
-        </AlertTitle>
-        <AlertDescription className="text-sm text-yellow-800 opacity-70">
-          <ul className="ml-5 mt-2 list-disc space-y-1">
-            <li className="font-bold">
-              {intl.formatMessage({
-                id: 'applications.security.doNotShare',
-                defaultMessage:
-                  'Do not share your clientId or clientSecret publicly. These credentials grant access to your application and must be kept confidential.'
-              })}
-            </li>
-            <li>
-              {intl.formatMessage({
-                id: 'applications.security.secureStorage',
-                defaultMessage: 'Store these keys in a secure location.'
-              })}
-            </li>
-            <li>
-              {intl.formatMessage(
-                {
-                  id: 'applications.security.doNotDelete',
-                  defaultMessage:
-                    "{doNotDelete} the application unless you're sure. Deleting it revokes access to all connected services."
-                },
-                {
-                  doNotDelete: (
-                    <span className="font-bold">
-                      {intl.formatMessage({
-                        id: 'applications.security.doNotDelete',
-                        defaultMessage: 'Do not delete'
-                      })}
-                    </span>
-                  )
-                }
-              )}
-            </li>
-            <li>
-              {intl.formatMessage({
-                id: 'applications.security.rotateCredentials',
-                defaultMessage:
-                  'Rotate your credentials if you suspect they were compromised.'
-              })}
-            </li>
-            <li>
-              {intl.formatMessage(
-                {
-                  id: 'applications.security.neverExpose',
-                  defaultMessage:
-                    '{neverExpose} these keys in frontend code or public repositories.'
-                },
-                {
-                  neverExpose: (
-                    <span className="font-bold">
-                      {intl.formatMessage({
-                        id: 'applications.security.neverExpose',
-                        defaultMessage: 'Never expose'
-                      })}
-                    </span>
-                  )
-                }
-              )}
-            </li>
-          </ul>
-        </AlertDescription>
-      </Alert>
+      <ApplicationsSecurityAlert />
 
       <EntityBox.Root>
         <EntityBox.Header
@@ -261,11 +162,7 @@ export const ApplicationsTabContent = () => {
                   <TableRow key={application.id}>
                     <TableCell>{application.name}</TableCell>
                     <TableCell>{application.clientId}</TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs">
-                        {application.clientSecret ? '••••••••••••' : '—'}
-                      </span>
-                    </TableCell>
+                    <TableCell>{application.clientSecret ?? '—'}</TableCell>
                     <TableCell>
                       {application.createdAt
                         ? intl.formatDate(application.createdAt, {
@@ -282,7 +179,7 @@ export const ApplicationsTabContent = () => {
                             variant="secondary"
                             className="h-auto w-max p-2"
                           >
-                            <MoreVertical size={16} onClick={() => {}} />
+                            <MoreVertical size={16} />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -331,7 +228,7 @@ export const ApplicationsTabContent = () => {
         </EntityDataTable.Root>
       )}
 
-      <ApplicationsSheet {...sheetProps} onSuccess={handleSheetSuccess} />
+      <ApplicationsSheet {...sheetProps} onSuccess={refetch} />
     </div>
   )
 }

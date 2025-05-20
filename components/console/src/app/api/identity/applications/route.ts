@@ -12,6 +12,8 @@ import {
   CreateApplicationUseCase
 } from '@/core/application/use-cases/application/create-application-use-case'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = applyMiddleware(
   [
     loggerMiddleware({

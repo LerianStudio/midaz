@@ -10,20 +10,11 @@ import React from 'react'
 import { useIntl } from 'react-intl'
 import { CreateApplicationForm } from './applications-create-form'
 import { ApplicationDetailsForm } from './applications-details-form'
-
-export interface ApplicationType {
-  id: string
-  name: string
-  description?: string
-  clientId: string
-  clientSecret?: string
-  status?: 'active' | 'inactive'
-  createdAt?: Date
-}
+import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
 
 export type ApplicationsSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data: ApplicationType | null
+  data: ApplicationResponseDto | null
   onSuccess?: () => void
 }
 
@@ -84,7 +75,13 @@ export const ApplicationsSheet = ({
               onOpenChange={onOpenChange}
             />
           ) : (
-            data && <ApplicationDetailsForm application={data} />
+            data && (
+              <ApplicationDetailsForm
+                application={data}
+                onSuccess={onSuccess}
+                onOpenChange={onOpenChange}
+              />
+            )
           )}
         </div>
       </SheetContent>
