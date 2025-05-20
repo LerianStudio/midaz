@@ -189,6 +189,7 @@ export class FetchAccountsWithPortfoliosUseCase
     const accountDto = AccountMapper.toDto({ ...account, ...balanceData })
 
     let portfolioInfo = null
+
     if (portfolio) {
       portfolioInfo = { id: portfolio.id || '', name: portfolio.name || '' }
     }

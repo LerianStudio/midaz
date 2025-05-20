@@ -11,7 +11,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Form } from '@/components/ui/form'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
@@ -32,9 +32,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ChevronRight, InfoIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SwitchField } from '@/components/form/switch-field'
-import { createQueryString } from '@/lib/search'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -58,7 +59,7 @@ const initialValues = {
 
 const FormSchema = z.object({
   name: accounts.name,
-  alias: accounts.alias,
+  alias: accounts.alias.optional(),
   entityId: accounts.entityId.optional(),
   assetCode: accounts.assetCode,
   portfolioId: accounts.portfolioId.optional(),
@@ -79,10 +80,10 @@ export const AccountSheet = ({
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
-  const pathname = usePathname()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('accounts')
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -173,8 +174,7 @@ export const AccountSheet = ({
     }
   })
 
-  const handlePortfolioClick = () =>
-    router.push(pathname + createQueryString({ tab: 'portfolios' }))
+  const handlePortfolioClick = () => router.push('/portfolios')
 
   const handleSubmit = (data: FormData) => {
     const cleanedData = omitBy(data, (value) => value === '' || isNil(value))
@@ -223,10 +223,15 @@ export const AccountSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'accounts.sheet.edit.description',
-                  defaultMessage: 'View and edit account fields.'
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'accounts.sheet.edit.description.readonly',
+                      defaultMessage: 'View account fields in read-only mode.'
+                    })
+                  : intl.formatMessage({
+                      id: 'accounts.sheet.edit.description',
+                      defaultMessage: 'View and edit account fields.'
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
@@ -270,6 +275,7 @@ export const AccountSheet = ({
                         id: 'accounts.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account'
                       })}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -285,7 +291,7 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
-                      required
+                      readOnly={isReadOnly}
                     />
 
                     {mode === 'create' && (
@@ -301,6 +307,7 @@ export const AccountSheet = ({
                             id: 'accounts.field.type.tooltip',
                             defaultMessage: 'The type of account'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           <SelectItem value="deposit">
@@ -358,7 +365,9 @@ export const AccountSheet = ({
                             defaultMessage:
                               'Identification number (EntityId) of the Account holder'
                           })}
+                          readOnly={isReadOnly}
                         />
+
                         <SelectField
                           control={form.control}
                           name="assetCode"
@@ -371,6 +380,7 @@ export const AccountSheet = ({
                             defaultMessage:
                               'Asset or currency that will be operated in this Account using balance'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           {assetListData?.map((asset) => (
@@ -394,6 +404,7 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Category (cluster) of clients with specific characteristics'
                       })}
+                      readOnly={isReadOnly}
                     >
                       {segmentListData?.map((segment) => (
                         <SelectItem key={segment.value} value={segment.value}>
@@ -410,7 +421,7 @@ export const AccountSheet = ({
                           id: 'accounts.field.allowSending',
                           defaultMessage: 'Allow Sending'
                         })}
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         disabledTooltip={
                           mode === 'create'
                             ? intl.formatMessage({
@@ -443,7 +454,7 @@ export const AccountSheet = ({
                               })
                             : undefined
                         }
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         required
                       />
                     </div>
@@ -488,7 +499,7 @@ export const AccountSheet = ({
                       id: 'accounts.field.portfolio.tooltip',
                       defaultMessage: 'Portfolio that will receive this account'
                     })}
-                    disabled={portfolioListData.length === 0}
+                    readOnly={portfolioListData.length === 0 || isReadOnly}
                   >
                     {portfolioListData?.map((portfolio) => (
                       <SelectItem key={portfolio.value} value={portfolio.value}>
@@ -512,11 +523,13 @@ export const AccountSheet = ({
                             })}
                       </p>
                     </div>
+
                     <Button
                       variant="outline"
                       icon={<ChevronRight />}
                       iconPlacement="end"
                       onClick={handlePortfolioClick}
+                      type="button"
                     >
                       {intl.formatMessage({
                         id: 'common.portfolios',
@@ -527,22 +540,28 @@ export const AccountSheet = ({
                 </TabsContent>
 
                 <TabsContent value="metadata">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </TabsContent>
               </Tabs>
 
               <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <LoadingButton
-                  size="lg"
-                  type="submit"
-                  fullWidth
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
+                <Enforce resource="accounts" action="post, patch">
+                  <LoadingButton
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={createPending || updatePending}
+                  >
+                    {intl.formatMessage({
+                      id: 'common.save',
+                      defaultMessage: 'Save'
+                    })}
+                  </LoadingButton>
+                </Enforce>
               </SheetFooter>
             </form>
           </Form>

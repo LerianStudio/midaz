@@ -90,17 +90,13 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
                 onClick={() =>
                   handleEdit({
                     ...portfolio.original,
-                    entityId: portfolio.original.id,
-                    status: {
-                      ...portfolio.original.status,
-                      description: portfolio.original.status.description ?? ''
-                    }
+                    entityId: portfolio.original.id
                   } as PortfolioType)
                 }
               >
                 {intl.formatMessage({
-                  id: `common.edit`,
-                  defaultMessage: 'Edit'
+                  id: `common.details`,
+                  defaultMessage: 'Details'
                 })}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

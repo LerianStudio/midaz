@@ -14,20 +14,35 @@ const SelectValue = SelectPrimitive.Value
 
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
+    readOnly?: boolean
+  }
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-9 w-full items-center justify-between gap-3 rounded-md border border-[#C7C7C7] bg-background px-3 py-2 text-sm placeholder:text-shadcn-400 focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-inherit [&>span]:line-clamp-1',
+      'flex h-10 w-full items-center justify-between gap-3 rounded-md border border-[#C7C7C7] bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0 focus-visible:outline-none [&>span]:line-clamp-1',
+      props.readOnly && [
+        'data-[read-only]:cursor-default',
+        'data-[read-only]:select-text',
+        'data-[read-only]:bg-zinc-100',
+        'data-[read-only]:opacity-50',
+        'data-[read-only]:pointer-events-none',
+        'data-[read-only]:focus:outline-none',
+        'data-[read-only]:focus:ring-0'
+      ],
+      'disabled:cursor-not-allowed disabled:opacity-50',
       className
     )}
+    data-read-only={props.readOnly ? '' : undefined}
     {...props}
   >
     {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
-    </SelectPrimitive.Icon>
+    {!props.readOnly && (
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    )}
   </SelectPrimitive.Trigger>
 ))
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName

@@ -288,7 +288,7 @@ export const UserSheet = ({
                       name="newPassword"
                       type="password"
                       label={intl.formatMessage({
-                        id: 'entity.user.newPassword',
+                        id: 'common.newPassword',
                         defaultMessage: 'New Password'
                       })}
                       control={passwordForm.control}
@@ -299,7 +299,7 @@ export const UserSheet = ({
                       name="confirmPassword"
                       type="password"
                       label={intl.formatMessage({
-                        id: 'entity.user.confirmPassword',
+                        id: 'common.confirmPassword',
                         defaultMessage: 'Confirm Password'
                       })}
                       control={passwordForm.control}

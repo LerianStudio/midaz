@@ -10,6 +10,7 @@ import { useIntl } from 'react-intl'
 import { CreateUserForm } from './users-create-form'
 import { EditUserForm } from './users-edit-form'
 import { UsersType } from '@/types/users-type'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
 
 export type UsersSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -25,6 +26,7 @@ export const UsersSheet = ({
   ...others
 }: UsersSheetProps) => {
   const intl = useIntl()
+  const { isReadOnly } = useFormPermissions('users')
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -63,22 +65,32 @@ export const UsersSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'users.sheetEdit.description',
-                  defaultMessage: "View and edit the user's fields."
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'users.sheetEdit.description.readonly',
+                      defaultMessage: "View user's fields in read-only mode."
+                    })
+                  : intl.formatMessage({
+                      id: 'users.sheetEdit.description',
+                      defaultMessage: "View and edit the user's fields."
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
 
           {mode === 'create' ? (
-            <CreateUserForm onSuccess={onSuccess} onOpenChange={onOpenChange} />
+            <CreateUserForm
+              onSuccess={onSuccess}
+              onOpenChange={onOpenChange}
+              isReadOnly={isReadOnly}
+            />
           ) : (
             data && (
               <EditUserForm
                 user={data}
                 onSuccess={onSuccess}
                 onOpenChange={onOpenChange}
+                isReadOnly={isReadOnly}
               />
             )
           )}

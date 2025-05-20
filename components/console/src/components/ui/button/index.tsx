@@ -69,6 +69,7 @@ export interface ButtonProps
   icon?: React.ReactNode
   iconPlacement?: 'start' | 'end' | 'far-end'
   fullWidth?: boolean
+  readOnly?: boolean
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -81,6 +82,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       icon,
       iconPlacement = 'start',
       fullWidth,
+      readOnly,
       ...props
     },
     ref
@@ -89,9 +91,21 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }), {
-          'w-full': fullWidth
-        })}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          {
+            'w-full': fullWidth
+          },
+          readOnly && [
+            'data-[read-only]:cursor-default',
+            'data-[read-only]:select-text',
+            'data-[read-only]:bg-zinc-100',
+            'data-[read-only]:opacity-50',
+            'data-[read-only]:focus:outline-none',
+            'data-[read-only]:focus:ring-0'
+          ]
+        )}
+        data-read-only={readOnly ? '' : undefined}
         ref={ref}
         {...props}
       >

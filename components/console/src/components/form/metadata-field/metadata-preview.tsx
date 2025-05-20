@@ -11,28 +11,34 @@ export type MetadataPreviewProps = Omit<
 > & {
   value: Metadata
   onRemoveMetadata?: (key: string) => void
+  readOnly?: boolean
 }
 
 export const MetadataPreview = ({
   value,
-  onRemoveMetadata
+  onRemoveMetadata,
+  readOnly
 }: MetadataPreviewProps) => {
   if (isNil(value)) {
     return null
   }
 
-  return Object.entries(value).map(([key, value], index) =>
-    isNil(value) ? null : (
-      <div key={index} className="mt-2 flex items-center justify-between">
-        <div className="flex w-full gap-5">
-          <div className="flex flex-1 gap-2">
-            <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
-              {key}
-            </div>
-            <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
-              {value as any}
-            </div>
+  const renderMetadataItem = (key: string, value: any, index: number) => {
+    if (isNil(value)) return null
+
+    return (
+      <div key={index} className="mt-2 flex items-center gap-5">
+        <div className="flex flex-1 gap-2">
+          <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
+            {key}
           </div>
+
+          <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
+            {value as any}
+          </div>
+        </div>
+
+        {!readOnly && (
           <Button
             onClick={(e) => {
               e.preventDefault()
@@ -45,8 +51,12 @@ export const MetadataPreview = ({
               className="shrink-0 text-black group-hover:text-white"
             />
           </Button>
-        </div>
+        )}
       </div>
     )
+  }
+
+  return Object.entries(value).map(([key, value], index) =>
+    renderMetadataItem(key, value, index)
   )
 }

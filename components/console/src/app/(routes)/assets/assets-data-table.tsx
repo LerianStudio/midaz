@@ -115,8 +115,8 @@ const AssetRow: React.FC<AssetRowProps> = ({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => handleEdit(asset.original)}>
               {intl.formatMessage({
-                id: `common.edit`,
-                defaultMessage: 'Edit'
+                id: `common.details`,
+                defaultMessage: 'Details'
               })}
             </DropdownMenuItem>
             <DropdownMenuSeparator />

@@ -6,9 +6,9 @@ export type MidazCreateAccountDto = {
   alias?: string
   assetCode: string
   type: string
-  entityId?: string | null
-  parentAccountId?: string | null
-  portfolioId?: string | null
+  entityId?: string
+  parentAccountId?: string
+  portfolioId?: string
   segmentId?: string
   status?: MidazStatusDto
   metadata?: MidazMetadataDto
