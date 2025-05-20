@@ -39,7 +39,7 @@ export class MidazAccountMapper {
     }
   }
 
-  public static toEntity(asset: MidazAccountDto): AccountEntity {
+  public static toEntity(account: MidazAccountDto): AccountEntity {
     return {
       id: asset.id,
       name: asset.name,

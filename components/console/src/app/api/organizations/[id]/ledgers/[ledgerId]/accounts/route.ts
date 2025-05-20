@@ -38,6 +38,7 @@ export const GET = applyMiddleware(
         container.get<FetchAllAccounts>(FetchAllAccountsUseCase)
       const { searchParams } = new URL(request.url)
       const { id: organizationId, ledgerId } = params
+      const alias = searchParams.get('alias') ?? undefined
       const limit = Number(searchParams.get('limit')) || 10
       const page = Number(searchParams.get('page')) || 1
 
@@ -51,8 +52,11 @@ export const GET = applyMiddleware(
       const accounts = await fetchAllAccountsUseCase.execute(
         organizationId,
         ledgerId,
-        page,
-        limit
+        {
+          alias,
+          limit,
+          page
+        }
       )
 
       return NextResponse.json(accounts)

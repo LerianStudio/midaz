@@ -3,17 +3,14 @@ import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
-import type {
-  CreateAccountDto,
-  AccountResponseDto
-} from '../../dto/account-dto'
+import type { CreateAccountDto, AccountDto } from '../../dto/account-dto'
 
 export interface CreateAccount {
   execute: (
     organizationId: string,
     ledgerId: string,
     account: CreateAccountDto
-  ) => Promise<AccountResponseDto>
+  ) => Promise<AccountDto>
 }
 
 @injectable()
@@ -28,7 +25,7 @@ export class CreateAccountUseCase implements CreateAccount {
     organizationId: string,
     ledgerId: string,
     account: CreateAccountDto
-  ): Promise<AccountResponseDto> {
+  ): Promise<AccountDto> {
     const accountEntity: AccountEntity = AccountMapper.toDomain(account)
     const accountCreated = await this.accountRepository.create(
       organizationId,
