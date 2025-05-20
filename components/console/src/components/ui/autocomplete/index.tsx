@@ -144,7 +144,6 @@ export const AutocompleteValue = React.forwardRef<
   React.useImperativeHandle(ref, () => inputRef.current as HTMLInputElement)
 
   const updateSearch = (value: string | string[]) => {
-    console.log('updateSearch', value)
     if (isNil(value)) {
       return
     }
@@ -168,29 +167,6 @@ export const AutocompleteValue = React.forwardRef<
     updateSearch(value)
     onBlur?.(event)
   }
-
-  // // Keep internal value up to date
-  // React.useEffect(() => {
-  //   // If this component is directly controlled
-  //   // Overwrite value if props is different than the current selected one;
-  //   // Meaning the user is typing and searching for a different value.
-  //   if (!isNil(valueProp) && value !== valueProp) {
-  //     setSearch(valueProp)
-  //     return
-  //   }
-  // }, [value, valueProp])
-
-  // React.useEffect(() => {
-  //   // Always overwrite if a value has been selected
-  //   // console.log('useEffect', value)
-  //   if (value && typeof value === 'string') {
-  //     console.log('set', options, showValue ? value : options[value])
-  //     handleValueChange(showValue ? value : options[value])
-  //     return
-  //   }
-
-  //   setSearch('')
-  // }, [value, showValue, Object.values(options)])
 
   React.useEffect(() => {
     updateSearch(value)
