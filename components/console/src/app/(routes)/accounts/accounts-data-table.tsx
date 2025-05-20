@@ -37,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
+import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
 
 type AccountsTableProps = {
   accounts: { items: AccountType[] }
@@ -68,7 +69,9 @@ const AccountRow: React.FC<AccountRowProps> = ({
   onDelete
 }) => {
   const intl = useIntl()
-  const isExternal = account.original.alias?.includes('@external/')
+  const isExternal = account.original.alias?.includes(
+    externalAccountAliasPrefix
+  )
 
   return (
     <TableRow key={account.id}>
