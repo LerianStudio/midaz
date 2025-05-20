@@ -1,5 +1,5 @@
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
-import { AccountResponseDto } from '../../dto/account-dto'
+import { AccountDto } from '../../dto/account-dto'
 import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
@@ -11,7 +11,7 @@ export interface FetchAccountById {
     organizationId: string,
     ledgerId: string,
     accountId: string
-  ) => Promise<AccountResponseDto>
+  ) => Promise<AccountDto>
 }
 
 @injectable()
@@ -28,7 +28,7 @@ export class FetchAccountByIdUseCase implements FetchAccountById {
     organizationId: string,
     ledgerId: string,
     accountId: string
-  ): Promise<AccountResponseDto> {
+  ): Promise<AccountDto> {
     const account = await this.accountRepository.fetchById(
       organizationId,
       ledgerId,
@@ -43,7 +43,7 @@ export class FetchAccountByIdUseCase implements FetchAccountById {
 
     return AccountMapper.toDto({
       ...account,
-      ...BalanceMapper.toDomain(balance)
+      ...BalanceMapper.toPaginationResponseDto(balance)
     })
   }
 }

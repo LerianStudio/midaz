@@ -83,12 +83,10 @@ export class FetchAccountsWithPortfoliosUseCase
     limit: number,
     page: number
   ): Promise<PaginationEntity<AccountEntity>> {
-    return this.accountRepository.fetchAll(
-      organizationId,
-      ledgerId,
+    return this.accountRepository.fetchAll(organizationId, ledgerId, {
       limit,
       page
-    )
+    })
   }
 
   private async fetchAndCreatePortfolioMap(

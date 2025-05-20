@@ -77,7 +77,10 @@ export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
   try {
     return await action()
   } catch (error) {
-    console.error('Server Fetcher Error', error)
+    // Only log errors when not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Server Fetcher Error', error)
+    }
     if (error instanceof MidazApiException && error.code === '0042') {
       redirect('/signout')
     }

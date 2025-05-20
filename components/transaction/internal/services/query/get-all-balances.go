@@ -61,3 +61,24 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 
 	return balance, cur, nil
 }
+
+func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_alias")
+	defer span.End()
+
+	logger.Infof("Retrieving all balances by alias")
+
+	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(&span, "Failed to list balances by alias on balance database", err)
+
+		logger.Error("Failed to list balances by alias on balance database", err.Error())
+
+		return nil, err
+	}
+
+	return balances, nil
+}

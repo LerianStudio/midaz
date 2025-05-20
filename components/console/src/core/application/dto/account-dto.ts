@@ -1,4 +1,10 @@
 import { MetadataDto } from './metadata-dto'
+import { SearchParamDto } from './request-dto'
+
+export type AccountSearchParamDto = SearchParamDto & {
+  id?: string
+  alias?: string
+}
 
 export type CreateAccountDto = {
   assetCode: string
@@ -16,7 +22,7 @@ export type CreateAccountDto = {
 
 export type UpdateAccountDto = Partial<CreateAccountDto>
 
-export interface AccountResponseDto {
+export interface AccountDto {
   id: string
   ledgerId: string
   assetCode: string

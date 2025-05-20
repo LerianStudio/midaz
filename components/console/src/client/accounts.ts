@@ -1,9 +1,10 @@
-import { AccountResponseDto } from '@/core/application/dto/account-dto'
+import {
+  AccountDto,
+  AccountSearchParamDto
+} from '@/core/application/dto/account-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { AccountEntity } from '@/core/domain/entities/account-entity'
 import {
   deleteFetcher,
-  getFetcher,
   getPaginatedFetcher,
   patchFetcher,
   postFetcher
@@ -18,19 +19,27 @@ import {
 type UseListAccountsProps = {
   organizationId: string
   ledgerId: string
+  query?: AccountSearchParamDto
+  enabled?: boolean
 }
 
 export const useListAccounts = ({
   organizationId,
   ledgerId,
+  query,
   ...options
 }: UseListAccountsProps) => {
-  return useQuery<PaginationDto<AccountEntity>>({
-    queryKey: [organizationId, ledgerId, 'accounts'],
-    queryFn: getFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts`
+  return useQuery<PaginationDto<AccountDto>>({
+    queryKey: [
+      organizationId,
+      ledgerId,
+      'accounts',
+      ...Object.values(query ?? {})
+    ],
+    queryFn: getPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts`,
+      query
     ),
-    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -47,7 +56,7 @@ export const useAccountsWithPortfolios = ({
   limit,
   ...options
 }: UseAccountsWithPortfoliosProps) => {
-  return useQuery<PaginationDto<AccountResponseDto>>({
+  return useQuery<PaginationDto<AccountDto>>({
     queryKey: [
       organizationId,
       ledgerId,

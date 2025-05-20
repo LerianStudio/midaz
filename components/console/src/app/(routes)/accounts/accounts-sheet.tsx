@@ -11,7 +11,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Form } from '@/components/ui/form'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
@@ -32,7 +32,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ChevronRight, InfoIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SwitchField } from '@/components/form/switch-field'
-import { createQueryString } from '@/lib/search'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
@@ -60,7 +59,7 @@ const initialValues = {
 
 const FormSchema = z.object({
   name: accounts.name,
-  alias: accounts.alias,
+  alias: accounts.alias.optional(),
   entityId: accounts.entityId.optional(),
   assetCode: accounts.assetCode,
   portfolioId: accounts.portfolioId.optional(),
@@ -81,7 +80,6 @@ export const AccountSheet = ({
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
-  const pathname = usePathname()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
@@ -294,7 +292,6 @@ export const AccountSheet = ({
                           'Nickname (@) for identifying the Account holder'
                       })}
                       readOnly={isReadOnly}
-                      required
                     />
 
                     {mode === 'create' && (

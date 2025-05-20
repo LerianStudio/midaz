@@ -142,6 +142,11 @@ jobs:
       with:
         go-version: '1.23'
         cache: false
+    
+    - name: Clean repo (reset + clean)
+      run: |
+        git reset --hard
+        git clean -fd
 
     # Build and publish Go binaries using GoReleaser
     - name: Run GoReleaser
@@ -153,7 +158,7 @@ jobs:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
   
-  # Generate changelog with gptchangelog
+  # Generate changelog with gptchangelog custom module
   generate_changelog:
     name: 📝 Generate AI-powered Changelog
     runs-on: ubuntu-22.04
@@ -174,3 +179,5 @@ jobs:
           LERIAN_CI_CD_USER_GPG_KEY_PASSWORD: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
           LERIAN_CI_CD_USER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           LERIAN_CI_CD_USER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}

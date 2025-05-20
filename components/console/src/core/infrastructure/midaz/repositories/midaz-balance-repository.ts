@@ -3,6 +3,9 @@ import { BalanceRepository } from '@/core/domain/repositories/balance-repository
 import { inject, injectable } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { createQueryString } from '@/lib/search'
+import { MidazBalanceDto } from '../dto/midaz-balance-dto'
+import { MidazBalanceMapper } from '../mappers/midaz-balance-mapper'
 
 @injectable()
 export class MidazBalanceRepository implements BalanceRepository {
@@ -13,6 +16,25 @@ export class MidazBalanceRepository implements BalanceRepository {
     private readonly httpService: MidazHttpService
   ) {}
 
+  async fetchAll(
+    organizationId: string,
+    ledgerId: string,
+    accountId?: string,
+    limit: number = 10
+  ): Promise<PaginationEntity<BalanceEntity>> {
+    if (accountId) {
+      return await this.getByAccountId(organizationId, ledgerId, accountId)
+    }
+
+    const response = await this.httpService.get<
+      PaginationEntity<MidazBalanceDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/balances${createQueryString({ limit })}`
+    )
+
+    return response
+  }
+
   async getByAccountId(
     organizationId: string,
     ledgerId: string,
@@ -21,9 +43,9 @@ export class MidazBalanceRepository implements BalanceRepository {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}/balances`
 
     const response =
-      await this.httpService.get<PaginationEntity<BalanceEntity>>(url)
+      await this.httpService.get<PaginationEntity<MidazBalanceDto>>(url)
 
-    return response
+    return MidazBalanceMapper.toPaginationEntity(response)
   }
 
   async update(
