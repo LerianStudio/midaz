@@ -32,6 +32,7 @@ type StateSelectProps = SelectProps &
     countryName: string
     placeholder?: string
     emptyMessage?: string
+    readOnly?: boolean
   }
 
 const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
@@ -43,7 +44,7 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
       onChange,
       countryName,
       emptyMessage,
-      ...others
+      readOnly
     }: StateSelectProps,
     ref
   ) => {
@@ -74,12 +75,17 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
     )
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={readOnly ? false : open}
+        onOpenChange={readOnly ? () => {} : setOpen}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={readOnly ? false : open}
+            readOnly={readOnly}
+            tabIndex={0}
             className={cn(
               'w-full justify-between',
               !value && 'text-muted-foreground'
@@ -90,7 +96,9 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
                 id: 'common.selectPlaceholder',
                 defaultMessage: 'Select...'
               })}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            {!readOnly && (
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
@@ -139,6 +147,7 @@ StateComboBox.displayName = 'Select'
 export type StateFieldProps = Omit<SelectFieldProps, 'children'> & {
   countryName?: string
   emptyMessage?: string
+  readOnly?: boolean
 }
 
 export const StateField = ({
@@ -147,6 +156,7 @@ export const StateField = ({
   placeholder,
   emptyMessage,
   required,
+  readOnly,
   ...others
 }: StateFieldProps) => {
   return (
@@ -159,6 +169,7 @@ export const StateField = ({
             countryName={countryName}
             placeholder={placeholder}
             emptyMessage={emptyMessage}
+            readOnly={readOnly}
             {...field}
           />
           <FormMessage />

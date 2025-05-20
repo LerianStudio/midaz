@@ -21,8 +21,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { CommandGroup } from 'cmdk'
-import { PropsWithChildren, ReactNode } from 'react'
+import React, { PropsWithChildren, ReactNode } from 'react'
 import { Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 
@@ -34,12 +33,14 @@ export type SelectFieldProps = PropsWithChildren & {
   description?: ReactNode
   placeholder?: string
   disabled?: boolean
+  readOnly?: boolean
   control: Control<any>
   multi?: boolean
   required?: boolean
 }
 
 export const SelectField = ({
+  name,
   label,
   tooltip,
   labelExtra,
@@ -47,7 +48,9 @@ export const SelectField = ({
   placeholder,
   description,
   disabled,
+  readOnly,
   multi,
+  control,
   children,
   ...others
 }: SelectFieldProps) => {
@@ -55,55 +58,66 @@ export const SelectField = ({
 
   return (
     <FormField
+      name={name}
+      control={control}
       {...others}
-      render={({ field: { ref, onChange, ...fieldOthers } }) => (
-        <FormItem ref={ref} required={required}>
-          {label && (
-            <FormLabel
-              extra={
-                tooltip ? <FormTooltip>{tooltip}</FormTooltip> : labelExtra
-              }
-            >
-              {label}
-            </FormLabel>
-          )}
-          {multi && (
-            <MultipleSelect
-              onValueChange={onChange}
-              disabled={disabled}
-              {...fieldOthers}
-            >
-              <MultipleSelectTrigger>
-                <MultipleSelectValue placeholder={placeholder} />
-              </MultipleSelectTrigger>
-              <MultipleSelectContent>{children}</MultipleSelectContent>
-            </MultipleSelect>
-          )}
-          {!multi && (
-            <Select onValueChange={onChange} {...fieldOthers}>
-              <FormControl>
-                <SelectTrigger
-                  disabled={disabled}
-                  className={cn(disabled && 'bg-shadcn-100')}
-                >
-                  <SelectValue placeholder={placeholder} />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectEmpty>
-                  {intl.formatMessage({
-                    id: 'common.noOptions',
-                    defaultMessage: 'No options found.'
-                  })}
-                </SelectEmpty>
-                {children}
-              </SelectContent>
-            </Select>
-          )}
-          <FormMessage />
-          {description && <FormDescription>{description}</FormDescription>}
-        </FormItem>
-      )}
+      render={({ field }) => {
+        return (
+          <FormItem required={required}>
+            {label && (
+              <FormLabel
+                extra={
+                  tooltip ? <FormTooltip>{tooltip}</FormTooltip> : labelExtra
+                }
+              >
+                {label}
+              </FormLabel>
+            )}
+
+            {multi ? (
+              <MultipleSelect
+                onValueChange={field.onChange}
+                disabled={disabled}
+                {...field}
+              >
+                <MultipleSelectTrigger readOnly={readOnly}>
+                  <MultipleSelectValue placeholder={placeholder} />
+                </MultipleSelectTrigger>
+                <MultipleSelectContent>{children}</MultipleSelectContent>
+              </MultipleSelect>
+            ) : (
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={disabled}
+                open={readOnly ? false : undefined}
+                onOpenChange={readOnly ? () => {} : undefined}
+              >
+                <FormControl>
+                  <SelectTrigger
+                    className={cn(disabled && 'bg-shadcn-100')}
+                    readOnly={readOnly}
+                  >
+                    <SelectValue placeholder={placeholder} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectEmpty>
+                    {intl.formatMessage({
+                      id: 'common.noOptions',
+                      defaultMessage: 'No options found.'
+                    })}
+                  </SelectEmpty>
+                  {children}
+                </SelectContent>
+              </Select>
+            )}
+
+            <FormMessage />
+            {description && <FormDescription>{description}</FormDescription>}
+          </FormItem>
+        )
+      }}
     />
   )
 }

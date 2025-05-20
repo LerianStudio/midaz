@@ -42,16 +42,20 @@ export class MidazAccountMapper {
   public static toEntity(asset: MidazAccountDto): AccountEntity {
     return {
       id: asset.id,
+      name: asset.name,
+      parentAccountId: asset.parentAccountId,
+      entityId: asset.entityId,
+      assetCode: asset.assetCode,
       organizationId: asset.organizationId,
       ledgerId: asset.ledgerId,
-      name: asset.name,
-      type: asset.type,
+      portfolioId: asset.portfolioId,
+      segmentId: asset.segmentId,
       alias: asset.alias,
-      assetCode: asset.assetCode,
-      metadata: asset.metadata ?? {},
+      type: asset.type,
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
-      deletedAt: asset.deletedAt
+      deletedAt: asset.deletedAt,
+      metadata: asset.metadata ?? {}
     }
   }
 

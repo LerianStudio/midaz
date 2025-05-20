@@ -33,6 +33,7 @@ import { EntityDataTable } from '@/components/entity-data-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { IdTableCell } from '@/components/table/id-table-cell'
 
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
@@ -159,7 +160,7 @@ export const OrganizationsTabContent = () => {
               <TableBody>
                 {data.items.map((organization) => (
                   <TableRow key={organization.id}>
-                    <TableCell>{organization.id}</TableCell>
+                    <IdTableCell id={organization.id} />
                     <TableCell>{organization.legalName}</TableCell>
                     <TableCell>{organization.doingBusinessAs}</TableCell>
                     <TableCell>{organization.legalDocument}</TableCell>
@@ -178,8 +179,8 @@ export const OrganizationsTabContent = () => {
                             onClick={() => handleEdit(organization)}
                           >
                             {intl.formatMessage({
-                              id: `common.edit`,
-                              defaultMessage: 'Edit'
+                              id: `common.details`,
+                              defaultMessage: 'Details'
                             })}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />

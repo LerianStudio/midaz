@@ -3,15 +3,15 @@ import { metadata } from './metadata'
 
 const name = z.string().min(3).max(255)
 
-const alias = z.string().min(1).max(255)
+const alias = z.string().max(255)
 
-const entityId = z.string().nullable().optional()
+const entityId = z.string().max(255)
 
 const assetCode = z.string()
 
-const portfolioId = z.string().nullable().optional()
+const portfolioId = z.string()
 
-const segmentId = z.string().nullable().optional()
+const segmentId = z.string()
 
 const type = z.string()
 

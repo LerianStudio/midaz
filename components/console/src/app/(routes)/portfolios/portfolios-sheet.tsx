@@ -24,6 +24,8 @@ import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type PortfolioSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -55,6 +57,7 @@ export const PortfolioSheet = ({
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('portfolios')
 
   const { mutate: createPortfolio, isPending: createPending } =
     useCreatePortfolio({
@@ -142,10 +145,15 @@ export const PortfolioSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'ledgers.portfolio.sheet.edit.description',
-                  defaultMessage: 'View and edit segment fields.'
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'ledgers.portfolio.sheet.edit.description.readonly',
+                      defaultMessage: 'View portfolio fields in read-only mode.'
+                    })
+                  : intl.formatMessage({
+                      id: 'ledgers.portfolio.sheet.edit.description',
+                      defaultMessage: 'View and edit segment fields.'
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
@@ -179,6 +187,7 @@ export const PortfolioSheet = ({
                         defaultMessage: 'Portfolio Name'
                       })}
                       control={form.control}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -195,6 +204,7 @@ export const PortfolioSheet = ({
                             'Enter the unique identifier for the entity associated with this portfolio'
                         })}
                         control={form.control}
+                        readOnly={isReadOnly}
                       />
                     )}
                     <p className="text-xs font-normal italic text-shadcn-400">
@@ -206,22 +216,28 @@ export const PortfolioSheet = ({
                   </div>
                 </TabsContent>
                 <TabsContent value="metadata">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </TabsContent>
               </Tabs>
 
               <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <LoadingButton
-                  size="lg"
-                  type="submit"
-                  fullWidth
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
+                <Enforce resource="portfolios" action="post, patch">
+                  <LoadingButton
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={createPending || updatePending}
+                  >
+                    {intl.formatMessage({
+                      id: 'common.save',
+                      defaultMessage: 'Save'
+                    })}
+                  </LoadingButton>
+                </Enforce>
               </SheetFooter>
             </form>
           </Form>
