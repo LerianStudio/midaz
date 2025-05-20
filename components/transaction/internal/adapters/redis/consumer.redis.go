@@ -177,7 +177,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		local INT64_MAX = 9223372036854775807
 		local INT64_MIN = -9223372036854775808
 		
-		local function couldOverflow(a, b)
+		local function willOverflow(a, b)
 			if b > 0 and a > INT64_MAX - b then
 				return true
 			elseif b < 0 and a < INT64_MIN - b then
@@ -206,14 +206,14 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		  if operation == "DEBIT" then
 			  if balance.Scale < amount.Scale then
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
-				if couldOverflow(v0, -amount.Available) then
+				if willOverflow(v0, -amount.Available) then
 					return nil, "overflow"
 				end
 				total = v0 - amount.Available
 				scale = amount.Scale
 			  else
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
-				if couldOverflow(balance.Available, -v0) then
+				if willOverflow(balance.Available, -v0) then
 					return nil, "overflow"
 				end
 				total = balance.Available - v0
@@ -222,14 +222,14 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		  else
 			  if balance.Scale < amount.Scale then
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
-				if couldOverflow(v0, amount.Available) then
+				if willOverflow(v0, amount.Available) then
 					return nil, "overflow"
 				end
 				total = v0 + amount.Available
 				scale = amount.Scale
 			  else
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
-				if couldOverflow(balance.Available, v0) then
+				if willOverflow(balance.Available, v0) then
 					return nil, "overflow"
 				end
 				total = balance.Available + v0
