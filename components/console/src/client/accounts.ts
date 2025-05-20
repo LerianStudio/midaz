@@ -30,7 +30,12 @@ export const useListAccounts = ({
   ...options
 }: UseListAccountsProps) => {
   return useQuery<PaginationDto<AccountDto>>({
-    queryKey: [organizationId, ledgerId, 'accounts', ...Object.values(query ?? {})],
+    queryKey: [
+      organizationId,
+      ledgerId,
+      'accounts',
+      ...Object.values(query ?? {})
+    ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts`,
       query

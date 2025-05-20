@@ -29,11 +29,7 @@ export class FetchAllAccountsUseCase implements FetchAllAccounts {
     query?: AccountSearchParamDto
   ): Promise<PaginationDto<AccountDto>> {
     const accountsResult: PaginationEntity<AccountEntity> =
-      await this.accountRepository.fetchAll(
-        organizationId,
-        ledgerId,
-        query
-      )
+      await this.accountRepository.fetchAll(organizationId, ledgerId, query)
 
     return AccountMapper.toPaginationResponseDto(accountsResult)
   }
