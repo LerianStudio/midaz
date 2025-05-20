@@ -59,11 +59,11 @@ const initialValues = {
 
 const FormSchema = z.object({
   name: accounts.name,
-  alias: accounts.alias,
-  entityId: accounts.entityId,
+  alias: accounts.alias.optional(),
+  entityId: accounts.entityId.optional(),
   assetCode: accounts.assetCode,
-  portfolioId: accounts.portfolioId,
-  segmentId: accounts.segmentId,
+  portfolioId: accounts.portfolioId.optional(),
+  segmentId: accounts.segmentId.optional(),
   metadata: accounts.metadata,
   type: accounts.type,
   allowSending: accounts.allowSending,
