@@ -1,3 +1,18 @@
+## [v2.2.0-beta.28] - 2025-05-20
+
+### 🐛 Bug Fixes
+- Correct message format to align with `lib-commons` standards.
+- Improve overflow handling for scales greater than 18 to prevent errors in mathematical operations.
+- Add overflow validation to enhance stability in calculations.
+- Remove auth network from OSS midaz onboarding and transaction processes to streamline user experience.
+
+### 🔧 Maintenance
+- Integrate `lib-commons` beta version, updating `go.mod` and `go.sum` for compatibility.
+- Update `go.mod` and `go.sum` files to reflect the latest dependency versions.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and improvements.
+
 ## [v2.2.0-beta.27] - 2025-05-19
 
 ### ✨ Features
