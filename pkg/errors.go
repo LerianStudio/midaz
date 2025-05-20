@@ -866,6 +866,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Alias",
 			Message:    "The alias contains invalid characters. Please verify the alias value and try again.",
 		},
+		constant.ErrOverFlowInt64: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrOverFlowInt64.Error(),
+			Title:      "Overflow Error",
+			Message:    "The request could not be completed due to an overflow. Please check the values, and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

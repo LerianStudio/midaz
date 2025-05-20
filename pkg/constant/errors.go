@@ -104,4 +104,5 @@ var (
 	ErrInvalidRequestBody                       = errors.New("0094")
 	ErrMessageBrokerUnavailable                 = errors.New("0095")
 	ErrAccountAliasInvalid                      = errors.New("0096")
+	ErrOverFlowInt64                            = errors.New("0097")
 )

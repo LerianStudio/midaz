@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth v1.14.1
-	github.com/LerianStudio/lib-commons v1.10.0
+	github.com/LerianStudio/lib-commons v1.12.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -17,7 +17,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jarcoal/httpmock v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/pelletier/go-toml/v2 v2.2.4
@@ -95,8 +95,8 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250519155744-55703ea1f237 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250519155744-55703ea1f237 // indirect
 	google.golang.org/grpc v1.72.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
