@@ -41,21 +41,21 @@ export class MidazAccountMapper {
 
   public static toEntity(account: MidazAccountDto): AccountEntity {
     return {
-      id: asset.id,
-      name: asset.name,
-      parentAccountId: asset.parentAccountId,
-      entityId: asset.entityId,
-      assetCode: asset.assetCode,
-      organizationId: asset.organizationId,
-      ledgerId: asset.ledgerId,
-      portfolioId: asset.portfolioId,
-      segmentId: asset.segmentId,
-      alias: asset.alias,
-      type: asset.type,
-      createdAt: asset.createdAt,
-      updatedAt: asset.updatedAt,
-      deletedAt: asset.deletedAt,
-      metadata: asset.metadata ?? {}
+      id: account.id,
+      name: account.name,
+      parentAccountId: account.parentAccountId,
+      entityId: account.entityId,
+      assetCode: account.assetCode,
+      organizationId: account.organizationId,
+      ledgerId: account.ledgerId,
+      portfolioId: account.portfolioId,
+      segmentId: account.segmentId,
+      alias: account.alias,
+      type: account.type,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+      deletedAt: account.deletedAt,
+      metadata: account.metadata ?? {}
     }
   }
 
