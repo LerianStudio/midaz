@@ -104,8 +104,10 @@ lint:
 	$(call title1,"Running linters")
 	@if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v golangci-lint >/dev/null 2>&1; then \
-			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			echo "$(YELLOW)golangci-lint not found, installing...$(NC)"; \
+			@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		else \
+			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
 		fi; \
 		golangci-lint run --fix ./... --verbose; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
