@@ -32,11 +32,9 @@ export const ApplicationsSecurityAlert = () => {
           <li>
             <FormattedMessage
               id="applications.security.doNotDelete"
-              defaultMessage="{doNotDelete} the application unless you're sure. Deleting it revokes access to all connected services."
+              defaultMessage="<b>Do not delete</b> the application unless you're sure. Deleting it revokes access to all connected services."
               values={{
-                doNotDelete: (chunks) => (
-                  <span className="font-bold">{chunks}</span>
-                )
+                b: (chunks) => <span className="font-bold">{chunks}</span>
               }}
             />
           </li>
@@ -50,11 +48,9 @@ export const ApplicationsSecurityAlert = () => {
           <li>
             <FormattedMessage
               id="applications.security.neverExpose"
-              defaultMessage="{neverExpose} these keys in frontend code or public repositories."
+              defaultMessage="<b>Never expose</b> these keys in frontend code or public repositories."
               values={{
-                neverExpose: (chunks) => (
-                  <span className="font-bold">{chunks}</span>
-                )
+                b: (chunks) => <span className="font-bold">{chunks}</span>
               }}
             />
           </li>
