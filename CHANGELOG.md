@@ -1,3 +1,11 @@
+## [v2.2.0-beta.29] - 2025-05-21
+
+### 🐛 Bug Fixes
+- Prevent reinstalling golangci-lint if already installed
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.28] - 2025-05-20
 
 ### 🐛 Bug Fixes
