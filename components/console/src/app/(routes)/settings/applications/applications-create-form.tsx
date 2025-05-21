@@ -12,6 +12,8 @@ import { SheetFooter } from '@/components/ui/sheet'
 import { applications } from '@/schema/application'
 import { useCreateApplication } from '@/client/applications'
 import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { ExternalLink } from 'lucide-react'
 
 const FormSchema = z.object({
   name: applications.name,
@@ -90,8 +92,8 @@ export const CreateApplicationForm = ({
             name="name"
             control={form.control}
             label={intl.formatMessage({
-              id: 'common.name',
-              defaultMessage: 'Name'
+              id: 'applications.create.name',
+              defaultMessage: 'Application Name'
             })}
             placeholder={intl.formatMessage({
               id: 'combobox.placeholder',
@@ -123,6 +125,20 @@ export const CreateApplicationForm = ({
                 defaultMessage: '(*) required fields.'
               })}
             </p>
+
+            <a
+              href="https://docs.lerian.studio/docs/midaz-console-with-access-manager"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button variant="outline" size="sm" type="button">
+                {intl.formatMessage({
+                  id: 'applications.create.rolesAndPermissions',
+                  defaultMessage: 'Roles and permissions'
+                })}
+                <ExternalLink className="ml-2" size={16} />
+              </Button>
+            </a>
           </div>
         </form>
       </Form>

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useIntl } from 'react-intl'
+import { useIntl, FormattedMessage } from 'react-intl'
 import { AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -30,23 +30,15 @@ export const ApplicationsSecurityAlert = () => {
             })}
           </li>
           <li>
-            {intl.formatMessage(
-              {
-                id: 'applications.security.doNotDelete',
-                defaultMessage:
-                  "{doNotDelete} the application unless you're sure. Deleting it revokes access to all connected services."
-              },
-              {
-                doNotDelete: (
-                  <span className="font-bold">
-                    {intl.formatMessage({
-                      id: 'applications.security.doNotDelete',
-                      defaultMessage: 'Do not delete'
-                    })}
-                  </span>
+            <FormattedMessage
+              id="applications.security.doNotDelete"
+              defaultMessage="{doNotDelete} the application unless you're sure. Deleting it revokes access to all connected services."
+              values={{
+                doNotDelete: (chunks) => (
+                  <span className="font-bold">{chunks}</span>
                 )
-              }
-            )}
+              }}
+            />
           </li>
           <li>
             {intl.formatMessage({
@@ -56,23 +48,15 @@ export const ApplicationsSecurityAlert = () => {
             })}
           </li>
           <li>
-            {intl.formatMessage(
-              {
-                id: 'applications.security.neverExpose',
-                defaultMessage:
-                  '{neverExpose} these keys in frontend code or public repositories.'
-              },
-              {
-                neverExpose: (
-                  <span className="font-bold">
-                    {intl.formatMessage({
-                      id: 'applications.security.neverExpose',
-                      defaultMessage: 'Never expose'
-                    })}
-                  </span>
+            <FormattedMessage
+              id="applications.security.neverExpose"
+              defaultMessage="{neverExpose} these keys in frontend code or public repositories."
+              values={{
+                neverExpose: (chunks) => (
+                  <span className="font-bold">{chunks}</span>
                 )
-              }
-            )}
+              }}
+            />
           </li>
         </ul>
       </AlertDescription>

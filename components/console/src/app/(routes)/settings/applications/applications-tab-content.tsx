@@ -30,6 +30,7 @@ import { useApplications, useDeleteApplication } from '@/client/applications'
 import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
 import { useToast } from '@/hooks/use-toast'
 import { ApplicationsSecurityAlert } from './applications-security-alert'
+import { CopyableTableCell } from '@/components/table/copyable-table-cell'
 
 export const ApplicationsTabContent = () => {
   const intl = useIntl()
@@ -125,31 +126,31 @@ export const ApplicationsTabContent = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
+                  <TableHead className="w-[22%]">
                     {intl.formatMessage({
                       id: 'common.name',
                       defaultMessage: 'Name'
                     })}
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-[21%]">
                     {intl.formatMessage({
                       id: 'applications.clientId',
-                      defaultMessage: 'Client ID'
+                      defaultMessage: 'ClientId'
                     })}
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-[33%]">
                     {intl.formatMessage({
                       id: 'applications.clientSecret',
-                      defaultMessage: 'Client Secret'
+                      defaultMessage: 'ClientSecret'
                     })}
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-[21%]">
                     {intl.formatMessage({
                       id: 'common.creationDate',
                       defaultMessage: 'Creation Date'
                     })}
                   </TableHead>
-                  <TableHead className="w-0">
+                  <TableHead className="w-[3%]">
                     {intl.formatMessage({
                       id: 'common.actions',
                       defaultMessage: 'Actions'
@@ -161,8 +162,8 @@ export const ApplicationsTabContent = () => {
                 {applications.map((application) => (
                   <TableRow key={application.id}>
                     <TableCell>{application.name}</TableCell>
-                    <TableCell>{application.clientId}</TableCell>
-                    <TableCell>{application.clientSecret ?? '—'}</TableCell>
+                    <CopyableTableCell value={application.clientId} />
+                    <CopyableTableCell value={application.clientSecret} />
                     <TableCell>
                       {application.createdAt
                         ? intl.formatDate(application.createdAt, {

@@ -50,8 +50,7 @@ export function CopyableInputField<
         description: intl.formatMessage({
           id: 'common.copied',
           defaultMessage: 'Copied to clipboard'
-        }),
-        variant: 'success'
+        })
       })
 
       setTimeout(() => {

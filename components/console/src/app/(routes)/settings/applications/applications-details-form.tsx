@@ -73,7 +73,7 @@ export const ApplicationDetailsForm = ({
             name="clientId"
             label={intl.formatMessage({
               id: 'applications.clientId',
-              defaultMessage: 'Client ID'
+              defaultMessage: 'ClientId'
             })}
             control={form.control}
             readOnly={true}
@@ -83,7 +83,7 @@ export const ApplicationDetailsForm = ({
             name="clientSecret"
             label={intl.formatMessage({
               id: 'applications.clientSecret',
-              defaultMessage: 'Client Secret'
+              defaultMessage: 'ClientSecret'
             })}
             control={form.control}
             readOnly={true}
