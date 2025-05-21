@@ -5,8 +5,8 @@ import (
 	"errors"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -114,7 +114,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	// Create operations for transactions
 	ops1 := []*operation.Operation{{
 		ID: "op1-" + txID1Str,
-	}}  
+	}}
 	ops2 := []*operation.Operation{{
 		ID: "op2-" + txID2Str,
 	}}
@@ -171,7 +171,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		assert.NotEmpty(t, tx.Operations, "Transaction operations should be populated")
 		assert.NotNil(t, tx.Metadata, "Transaction metadata should be populated")
 		assert.Equal(t, "value", tx.Metadata["key"])
-		
+
 		// Verify the correct operations were assigned to each transaction
 		if tx.ID == txID1Str {
 			assert.Equal(t, "op1-"+txID1Str, tx.Operations[0].ID)

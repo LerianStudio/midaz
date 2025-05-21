@@ -107,7 +107,7 @@ type AssetRate struct {
 	// Target asset code
 	// example: BRL
 	// minLength: 2
-	// maxLength: 10 
+	// maxLength: 10
 	To string `json:"to" example:"BRL" minLength:"2" maxLength:"10"`
 
 	// Conversion rate value
