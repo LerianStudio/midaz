@@ -67,6 +67,44 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	return response
 }
 
+// CreateTransactionInflow method that create transaction without passing from source
+//
+//	@Summary		Create a Transaction without passing from source
+//	@Description	Create a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
+func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*transaction.CreateTransactionInflowInput)
+	parserDSL := input.InflowFromDSl()
+	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
+
+	response := handler.createTransaction(c, logger, *parserDSL)
+
+	return response
+}
+
 // CreateTransactionDSL method that create transaction using DSL
 //
 //	@Summary		Create a Transaction using DSL

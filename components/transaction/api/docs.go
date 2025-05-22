@@ -1538,6 +1538,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
+            "post": {
+                "description": "Create a Transaction with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create a Transaction without passing from source",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateTransactionInflowSwaggerModel"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
             "post": {
                 "description": "Create a Transaction with the input payload",
@@ -2262,6 +2347,101 @@ const docTemplate = `{
                 }
             }
         },
+        "CreateTransactionInflowSwaggerModel": {
+            "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
+            "type": "object",
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "description": "Chart of accounts group name for accounting purposes\nexample: FUNDING\nmaxLength: 256",
+                    "type": "string"
+                },
+                "code": {
+                    "description": "Transaction code for reference\nexample: TR12345\nmaxLength: 100",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "Human-readable description of the transaction\nexample: New Inflow Transaction\nmaxLength: 256",
+                    "type": "string"
+                },
+                "metadata": {
+                    "description": "Additional custom attributes\nexample: {\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
+                    "type": "boolean"
+                },
+                "send": {
+                    "description": "Send operation details including distribution only\nrequired: true",
+                    "type": "object",
+                    "properties": {
+                        "asset": {
+                            "description": "Asset code for the transaction\nexample: USD\nrequired: true",
+                            "type": "string"
+                        },
+                        "distribute": {
+                            "description": "Destination accounts and amounts for the transaction\nrequired: true",
+                            "type": "object",
+                            "properties": {
+                                "to": {
+                                    "description": "List of destination operations\nrequired: true",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "account": {
+                                                "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
+                                                "type": "string"
+                                            },
+                                            "amount": {
+                                                "description": "Amount details for the operation\nrequired: true",
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "description": "Asset code\nexample: USD\nrequired: true",
+                                                        "type": "string"
+                                                    },
+                                                    "scale": {
+                                                        "description": "Decimal places\nexample: 2\nrequired: true",
+                                                        "type": "integer"
+                                                    },
+                                                    "value": {
+                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
+                                                        "type": "integer"
+                                                    }
+                                                }
+                                            },
+                                            "chartOfAccounts": {
+                                                "description": "Chart of accounts code\nexample: FUNDING_CREDIT",
+                                                "type": "string"
+                                            },
+                                            "description": {
+                                                "description": "Operation description\nexample: Credit Operation",
+                                                "type": "string"
+                                            },
+                                            "metadata": {
+                                                "description": "Additional metadata\nexample: {\"operation\": \"funding\", \"type\": \"account\"}",
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "scale": {
+                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
+                            "type": "integer"
+                        },
+                        "value": {
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
+                            "type": "integer"
+                        }
+                    }
+                }
+            }
+        },
         "Error": {
             "description": "Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.",
             "type": "object",
@@ -2478,7 +2658,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "description": "Transaction amount value in smallest unit of the asset\nexample: 1500\nminimum: 0",
+                    "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
                     "type": "integer",
                     "minimum": 0,
                     "example": 1500
@@ -2786,7 +2966,7 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in smallest unit of the asset\nexample: 100\nrequired: true",
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
                             "type": "integer"
                         }
                     }

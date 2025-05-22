@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "f0188a3c-cfb0-4e52-ac16-9ae7827eb1df",
+      "_postman_id": "0c7ca0c5-4d02-4bed-a7a5-23fcd56e6739",
       "event": []
     },
     {
@@ -12324,6 +12324,132 @@
                   "pm.environment.set(\"idempotencyKey\", timestamp + \"-\" + random);",
                   "console.log(\"Generated idempotency key:\", pm.environment.get(\"idempotencyKey\"));",
                   "",
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a Transaction without passing from source",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "inflow"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Transaction with the input payload",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"value\": 100\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
                   "",
                   "// Check for auth token",
                   "if (!pm.environment.get(\"authToken\")) {",
