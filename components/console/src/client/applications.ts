@@ -22,7 +22,6 @@ export const useApplicationById = ({ id, ...options }: { id: string }) => {
   return useQuery<ApplicationResponseDto>({
     queryKey: ['applications', id],
     queryFn: getFetcher(`/api/identity/applications/${id}`),
-    enabled: !!id,
     ...options
   })
 }
@@ -47,18 +46,10 @@ export const useCreateApplication = ({
 
 export const useDeleteApplication = ({
   ...options
-}: UseMutationOptions<any, any, any> = {}) => {
-  const queryClient = useQueryClient()
-
+}: UseMutationOptions<any, any, { id: string }> = {}) => {
   return useMutation({
     mutationKey: ['applications', 'delete'],
     mutationFn: deleteFetcher('/api/identity/applications'),
-    onSuccess: (...args) => {
-      queryClient.invalidateQueries({
-        queryKey: ['applications']
-      })
-      options.onSuccess?.(...args)
-    },
     ...options
   })
 }

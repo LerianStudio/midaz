@@ -31,6 +31,7 @@ import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
 import { useToast } from '@/hooks/use-toast'
 import { ApplicationsSecurityAlert } from './applications-security-alert'
 import { CopyableTableCell } from '@/components/table/copyable-table-cell'
+import dayjs from 'dayjs'
 
 export const ApplicationsTabContent = () => {
   const intl = useIntl()
@@ -54,6 +55,15 @@ export const ApplicationsTabContent = () => {
           }),
           variant: 'success'
         })
+      },
+      onError: () => {
+        toast({
+          description: intl.formatMessage({
+            id: 'errors.applications.delete',
+            defaultMessage: 'Failed to delete application'
+          }),
+          variant: 'destructive'
+        })
       }
     })
 
@@ -67,7 +77,7 @@ export const ApplicationsTabContent = () => {
     <div>
       <ConfirmationDialog
         title={intl.formatMessage({
-          id: 'dialog.delete.confirmTitle',
+          id: 'applications.dialog.delete.confirmTitle',
           defaultMessage: 'Are you sure you want to delete?'
         })}
         description={intl.formatMessage({
@@ -82,7 +92,7 @@ export const ApplicationsTabContent = () => {
           defaultMessage: 'I changed my mind'
         })}
         confirmLabel={intl.formatMessage({
-          id: 'dialog.delete.confirmLabel',
+          id: 'applications.dialog.delete.confirmLabel',
           defaultMessage: 'Yes, delete it'
         })}
         {...dialogProps}
@@ -166,11 +176,7 @@ export const ApplicationsTabContent = () => {
                     <CopyableTableCell value={application.clientSecret} />
                     <TableCell>
                       {application.createdAt
-                        ? intl.formatDate(application.createdAt, {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                          })
+                        ? dayjs(application.createdAt).format('L')
                         : '—'}
                     </TableCell>
                     <TableCell align="center">

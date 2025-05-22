@@ -24,7 +24,7 @@ const initialValues = {
   clientSecret: ''
 }
 
-interface ApplicationDetailsFormProps {
+type ApplicationDetailsFormProps = {
   application: ApplicationResponseDto
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void

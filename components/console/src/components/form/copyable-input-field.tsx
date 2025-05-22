@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Control, FieldPath, FieldValues } from 'react-hook-form'
 import {
   FormControl,
@@ -9,7 +8,7 @@ import {
   FormTooltip
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Check, Copy } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useIntl } from 'react-intl'
 
@@ -38,24 +37,16 @@ export function CopyableInputField<
   required = false,
   disabled = false
 }: CopyableInputFieldProps<TFieldValues, TName>) {
-  const [isCopied, setIsCopied] = useState(false)
   const { toast } = useToast()
   const intl = useIntl()
 
   const handleCopy = (value: string) => {
-    navigator.clipboard.writeText(value).then(() => {
-      setIsCopied(true)
-
-      toast({
-        description: intl.formatMessage({
-          id: 'common.copied',
-          defaultMessage: 'Copied to clipboard'
-        })
+    navigator.clipboard.writeText(value)
+    toast({
+      description: intl.formatMessage({
+        id: 'common.copied',
+        defaultMessage: 'Copied to clipboard'
       })
-
-      setTimeout(() => {
-        setIsCopied(false)
-      }, 2000)
     })
   }
 
@@ -85,7 +76,7 @@ export function CopyableInputField<
               tabIndex={-1}
               onClick={() => handleCopy(field.value)}
             >
-              {isCopied ? <Check size={20} /> : <Copy size={20} />}
+              <Copy size={20} />
             </button>
           </div>
           <FormMessage />

@@ -12,7 +12,10 @@ export const ApplicationsSecurityAlert = () => {
     <Alert variant="warning" className="mb-6 border-yellow-500/50">
       <AlertTriangle size={24} />
       <AlertTitle className="ml-2 text-sm font-bold text-yellow-800">
-        Security Warning
+        {intl.formatMessage({
+          id: 'applications.security.title',
+          defaultMessage: 'Security Warning'
+        })}
       </AlertTitle>
       <AlertDescription className="text-sm text-yellow-800 opacity-70">
         <ul className="ml-5 mt-2 list-disc space-y-1">

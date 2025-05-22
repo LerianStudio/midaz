@@ -12,7 +12,7 @@ import { SheetFooter } from '@/components/ui/sheet'
 import { applications } from '@/schema/application'
 import { useCreateApplication } from '@/client/applications'
 import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
 
 const FormSchema = z.object({
@@ -32,7 +32,7 @@ const getApplicationOptions = () =>
     option.trim()
   ) ?? []
 
-interface CreateApplicationFormProps {
+type CreateApplicationFormProps = {
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
 }
@@ -45,28 +45,29 @@ export const CreateApplicationForm = ({
   const { toast } = useToast()
   const applicationOptions = getApplicationOptions()
 
-  const createApplicationMutation = useCreateApplication({
-    onSuccess: () => {
-      toast({
-        description: intl.formatMessage({
-          id: 'success.applications.create',
-          defaultMessage: 'Application successfully created'
-        }),
-        variant: 'success'
-      })
-      onOpenChange?.(false)
-      onSuccess?.()
-    },
-    onError: () => {
-      toast({
-        description: intl.formatMessage({
-          id: 'error.applications.create',
-          defaultMessage: 'Failed to create application'
-        }),
-        variant: 'destructive'
-      })
-    }
-  })
+  const { mutate: createApplication, isPending: createApplicationPending } =
+    useCreateApplication({
+      onSuccess: () => {
+        toast({
+          description: intl.formatMessage({
+            id: 'success.applications.create',
+            defaultMessage: 'Application successfully created'
+          }),
+          variant: 'success'
+        })
+        onOpenChange?.(false)
+        onSuccess?.()
+      },
+      onError: () => {
+        toast({
+          description: intl.formatMessage({
+            id: 'errors.applications.create',
+            defaultMessage: 'Failed to create application'
+          }),
+          variant: 'destructive'
+        })
+      }
+    })
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -74,7 +75,7 @@ export const CreateApplicationForm = ({
   })
 
   const handleSubmit = async (data: FormData) => {
-    createApplicationMutation.mutate({
+    createApplication({
       name: data.name,
       description: data.description ?? ''
     })
@@ -130,14 +131,13 @@ export const CreateApplicationForm = ({
               href="https://docs.lerian.studio/docs/midaz-console-with-access-manager"
               target="_blank"
               rel="noopener noreferrer"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
             >
-              <Button variant="outline" size="sm" type="button">
-                {intl.formatMessage({
-                  id: 'applications.create.rolesAndPermissions',
-                  defaultMessage: 'Roles and permissions'
-                })}
-                <ExternalLink className="ml-2" size={16} />
-              </Button>
+              {intl.formatMessage({
+                id: 'applications.create.rolesAndPermissions',
+                defaultMessage: 'Roles and permissions'
+              })}
+              <ExternalLink className="ml-2" size={16} />
             </a>
           </div>
         </form>
@@ -150,7 +150,7 @@ export const CreateApplicationForm = ({
             type="submit"
             form="application-create-form"
             fullWidth
-            loading={createApplicationMutation.isPending}
+            loading={createApplicationPending}
           >
             {intl.formatMessage({
               id: 'common.save',

@@ -558,15 +558,11 @@
   "applications.showing": "Mostrando {count} {number, plural, =0 {applications} one {application} other {applications}}.",
   "applications.subtitle": "Gerencie as applications do Midaz.",
   "applications.title": "Applications",
-  "applications.tooltip": "Applications que poderão interagir com as Organizações e Ledgers que você criar.",
+  "applications.tooltip": "É uma entidade que representa um cliente OAuth — em outras palavras, um sistema ou serviço externo que se conecta à sua API através de autenticação via um Provedor de Identidade. Cada Application possui suas próprias credenciais (client ID e secret) usadas para autorizar e autenticar o acesso às APIs.",
   "combobox.placeholder": "Selecione uma opção",
   "common.copied": "Copiado",
   "common.creationDate": "Data de criação",
   "common.description": "Descrição",
-  "dialog.delete.confirmLabel": "Sim, excluir",
-  "dialog.delete.confirmTitle": "Você tem certeza que deseja excluir?",
-  "error.applications.create": "Erro ao criar a application",
-  "errors.too_small.array.inclusive": "O array deve conter pelo menos 1 elemento",
   "settings.tabs.applications": "Applications",
   "success.applications.create": "Application criada com sucesso",
   "success.applications.delete": "Application excluída com sucesso",
@@ -611,5 +607,10 @@
   "transactions.create.mode.title": "Alterar tipo",
   "transactions.create.searchByAlias": "Buscar por Alias",
   "transactions.errors.credit": "A soma dos créditos difere do valor da transação",
-  "transactions.create.mode.complex": "Nova Transação complexa"
+  "transactions.create.mode.complex": "Nova Transação complexa",
+  "errors.applications.create": "Erro ao criar application",
+  "errors.applications.delete": "Erro ao deletar application",
+  "applications.dialog.delete.confirmLabel": "Sim, deletar",
+  "applications.dialog.delete.confirmTitle": "Tem certeza que deseja deletar?",
+  "applications.security.title": "Aviso de Segurança"
 }
