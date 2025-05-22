@@ -7,7 +7,6 @@ import {
 import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
-import { transactions as lib } from '@lerian/lib-commons-js'
 import { omitBy } from 'lodash'
 
 export class MidazTransactionMapper {
@@ -19,13 +18,19 @@ export class MidazTransactionMapper {
         description: transaction.description,
         chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
         send: {
-          ...lib.findScale(transaction.asset, transaction.value, 0),
+          asset: transaction.asset,
+          value: transaction.amount.value,
+          scale: transaction.amount.scale,
           source: {
             from: transaction.source.map((source) =>
               omitBy(
                 {
                   account: source.account,
-                  amount: lib.findScale(transaction.asset, source.value, 0),
+                  amount: {
+                    value: source.amount.value,
+                    scale: source.amount.scale,
+                    asset: transaction.asset
+                  },
                   description: source.description,
                   chartOfAccounts: source.chartOfAccounts,
                   metadata: source.metadata
@@ -39,11 +44,11 @@ export class MidazTransactionMapper {
               omitBy(
                 {
                   account: destination.account,
-                  amount: lib.findScale(
-                    transaction.asset,
-                    destination.value,
-                    0
-                  ),
+                  amount: {
+                    value: destination.amount.value,
+                    scale: destination.amount.scale,
+                    asset: transaction.asset
+                  },
                   description: destination.description,
                   chartOfAccounts: destination.chartOfAccounts,
                   metadata: destination.metadata
@@ -81,13 +86,19 @@ export class MidazTransactionMapper {
       description: transaction.description,
       chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
       status: transaction.status,
-      value: lib.undoScale(transaction.amount, -transaction.amountScale),
+      amount: {
+        value: transaction.amount,
+        scale: transaction.amountScale
+      },
       asset: transaction.assetCode,
       source: source.map((source) => ({
         account: source.accountId,
         accountAlias: source.accountAlias,
         asset: source.assetCode,
-        value: lib.undoScale(source.amount.amount, -source.amount.scale),
+        amount: {
+          value: source.amount.amount,
+          scale: source.amount.scale
+        },
         description: source.description,
         chartOfAccounts: source.chartOfAccounts,
         metadata: source.metadata ?? {}
@@ -96,10 +107,10 @@ export class MidazTransactionMapper {
         account: destination.accountId,
         accountAlias: destination.accountAlias,
         asset: destination.assetCode,
-        value: lib.undoScale(
-          destination.amount.amount,
-          -destination.amount.scale
-        ),
+        amount: {
+          value: destination.amount.amount,
+          scale: destination.amount.scale
+        },
         description: destination.description,
         chartOfAccounts: destination.chartOfAccounts,
         metadata: destination.metadata ?? {}
