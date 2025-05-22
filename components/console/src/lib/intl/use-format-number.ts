@@ -15,7 +15,7 @@ export function useFormatNumber() {
 
   const formatNumber = React.useCallback(
     (value: Decimal) => value.toString().replaceAll('.', separator),
-    [locale, separator]
+    [separator]
   )
 
   return { formatNumber }
