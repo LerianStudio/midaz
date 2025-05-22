@@ -67,7 +67,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	return response
 }
 
-// CreateTransactionInflow method that create transaction without passing from source
+// CreateTransactionInflow method that creates a transaction without specifying a source
 //
 //	@Summary		Create a Transaction without passing from source
 //	@Description	Create a Transaction with the input payload
