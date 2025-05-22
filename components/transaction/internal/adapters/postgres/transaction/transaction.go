@@ -584,7 +584,7 @@ type TransactionsResponse struct {
 	}
 }
 
-// CreateTransactionInflowInput is a struct design to encapsulate payload data for inflow transactions.
+// CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
 //
 // swagger:model CreateTransactionInflowInput
 // @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.
