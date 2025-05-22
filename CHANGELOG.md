@@ -1,3 +1,11 @@
+## [v2.2.0-beta.31] - 2025-05-22
+
+### ✨ Features
+- Add endpoint for outflow transactions to support external withdrawal operations
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.30] - 2025-05-22
 
 ### ✨ Features
