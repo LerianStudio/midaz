@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -178,7 +179,7 @@ type CreateTransactionSwaggerModel struct {
 		// required: true
 		Asset string `json:"asset"`
 
-		// Transaction amount value in smallest unit of the asset
+		// Transaction amount value in the smallest unit of the asset
 		// example: 100
 		// required: true
 		Value int64 `json:"value"`
@@ -341,7 +342,7 @@ type Transaction struct {
 	// Transaction status information
 	Status Status `json:"status"`
 
-	// Transaction amount value in smallest unit of the asset
+	// Transaction amount value in the smallest unit of the asset
 	// example: 1500
 	// minimum: 0
 	Amount *int64 `json:"amount" example:"1500" minimum:"0"`
@@ -580,5 +581,212 @@ type TransactionsResponse struct {
 			NextCursor *string `json:"next_cursor,omitempty"`
 			PrevCursor *string `json:"prev_cursor,omitempty"`
 		} `json:"pagination"`
+	}
+}
+
+// CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
+//
+// swagger:model CreateTransactionInflowInput
+// @Description CreateTransactionInflowInput is the input payload to create an inflow transaction. Contains all necessary fields to create a financial transaction without source information, only destination.
+type CreateTransactionInflowInput struct {
+	// Chart of accounts group name for accounting purposes
+	// example: FUNDING
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"FUNDING"`
+
+	// Human-readable description of the transaction
+	// example: New Transaction
+	// maxLength: 256
+	Description string `json:"description,omitempty" validate:"max=256" example:"New Transaction" maxLength:"256"`
+
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
+
+	// Whether the transaction should be created in pending state
+	// swagger:ignore
+	Pending bool `json:"pending,omitempty"`
+
+	// Additional custom attributes
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	// swagger:type object
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Send operation details including distribution only (no source)
+	// required: true
+	// swagger:type object
+	Send *SendInflow `json:"send,omitempty" validate:"required,dive"`
+} // @name CreateTransactionInflowInput
+
+//	@example {
+//	  "chartOfAccountsGroupName": "FUNDING",
+//	  "description": "New Inflow Transaction",
+//	  "code": "TR12345",
+//	  "metadata": {
+//	    "reference": "TRANSACTION-001",
+//	    "source": "api"
+//	  },
+//	  "send": {
+//	    "asset": "USD",
+//	    "value": 100,
+//	    "scale": 2,
+//	    "distribute": {
+//	      "to": [
+//	        {
+//	          "account": "{{accountAlias}}",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": 100,
+//	            "scale": 2
+//	          },
+//	          "description": "Credit Operation",
+//	          "chartOfAccounts": "FUNDING_CREDIT",
+//	          "metadata": {
+//	            "operation": "funding",
+//	            "type": "account"
+//	          }
+//	        }
+//	      ]
+//	    }
+//	  }
+//	}
+//
+
+// SendInflow structure for marshaling/unmarshalling JSON for inflow transactions.
+//
+// swagger:model SendInflow
+// @Description SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.
+type SendInflow struct {
+	Asset      string                    `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value      int64                     `json:"value,omitempty" validate:"required" example:"1000"`
+	Scale      int64                     `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Distribute libTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
+} // @name SendInflow
+
+// CreateTransactionInflowSwaggerModel is a struct that mirrors CreateTransactionInflowInput but with explicit types for Swagger
+// This is only used for Swagger documentation generation
+//
+// swagger:model CreateTransactionInflowSwaggerModel
+// @Description Schema for creating inflow transaction with the complete SendInflow operation structure defined inline
+type CreateTransactionInflowSwaggerModel struct {
+	// Chart of accounts group name for accounting purposes
+	// example: FUNDING
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Human-readable description of the transaction
+	// example: New Inflow Transaction
+	// maxLength: 256
+	Description string `json:"description,omitempty"`
+
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty"`
+
+	// Whether the transaction should be created in pending state
+	// swagger:ignore
+	Pending bool `json:"pending,omitempty"`
+
+	// Additional custom attributes
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Send operation details including distribution only
+	// required: true
+	Send struct {
+		// Asset code for the transaction
+		// example: USD
+		// required: true
+		Asset string `json:"asset"`
+
+		// Transaction amount value in the smallest unit of the asset
+		// example: 100
+		// required: true
+		Value int64 `json:"value"`
+
+		// Decimal places for the transaction amount
+		// example: 2
+		// required: true
+		Scale int64 `json:"scale"`
+
+		// Destination accounts and amounts for the transaction
+		// required: true
+		Distribute struct {
+			// List of destination operations
+			// required: true
+			To []struct {
+				// Account identifier or alias
+				// example: {{accountAlias}}
+				// required: true
+				Account string `json:"account"`
+
+				// Amount details for the operation
+				// required: true
+				Amount struct {
+					// Asset code
+					// example: USD
+					// required: true
+					Asset string `json:"asset"`
+
+					// Amount value in smallest unit
+					// example: 100
+					// required: true
+					Value int64 `json:"value"`
+
+					// Decimal places
+					// example: 2
+					// required: true
+					Scale int64 `json:"scale"`
+				} `json:"amount"`
+
+				// Operation description
+				// example: Credit Operation
+				Description string `json:"description,omitempty"`
+
+				// Chart of accounts code
+				// example: FUNDING_CREDIT
+				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+
+				// Additional metadata
+				// example: {"operation": "funding", "type": "account"}
+				Metadata map[string]any `json:"metadata,omitempty"`
+			} `json:"to"`
+		} `json:"distribute"`
+	} `json:"send"`
+} // @name CreateTransactionInflowSwaggerModel
+
+// InflowFromDSl converts an entity InflowFromDSl to a libTransaction.Transaction
+func (c *CreateTransactionInflowInput) InflowFromDSl() *libTransaction.Transaction {
+	listFrom := make([]libTransaction.FromTo, 0)
+
+	from := libTransaction.FromTo{
+		IsFrom:  true,
+		Account: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
+		Amount: &libTransaction.Amount{
+			Asset: c.Send.Asset,
+			Value: c.Send.Value,
+			Scale: c.Send.Scale,
+		},
+	}
+
+	listFrom = append(listFrom, from)
+
+	return &libTransaction.Transaction{
+		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
+		Description:              c.Description,
+		Code:                     c.Code,
+		Pending:                  c.Pending,
+		Metadata:                 c.Metadata,
+		Send: libTransaction.Send{
+			Asset:      c.Send.Asset,
+			Value:      c.Send.Value,
+			Scale:      c.Send.Scale,
+			Distribute: c.Send.Distribute,
+			Source: libTransaction.Source{
+				From: listFrom,
+			},
+		},
 	}
 }

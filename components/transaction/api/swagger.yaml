@@ -237,6 +237,124 @@ definitions:
     - rate
     - to
     type: object
+  CreateTransactionInflowSwaggerModel:
+    description: Schema for creating inflow transaction with the complete SendInflow
+      operation structure defined inline
+    properties:
+      chartOfAccountsGroupName:
+        description: |-
+          Chart of accounts group name for accounting purposes
+          example: FUNDING
+          maxLength: 256
+        type: string
+      code:
+        description: |-
+          Transaction code for reference
+          example: TR12345
+          maxLength: 100
+        type: string
+      description:
+        description: |-
+          Human-readable description of the transaction
+          example: New Inflow Transaction
+          maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Additional custom attributes
+          example: {"reference": "TRANSACTION-001", "source": "api"}
+        type: object
+      pending:
+        description: |-
+          Whether the transaction should be created in pending state
+          swagger:ignore
+        type: boolean
+      send:
+        description: |-
+          Send operation details including distribution only
+          required: true
+        properties:
+          asset:
+            description: |-
+              Asset code for the transaction
+              example: USD
+              required: true
+            type: string
+          distribute:
+            description: |-
+              Destination accounts and amounts for the transaction
+              required: true
+            properties:
+              to:
+                description: |-
+                  List of destination operations
+                  required: true
+                items:
+                  properties:
+                    account:
+                      description: |-
+                        Account identifier or alias
+                        example: {{accountAlias}}
+                        required: true
+                      type: string
+                    amount:
+                      description: |-
+                        Amount details for the operation
+                        required: true
+                      properties:
+                        asset:
+                          description: |-
+                            Asset code
+                            example: USD
+                            required: true
+                          type: string
+                        scale:
+                          description: |-
+                            Decimal places
+                            example: 2
+                            required: true
+                          type: integer
+                        value:
+                          description: |-
+                            Amount value in smallest unit
+                            example: 100
+                            required: true
+                          type: integer
+                      type: object
+                    chartOfAccounts:
+                      description: |-
+                        Chart of accounts code
+                        example: FUNDING_CREDIT
+                      type: string
+                    description:
+                      description: |-
+                        Operation description
+                        example: Credit Operation
+                      type: string
+                    metadata:
+                      additionalProperties: {}
+                      description: |-
+                        Additional metadata
+                        example: {"operation": "funding", "type": "account"}
+                      type: object
+                  type: object
+                type: array
+            type: object
+          scale:
+            description: |-
+              Decimal places for the transaction amount
+              example: 2
+              required: true
+            type: integer
+          value:
+            description: |-
+              Transaction amount value in the smallest unit of the asset
+              example: 100
+              required: true
+            type: integer
+        type: object
+    type: object
   Error:
     description: Standardized error response format used across all API endpoints
       for error situations. Provides structured information about errors including
@@ -476,7 +594,7 @@ definitions:
     properties:
       amount:
         description: |-
-          Transaction amount value in smallest unit of the asset
+          Transaction amount value in the smallest unit of the asset
           example: 1500
           minimum: 0
         example: 1500
@@ -844,7 +962,7 @@ definitions:
             type: object
           value:
             description: |-
-              Transaction amount value in smallest unit of the asset
+              Transaction amount value in the smallest unit of the asset
               example: 100
               required: true
             type: integer
@@ -2308,6 +2426,63 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Create a Transaction using DSL
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+    post:
+      consumes:
+      - application/json
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/CreateTransactionInflowSwaggerModel'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a Transaction without passing from source
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:

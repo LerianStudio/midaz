@@ -1145,6 +1145,75 @@ paths:
       summary: Create a Transaction using DSL
       tags:
       - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+    post:
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Transaction without passing from source
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       description: Create a Transaction with the input payload
@@ -1866,6 +1935,74 @@ components:
       - rate
       - to
       type: object
+    CreateTransactionInflowSwaggerModel:
+      description: Schema for creating inflow transaction with the complete SendInflow
+        operation structure defined inline
+      example:
+        metadata:
+          key: '{}'
+        code: code
+        pending: true
+        description: description
+        chartOfAccountsGroupName: chartOfAccountsGroupName
+        send:
+          scale: 1
+          distribute:
+            to:
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+          asset: asset
+          value: 5
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: FUNDING
+            maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Inflow Transaction
+            maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+          type: object
+        pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            swagger:ignore
+          type: boolean
+        send:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
+      type: object
     Error:
       description: Standardized error response format used across all API endpoints
         for error situations. Provides structured information about errors including
@@ -2200,7 +2337,7 @@ components:
       properties:
         amount:
           description: |-
-            Transaction amount value in smallest unit of the asset
+            Transaction amount value in the smallest unit of the asset
             example: 1500
             minimum: 0
           example: 1500
@@ -2941,10 +3078,14 @@ components:
         prev_cursor:
           type: string
       type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount
-    : description: |-
+    CreateTransactionInflowSwaggerModel_send_distribute_amount:
+      description: |-
         Amount details for the operation
         required: true
+      example:
+        scale: 0
+        asset: asset
+        value: 6
       properties:
         asset:
           description: |-
@@ -2965,8 +3106,18 @@ components:
             required: true
           type: integer
       type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to
-    : properties:
+    CreateTransactionInflowSwaggerModel_send_distribute_to:
+      example:
+        amount:
+          scale: 0
+          asset: asset
+          value: 6
+        metadata:
+          key: '{}'
+        chartOfAccounts: chartOfAccounts
+        description: description
+        account: account
+      properties:
         account:
           description: |-
             Account identifier or alias
@@ -2974,7 +3125,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -2993,18 +3144,88 @@ components:
             example: {"operation": "funding", "type": "account"}
           type: object
       type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
-    : description: |-
+    CreateTransactionInflowSwaggerModel_send_distribute:
+      description: |-
         Destination accounts and amounts for the transaction
         required: true
+      example:
+        to:
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
       properties:
         to:
           description: |-
             List of destination operations
             required: true
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to'
+            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to'
           type: array
+      type: object
+    CreateTransactionInflowSwaggerModel_send:
+      description: |-
+        Send operation details including distribution only
+        required: true
+      example:
+        scale: 1
+        distribute:
+          to:
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+        asset: asset
+        value: 5
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: USD
+            required: true
+          type: string
+        distribute:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        value:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
       type: object
     ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
     : properties:
@@ -3015,7 +3236,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -3059,7 +3280,7 @@ components:
             required: true
           type: string
         distribute:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
         scale:
           description: |-
             Decimal places for the transaction amount
@@ -3070,7 +3291,7 @@ components:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
         value:
           description: |-
-            Transaction amount value in smallest unit of the asset
+            Transaction amount value in the smallest unit of the asset
             example: 100
             required: true
           type: integer
