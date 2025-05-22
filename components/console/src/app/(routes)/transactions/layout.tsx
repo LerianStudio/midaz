@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <Sidebar />
       <PageView>
         <Header />
-        <PageContent>{children}</PageContent>
+        <PageContent className="p-0">{children}</PageContent>
       </PageView>
     </PageRoot>
   )

@@ -10,6 +10,7 @@ import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
 import { isEmpty } from 'lodash'
 import { AccountSearchParamDto } from '@/core/application/dto/account-dto'
+import { externalAccountAliasPrefix } from '../config/config'
 
 @injectable()
 export class MidazAccountRepository implements AccountRepository {
@@ -43,8 +44,8 @@ export class MidazAccountRepository implements AccountRepository {
   ): Promise<PaginationEntity<AccountEntity>> {
     const { alias, page = 1, limit = 10 } = query ?? {}
 
-    if (alias && alias.includes('@external/')) {
-      const asset = alias.replace('@external/', '')
+    if (alias && alias.includes(externalAccountAliasPrefix)) {
+      const asset = alias.replace(externalAccountAliasPrefix, '')
 
       const response = await this.fetchExternalAccount(
         organizationId,

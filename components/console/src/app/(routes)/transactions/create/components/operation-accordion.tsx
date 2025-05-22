@@ -22,9 +22,8 @@ import {
   TooltipContent,
   TooltipProvider
 } from '@/components/ui/tooltip'
-import { useTransactionForm } from './transaction-form-provider'
-import { useState } from 'react'
-import { TransactionSourceFormSchema } from './schemas'
+import { useTransactionForm } from '../transaction-form-provider'
+import { TransactionSourceFormSchema } from '../schemas'
 
 type ValueFieldProps = {
   name: string
@@ -33,16 +32,6 @@ type ValueFieldProps = {
 }
 
 const ValueField = ({ name, error, control }: ValueFieldProps) => {
-  const [open, setOpen] = useState(false)
-
-  const handleOpen = (value: boolean) => {
-    if (error) {
-      setOpen(value)
-    } else {
-      setOpen(false)
-    }
-  }
-
   return (
     <FormField
       name={name}
@@ -50,7 +39,7 @@ const ValueField = ({ name, error, control }: ValueFieldProps) => {
       render={({ field }) => (
         <FormItem>
           <TooltipProvider>
-            <Tooltip open={open} onOpenChange={handleOpen} delayDuration={50}>
+            <Tooltip disabled={!error} delayDuration={50}>
               <TooltipTrigger>
                 <FormControl>
                   <Input type="number" className="" {...field} min={0} />
@@ -137,7 +126,7 @@ export const OperationAccordion = ({
               {valueEditable ? (
                 <ValueField
                   name={`${name}.value`}
-                  error={errors[type]}
+                  error={errors[type]?.message}
                   control={control}
                 />
               ) : (

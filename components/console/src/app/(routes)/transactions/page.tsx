@@ -79,7 +79,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <React.Fragment>
+    <div className="p-16">
       <Breadcrumb paths={breadcrumbPaths} />
 
       <PageHeader.Root>
@@ -140,6 +140,6 @@ export default function TransactionsPage() {
           <TransactionsDataTable {...transactionsTableProps} />
         )}
       </div>
-    </React.Fragment>
+    </div>
   )
 }
