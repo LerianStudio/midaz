@@ -30,6 +30,7 @@ import {
   TransactionMode,
   useTransactionMode
 } from './hooks/use-transaction-mode'
+import { transactions as lib } from '@lerian/lib-commons-js'
 
 export const TransactionReview = () => {
   const intl = useIntl()
@@ -63,16 +64,16 @@ export const TransactionReview = () => {
       }
     })
 
-  const parse = (values: TransactionFormSchema) => ({
+  const parse = ({ value, ...values }: TransactionFormSchema) => ({
     ...values,
-    value: Number(values.value),
-    source: values.source?.map((source) => ({
+    amount: lib.findScale(values.asset, Number(value), 0),
+    source: values.source?.map(({ value, ...source }) => ({
       ...source,
-      value: Number(source.value)
+      amount: lib.findScale(values.asset, Number(value), 0)
     })),
-    destination: values.destination?.map((destination) => ({
+    destination: values.destination?.map(({ value, ...destination }) => ({
       ...destination,
-      value: Number(destination.value)
+      amount: lib.findScale(values.asset, Number(value), 0)
     }))
   })
 
@@ -197,7 +198,7 @@ export const TransactionReview = () => {
                 id: 'common.value',
                 defaultMessage: 'Value'
               })}
-              value={`${values.asset} ${intl.formatNumber(values.value)}`}
+              value={`${values.asset} ${intl.formatNumber(values.value, { roundingPriority: 'morePrecision' })}`}
             />
             <Separator orientation="horizontal" />
             {values.source?.map((source, index) => (
@@ -206,7 +207,7 @@ export const TransactionReview = () => {
                 type="debit"
                 account={source.account}
                 asset={values.asset}
-                value={source.value}
+                value={source.value.toString()}
               />
             ))}
             {values.destination?.map((destination, index) => (
@@ -215,7 +216,7 @@ export const TransactionReview = () => {
                 type="credit"
                 account={destination.account}
                 asset={values.asset}
-                value={destination.value}
+                value={destination.value.toString()}
               />
             ))}
             <Separator orientation="horizontal" />

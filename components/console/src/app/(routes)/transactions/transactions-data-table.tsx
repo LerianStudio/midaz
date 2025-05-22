@@ -45,6 +45,7 @@ import {
   TransactionOperationDto,
   TransactionDto
 } from '@/core/application/dto/transaction-dto'
+import { useFormatAmount } from '@/hooks/use-format-amount'
 
 type TransactionsDataTableProps = {
   transactions: PaginationDto<TransactionDto> | undefined
@@ -90,6 +91,7 @@ const statusMessages = defineMessages({
 
 const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const intl = useIntl()
+  const { formatAmount } = useFormatAmount()
   const {
     status: { code },
     createdAt,
@@ -154,7 +156,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
         </TableCell>
         <TableCell className="text-base font-medium text-zinc-600">
           <span className="mr-2 text-xs font-normal">{asset}</span>
-          {capitalizeFirstLetter(intl.formatNumber(transaction.original.value))}
+          {formatAmount(transaction.original.amount)}
         </TableCell>
         <TableCell align="center">
           <DropdownMenu>

@@ -136,7 +136,9 @@ export const OperationAccordion = ({
                     'text-green-500': type === 'credit'
                   })}
                 >
-                  {intl.formatNumber(values.value)}
+                  {intl.formatNumber(values.value, {
+                    roundingPriority: 'morePrecision'
+                  })}
                 </p>
               )}
             </div>
