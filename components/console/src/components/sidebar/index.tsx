@@ -4,8 +4,10 @@ import React from 'react'
 import {
   ArrowLeftRight,
   Briefcase,
+  Calculator,
   Coins,
   DollarSign,
+  FileText,
   Group,
   Home,
   LibraryBig
@@ -127,6 +129,35 @@ export const Sidebar = () => {
             icon={<ArrowLeftRight />}
             href="/transactions"
             disabled={Object.keys(currentLedger).length === 0}
+          />
+        </SidebarGroup>
+
+        {isCollapsed && <Separator />}
+
+        <SidebarGroup>
+          <SidebarGroupTitle collapsed={isCollapsed}>
+            {intl.formatMessage({
+              id: 'sideBar.financial.title',
+              defaultMessage: 'Financial Tools'
+            })}
+          </SidebarGroupTitle>
+
+          <SidebarItem
+            title="Boleto Dashboard"
+            icon={<FileText />}
+            href="/boleto-dashboard"
+          />
+
+          <SidebarItem
+            title="Transaction Simulation"
+            icon={<Calculator />}
+            href="/transaction-simulation"
+          />
+
+          <SidebarItem
+            title="File Generator"
+            icon={<FileText />}
+            href="/file-generator"
           />
         </SidebarGroup>
       </SidebarContent>

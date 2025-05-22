@@ -26,7 +26,8 @@ import { Breadcrumb } from '@/components/breadcrumb'
 const Page = () => {
   const intl = useIntl()
   const router = useRouter()
-  const { id: ledgerId } = useParams<{ id: string }>()
+  const params = useParams<{ id: string }>()
+  const ledgerId = params?.id || ''
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { currentOrganization, currentLedger } = useOrganization()
   const { showSuccess, showError } = useCustomToast()

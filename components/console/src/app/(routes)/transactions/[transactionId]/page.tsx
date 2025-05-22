@@ -53,9 +53,10 @@ type FormSchema = z.infer<typeof formSchema>
 
 export default function TransactionDetailsPage() {
   const intl = useIntl()
-  const { transactionId } = useParams<{
+  const params = useParams<{
     transactionId: string
   }>()
+  const transactionId = params?.transactionId || ''
   const { currentOrganization, currentLedger } = useOrganization()
   const { activeTab, handleTabChange } = useTabs({
     initialValue: DEFAULT_TAB_VALUE

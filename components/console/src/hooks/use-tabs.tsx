@@ -36,6 +36,7 @@ export const useTabs = ({ initialValue, onTabChange }: UseTabsProps) => {
    * Updates activeTab when changed from URL parameters
    */
   React.useEffect(() => {
+    if (!searchParams) return
     const params = new URLSearchParams(searchParams.toString())
     const tab = params.get('tab')
 

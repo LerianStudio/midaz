@@ -48,9 +48,10 @@ export const BasicInformationPaperReadOnly = ({
   handleTabChange
 }: BasicInformationPaperProps) => {
   const intl = useIntl()
-  const { transactionId } = useParams<{
+  const params = useParams<{
     transactionId: string
   }>()
+  const transactionId = params?.transactionId || ''
   const { showSuccess, showError } = useCustomToast()
   const { currentOrganization, currentLedger } = useOrganization()
 

@@ -54,7 +54,7 @@ export const OrganizationProviderClient = ({
 
   useEffect(() => {
     // Do nothing if the user is already at the onboarding
-    if (pathname.includes('/onboarding')) {
+    if (pathname?.includes('/onboarding')) {
       return
     }
 

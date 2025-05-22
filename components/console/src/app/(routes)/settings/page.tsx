@@ -18,7 +18,7 @@ const Page = () => {
   const searchParams = useSearchParams()
 
   const { activeTab, handleTabChange } = useTabs({
-    initialValue: searchParams.get('tab') || 'organizations'
+    initialValue: searchParams?.get('tab') || 'organizations'
   })
 
   const breadcrumbPaths = [

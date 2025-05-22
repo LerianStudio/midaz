@@ -75,7 +75,7 @@ export default function Page() {
       <OrganizationCreatedDialog
         open={open}
         onOpenChange={setOpen}
-        process={Boolean(searchParams.get('process'))}
+        process={Boolean(searchParams?.get('process'))}
         onContinue={() => setOpen(false)}
       />
 

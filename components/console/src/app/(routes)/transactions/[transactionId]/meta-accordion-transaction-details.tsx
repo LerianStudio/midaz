@@ -38,9 +38,10 @@ export const MetaAccordionTransactionDetails = ({
   values
 }: MetadataAccordionProps) => {
   const intl = useIntl()
-  const { transactionId } = useParams<{
+  const params = useParams<{
     transactionId: string
   }>()
+  const transactionId = params?.transactionId || ''
   const { currentOrganization, currentLedger } = useOrganization()
   const { showSuccess } = useCustomToast()
   const [isFooterOpen, setIsFooterOpen] = useState(false)
