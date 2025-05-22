@@ -155,7 +155,7 @@ export const UsersTabContent = () => {
                             variant="secondary"
                             className="h-auto w-max p-2"
                           >
-                            <MoreVertical size={16} onClick={() => {}} />
+                            <MoreVertical size={16} />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">

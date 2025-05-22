@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page-header'
 import { SystemTabContent } from './system-tab-content'
 import React from 'react'
 import { UsersTabContent } from './users/users-tab-content'
+import { ApplicationsTabContent } from './applications/applications-tab-content'
 import { Enforce } from '@/providers/permission-provider/enforce'
 
 const Page = () => {
@@ -41,6 +42,13 @@ const Page = () => {
         defaultMessage: 'Users'
       }),
       active: () => activeTab === 'users'
+    },
+    {
+      name: intl.formatMessage({
+        id: `settings.tabs.applications`,
+        defaultMessage: 'Applications'
+      }),
+      active: () => activeTab === 'applications'
     },
     {
       name: intl.formatMessage({
@@ -84,6 +92,15 @@ const Page = () => {
             </TabsTrigger>
           </Enforce>
 
+          <Enforce resource="applications" action="get">
+            <TabsTrigger value="applications">
+              {intl.formatMessage({
+                id: 'settings.tabs.applications',
+                defaultMessage: 'Applications'
+              })}
+            </TabsTrigger>
+          </Enforce>
+
           <TabsTrigger value="system">
             {intl.formatMessage({
               id: 'settings.tabs.system',
@@ -99,6 +116,12 @@ const Page = () => {
         <Enforce resource="users" action="get">
           <TabsContent value="users">
             <UsersTabContent />
+          </TabsContent>
+        </Enforce>
+
+        <Enforce resource="applications" action="get">
+          <TabsContent value="applications">
+            <ApplicationsTabContent />
           </TabsContent>
         </Enforce>
 

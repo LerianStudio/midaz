@@ -81,12 +81,13 @@ interface EntityBoxHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string
   subtitle?: string
   tooltip?: string
+  tooltipWidth?: string | number
 }
 
 const EntityBoxHeaderTitle = React.forwardRef<
   HTMLDivElement,
   EntityBoxHeaderProps
->(({ title, subtitle, tooltip, className, ...props }, ref) => {
+>(({ title, subtitle, tooltip, tooltipWidth, className, ...props }, ref) => {
   return (
     <div
       ref={ref}
@@ -101,7 +102,16 @@ const EntityBoxHeaderTitle = React.forwardRef<
               <TooltipTrigger asChild>
                 <CircleHelp className="pointer h-5 w-5 text-shadcn-400" />
               </TooltipTrigger>
-              <TooltipContent side="right">{tooltip}</TooltipContent>
+              <TooltipContent
+                side="right"
+                style={
+                  tooltipWidth
+                    ? { width: tooltipWidth, maxWidth: tooltipWidth }
+                    : undefined
+                }
+              >
+                {tooltip}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
