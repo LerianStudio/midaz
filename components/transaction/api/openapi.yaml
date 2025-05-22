@@ -1283,6 +1283,75 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
+    post:
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Transaction without passing to distribution
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       description: Get a Transaction with the input ID
@@ -2002,6 +2071,74 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
+      type: object
+    CreateTransactionOutflowSwaggerModel:
+      description: Schema for creating outflow transaction with the complete SendOutflow
+        operation structure defined inline
+      example:
+        metadata:
+          key: '{}'
+        code: code
+        pending: true
+        description: description
+        chartOfAccountsGroupName: chartOfAccountsGroupName
+        send:
+          scale: 0
+          source:
+            from:
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+          asset: asset
+          value: 6
+      properties:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: WITHDRAWAL
+            maxLength: 256
+          type: string
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Outflow Transaction
+            maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+          type: object
+        pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            swagger:ignore
+          type: boolean
+        send:
+          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
       type: object
     Error:
       description: Standardized error response format used across all API endpoints
@@ -3220,6 +3357,127 @@ components:
             example: 2
             required: true
           type: integer
+        value:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
+      type: object
+    CreateTransactionOutflowSwaggerModel_send_source_from:
+      example:
+        amount:
+          scale: 0
+          asset: asset
+          value: 6
+        metadata:
+          key: '{}'
+        chartOfAccounts: chartOfAccounts
+        description: description
+        account: account
+      properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: {{accountAlias}}
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: WITHDRAWAL_DEBIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Debit Operation
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional metadata
+            example: {"operation": "withdrawal", "type": "account"}
+          type: object
+      type: object
+    CreateTransactionOutflowSwaggerModel_send_source:
+      description: |-
+        Source accounts and amounts for the transaction
+        required: true
+      example:
+        from:
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+      properties:
+        from:
+          description: |-
+            List of source operations
+            required: true
+          items:
+            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from'
+          type: array
+      type: object
+    CreateTransactionOutflowSwaggerModel_send:
+      description: |-
+        Send operation details including source only
+        required: true
+      example:
+        scale: 0
+        source:
+          from:
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+        asset: asset
+        value: 6
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: USD
+            required: true
+          type: string
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        source:
+          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source'
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset
