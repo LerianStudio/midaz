@@ -59,7 +59,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInput)
-	parserDSL := input.FromDSl()
+	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
 	response := handler.createTransaction(c, logger, *parserDSL)
@@ -97,8 +97,46 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInflowInput)
-	parserDSL := input.InflowFromDSl()
+	parserDSL := input.InflowFromDSL()
 	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
+
+	response := handler.createTransaction(c, logger, *parserDSL)
+
+	return response
+}
+
+// CreateTransactionOutflow method that creates a transaction without specifying a distribution
+//
+//	@Summary		Create a Transaction without passing to distribution
+//	@Description	Create a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
+func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*transaction.CreateTransactionOutflowInput)
+	parserDSL := input.OutflowFromDSL()
+	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
 	response := handler.createTransaction(c, logger, *parserDSL)
 

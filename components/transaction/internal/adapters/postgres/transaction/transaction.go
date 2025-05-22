@@ -475,8 +475,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// FromDSl converts an entity FromDSl to goldModel.Transaction
-func (cti *CreateTransactionInput) FromDSl() *libTransaction.Transaction {
+// FromDSL converts an entity FromDSL to goldModel.Transaction
+func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 	dsl := &libTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
@@ -757,8 +757,8 @@ type CreateTransactionInflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionInflowSwaggerModel
 
-// InflowFromDSl converts an entity InflowFromDSl to a libTransaction.Transaction
-func (c *CreateTransactionInflowInput) InflowFromDSl() *libTransaction.Transaction {
+// InflowFromDSL converts an entity InflowFromDSL to a libTransaction.Transaction
+func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transaction {
 	listFrom := make([]libTransaction.FromTo, 0)
 
 	from := libTransaction.FromTo{
@@ -789,4 +789,218 @@ func (c *CreateTransactionInflowInput) InflowFromDSl() *libTransaction.Transacti
 			},
 		},
 	}
+}
+
+// CreateTransactionOutflowInput is a struct design to encapsulate payload data for outflow transactions.
+//
+// swagger:model CreateTransactionOutflowInput
+// @Description CreateTransactionOutflowInput is the input payload to create an outflow transaction. Contains all necessary fields to create a financial transaction with source information only, without destination.
+type CreateTransactionOutflowInput struct {
+	// Chart of accounts group name for accounting purposes
+	// example: WITHDRAWAL
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256" example:"WITHDRAWAL"`
+
+	// Human-readable description of the transaction
+	// example: New Outflow Transaction
+	// maxLength: 256
+	Description string `json:"description,omitempty" validate:"max=256" example:"New Outflow Transaction" maxLength:"256"`
+
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
+
+	// Whether the transaction should be created in pending state
+	// swagger:ignore
+	Pending bool `json:"pending,omitempty"`
+
+	// Additional custom attributes
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	// swagger:type object
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Send operation details including source only (no distribution)
+	// required: true
+	// swagger:type object
+	Send *SendOutflow `json:"send,omitempty" validate:"required,dive"`
+} // @name CreateTransactionOutflowInput
+
+//	@example {
+//	  "chartOfAccountsGroupName": "WITHDRAWAL",
+//	  "description": "New Outflow Transaction",
+//	  "code": "TR12345",
+//	  "metadata": {
+//	    "reference": "TRANSACTION-001",
+//	    "source": "api"
+//	  },
+//	  "send": {
+//	    "asset": "USD",
+//	    "value": 100,
+//	    "scale": 2,
+//	    "source": {
+//	      "from": [
+//	        {
+//	          "account": "{{accountAlias}}",
+//	          "amount": {
+//	            "asset": "USD",
+//	            "value": 100,
+//	            "scale": 2
+//	          },
+//	          "description": "Debit Operation",
+//	          "chartOfAccounts": "WITHDRAWAL_DEBIT",
+//	          "metadata": {
+//	            "operation": "withdrawal",
+//	            "type": "account"
+//	          }
+//	        }
+//	      ]
+//	    }
+//	  }
+//	}
+//
+
+// SendOutflow structure for marshaling/unmarshalling JSON for outflow transactions.
+//
+// swagger:model SendOutflow
+// @Description SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.
+type SendOutflow struct {
+	Asset  string                `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value  int64                 `json:"value,omitempty" validate:"required" example:"1000"`
+	Scale  int64                 `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Source libTransaction.Source `json:"source,omitempty" validate:"required"`
+} // @name SendOutflow
+
+// CreateTransactionOutflowSwaggerModel is a struct that mirrors CreateTransactionOutflowInput but with explicit types for Swagger
+// This is only used for Swagger documentation generation
+//
+// swagger:model CreateTransactionOutflowSwaggerModel
+// @Description Schema for creating outflow transaction with the complete SendOutflow operation structure defined inline
+type CreateTransactionOutflowSwaggerModel struct {
+	// Chart of accounts group name for accounting purposes
+	// example: WITHDRAWAL
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Human-readable description of the transaction
+	// example: New Outflow Transaction
+	// maxLength: 256
+	Description string `json:"description,omitempty"`
+
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty"`
+
+	// Whether the transaction should be created in pending state
+	// swagger:ignore
+	Pending bool `json:"pending,omitempty"`
+
+	// Additional custom attributes
+	// example: {"reference": "TRANSACTION-001", "source": "api"}
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Send operation details including source only
+	// required: true
+	Send struct {
+		// Asset code for the transaction
+		// example: USD
+		// required: true
+		Asset string `json:"asset"`
+
+		// Transaction amount value in the smallest unit of the asset
+		// example: 100
+		// required: true
+		Value int64 `json:"value"`
+
+		// Decimal places for the transaction amount
+		// example: 2
+		// required: true
+		Scale int64 `json:"scale"`
+
+		// Source accounts and amounts for the transaction
+		// required: true
+		Source struct {
+			// List of source operations
+			// required: true
+			From []struct {
+				// Account identifier or alias
+				// example: {{accountAlias}}
+				// required: true
+				Account string `json:"account"`
+
+				// Amount details for the operation
+				// required: true
+				Amount struct {
+					// Asset code
+					// example: USD
+					// required: true
+					Asset string `json:"asset"`
+
+					// Amount value in smallest unit
+					// example: 100
+					// required: true
+					Value int64 `json:"value"`
+
+					// Decimal places
+					// example: 2
+					// required: true
+					Scale int64 `json:"scale"`
+				} `json:"amount"`
+
+				// Operation description
+				// example: Debit Operation
+				Description string `json:"description,omitempty"`
+
+				// Chart of accounts code
+				// example: WITHDRAWAL_DEBIT
+				ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+
+				// Additional metadata
+				// example: {"operation": "withdrawal", "type": "account"}
+				Metadata map[string]any `json:"metadata,omitempty"`
+			} `json:"from"`
+		} `json:"source"`
+	} `json:"send"`
+} // @name CreateTransactionOutflowSwaggerModel
+
+// OutflowFromDSL converts an entity OutflowFromDSL to a libTransaction.Transaction
+func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transaction {
+	listTo := make([]libTransaction.FromTo, 0)
+
+	to := libTransaction.FromTo{
+		IsFrom:  false,
+		Account: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
+		Amount: &libTransaction.Amount{
+			Asset: c.Send.Asset,
+			Value: c.Send.Value,
+			Scale: c.Send.Scale,
+		},
+	}
+
+	listTo = append(listTo, to)
+
+	dsl := &libTransaction.Transaction{
+		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
+		Description:              c.Description,
+		Code:                     c.Code,
+		Pending:                  c.Pending,
+		Metadata:                 c.Metadata,
+		Send: libTransaction.Send{
+			Asset: c.Send.Asset,
+			Value: c.Send.Value,
+			Scale: c.Send.Scale,
+			Distribute: libTransaction.Distribute{
+				To: listTo,
+			},
+		},
+	}
+
+	for i := range c.Send.Source.From {
+		c.Send.Source.From[i].IsFrom = true
+	}
+
+	dsl.Send.Source = c.Send.Source
+
+	return dsl
 }
