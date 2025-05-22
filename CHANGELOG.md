@@ -1,3 +1,12 @@
+## [v2.2.0-beta.30] - 2025-05-22
+
+### ✨ Features
+- Add Inflow Transaction Endpoint to support external funding operations
+
+### 🔧 Maintenance
+- Update HTTP adapter for transaction component
+- Update Postgres adapter for transaction component
+
 ## [v2.2.0-beta.29] - 2025-05-21
 
 ### 🐛 Bug Fixes
