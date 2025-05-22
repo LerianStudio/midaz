@@ -1,30 +1,43 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useParams, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { createContext, PropsWithChildren, useContext } from 'react'
 import { useFieldArray, UseFieldArrayReturn, useForm } from 'react-hook-form'
-import { useTransactionFormControl } from './use-transaction-form-control'
+import { useTransactionFormControl } from './hooks/use-transaction-form-control'
 import {
   initialValues,
   sourceInitialValues,
   transactionFormSchema,
-  TransactionFormSchema
+  TransactionFormSchema,
+  TransactionSourceFormSchema
 } from './schemas'
-import {
-  TransactionFormErrors,
-  useTransactionFormErrors
-} from './use-transaction-form-errors'
+import { useTransactionFormErrors } from './hooks/use-transaction-form-errors'
+import { AccountDto } from '@/core/application/dto/account-dto'
+import { BalanceDto } from '@/core/application/dto/balance-dto'
+import { useAccounts } from './hooks/use-account'
+import { CustomFormErrors } from '@/hooks/use-custom-form-error'
+import { useIntl } from 'react-intl'
+import { useTransactionMode } from './hooks/use-transaction-mode'
 
 type TransactionFormProviderContext = {
+  accounts: Record<string, AccountDto>
   form: ReturnType<typeof useForm<TransactionFormSchema>>
-  errors: TransactionFormErrors
+  errors: CustomFormErrors
+  openFundsModal: boolean
+  setOpenFundsModal: (open: boolean) => void
   currentStep: number
+  enableNext: boolean
   multipleSources?: boolean
   values: TransactionFormSchema
-  addSource: (account: string) => void
-  addDestination: (account: string) => void
+  addBalance: (alias: string, balance: BalanceDto) => void
+  addSource: (alias: string, account: AccountDto) => void
+  removeSource: (alias: string) => void
+  addDestination: (alias: string, account: AccountDto) => void
+  removeDestination: (alias: string) => void
+  handleNextStep: () => void
   handleReview: () => void
+  handleForceReview: () => void
   handleBack: () => void
+  handleReset: () => void
 }
 
 const TransactionFormProvider = createContext<TransactionFormProviderContext>(
@@ -43,7 +56,13 @@ export const TransactionProvider = ({
   values,
   children
 }: TransactionProviderProps) => {
-  const router = useRouter()
+  const intl = useIntl()
+  const {
+    accounts,
+    add: addAccount,
+    clear: clearAccounts,
+    addBalance
+  } = useAccounts()
   const form = useForm<TransactionFormSchema>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: { ...initialValues, ...values } as TransactionFormSchema
@@ -51,9 +70,16 @@ export const TransactionProvider = ({
 
   const formValues = form.watch()
 
-  const { step, handleNext, handlePrevious } =
+  const { mode } = useTransactionMode()
+  const { step, setStep, enableNext, handleNext, handlePrevious } =
     useTransactionFormControl(formValues)
-  const { errors } = useTransactionFormErrors(formValues)
+  const {
+    errors,
+    add: addError,
+    validate,
+    open: openFundsModal,
+    setOpen: setOpenFundsModal
+  } = useTransactionFormErrors(formValues, accounts)
 
   const originFieldArray = useFieldArray({
     name: 'source',
@@ -73,73 +99,130 @@ export const TransactionProvider = ({
   // Add source or destination to the transaction
   // The first entity uses the same value as the transaction
   // Latter ones will start at 0
-  const addSource = (fieldArray: UseFieldArrayReturn<any>, account: string) => {
+  const addSource = (
+    fieldArray: UseFieldArrayReturn<any>,
+    alias: string,
+    account: AccountDto
+  ) => {
     if (fieldArray.fields.length === 0) {
       fieldArray.append({
         ...sourceInitialValues,
-        account,
-        asset: formValues.asset,
+        account: alias,
         value: formValues.value
       })
-    } else {
-      fieldArray.append({
-        ...sourceInitialValues,
-        asset: formValues.asset,
-        account
+      addAccount(alias, account)
+      return
+    }
+
+    const index = fieldArray.fields.findIndex(
+      (item) =>
+        (item as unknown as TransactionSourceFormSchema[0]).account === alias
+    )
+    if (index > -1) {
+      addError('search', {
+        message: intl.formatMessage(
+          {
+            id: 'transactions.errors.account.duplicate',
+            defaultMessage: 'Account {alias} already exists'
+          },
+          { alias }
+        )
       })
+      return
+    }
+
+    fieldArray.append({
+      ...sourceInitialValues,
+      account: alias
+    })
+    addAccount(alias, account)
+  }
+
+  const removeSource = (
+    fieldArray: UseFieldArrayReturn<any>,
+    alias: string
+  ) => {
+    if (fieldArray.fields.length === 0) {
+      return
+    }
+
+    const index = fieldArray.fields.findIndex(
+      (item) =>
+        (item as unknown as TransactionSourceFormSchema[0]).account === alias
+    )
+
+    if (index > -1) {
+      fieldArray.remove(index)
+      return
     }
   }
 
-  const handleReview = () => {
-    router.push(`/transactions/create/review`)
+  const handleReset = () => {
+    form.reset()
+    setStep(0)
+    clearAccounts()
+  }
+
+  const handleReview = form.handleSubmit(validate(() => handleNext()))
+
+  const handleForceReview = () => {
     handleNext()
   }
 
   // In case the user adds more than 1 source or destination,
   // And then removes to stay with only 1, we need to restore the original
   // transaction value to the source or destination
-
   useEffect(() => {
     if (formValues.source.length === 1) {
       form.setValue('source.0.value', formValues.value)
     }
   }, [formValues.value, formValues.source.length])
-
   useEffect(() => {
     if (formValues.destination.length === 1) {
       form.setValue('destination.0.value', formValues.value)
     }
   }, [formValues.value, formValues.destination.length])
 
-  // If the user changes the asset, we need to update the source and destination
-
+  // Downgrade the data if we are moving from complex to simple mode
+  // This is important, or else the user could send information that is not
+  // present on the screen
   useEffect(() => {
-    formValues.source.forEach((source: any, index: number) => {
-      if (index >= 0) {
-        form.setValue(`source.${index}.asset`, formValues.asset)
+    if (mode === 'simple') {
+      if (formValues.source.length > 1) {
+        form.setValue('source', [formValues.source[0]])
       }
-    })
 
-    formValues.destination.forEach((destination: any, index: number) => {
-      if (index >= 0) {
-        form.setValue(`destination.${index}.asset`, formValues.asset)
+      if (formValues.destination.length > 1) {
+        form.setValue('destination', [formValues.destination[0]])
       }
-    })
-  }, [formValues.asset])
+    }
+  }, [mode])
 
   return (
     <TransactionFormProvider.Provider
       value={{
+        accounts,
         form,
         errors,
+        openFundsModal,
+        setOpenFundsModal,
         currentStep: step,
         multipleSources,
         values: formValues,
-        addSource: (account: string) => addSource(originFieldArray, account),
-        addDestination: (account: string) =>
-          addSource(destinationFieldArray, account),
-        handleReview: handleReview,
-        handleBack: handlePrevious
+        addBalance,
+        addSource: (alias: string, account: AccountDto) =>
+          addSource(originFieldArray, alias, account),
+        removeSource: (alias: string) => removeSource(originFieldArray, alias),
+        addDestination: (alias: string, account: AccountDto) =>
+          addSource(destinationFieldArray, alias, account),
+        removeDestination: (alias: string) =>
+          removeSource(destinationFieldArray, alias),
+        enableNext,
+        handleNextStep: handleNext,
+        handleBack: handlePrevious,
+        handleReview,
+        handleForceReview,
+        handleReset
       }}
     >
       {children}
