@@ -1,0 +1,43 @@
+services:
+  console:
+    container_name: midaz-console
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '${MIDAZ_CONSOLE_PORT}:8081'
+    env_file:
+      - .env
+    healthcheck:
+      test:
+        ['CMD', 'curl', '-f', 'http://localhost:8081/api/admin/health/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - console-network
+      - transaction-network
+      - plugin-auth-network
+      - infra-network
+      - ledger-network
+
+networks:
+  console-network:
+    name: console-network
+    driver: bridge
+  transaction-network:
+    name: transaction-network
+    driver: bridge
+    external: true
+  ledger-network:
+    name: ledger-network
+    driver: bridge
+  plugin-auth-network:
+    name: plugin-auth-network
+    driver: bridge
+    external: true
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true

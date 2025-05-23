@@ -114,7 +114,7 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	if cfg.MaxPoolSize <= 0 {
@@ -180,6 +180,7 @@ func InitServers() *Service {
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
+		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
 	}
 
@@ -205,7 +206,7 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 

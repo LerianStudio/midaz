@@ -13,6 +13,140 @@ info:
 servers:
 - url: //localhost:3001/
 paths:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
+    get:
+      description: Get Balances with alias
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Alias (e.g. @person1)
+        in: path
+        name: alias
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Balance not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Balances using Alias
+      tags:
+      - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
+    get:
+      description: Get External balances with code
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Code (e.g. BRL)
+        in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Balance not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get External balances using code
+      tags:
+      - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       description: Get all balances by account id
@@ -169,6 +303,11 @@ paths:
       - description: Cursor
         in: query
         name: cursor
+        schema:
+          type: string
+      - description: DEBIT, CREDIT
+        in: query
+        name: type
         schema:
           type: string
       responses:
@@ -799,7 +938,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/mmodel.UpdateBalance'
+              $ref: '#/components/schemas/UpdateBalance'
         description: Balance Input
         required: true
       responses:
@@ -1006,6 +1145,75 @@ paths:
       summary: Create a Transaction using DSL
       tags:
       - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
+    post:
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel'
+        description: Transaction Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Transaction without passing from source
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       description: Create a Transaction with the input payload
@@ -1037,16 +1245,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionInput'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
         description: Transaction Input
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
-          description: OK
+          description: Created
         "400":
           content:
             application/json:
@@ -1075,9 +1283,9 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
-      description: Create a Transaction with the input template
+      description: Create a Transaction with the input payload
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1106,38 +1314,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
-        description: Transaction Template Input
+              $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel'
+        description: Transaction Input
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
+                $ref: '#/components/schemas/Transaction'
           description: Created
         "400":
           content:
             application/json:
               schema:
-                type: object
-          description: Bad Request
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
         "401":
           content:
             application/json:
               schema:
-                type: object
-          description: Unauthorized
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
         "500":
           content:
             application/json:
               schema:
-                type: object
-          description: Internal Server Error
-      summary: Create a Transaction Template
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a Transaction without passing to distribution
       tags:
       - Transactions
-      x-codegen-request-body-name: input
+      x-codegen-request-body-name: transaction
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       description: Get a Transaction with the input ID
@@ -1528,30 +1742,29 @@ components:
   schemas:
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
-      example:
-        scale: 2
-        asset: BRL
-        operation: operation
-        value: 1000
+        Contains the value and scale (decimal places) of an operation amount.
       properties:
-        asset:
-          example: BRL
-          type: string
-        operation:
-          type: string
+        amount:
+          description: |-
+            The amount value in the smallest unit of the asset (e.g., cents)
+            example: 1500
+            minimum: 0
+          example: 1500
+          minimum: 0
+          type: integer
         scale:
+          description: |-
+            Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
+            example: 2
+            minimum: 0
           example: 2
           minimum: 0
           type: integer
-        value:
-          example: 1000
-          type: integer
-      required:
-      - asset
-      - value
       type: object
     AssetRate:
-      description: AssetRate is a struct designed to store asset rate data.
+      description: AssetRate is a struct designed to store asset rate data. Represents
+        a complete asset rate entity containing conversion information between two
+        assets, including all system-generated fields.
       example:
         metadata:
           key: '{}'
@@ -1569,65 +1782,144 @@ components:
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         createdAt:
+          description: |-
+            Timestamp when the asset rate was created
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         externalId:
+          description: |-
+            External identifier for integration with third-party systems
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         from:
+          description: |-
+            Source asset code
+            example: USD
+            minLength: 2
+            maxLength: 10
           example: USD
+          maxLength: 10
+          minLength: 2
           type: string
         id:
+          description: |-
+            Unique identifier for the asset rate
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
+          description: |-
+            Ledger containing this asset rate
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
           type: object
         organizationId:
+          description: |-
+            Organization that owns this asset rate
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         rate:
+          description: |-
+            Conversion rate value
+            example: 100
           example: 100.0
           type: number
         scale:
+          description: |-
+            Decimal places for the rate
+            example: 2
+            minimum: 0
           example: 2.0
+          minimum: 0
           type: number
         source:
+          description: |-
+            Source of rate information
+            example: External System
+            maxLength: 200
           example: External System
+          maxLength: 200
           type: string
         to:
+          description: |-
+            Target asset code
+            example: BRL
+            minLength: 2
+            maxLength: 10
           example: BRL
+          maxLength: 10
+          minLength: 2
           type: string
         ttl:
+          description: |-
+            Time-to-live in seconds
+            example: 3600
+            minimum: 0
           example: 3600
+          minimum: 0
           type: integer
         updatedAt:
+          description: |-
+            Timestamp when the asset rate was last updated
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     Balance:
       description: Balance is the struct designed to represent the account balance.
-      example:
-        onHold: 500
-        available: 1500
-        scale: 2
+        Contains available and on-hold amounts along with the scale (decimal places).
       properties:
         available:
+          description: |-
+            Amount available for transactions (in smallest unit of asset)
+            example: 1500
+            minimum: 0
           example: 1500
+          minimum: 0
           type: integer
         onHold:
+          description: |-
+            Amount on hold and unavailable for transactions (in smallest unit of asset)
+            example: 500
+            minimum: 0
           example: 500
+          minimum: 0
           type: integer
         scale:
+          description: |-
+            Decimal places for the balance (e.g., 2 for dollars/euros)
+            example: 2
+            minimum: 0
           example: 2
+          minimum: 0
           type: integer
       type: object
     CreateAssetRateInput:
       description: CreateAssetRateInput is the input payload to create an asset rate.
+        Contains required fields for setting up asset conversion rates, including
+        source and target assets, rate value, scale, and optional metadata.
       example:
         metadata:
           key: '{}'
@@ -1640,38 +1932,81 @@ components:
         ttl: 3600
       properties:
         externalId:
+          description: |-
+            External identifier for integration (optional)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         from:
+          description: |-
+            Source asset code (required)
+            example: USD
+            required: true
+            minLength: 2
+            maxLength: 10
           example: USD
+          maxLength: 10
+          minLength: 2
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes (optional)
+            example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
           type: object
         rate:
+          description: |-
+            Conversion rate value (required)
+            example: 100
+            required: true
           example: 100
           type: integer
         scale:
+          description: |-
+            Decimal places for the rate (optional)
+            example: 2
+            minimum: 0
           example: 2
           minimum: 0
           type: integer
         source:
+          description: |-
+            Source of rate information (optional)
+            example: External System
+            maxLength: 200
           example: External System
+          maxLength: 200
           type: string
         to:
+          description: |-
+            Target asset code (required)
+            example: BRL
+            required: true
+            minLength: 2
+            maxLength: 10
           example: BRL
+          maxLength: 10
+          minLength: 2
           type: string
         ttl:
+          description: |-
+            Time-to-live in seconds (optional)
+            example: 3600
+            minimum: 0
           example: 3600
+          minimum: 0
           type: integer
       required:
       - from
       - rate
       - to
       type: object
-    CreateTransactionInput:
-      description: CreateTransactionInput is the input payload to create a transaction.
+    CreateTransactionInflowSwaggerModel:
+      description: Schema for creating inflow transaction with the complete SendInflow
+        operation structure defined inline
       example:
         metadata:
           key: '{}'
@@ -1680,191 +2015,151 @@ components:
         description: description
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
-          scale: 2
+          scale: 1
           distribute:
             to:
             - amount:
-                scale: 2
-                asset: BRL
-                operation: operation
-                value: 1000
+                scale: 0
+                asset: asset
+                value: 6
               metadata:
                 key: '{}'
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                scale: 2
-                from: BRL
-                to: USDe
-                value: 1000
-              isFrom: true
-              chartOfAccounts: "1000"
+              chartOfAccounts: chartOfAccounts
               description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              account: '@person1'
-              remaining: remaining
+              account: account
             - amount:
-                scale: 2
-                asset: BRL
-                operation: operation
-                value: 1000
+                scale: 0
+                asset: asset
+                value: 6
               metadata:
                 key: '{}'
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                scale: 2
-                from: BRL
-                to: USDe
-                value: 1000
-              isFrom: true
-              chartOfAccounts: "1000"
+              chartOfAccounts: chartOfAccounts
               description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              account: '@person1'
-              remaining: remaining
-            remaining: remaining
-          source:
-            from:
-            - amount:
-                scale: 2
-                asset: BRL
-                operation: operation
-                value: 1000
-              metadata:
-                key: '{}'
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                scale: 2
-                from: BRL
-                to: USDe
-                value: 1000
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              account: '@person1'
-              remaining: remaining
-            - amount:
-                scale: 2
-                asset: BRL
-                operation: operation
-                value: 1000
-              metadata:
-                key: '{}'
-              rate:
-                externalId: 00000000-0000-0000-0000-000000000000
-                scale: 2
-                from: BRL
-                to: USDe
-                value: 1000
-              isFrom: true
-              chartOfAccounts: "1000"
-              description: description
-              share:
-                percentage: 0
-                percentageOfPercentage: 6
-              account: '@person1'
-              remaining: remaining
-            remaining: remaining
-          asset: BRL
-          value: 1000
+              account: account
+          asset: asset
+          value: 5
       properties:
         chartOfAccountsGroupName:
-          maxLength: 256
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: FUNDING
+            maxLength: 256
           type: string
         code:
-          maxLength: 100
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
           type: string
         description:
-          maxLength: 256
+          description: |-
+            Human-readable description of the transaction
+            example: New Inflow Transaction
+            maxLength: 256
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
         pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            swagger:ignore
           type: boolean
         send:
-          $ref: '#/components/schemas/Send'
-      required:
-      - send
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
       type: object
-    Distribute:
-      description: Distribute is the struct designed to represent the distribution
-        fields of an operation.
+    CreateTransactionOutflowSwaggerModel:
+      description: Schema for creating outflow transaction with the complete SendOutflow
+        operation structure defined inline
       example:
-        to:
-        - amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
-          metadata:
-            key: '{}'
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            scale: 2
-            from: BRL
-            to: USDe
-            value: 1000
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          account: '@person1'
-          remaining: remaining
-        - amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
-          metadata:
-            key: '{}'
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            scale: 2
-            from: BRL
-            to: USDe
-            value: 1000
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          account: '@person1'
-          remaining: remaining
-        remaining: remaining
+        metadata:
+          key: '{}'
+        code: code
+        pending: true
+        description: description
+        chartOfAccountsGroupName: chartOfAccountsGroupName
+        send:
+          scale: 0
+          source:
+            from:
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+            - amount:
+                scale: 0
+                asset: asset
+                value: 6
+              metadata:
+                key: '{}'
+              chartOfAccounts: chartOfAccounts
+              description: description
+              account: account
+          asset: asset
+          value: 6
       properties:
-        remaining:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: WITHDRAWAL
+            maxLength: 256
           type: string
-        to:
-          items:
-            $ref: '#/components/schemas/FromTo'
-          type: array
-      required:
-      - to
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
+          type: string
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Outflow Transaction
+            maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
+          type: object
+        pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            swagger:ignore
+          type: boolean
+        send:
+          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
       type: object
     Error:
       description: Standardized error response format used across all API endpoints
-        for error situations
+        for error situations. Provides structured information about errors including
+        codes, messages, and field-specific validation details.
       properties:
         code:
           description: |-
             Error code identifying the specific error condition
             example: ERR_INVALID_INPUT
+            maxLength: 50
+          example: ERR_INVALID_INPUT
+          maxLength: 50
           type: string
         entityType:
           description: |-
             Optional type of entity associated with the error
             example: Organization
+            maxLength: 100
+          example: Organization
+          maxLength: 100
           type: string
         fields:
           additionalProperties:
@@ -1872,159 +2167,193 @@ components:
           description: |-
             Optional detailed field validations for client-side handling
             example: {"name": "Field 'name' is required"}
+          example:
+            '{"name"': ' "Field ''name'' is required"}'
           type: object
         message:
           description: |-
             Detailed error message explaining the issue
             example: The request contains invalid fields. Please check the field 'name' and try again.
+            maxLength: 500
+          example: The request contains invalid fields. Please check the field 'name'
+            and try again.
+          maxLength: 500
           type: string
         title:
           description: |-
             Short, human-readable error title
             example: Bad Request
+            maxLength: 100
+          example: Bad Request
+          maxLength: 100
           type: string
-      type: object
-    FromTo:
-      description: FromTo is the struct designed to represent the from/to fields of
-        an operation.
-      example:
-        amount:
-          scale: 2
-          asset: BRL
-          operation: operation
-          value: 1000
-        metadata:
-          key: '{}'
-        rate:
-          externalId: 00000000-0000-0000-0000-000000000000
-          scale: 2
-          from: BRL
-          to: USDe
-          value: 1000
-        isFrom: true
-        chartOfAccounts: "1000"
-        description: description
-        share:
-          percentage: 0
-          percentageOfPercentage: 6
-        account: '@person1'
-        remaining: remaining
-      properties:
-        account:
-          example: '@person1'
-          type: string
-        amount:
-          $ref: '#/components/schemas/Amount'
-        chartOfAccounts:
-          example: "1000"
-          type: string
-        description:
-          example: description
-          type: string
-        isFrom:
-          example: true
-          type: boolean
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        rate:
-          $ref: '#/components/schemas/Rate'
-        remaining:
-          example: remaining
-          type: string
-        share:
-          $ref: '#/components/schemas/Share'
       type: object
     Operation:
-      description: Operation is a struct designed to store operation data.
+      description: Operation is a struct designed to store operation data. Represents
+        a financial operation that affects account balances, including details such
+        as amount, balance before and after, transaction association, and metadata.
       example:
         accountAlias: '@person1'
-        amount:
-          scale: 2
-          asset: BRL
-          operation: operation
-          value: 1000
+        amount: '{}'
         metadata:
           key: '{}'
         assetCode: BRL
         chartOfAccounts: "1000"
         description: Credit card operation
-        type: creditCard
+        type: DEBIT
         transactionId: 00000000-0000-0000-0000-000000000000
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        balance:
-          onHold: 500
-          available: 1500
-          scale: 2
-        balanceAfter:
-          onHold: 500
-          available: 1500
-          scale: 2
+        balance: '{}'
+        balanceAfter: '{}'
         id: 00000000-0000-0000-0000-000000000000
         balanceId: 00000000-0000-0000-0000-000000000000
-        status:
-          code: ACTIVE
-          description: Active status
+        status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountAlias:
+          description: |-
+            Human-readable alias for the account
+            example: @person1
+            maxLength: 256
           example: '@person1'
+          maxLength: 256
           type: string
         accountId:
+          description: |-
+            Account identifier associated with this operation
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         amount:
-          $ref: '#/components/schemas/Amount'
+          allOf:
+          - $ref: '#/components/schemas/Amount'
+          description: Operation amount information
+          type: object
         assetCode:
+          description: |-
+            Asset code for the operation
+            example: BRL
+            minLength: 2
+            maxLength: 10
           example: BRL
+          maxLength: 10
+          minLength: 2
           type: string
         balance:
-          $ref: '#/components/schemas/Balance'
+          allOf:
+          - $ref: '#/components/schemas/Balance'
+          description: Balance before the operation
+          type: object
         balanceAfter:
-          $ref: '#/components/schemas/Balance'
+          allOf:
+          - $ref: '#/components/schemas/Balance'
+          description: Balance after the operation
+          type: object
         balanceId:
+          description: |-
+            Balance identifier affected by this operation
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         chartOfAccounts:
+          description: |-
+            Chart of accounts code for accounting purposes
+            example: 1000
+            maxLength: 20
           example: "1000"
+          maxLength: 20
           type: string
         createdAt:
+          description: |-
+            Timestamp when the operation was created
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         deletedAt:
+          description: |-
+            Timestamp when the operation was deleted (if soft-deleted)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         description:
+          description: |-
+            Human-readable description of the operation
+            example: Credit card operation
+            maxLength: 256
           example: Credit card operation
+          maxLength: 256
           type: string
         id:
+          description: |-
+            Unique identifier for the operation
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
+          description: |-
+            Ledger identifier
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"reason": "Purchase refund", "reference": "INV-12345"}
           type: object
         organizationId:
+          description: |-
+            Organization identifier
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         status:
-          $ref: '#/components/schemas/Status'
+          allOf:
+          - $ref: '#/components/schemas/Status'
+          description: Operation status information
+          type: object
         transactionId:
+          description: |-
+            Parent transaction identifier
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         type:
-          example: creditCard
+          description: |-
+            Type of operation (e.g., DEBIT, CREDIT)
+            example: DEBIT
+            maxLength: 50
+          example: DEBIT
+          maxLength: 50
           type: string
         updatedAt:
+          description: |-
+            Timestamp when the operation was last updated
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     Pagination:
@@ -2054,246 +2383,32 @@ components:
           type: string
           x-omitempty: true
       type: object
-    Rate:
-      description: Rate is the struct designed to represent the rate fields of an
-        operation.
-      example:
-        externalId: 00000000-0000-0000-0000-000000000000
-        scale: 2
-        from: BRL
-        to: USDe
-        value: 1000
-      properties:
-        externalId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        from:
-          example: BRL
-          type: string
-        scale:
-          example: 2
-          minimum: 0
-          type: integer
-        to:
-          example: USDe
-          type: string
-        value:
-          example: 1000
-          type: integer
-      required:
-      - externalId
-      - from
-      - to
-      - value
-      type: object
-    Send:
-      description: Send is the struct designed to represent the sending fields of
-        an operation.
-      example:
-        scale: 2
-        distribute:
-          to:
-          - amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          - amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          remaining: remaining
-        source:
-          from:
-          - amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          - amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          remaining: remaining
-        asset: BRL
-        value: 1000
-      properties:
-        asset:
-          example: BRL
-          type: string
-        distribute:
-          $ref: '#/components/schemas/Distribute'
-        scale:
-          example: 2
-          minimum: 0
-          type: integer
-        source:
-          $ref: '#/components/schemas/Source'
-        value:
-          example: 1000
-          type: integer
-      required:
-      - asset
-      - distribute
-      - source
-      - value
-      type: object
-    Share:
-      description: Share is the struct designed to represent the sharing fields of
-        an operation.
-      example:
-        percentage: 0
-        percentageOfPercentage: 6
-      properties:
-        percentage:
-          type: integer
-        percentageOfPercentage:
-          type: integer
-      required:
-      - percentage
-      type: object
-    Source:
-      description: Source is the struct designed to represent the source fields of
-        an operation.
-      example:
-        from:
-        - amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
-          metadata:
-            key: '{}'
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            scale: 2
-            from: BRL
-            to: USDe
-            value: 1000
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          account: '@person1'
-          remaining: remaining
-        - amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
-          metadata:
-            key: '{}'
-          rate:
-            externalId: 00000000-0000-0000-0000-000000000000
-            scale: 2
-            from: BRL
-            to: USDe
-            value: 1000
-          isFrom: true
-          chartOfAccounts: "1000"
-          description: description
-          share:
-            percentage: 0
-            percentageOfPercentage: 6
-          account: '@person1'
-          remaining: remaining
-        remaining: remaining
-      properties:
-        from:
-          items:
-            $ref: '#/components/schemas/FromTo'
-          type: array
-        remaining:
-          example: remaining
-          type: string
-      required:
-      - from
-      type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
-      example:
-        code: ACTIVE
-        description: Active status
+        Contains code and optional description for transaction states.
       properties:
         code:
+          description: |-
+            Status code identifying the state of the transaction
+            example: ACTIVE
+            maxLength: 100
           example: ACTIVE
           maxLength: 100
           type: string
         description:
+          description: |-
+            Optional descriptive text explaining the status
+            example: Active status
+            maxLength: 256
           example: Active status
           maxLength: 256
           type: string
       type: object
     Transaction:
-      description: Transaction is a struct designed to store transaction data.
+      description: Transaction is a struct designed to store transaction data. Represents
+        a financial transaction that consists of multiple operations affecting account
+        balances, including details about the transaction's status, amounts, and related
+        operations.
       example:
         template: Transaction template
         amount: 1500
@@ -2314,191 +2429,308 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         operations:
         - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
+          amount: '{}'
           metadata:
             key: '{}'
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          balance:
-            onHold: 500
-            available: 1500
-            scale: 2
-          balanceAfter:
-            onHold: 500
-            available: 1500
-            scale: 2
+          balance: '{}'
+          balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceId: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
+          amount: '{}'
           metadata:
             key: '{}'
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          balance:
-            onHold: 500
-            available: 1500
-            scale: 2
-          balanceAfter:
-            onHold: 500
-            available: 1500
-            scale: 2
+          balance: '{}'
+          balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceId: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         id: 00000000-0000-0000-0000-000000000000
-        status:
-          code: ACTIVE
-          description: Active status
+        status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         amount:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 1500
+            minimum: 0
           example: 1500
+          minimum: 0
           type: integer
         amountScale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            minimum: 0
           example: 2
+          minimum: 0
           type: integer
         assetCode:
+          description: |-
+            Asset code for the transaction
+            example: BRL
+            minLength: 2
+            maxLength: 10
           example: BRL
+          maxLength: 10
+          minLength: 2
           type: string
         chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: Chart of accounts group name
+            maxLength: 256
           example: Chart of accounts group name
+          maxLength: 256
           type: string
         createdAt:
+          description: |-
+            Timestamp when the transaction was created
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         deletedAt:
+          description: |-
+            Timestamp when the transaction was deleted (if soft-deleted)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         description:
+          description: |-
+            Human-readable description of the transaction
+            example: Transaction description
+            maxLength: 256
           example: Transaction description
+          maxLength: 256
           type: string
         destination:
+          description: |-
+            List of destination account aliases or identifiers
+            example: ["@person2"]
           example:
           - '@person2'
           items:
             type: string
           type: array
         id:
+          description: |-
+            Unique identifier for the transaction
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
+          description: |-
+            Ledger identifier
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
         operations:
+          description: List of operations associated with this transaction
           items:
             $ref: '#/components/schemas/Operation'
           type: array
         organizationId:
+          description: |-
+            Organization identifier
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         parentTransactionId:
+          description: |-
+            Parent transaction identifier (for reversals or child transactions)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         source:
+          description: |-
+            List of source account aliases or identifiers
+            example: ["@person1"]
           example:
           - '@person1'
           items:
             type: string
           type: array
         status:
-          $ref: '#/components/schemas/Status'
+          allOf:
+          - $ref: '#/components/schemas/Status'
+          description: Transaction status information
+          type: object
         template:
+          description: |-
+            Template used to create this transaction
+            example: Transaction template
+            maxLength: 100
           example: Transaction template
+          maxLength: 100
           type: string
         updatedAt:
+          description: |-
+            Timestamp when the transaction was last updated
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
+      type: object
+    UpdateBalance:
+      description: Request payload for updating an existing balance's permissions.
+        All fields are optional - only specified fields will be updated. Omitted fields
+        will remain unchanged.
+      example:
+        allowReceiving: true
+        allowSending: true
+      properties:
+        allowReceiving:
+          description: |-
+            Whether the account should be allowed to receive funds to this balance
+            required: false
+            example: true
+          example: true
+          type: boolean
+        allowSending:
+          description: |-
+            Whether the account should be allowed to send funds from this balance
+            required: false
+            example: true
+          example: true
+          type: boolean
       type: object
     UpdateOperationInput:
       description: UpdateOperationInput is the input payload to update an operation.
+        Contains fields that can be modified after an operation is created.
       example:
         metadata:
           key: '{}'
         description: Credit card operation
       properties:
         description:
+          description: |-
+            Human-readable description of the operation
+            example: Credit card operation
+            maxLength: 256
           example: Credit card operation
           maxLength: 256
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"reason": "Purchase refund", "reference": "INV-12345"}
           type: object
       type: object
     UpdateTransactionInput:
       description: UpdateTransactionInput is the input payload to update a transaction.
+        Contains fields that can be modified after a transaction is created.
       example:
         metadata:
           key: '{}'
         description: Transaction description
       properties:
         description:
+          description: |-
+            Human-readable description of the transaction
+            example: Transaction description
+            maxLength: 256
           example: Transaction description
           maxLength: 256
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
       type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
-      example:
-        transactionType: transactionType
-        variables:
-          key: '{}'
-        transactionTypeCode: transactionTypeCode
+    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+      description: Schema for creating transaction with the complete Send operation
+        structure defined inline
       properties:
-        transactionType:
+        chartOfAccountsGroupName:
+          description: |-
+            Chart of accounts group name for accounting purposes
+            example: FUNDING
+            maxLength: 256
           type: string
-        transactionTypeCode:
+        code:
+          description: |-
+            Transaction code for reference
+            example: TR12345
+            maxLength: 100
           type: string
-        variables:
+        description:
+          description: |-
+            Human-readable description of the transaction
+            example: New Transaction
+            maxLength: 256
+          type: string
+        metadata:
           additionalProperties:
             type: object
+          description: |-
+            Additional custom attributes
+            example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
+        pending:
+          description: |-
+            Whether the transaction should be created in pending state
+            swagger:ignore
+          type: boolean
+        send:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
       type: object
     mmodel.Balance:
-      description: Balance is a struct designed to store balance data.
+      description: Complete balance entity containing all fields including system-generated
+        fields like ID, creation timestamps, and metadata. This is the response format
+        for balance operations. Balances represent the amount of a specific asset
+        held in an account, including available and on-hold amounts.
       example:
         metadata:
           key: '{}'
-        assetCode: BRL
+        assetCode: USD
         onHold: 500
         allowReceiving: true
         accountType: creditCard
@@ -2516,66 +2748,138 @@ components:
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountId:
+          description: |-
+            Account that holds this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         accountType:
+          description: |-
+            Type of account holding this balance
+            example: creditCard
+            maxLength: 50
           example: creditCard
+          maxLength: 50
           type: string
         alias:
+          description: |-
+            Alias for the account, used for easy identification or tagging
+            example: @person1
+            maxLength: 256
           example: '@person1'
+          maxLength: 256
           type: string
         allowReceiving:
+          description: |-
+            Whether the account can receive funds to this balance
+            example: true
           example: true
           type: boolean
         allowSending:
+          description: |-
+            Whether the account can send funds from this balance
+            example: true
           example: true
           type: boolean
         assetCode:
-          example: BRL
+          description: |-
+            Asset code identifying the currency or asset type of this balance
+            example: USD
+            minLength: 2
+            maxLength: 10
+          example: USD
+          maxLength: 10
+          minLength: 2
           type: string
         available:
+          description: |-
+            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+            example: 1500
+            minimum: 0
           example: 1500
+          minimum: 0
           type: integer
         createdAt:
+          description: |-
+            Timestamp when the balance was created (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         deletedAt:
+          description: |-
+            Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+            example: null
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         id:
+          description: |-
+            Unique identifier for the balance (UUID format)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         ledgerId:
+          description: |-
+            Ledger containing the account this balance belongs to
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         metadata:
           additionalProperties:
             type: object
+          description: |-
+            Custom key-value pairs for extending the balance information
+            example: {"purpose": "Main savings", "category": "Personal"}
           type: object
         onHold:
+          description: |-
+            Amount currently on hold and unavailable for transactions
+            example: 500
+            minimum: 0
           example: 500
+          minimum: 0
           type: integer
         organizationId:
+          description: |-
+            Organization that owns this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
           example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         scale:
+          description: |-
+            Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)
+            example: 2
+            minimum: 0
           example: 2
+          minimum: 0
           type: integer
         updatedAt:
+          description: |-
+            Timestamp when the balance was last updated (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
           example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
         version:
+          description: |-
+            Optimistic concurrency control version
+            example: 1
+            minimum: 1
           example: 1
+          minimum: 1
           type: integer
-      type: object
-    mmodel.UpdateBalance:
-      properties:
-        allowReceiving:
-          example: true
-          type: boolean
-        allowSending:
-          example: true
-          type: boolean
       type: object
     inline_response_200:
       example:
@@ -2591,7 +2895,7 @@ components:
         items:
         - metadata:
             key: '{}'
-          assetCode: BRL
+          assetCode: USD
           onHold: 500
           allowReceiving: true
           accountType: creditCard
@@ -2609,7 +2913,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
         - metadata:
             key: '{}'
-          assetCode: BRL
+          assetCode: USD
           onHold: 500
           allowReceiving: true
           accountType: creditCard
@@ -2652,68 +2956,44 @@ components:
         limit: 0
         items:
         - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
+          amount: '{}'
           metadata:
             key: '{}'
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          balance:
-            onHold: 500
-            available: 1500
-            scale: 2
-          balanceAfter:
-            onHold: 500
-            available: 1500
-            scale: 2
+          balance: '{}'
+          balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceId: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            operation: operation
-            value: 1000
+          amount: '{}'
           metadata:
             key: '{}'
           assetCode: BRL
           chartOfAccounts: "1000"
           description: Credit card operation
-          type: creditCard
+          type: DEBIT
           transactionId: 00000000-0000-0000-0000-000000000000
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          balance:
-            onHold: 500
-            available: 1500
-            scale: 2
-          balanceAfter:
-            onHold: 500
-            available: 1500
-            scale: 2
+          balance: '{}'
+          balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceId: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
         ' next_cursor':
@@ -2815,73 +3095,47 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
+            amount: '{}'
             metadata:
               key: '{}'
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            balance:
-              onHold: 500
-              available: 1500
-              scale: 2
-            balanceAfter:
-              onHold: 500
-              available: 1500
-              scale: 2
+            balance: '{}'
+            balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
-            status:
-              code: ACTIVE
-              description: Active status
+            status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
+            amount: '{}'
             metadata:
               key: '{}'
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            balance:
-              onHold: 500
-              available: 1500
-              scale: 2
-            balanceAfter:
-              onHold: 500
-              available: 1500
-              scale: 2
+            balance: '{}'
+            balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
-            status:
-              code: ACTIVE
-              description: Active status
+            status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - template: Transaction template
           amount: 1500
@@ -2902,73 +3156,47 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
+            amount: '{}'
             metadata:
               key: '{}'
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            balance:
-              onHold: 500
-              available: 1500
-              scale: 2
-            balanceAfter:
-              onHold: 500
-              available: 1500
-              scale: 2
+            balance: '{}'
+            balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
-            status:
-              code: ACTIVE
-              description: Active status
+            status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount:
-              scale: 2
-              asset: BRL
-              operation: operation
-              value: 1000
+            amount: '{}'
             metadata:
               key: '{}'
             assetCode: BRL
             chartOfAccounts: "1000"
             description: Credit card operation
-            type: creditCard
+            type: DEBIT
             transactionId: 00000000-0000-0000-0000-000000000000
             ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            balance:
-              onHold: 500
-              available: 1500
-              scale: 2
-            balanceAfter:
-              onHold: 500
-              available: 1500
-              scale: 2
+            balance: '{}'
+            balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
-            status:
-              code: ACTIVE
-              description: Active status
+            status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
+          status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
         Pagination:
@@ -2986,5 +3214,344 @@ components:
           type: object
         prev_cursor:
           type: string
+      type: object
+    CreateTransactionInflowSwaggerModel_send_distribute_amount:
+      description: |-
+        Amount details for the operation
+        required: true
+      example:
+        scale: 0
+        asset: asset
+        value: 6
+      properties:
+        asset:
+          description: |-
+            Asset code
+            example: USD
+            required: true
+          type: string
+        scale:
+          description: |-
+            Decimal places
+            example: 2
+            required: true
+          type: integer
+        value:
+          description: |-
+            Amount value in smallest unit
+            example: 100
+            required: true
+          type: integer
+      type: object
+    CreateTransactionInflowSwaggerModel_send_distribute_to:
+      example:
+        amount:
+          scale: 0
+          asset: asset
+          value: 6
+        metadata:
+          key: '{}'
+        chartOfAccounts: chartOfAccounts
+        description: description
+        account: account
+      properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: {{accountAlias}}
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: FUNDING_CREDIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Credit Operation
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional metadata
+            example: {"operation": "funding", "type": "account"}
+          type: object
+      type: object
+    CreateTransactionInflowSwaggerModel_send_distribute:
+      description: |-
+        Destination accounts and amounts for the transaction
+        required: true
+      example:
+        to:
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+      properties:
+        to:
+          description: |-
+            List of destination operations
+            required: true
+          items:
+            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to'
+          type: array
+      type: object
+    CreateTransactionInflowSwaggerModel_send:
+      description: |-
+        Send operation details including distribution only
+        required: true
+      example:
+        scale: 1
+        distribute:
+          to:
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+        asset: asset
+        value: 5
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: USD
+            required: true
+          type: string
+        distribute:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        value:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
+      type: object
+    CreateTransactionOutflowSwaggerModel_send_source_from:
+      example:
+        amount:
+          scale: 0
+          asset: asset
+          value: 6
+        metadata:
+          key: '{}'
+        chartOfAccounts: chartOfAccounts
+        description: description
+        account: account
+      properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: {{accountAlias}}
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: WITHDRAWAL_DEBIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Debit Operation
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional metadata
+            example: {"operation": "withdrawal", "type": "account"}
+          type: object
+      type: object
+    CreateTransactionOutflowSwaggerModel_send_source:
+      description: |-
+        Source accounts and amounts for the transaction
+        required: true
+      example:
+        from:
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+        - amount:
+            scale: 0
+            asset: asset
+            value: 6
+          metadata:
+            key: '{}'
+          chartOfAccounts: chartOfAccounts
+          description: description
+          account: account
+      properties:
+        from:
+          description: |-
+            List of source operations
+            required: true
+          items:
+            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from'
+          type: array
+      type: object
+    CreateTransactionOutflowSwaggerModel_send:
+      description: |-
+        Send operation details including source only
+        required: true
+      example:
+        scale: 0
+        source:
+          from:
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+          - amount:
+              scale: 0
+              asset: asset
+              value: 6
+            metadata:
+              key: '{}'
+            chartOfAccounts: chartOfAccounts
+            description: description
+            account: account
+        asset: asset
+        value: 6
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: USD
+            required: true
+          type: string
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        source:
+          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source'
+        value:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
+    : properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: @external/USD
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: FUNDING_DEBIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Debit Operation
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional metadata
+            example: {"operation": "funding", "type": "external"}
+          type: object
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
+    : description: |-
+        Source accounts and amounts for the transaction
+        required: true
+      properties:
+        from:
+          description: |-
+            List of source operations
+            required: true
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
+          type: array
+      type: object
+    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
+      description: |-
+        Send operation details including source and distribution
+        required: true
+      properties:
+        asset:
+          description: |-
+            Asset code for the transaction
+            example: USD
+            required: true
+          type: string
+        distribute:
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
+        scale:
+          description: |-
+            Decimal places for the transaction amount
+            example: 2
+            required: true
+          type: integer
+        source:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
+        value:
+          description: |-
+            Transaction amount value in the smallest unit of the asset
+            example: 100
+            required: true
+          type: integer
       type: object
 x-original-swagger-version: "2.0"

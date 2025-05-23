@@ -1,0 +1,96 @@
+name: "Console Combined Analysis"
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+    paths:
+      - 'components/console/**'
+
+permissions:
+  id-token: write          # Needed for authentication
+  contents: read           # Needed to read repository contents
+  pull-requests: read      # Needed to read PR information
+  actions: read            # Needed to read workflow information
+  security-events: write   # Needed to write security scanning results
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    name: Run npm audit and fix vulnerabilities
+    defaults:
+      run:
+        working-directory: components/console
+    strategy:
+      fail-fast: false
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      # Cache Node.js modules to speed up installation
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # Install project dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Run npm audit to check for vulnerabilities (excluding dev dependencies)
+      - name: Run npm audit
+        run: npm audit --omit=dev
+
+      # Attempt to automatically fix vulnerabilities
+      - name: Fix vulnerabilities
+        run: npm audit fix
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Run Unit Tests for Console
+    defaults:
+      run:
+        working-directory: components/console
+    strategy:
+      fail-fast: false
+    steps:
+      # Checkout the repository code
+      - uses: actions/checkout@v4
+
+      # Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      # Install SWC binary for Linux to improve build performance
+      - name: Install SWC binary (Linux only)
+        run: npm install --save-dev @next/swc-linux-x64-gnu --platform=linux --cpu=x64
+
+      # Install project dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Warm up Next.js by building once to ensure SWC binaries are properly set up
+      - name: Patch Next.js SWC binaries (warm-up)
+        run: npx next build
+
+      # Run the unit tests
+      - name: Run Unit Tests
+        run: npm test
