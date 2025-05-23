@@ -177,12 +177,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'assets.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Represent units of value, such as currencies or tokens, that can be transacted and managed within the system.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/assets"
         />
       </PageHeader.Root>
 

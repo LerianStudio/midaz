@@ -157,12 +157,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'portfolios.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Groups of accounts assembled for organizational and operational purposes.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/portfolios"
         />
       </PageHeader.Root>
 

@@ -169,12 +169,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'segments.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Custom labels that allow grouping of accounts according to user-defined policies.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/segments"
         />
       </PageHeader.Root>
 
