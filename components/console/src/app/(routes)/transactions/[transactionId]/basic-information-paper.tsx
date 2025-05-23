@@ -3,12 +3,10 @@ import { Paper } from '@/components/ui/paper'
 import { Separator } from '@/components/ui/separator'
 import { Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
-import DolarSign from '/public/svg/dolar-sign.svg'
-import Image from 'next/image'
 
 export type BasicInformationPaperProps = {
   chartOfAccountsGroupName?: string
-  value: number
+  value: string
   asset: string
   control: Control<any>
 }
@@ -59,7 +57,7 @@ export const BasicInformationPaper = ({
               })}
             </label>
             <div className="flex h-9 items-center rounded-md bg-shadcn-100 px-3">
-              {intl.formatNumber(value)}
+              {value}
             </div>
           </div>
         </div>
@@ -73,9 +71,6 @@ export const BasicInformationPaper = ({
           <div className="flex h-9 items-center rounded-md bg-shadcn-100 px-3">
             {asset}
           </div>
-        </div>
-        <div className="flex items-end justify-end">
-          <Image alt="" src={DolarSign} />
         </div>
       </div>
     </Paper>
