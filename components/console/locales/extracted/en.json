@@ -483,6 +483,7 @@
   "settingsDialog.description": "Make the desired changes and click on 'Save' when finished.",
   "settingsDialog.title": "Settings",
   "settingsDropdown.about.midaz": "About Midaz",
+  "settingsDropdown.applications": "Applications",
   "settingsDropdown.organizations": "Organizations",
   "settingsDropdown.settings": "Settings",
   "settingsDropdown.system": "System",
