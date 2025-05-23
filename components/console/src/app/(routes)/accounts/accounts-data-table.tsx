@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { AccountType } from '@/types/accounts-type'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { EmptyResource } from '@/components/empty-resource'
@@ -39,19 +38,20 @@ import {
 } from '@/components/ui/tooltip'
 import { LockedTableActions } from '@/components/table/locked-table-actions'
 import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
+import { AccountDto } from '@/core/application/dto/account-dto'
 
 type AccountsTableProps = {
-  accounts: { items: AccountType[] }
+  accounts: { items: AccountDto[] }
   isLoading: boolean
   table: {
     getRowModel: () => {
-      rows: { id: string; original: AccountType }[]
+      rows: { id: string; original: AccountDto }[]
     }
   }
-  onDelete: (id: string, account: AccountType) => void
+  onDelete: (id: string, account: AccountDto) => void
   refetch: () => void
   handleCreate: () => void
-  handleEdit: (account: AccountType) => void
+  handleEdit: (account: AccountDto) => void
   total: number
   pagination: PaginationProps
   form: UseFormReturn<any>
@@ -59,9 +59,9 @@ type AccountsTableProps = {
 }
 
 type AccountRowProps = {
-  account: { id: string; original: AccountType }
-  handleEdit: (account: AccountType) => void
-  onDelete: (id: string, account: AccountType) => void
+  account: { id: string; original: AccountDto }
+  handleEdit: (account: AccountDto) => void
+  onDelete: (id: string, account: AccountDto) => void
 }
 
 const AccountRow: React.FC<AccountRowProps> = ({
@@ -80,7 +80,7 @@ const AccountRow: React.FC<AccountRowProps> = ({
       <TableCell>{account.original.name}</TableCell>
       <TableCell>{account.original.alias}</TableCell>
       <TableCell align="center">{account.original.assetCode}</TableCell>
-      <MetadataTableCell align="center" metadata={account.original.metadata} />
+      <MetadataTableCell align="center" metadata={account.original.metadata!} />
       <TableCell align="center">
         {isExternal && '-'}
         {!isExternal &&

@@ -4,7 +4,7 @@ import { PaginationDto } from '../../dto/pagination-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { AccountEntity } from '@/core/domain/entities/account-entity'
-import { PortfolioResponseDto } from '../../dto/portfolio-dto'
+import { PortfolioDto } from '../../dto/portfolio-dto'
 import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
@@ -18,7 +18,7 @@ export interface FetchAccountsWithPortfolios {
     ledgerId: string,
     limit: number,
     page: number
-  ) => Promise<PaginationDto<PortfolioResponseDto>>
+  ) => Promise<PaginationDto<PortfolioDto>>
 }
 
 @injectable()
@@ -42,7 +42,7 @@ export class FetchAccountsWithPortfoliosUseCase
     ledgerId: string,
     limit: number,
     page: number
-  ): Promise<PaginationDto<PortfolioResponseDto>> {
+  ): Promise<PaginationDto<PortfolioDto>> {
     const accountsResult = await this.fetchPaginatedAccounts(
       organizationId,
       ledgerId,

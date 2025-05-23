@@ -14,7 +14,7 @@ import { Form } from '@/components/ui/form'
 import { useIntl } from 'react-intl'
 import { useCreatePortfolio, useUpdatePortfolio } from '@/client/portfolios'
 import { DialogProps } from '@radix-ui/react-dialog'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolio-dto'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { MetadataField } from '@/components/form/metadata-field'
@@ -29,7 +29,7 @@ import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type PortfolioSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data?: PortfolioResponseDto | null
+  data?: PortfolioDto | null
   onSuccess?: () => void
 }
 

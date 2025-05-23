@@ -23,7 +23,6 @@ import { useListPortfolios } from '@/client/portfolios'
 import { isNil, omitBy } from 'lodash'
 import { useListAssets } from '@/client/assets'
 import { accounts } from '@/schema/account'
-import { AccountType } from '@/types/accounts-type'
 import { SelectItem } from '@/components/ui/select'
 import { InputField, SelectField } from '@/components/form'
 import { TabsContent } from '@radix-ui/react-tabs'
@@ -36,11 +35,12 @@ import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@/providers/permission-provider/enforce'
+import { AccountDto } from '@/core/application/dto/account-dto'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: AccountType | null
+  data?: AccountDto | null
   onSuccess?: () => void
 }
 
@@ -147,7 +147,7 @@ export const AccountSheet = ({
             id: 'success.accounts.created',
             defaultMessage: '{accountName} account successfully created'
           },
-          { accountName: (data as AccountType)?.name! }
+          { accountName: (data as AccountDto)?.name! }
         ),
         variant: 'success'
       })
@@ -168,7 +168,7 @@ export const AccountSheet = ({
             id: 'success.accounts.update',
             defaultMessage: '{accountName} account successfully updated'
           },
-          { accountName: (data as AccountType)?.name! }
+          { accountName: (data as AccountDto)?.name! }
         ),
         variant: 'success'
       })
