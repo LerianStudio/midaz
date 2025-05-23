@@ -61,6 +61,7 @@ func (f *factoryHistory) setFlags(cmd *cobra.Command) {
 func (f *factoryHistory) runE(cmd *cobra.Command, args []string) error {
 	// Initialize audit trail
 	config := audit.DefaultConfig()
+
 	trail, err := audit.New(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize audit trail: %w", err)
@@ -71,7 +72,9 @@ func (f *factoryHistory) runE(cmd *cobra.Command, args []string) error {
 		if err := trail.Clear(); err != nil {
 			return fmt.Errorf("failed to clear history: %w", err)
 		}
+
 		fmt.Fprintln(f.factory.IOStreams.Out, "Command history cleared successfully")
+
 		return nil
 	}
 
@@ -96,7 +99,9 @@ func (f *factoryHistory) runE(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal history: %w", err)
 		}
+
 		fmt.Fprintln(f.factory.IOStreams.Out, string(data))
+
 		return nil
 	default:
 		return f.printTable(entries)
@@ -116,6 +121,7 @@ func (f *factoryHistory) printTable(entries []audit.Entry) error {
 		if len(entry.Args) > 0 {
 			cmdStr += " " + strings.Join(entry.Args, " ")
 		}
+
 		if len(cmdStr) > 50 {
 			cmdStr = cmdStr[:47] + "..."
 		}

@@ -40,6 +40,7 @@ func Retry(ctx context.Context, fn RetryableFunc, config *RetryConfig) error {
 	}
 
 	var lastErr error
+
 	delay := config.InitialDelay
 
 	for attempt := 1; attempt <= config.MaxAttempts; attempt++ {
@@ -98,6 +99,7 @@ func RetryWithRollback(ctx context.Context, fn RetryableFunc, rollback func(cont
 			return Wrap(err, ErrorTypeInternal, fmt.Sprintf("operation failed and rollback failed: %v", rbErr))
 		}
 	}
+
 	return err
 }
 
@@ -138,10 +140,13 @@ func (t *Transaction) Execute(ctx context.Context) error {
 				return Wrap(err, ErrorTypeInternal,
 					fmt.Sprintf("step '%s' failed and rollback failed: %v", step.Name, rbErr))
 			}
+
 			return Wrap(err, ErrorTypeInternal, fmt.Sprintf("step '%s' failed", step.Name))
 		}
+
 		t.completed = append(t.completed, i)
 	}
+
 	return nil
 }
 

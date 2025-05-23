@@ -121,6 +121,7 @@ func (e *Error) WithStatusCode(code int) *Error {
 func (e *Error) WithRetry(retryAfter time.Duration) *Error {
 	e.Retryable = true
 	e.RetryAfter = retryAfter
+
 	return e
 }
 
@@ -135,7 +136,9 @@ func (e *Error) WithContext(key, value string) *Error {
 	if e.Context == nil {
 		e.Context = make(map[string]string)
 	}
+
 	e.Context[key] = value
+
 	return e
 }
 

@@ -53,6 +53,7 @@ func (f *factoryUndo) setFlags(cmd *cobra.Command) {
 func (f *factoryUndo) runE(cmd *cobra.Command, args []string) error {
 	// Initialize audit trail
 	config := audit.DefaultConfig()
+
 	trail, err := audit.New(config)
 	if err != nil {
 		return fmt.Errorf("failed to initialize audit trail: %w", err)
@@ -66,6 +67,7 @@ func (f *factoryUndo) runE(cmd *cobra.Command, args []string) error {
 		if len(undoable) == 0 {
 			return fmt.Errorf("no undoable commands found")
 		}
+
 		entry = &undoable[0]
 	} else {
 		// Get specific entry by ID
@@ -92,6 +94,7 @@ func (f *factoryUndo) runE(cmd *cobra.Command, args []string) error {
 	if f.dryRun {
 		fmt.Fprintln(f.factory.IOStreams.Out, "\nDry run mode - would execute:")
 		fmt.Fprintf(f.factory.IOStreams.Out, "  %s\n", entry.UndoCommand)
+
 		return nil
 	}
 
@@ -102,6 +105,7 @@ func (f *factoryUndo) runE(cmd *cobra.Command, args []string) error {
 
 	var response string
 	_, _ = fmt.Fscanln(f.factory.IOStreams.In, &response)
+
 	if strings.ToLower(response) != "y" {
 		fmt.Fprintln(f.factory.IOStreams.Out, "Undo cancelled")
 		return nil
@@ -141,5 +145,6 @@ func (f *factoryUndo) runE(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintln(f.factory.IOStreams.Out, "\nUndo completed successfully")
+
 	return nil
 }

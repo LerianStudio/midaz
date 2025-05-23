@@ -44,6 +44,7 @@ type Config struct {
 // DefaultConfig returns default audit trail configuration
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
+
 	return &Config{
 		Enabled:    true,
 		FilePath:   filepath.Join(homeDir, ".mdz", "audit.json"),
@@ -78,6 +79,7 @@ func New(config *Config) (*Trail, error) {
 	}
 
 	trail.initialized = true
+
 	return trail, nil
 }
 
@@ -179,6 +181,7 @@ func (t *Trail) Clear() error {
 	defer t.mu.Unlock()
 
 	t.entries = make([]Entry, 0)
+
 	return t.save()
 }
 
@@ -245,6 +248,7 @@ func (b *Builder) WithFlags(flags map[string]string) *Builder {
 	for k, v := range flags {
 		b.entry.Flags[k] = v
 	}
+
 	return b
 }
 
@@ -260,6 +264,7 @@ func (b *Builder) WithError(err error) *Builder {
 		b.entry.Error = err.Error()
 		b.entry.Result = "error"
 	}
+
 	return b
 }
 
@@ -279,6 +284,7 @@ func (b *Builder) WithMetadata(key, value string) *Builder {
 func (b *Builder) WithUndo(undoCommand string) *Builder {
 	b.entry.Undoable = true
 	b.entry.UndoCommand = undoCommand
+
 	return b
 }
 

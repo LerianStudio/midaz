@@ -86,6 +86,7 @@ func (f *factoryInteractive) runE(cmd *cobra.Command, args []string) error {
 
 	// Run the REPL
 	ctx := context.Background()
+
 	return r.Run(ctx, config)
 }
 

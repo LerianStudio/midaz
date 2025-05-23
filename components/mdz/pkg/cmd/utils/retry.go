@@ -57,6 +57,7 @@ func HandleError(f *factory.Factory, err error) {
 		suggestions := errors.GetSuggestions(err)
 		if len(suggestions) > 0 {
 			fmt.Fprintln(f.IOStreams.Err, "\nSuggestions:")
+
 			for _, suggestion := range suggestions {
 				if !f.NoColor {
 					fmt.Fprintf(f.IOStreams.Err, "  \033[32m• %s\033[0m\n", suggestion)
@@ -69,6 +70,7 @@ func HandleError(f *factory.Factory, err error) {
 		// Print context if available
 		if len(enhancedErr.Context) > 0 {
 			fmt.Fprintln(f.IOStreams.Err, "\nContext:")
+
 			for key, value := range enhancedErr.Context {
 				fmt.Fprintf(f.IOStreams.Err, "  %s: %s\n", key, value)
 			}

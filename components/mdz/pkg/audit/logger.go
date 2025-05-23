@@ -8,18 +8,19 @@ import (
 
 // Logger handles command logging for audit trail
 type Logger struct {
-	trail      *Trail
+	trail        *Trail
 	skipCommands map[string]bool
 }
 
 // NewLogger creates a new audit logger
 func NewLogger() (*Logger, error) {
 	config := DefaultConfig()
+
 	trail, err := New(config)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &Logger{
 		trail: trail,
 		skipCommands: map[string]bool{
@@ -37,13 +38,14 @@ func (l *Logger) LogCommand(args []string, err error, duration time.Duration) er
 	if l.trail == nil || len(args) == 0 {
 		return nil
 	}
-	
+
 	// Skip certain commands
 	if len(args) > 0 && l.skipCommands[args[0]] {
 		return nil
 	}
-	
+
 	entry := l.buildEntry(args, err, duration)
+
 	return l.trail.LogCommand(entry)
 }
 
@@ -52,21 +54,21 @@ func (l *Logger) buildEntry(args []string, err error, duration time.Duration) En
 	builder := NewBuilder().
 		WithCommand(args[0]).
 		WithDuration(duration)
-	
+
 	if len(args) > 1 {
 		builder.WithArgs(args[1:])
 	}
-	
+
 	// Extract flags
 	flags := extractFlags(args)
 	builder.WithFlags(flags)
-	
+
 	// Set result
 	if err != nil {
 		builder.WithError(err)
 	} else {
 		builder.WithResult("success")
-		
+
 		// Add undo information for create/delete commands
 		if len(args) > 1 && args[1] == "create" {
 			undoCmd := buildUndoCommand(args)
@@ -75,34 +77,38 @@ func (l *Logger) buildEntry(args []string, err error, duration time.Duration) En
 			}
 		}
 	}
-	
+
 	return builder.Build()
 }
 
 // extractFlags extracts flags from command arguments
 func extractFlags(args []string) map[string]string {
 	flags := make(map[string]string)
-	
+
 	for i := 1; i < len(args); i++ {
 		if strings.HasPrefix(args[i], "--") {
 			key := strings.TrimPrefix(args[i], "--")
+
 			value := "true"
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				value = args[i+1]
 				i++
 			}
+
 			flags[key] = value
 		} else if strings.HasPrefix(args[i], "-") && len(args[i]) == 2 {
 			key := string(args[i][1])
+
 			value := "true"
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				value = args[i+1]
 				i++
 			}
+
 			flags[key] = value
 		}
 	}
-	
+
 	return flags
 }
 
@@ -111,8 +117,9 @@ func buildUndoCommand(args []string) string {
 	if len(args) < 2 {
 		return ""
 	}
-	
+
 	cmdStr := strings.Join(args, " ")
+
 	return "mdz " + strings.Replace(cmdStr, "create", "delete", 1)
 }
 
@@ -122,5 +129,6 @@ func GetUser() string {
 	if user == "" {
 		user = os.Getenv("USERNAME") // Windows
 	}
+
 	return user
 }
