@@ -54,11 +54,13 @@ func (s *Selector) SelectEntity(entityType EntityType, entities []Entity) (*Enti
 
 	// Display entities
 	fmt.Fprintf(s.factory.IOStreams.Out, "\nAvailable %ss:\n", entityType)
+
 	for i, entity := range entities {
 		desc := ""
 		if entity.Description != "" {
 			desc = fmt.Sprintf(" - %s", entity.Description)
 		}
+
 		fmt.Fprintf(s.factory.IOStreams.Out, "  %d. %s (%s)%s\n",
 			i+1, entity.Name, entity.ID, desc)
 	}
@@ -69,6 +71,7 @@ func (s *Selector) SelectEntity(entityType EntityType, entities []Entity) (*Enti
 			entityType, len(entities))
 
 		var input string
+
 		_, err := fmt.Fscanln(s.factory.IOStreams.In, &input)
 		if err != nil {
 			continue
@@ -92,11 +95,12 @@ func (s *Selector) SelectEntity(entityType EntityType, entities []Entity) (*Enti
 		selected := &entities[choice-1]
 		fmt.Fprintf(s.factory.IOStreams.Out, "Selected %s: %s (%s)\n",
 			entityType, selected.Name, selected.ID)
+
 		return selected, nil
 	}
 }
 
-// SelectWithTUI uses the TUI select component for better UX
+// SelectWithTUI uses the enhanced fuzzy TUI select component for better UX
 func (s *Selector) SelectWithTUI(entityType EntityType, entities []Entity) (*Entity, error) {
 	if len(entities) == 0 {
 		return nil, fmt.Errorf("no %s found", entityType)
@@ -109,23 +113,28 @@ func (s *Selector) SelectWithTUI(entityType EntityType, entities []Entity) (*Ent
 		return &entities[0], nil
 	}
 
-	// Prepare options for TUI
-	options := make([]string, len(entities))
+	// Prepare options for fuzzy TUI
+	options := make([]tui.FuzzySelectOption, len(entities))
 	for i, entity := range entities {
-		options[i] = fmt.Sprintf("%s (%s)", entity.Name, entity.ID[:8])
+		options[i] = tui.FuzzySelectOption{
+			ID:          entity.ID,
+			Name:        entity.Name,
+			Description: entity.Description,
+		}
 	}
 
-	// Use TUI select
+	// Use enhanced fuzzy TUI select
 	prompt := fmt.Sprintf("Select %s", entityType)
-	selected, err := tui.Select(prompt, options)
+
+	selected, err := tui.FuzzySelect(prompt, options)
 	if err != nil {
 		return nil, err
 	}
 
 	// Find the selected entity
-	for i, option := range options {
-		if option == selected {
-			return &entities[i], nil
+	for _, entity := range entities {
+		if entity.ID == selected.ID {
+			return &entity, nil
 		}
 	}
 
@@ -137,11 +146,13 @@ func (s *Selector) ConfirmAction(message string) bool {
 	fmt.Fprintf(s.factory.IOStreams.Out, "%s (y/N): ", message)
 
 	var response string
+
 	_, err := fmt.Fscanln(s.factory.IOStreams.In, &response)
 	if err != nil {
 		return false
 	}
 
 	response = strings.ToLower(strings.TrimSpace(response))
+
 	return response == "y" || response == "yes"
 }

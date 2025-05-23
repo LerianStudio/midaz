@@ -40,11 +40,12 @@ type Config struct {
 // DefaultConfig returns default REPL configuration
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
+
 	return &Config{
 		Prompt:       "mdz> ",
 		HistoryFile:  homeDir + "/.mdz_history",
 		MaxHistory:   1000,
-		WelcomeMsg:   "Welcome to MDZ Interactive Mode!\n\nCommands:\n  help     - Show help for commands\n  context  - Show current context\n  use      - Set context (e.g., 'use organization <id>')\n  unset    - Clear context\n  exit     - Exit REPL\n\nThe REPL will automatically prompt for missing context when needed.",
+		WelcomeMsg:   buildWelcomeMessage(),
 		ExitCommands: []string{"exit", "quit", "q"},
 	}
 }
@@ -70,9 +71,11 @@ func New(f *factory.Factory, rootCmd *cobra.Command, config *Config) (*REPL, err
 	if f.IOStreams.In != os.Stdin {
 		rlConfig.Stdin = f.IOStreams.In
 	}
+
 	if f.IOStreams.Out != os.Stdout {
 		rlConfig.Stdout = f.IOStreams.Out
 	}
+
 	if f.IOStreams.Err != os.Stderr {
 		rlConfig.Stderr = f.IOStreams.Err
 	}
@@ -142,6 +145,7 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 				} else if err == io.EOF {
 					return nil
 				}
+
 				return err
 			}
 
@@ -184,6 +188,7 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 	case "pwd":
 		pwd, _ := os.Getwd()
 		fmt.Fprintln(r.factory.IOStreams.Out, pwd)
+
 		return nil
 	case "context":
 		fmt.Fprintln(r.factory.IOStreams.Out, r.context.String())
@@ -192,8 +197,10 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 		if len(args) < 3 {
 			fmt.Fprintln(r.factory.IOStreams.Err, "Usage: use <entity> <id>")
 			fmt.Fprintln(r.factory.IOStreams.Err, "Example: use organization 123-456")
+
 			return nil
 		}
+
 		return r.handleUseCommand(ctx, args[1], args[2])
 	case "unset":
 		if len(args) < 2 {
@@ -202,6 +209,16 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 		} else {
 			return r.handleUnsetCommand(args[1])
 		}
+
+		return nil
+	case "help":
+		return r.showContextualHelp()
+	case "suggestions", "suggest":
+		return r.showSuggestions()
+	case "ls", "list":
+		return r.handleSmartList(ctx)
+	case "status", "st":
+		fmt.Fprintln(r.factory.IOStreams.Out, r.context.String())
 		return nil
 	}
 
@@ -231,6 +248,7 @@ func (r *REPL) showHistory() error {
 	for i, cmd := range r.history {
 		fmt.Fprintf(r.factory.IOStreams.Out, "%4d  %s\n", i+1, cmd)
 	}
+
 	return nil
 }
 
@@ -281,6 +299,7 @@ func (r *REPL) handleUseCommand(_ context.Context, entityType, id string) error 
 		fmt.Fprintf(r.factory.IOStreams.Err, "Unknown entity type: %s\n", entityType)
 		fmt.Fprintln(r.factory.IOStreams.Err, "Valid types: organization, ledger, portfolio, account")
 	}
+
 	return nil
 }
 
@@ -303,6 +322,7 @@ func (r *REPL) handleUnsetCommand(entityType string) error {
 		fmt.Fprintf(r.factory.IOStreams.Err, "Unknown entity type: %s\n", entityType)
 		fmt.Fprintln(r.factory.IOStreams.Err, "Valid types: organization, ledger, portfolio, account")
 	}
+
 	return nil
 }
 
@@ -311,11 +331,137 @@ func (r *REPL) GetContext() *Context {
 	return r.context
 }
 
+// showContextualHelp displays context-aware help
+func (r *REPL) showContextualHelp() error {
+	fmt.Fprintln(r.factory.IOStreams.Out, "🚀 MDZ Interactive Help")
+	fmt.Fprintln(r.factory.IOStreams.Out, "==================")
+	fmt.Fprintln(r.factory.IOStreams.Out)
+
+	// Built-in commands
+	fmt.Fprintln(r.factory.IOStreams.Out, "📋 Built-in Commands:")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  context/status  - Show current context")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  use <type> <id> - Set context (org, ledger, portfolio, account)")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  unset [type]    - Clear context")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  ls/list         - Smart context-aware listing")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  history         - Show command history")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  clear           - Clear screen")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  suggestions     - Show contextual command suggestions")
+	fmt.Fprintln(r.factory.IOStreams.Out, "  exit/quit       - Exit REPL")
+	fmt.Fprintln(r.factory.IOStreams.Out)
+
+	// Context-specific suggestions
+	fmt.Fprintln(r.factory.IOStreams.Out, "🎯 Available Actions Based on Current Context:")
+
+	if r.context.OrganizationID == "" {
+		fmt.Fprintln(r.factory.IOStreams.Out, "  organization list     - List organizations")
+		fmt.Fprintln(r.factory.IOStreams.Out, "  organization create   - Create new organization")
+	} else {
+		fmt.Fprintln(r.factory.IOStreams.Out, "  ledger list          - List ledgers")
+		fmt.Fprintln(r.factory.IOStreams.Out, "  ledger create        - Create new ledger")
+
+		if r.context.LedgerID != "" {
+			fmt.Fprintln(r.factory.IOStreams.Out, "  account list         - List accounts")
+			fmt.Fprintln(r.factory.IOStreams.Out, "  portfolio list       - List portfolios")
+			fmt.Fprintln(r.factory.IOStreams.Out, "  asset list           - List assets")
+
+			if r.context.AccountID != "" {
+				fmt.Fprintln(r.factory.IOStreams.Out, "  balance list         - Show account balances")
+				fmt.Fprintln(r.factory.IOStreams.Out, "  operation list       - List operations")
+				fmt.Fprintln(r.factory.IOStreams.Out, "  transaction create   - Create transaction")
+			}
+		}
+	}
+
+	fmt.Fprintln(r.factory.IOStreams.Out)
+	fmt.Fprintln(r.factory.IOStreams.Out, "💡 Tip: Use Tab completion for commands and arguments!")
+
+	return nil
+}
+
+// showSuggestions displays contextual command suggestions
+func (r *REPL) showSuggestions() error {
+	fmt.Fprintln(r.factory.IOStreams.Out, "💡 Suggested Next Steps:")
+	fmt.Fprintln(r.factory.IOStreams.Out, "====================")
+
+	if r.context.OrganizationID == "" {
+		fmt.Fprintln(r.factory.IOStreams.Out, "🏢 Start by selecting an organization:")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → organization list")
+
+		return nil
+	}
+
+	if r.context.LedgerID == "" {
+		fmt.Fprintln(r.factory.IOStreams.Out, "📊 You're in organization context. Next:")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → ledger list")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → asset list")
+
+		return nil
+	}
+
+	if r.context.PortfolioID == "" && r.context.AccountID == "" {
+		fmt.Fprintln(r.factory.IOStreams.Out, "💼 You're in ledger context. Options:")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → portfolio list    (manage portfolios)")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → account list      (view accounts)")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → segment list      (manage segments)")
+
+		return nil
+	}
+
+	if r.context.AccountID != "" {
+		fmt.Fprintln(r.factory.IOStreams.Out, "🎯 You're in account context. Try:")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → balance list      (check balances)")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → operation list    (view operations)")
+		fmt.Fprintln(r.factory.IOStreams.Out, "   → transaction create (make transaction)")
+
+		return nil
+	}
+
+	fmt.Fprintln(r.factory.IOStreams.Out, "✨ You have context set up! Try:")
+	fmt.Fprintln(r.factory.IOStreams.Out, "   → account list")
+	fmt.Fprintln(r.factory.IOStreams.Out, "   → transaction create")
+
+	return nil
+}
+
+// handleSmartList provides context-aware listing
+func (r *REPL) handleSmartList(ctx context.Context) error {
+	if r.context.OrganizationID == "" {
+		// No context, list organizations
+		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing organizations...")
+		return r.rootCmd.ExecuteContext(ctx)
+	}
+
+	if r.context.LedgerID == "" {
+		// Organization context, list ledgers
+		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing ledgers...")
+		r.rootCmd.SetArgs([]string{"ledger", "list"})
+
+		return r.rootCmd.ExecuteContext(ctx)
+	}
+
+	if r.context.AccountID == "" {
+		// Ledger context, list accounts
+		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing accounts...")
+		r.rootCmd.SetArgs([]string{"account", "list"})
+
+		return r.rootCmd.ExecuteContext(ctx)
+	}
+
+	// Account context, list balances
+	fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing balances...")
+	r.rootCmd.SetArgs([]string{"balance", "list"})
+
+	return r.rootCmd.ExecuteContext(ctx)
+}
+
 // parseCommandLine parses a command line into arguments
 func parseCommandLine(input string) []string {
 	var args []string
+
 	var current strings.Builder
+
 	var inQuote bool
+
 	var quoteChar rune
 
 	for i, char := range input {
@@ -368,6 +514,36 @@ func parseCommandLine(input string) []string {
 	return args
 }
 
+// buildWelcomeMessage creates a more user-friendly welcome message
+func buildWelcomeMessage() string {
+	return fmt.Sprintf(`%s
+%s
+%s
+%s
+%s
+
+%s
+%s
+%s
+%s
+%s
+
+%s
+%s`,
+		"┌─────────────────────────────────────────────┐",
+		"│          🚀 MDZ Interactive Mode          │",
+		"│                                           │",
+		"│   Smart context-aware financial CLI      │",
+		"└─────────────────────────────────────────────┘",
+		"✨ New Features:",
+		"   • 'ls' - Smart context-aware listing",
+		"   • 'help' - Interactive help system",
+		"   • 'suggestions' - Get contextual command hints",
+		"   • Enhanced entity selection with search",
+		"💡 Quick Start: Try 'ls' or 'organization list'",
+		"🏃 Type 'help' for full command reference")
+}
+
 // createCompleter creates an auto-completer for the REPL
 func createCompleter(rootCmd *cobra.Command) *readline.PrefixCompleter {
 	// Build completer from cobra commands
@@ -392,6 +568,13 @@ func createCompleter(rootCmd *cobra.Command) *readline.PrefixCompleter {
 			readline.PcItem("portfolio"),
 			readline.PcItem("account"),
 		),
+		readline.PcItem("help"),
+		readline.PcItem("suggestions"),
+		readline.PcItem("suggest"),
+		readline.PcItem("ls"),
+		readline.PcItem("list"),
+		readline.PcItem("status"),
+		readline.PcItem("st"),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
 	)
@@ -419,9 +602,11 @@ func buildCommandCompleter(cmd *cobra.Command) readline.PrefixCompleterInterface
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		if !flag.Hidden {
 			flagItem := "--" + flag.Name
+
 			if flag.Shorthand != "" {
 				subItems = append(subItems, readline.PcItem("-"+flag.Shorthand))
 			}
+
 			subItems = append(subItems, readline.PcItem(flagItem))
 		}
 	})
@@ -435,5 +620,6 @@ func buildCommandCompleter(cmd *cobra.Command) readline.PrefixCompleterInterface
 	if len(subItems) > 0 {
 		return readline.PcItem(cmd.Name(), subItems...)
 	}
+
 	return readline.PcItem(cmd.Name())
 }

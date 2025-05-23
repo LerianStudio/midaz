@@ -18,11 +18,11 @@ type CommandInterceptor struct {
 }
 
 // NewCommandInterceptor creates a new command interceptor
-func NewCommandInterceptor(repl *REPL, factory *factory.Factory) *CommandInterceptor {
+func NewCommandInterceptor(repl *REPL, f *factory.Factory) *CommandInterceptor {
 	return &CommandInterceptor{
 		repl:     repl,
-		factory:  factory,
-		selector: NewSelector(factory),
+		factory:  f,
+		selector: NewSelector(f),
 	}
 }
 
@@ -36,7 +36,7 @@ func (ci *CommandInterceptor) InterceptCommand(ctx context.Context, cmd *cobra.C
 	case strings.Contains(cmdPath, "ledger") && !strings.Contains(cmdPath, "create"):
 		return ci.ensureLedgerContext(ctx, cmd, args)
 	case strings.Contains(cmdPath, "account"):
-		return ci.ensureAccountContext(ctx, cmd, args)
+		return ci.ensureAccountContextRefactored(ctx, cmd, args)
 	case strings.Contains(cmdPath, "portfolio") && !strings.Contains(cmdPath, "create"):
 		return ci.ensurePortfolioContext(ctx, cmd, args)
 	case strings.Contains(cmdPath, "transaction"):
@@ -67,7 +67,7 @@ func (ci *CommandInterceptor) ensureLedgerContext(ctx context.Context, cmd *cobr
 			return fmt.Errorf("failed to fetch organizations: %w", err)
 		}
 
-		selected, err := ci.selector.SelectEntity(EntityOrganization, orgs)
+		selected, err := ci.selector.SelectWithTUI(EntityOrganization, orgs)
 		if err != nil {
 			return err
 		}
@@ -80,97 +80,8 @@ func (ci *CommandInterceptor) ensureLedgerContext(ctx context.Context, cmd *cobr
 		if err := orgFlag.Value.Set(ci.repl.context.OrganizationID); err != nil {
 			return fmt.Errorf("failed to set organization-id flag: %w", err)
 		}
+
 		orgFlag.Changed = true
-	}
-
-	return nil
-}
-
-// ensureAccountContext ensures all necessary context for account commands
-func (ci *CommandInterceptor) ensureAccountContext(ctx context.Context, cmd *cobra.Command, args []string) error {
-	// First ensure organization
-	if err := ci.ensureLedgerContext(ctx, cmd, args); err != nil {
-		return err
-	}
-
-	// Check if ledger-id flag is provided
-	ledgerFlag := cmd.Flag("ledger-id")
-	if ledgerFlag != nil && ledgerFlag.Changed {
-		return nil
-	}
-
-	// Check if we have ledger context
-	if ci.repl.context.LedgerID == "" {
-		// Need to select ledger
-		ledgers, err := ci.fetchLedgers(ctx, ci.repl.context.OrganizationID)
-		if err != nil {
-			return fmt.Errorf("failed to fetch ledgers: %w", err)
-		}
-
-		selected, err := ci.selector.SelectEntity(EntityLedger, ledgers)
-		if err != nil {
-			return err
-		}
-
-		ci.repl.context.SetLedger(selected.ID, selected.Name)
-	}
-
-	// Set the flag value from context
-	if ledgerFlag != nil && ci.repl.context.LedgerID != "" {
-		if err := ledgerFlag.Value.Set(ci.repl.context.LedgerID); err != nil {
-			return fmt.Errorf("failed to set ledger-id flag: %w", err)
-		}
-		ledgerFlag.Changed = true
-	}
-
-	// For account-specific commands, might need portfolio context
-	portfolioFlag := cmd.Flag("portfolio-id")
-	if portfolioFlag != nil && !portfolioFlag.Changed && ci.repl.context.PortfolioID == "" {
-		// Need to select portfolio
-		portfolios, err := ci.fetchPortfolios(ctx, ci.repl.context.OrganizationID, ci.repl.context.LedgerID)
-		if err != nil {
-			return fmt.Errorf("failed to fetch portfolios: %w", err)
-		}
-
-		if len(portfolios) > 0 {
-			selected, err := ci.selector.SelectEntity(EntityPortfolio, portfolios)
-			if err != nil {
-				return err
-			}
-
-			ci.repl.context.SetPortfolio(selected.ID, selected.Name)
-			if err := portfolioFlag.Value.Set(ci.repl.context.PortfolioID); err != nil {
-				return fmt.Errorf("failed to set portfolio-id flag: %w", err)
-			}
-			portfolioFlag.Changed = true
-		}
-	}
-
-	// For commands that need a specific account ID
-	accountFlag := cmd.Flag("account-id")
-	if accountFlag != nil && !accountFlag.Changed && ci.repl.context.AccountID == "" {
-		// Check if we're dealing with a command that needs account selection
-		cmdPath := cmd.CommandPath()
-		if strings.Contains(cmdPath, "describe") || strings.Contains(cmdPath, "delete") || strings.Contains(cmdPath, "update") {
-			// Need to select account
-			accounts, err := ci.fetchAccounts(ctx, ci.repl.context.OrganizationID, ci.repl.context.LedgerID, ci.repl.context.PortfolioID)
-			if err != nil {
-				return fmt.Errorf("failed to fetch accounts: %w", err)
-			}
-
-			if len(accounts) > 0 {
-				selected, err := ci.selector.SelectEntity(EntityAccount, accounts)
-				if err != nil {
-					return err
-				}
-
-				ci.repl.context.SetAccount(selected.ID, selected.Name)
-				if err := accountFlag.Value.Set(ci.repl.context.AccountID); err != nil {
-					return fmt.Errorf("failed to set account-id flag: %w", err)
-				}
-				accountFlag.Changed = true
-			}
-		}
 	}
 
 	return nil
@@ -184,17 +95,17 @@ func (ci *CommandInterceptor) ensurePortfolioContext(ctx context.Context, cmd *c
 
 // ensureTransactionContext ensures all necessary context for transaction commands
 func (ci *CommandInterceptor) ensureTransactionContext(ctx context.Context, cmd *cobra.Command, args []string) error {
-	return ci.ensureAccountContext(ctx, cmd, args)
+	return ci.ensureAccountContextRefactored(ctx, cmd, args)
 }
 
 // ensureBalanceContext ensures all necessary context for balance commands
 func (ci *CommandInterceptor) ensureBalanceContext(ctx context.Context, cmd *cobra.Command, args []string) error {
-	return ci.ensureAccountContext(ctx, cmd, args)
+	return ci.ensureAccountContextRefactored(ctx, cmd, args)
 }
 
 // ensureOperationContext ensures all necessary context for operation commands
 func (ci *CommandInterceptor) ensureOperationContext(ctx context.Context, cmd *cobra.Command, args []string) error {
-	return ci.ensureAccountContext(ctx, cmd, args)
+	return ci.ensureAccountContextRefactored(ctx, cmd, args)
 }
 
 // fetchOrganizations fetches available organizations
@@ -286,6 +197,7 @@ func (ci *CommandInterceptor) fetchAccounts(_ context.Context, orgID, ledgerID, 
 
 	// Convert to Entity slice and filter by portfolio if provided
 	entities := make([]Entity, 0)
+
 	for _, account := range accounts.Items {
 		// Filter by portfolio if specified
 		if portfolioID != "" && account.PortfolioID != nil && *account.PortfolioID != portfolioID {
@@ -296,6 +208,7 @@ func (ci *CommandInterceptor) fetchAccounts(_ context.Context, orgID, ledgerID, 
 		if account.Alias != nil && *account.Alias != "" {
 			name = *account.Alias
 		}
+
 		entities = append(entities, Entity{
 			ID:          account.ID,
 			Name:        name,

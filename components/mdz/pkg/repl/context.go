@@ -121,31 +121,85 @@ func (c *Context) GetPrompt() string {
 	return "mdz> "
 }
 
-// String returns a string representation of the context
+// String returns a formatted string representation of the context
 func (c *Context) String() string {
-	parts := []string{}
+	if c.OrganizationID == "" && c.LedgerID == "" && c.PortfolioID == "" && c.AccountID == "" {
+		return `🏗️  No context set
 
+Getting Started:
+  1. Type 'organization list' to see available organizations
+  2. Use 'use organization <id>' to set organization context
+  3. Continue with 'ledger list' and so on...
+
+💡 Tip: Commands will auto-prompt for missing context!`
+	}
+
+	var output strings.Builder
+
+	output.WriteString("📍 Current Context\n")
+	output.WriteString("================\n\n")
+
+	// Organization
 	if c.OrganizationID != "" {
-		parts = append(parts, fmt.Sprintf("Organization: %s (%s)", c.OrganizationName, c.OrganizationID))
+		name := c.OrganizationName
+		if name == "" {
+			name = "Unnamed"
+		}
+
+		output.WriteString(fmt.Sprintf("🏢 Organization: %s\n", name))
+		output.WriteString(fmt.Sprintf("   ID: %s\n\n", c.OrganizationID))
 	}
 
+	// Ledger
 	if c.LedgerID != "" {
-		parts = append(parts, fmt.Sprintf("Ledger: %s (%s)", c.LedgerName, c.LedgerID))
+		name := c.LedgerName
+		if name == "" {
+			name = "Unnamed"
+		}
+
+		output.WriteString(fmt.Sprintf("📊 Ledger: %s\n", name))
+		output.WriteString(fmt.Sprintf("   ID: %s\n\n", c.LedgerID))
 	}
 
+	// Portfolio
 	if c.PortfolioID != "" {
-		parts = append(parts, fmt.Sprintf("Portfolio: %s (%s)", c.PortfolioName, c.PortfolioID))
+		name := c.PortfolioName
+		if name == "" {
+			name = "Unnamed"
+		}
+
+		output.WriteString(fmt.Sprintf("💼 Portfolio: %s\n", name))
+		output.WriteString(fmt.Sprintf("   ID: %s\n\n", c.PortfolioID))
 	}
+
+	// Account
+	if c.AccountID != "" {
+		name := c.AccountName
+		if name == "" {
+			name = "Unnamed"
+		}
+
+		output.WriteString(fmt.Sprintf("🎯 Account: %s\n", name))
+		output.WriteString(fmt.Sprintf("   ID: %s\n\n", c.AccountID))
+	}
+
+	// Add suggestions based on context
+	output.WriteString("💡 Suggested Actions:\n")
 
 	if c.AccountID != "" {
-		parts = append(parts, fmt.Sprintf("Account: %s (%s)", c.AccountName, c.AccountID))
+		output.WriteString("   • balance list\n")
+		output.WriteString("   • operation list\n")
+		output.WriteString("   • transaction create\n")
+	} else if c.LedgerID != "" {
+		output.WriteString("   • account list\n")
+		output.WriteString("   • portfolio list\n")
+		output.WriteString("   • asset list\n")
+	} else if c.OrganizationID != "" {
+		output.WriteString("   • ledger list\n")
+		output.WriteString("   • asset list\n")
 	}
 
-	if len(parts) == 0 {
-		return "No context set"
-	}
-
-	return strings.Join(parts, "\n")
+	return output.String()
 }
 
 // truncateID truncates a UUID to show only the first 8 characters
@@ -153,5 +207,6 @@ func truncateID(id string) string {
 	if len(id) > 8 {
 		return id[:8]
 	}
+
 	return id
 }
