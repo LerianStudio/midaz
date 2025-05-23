@@ -89,6 +89,12 @@ export const OrganizationsTabContent = () => {
             id: 'organizations.subtitle',
             defaultMessage: 'View and manage Organizations.'
           })}
+          tooltip={intl.formatMessage({
+            id: 'organizations.tooltip',
+            defaultMessage:
+              'Organizations is the top-level entity in Midaz, representing a financial institution such as a bank or fintech'
+          })}
+          tooltipWidth="655px"
         />
 
         <EntityBox.Actions>
