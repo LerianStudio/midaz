@@ -1,7 +1,9 @@
 package root
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
@@ -21,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/repl"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 
 	"github.com/fatih/color"
@@ -53,6 +56,51 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&f.factory.NoColor, "no-color", false, "Changes the output format passing the json value to the flag")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
+}
+
+func (f *factoryRoot) runE(cmd *cobra.Command, args []string) error {
+	// If no arguments are provided and no flags are set (except help), launch REPL
+	if len(args) == 0 && !cmd.Flags().Changed("help") && !cmd.Flags().Changed("version") {
+		// Create a copy of the root command for the REPL
+		// This ensures a clean state for each REPL session
+		replCmd := &cobra.Command{
+			Use:   cmd.Use,
+			Short: cmd.Short,
+			Long:  cmd.Long,
+		}
+
+		// Copy all commands to the REPL command
+		for _, c := range cmd.Commands() {
+			// Skip interactive command to avoid recursion
+			if c.Name() != "interactive" && c.Name() != "i" && c.Name() != "repl" {
+				replCmd.AddCommand(c)
+			}
+		}
+
+		// Create REPL configuration
+		config := repl.DefaultConfig()
+
+		// Create and run REPL
+		r, err := repl.New(f.factory, replCmd, config)
+		if err != nil {
+			return fmt.Errorf("failed to create interactive mode: %w", err)
+		}
+		defer r.Close()
+
+		// Print banner
+		if !f.factory.NoColor {
+			fmt.Fprintln(f.factory.IOStreams.Out, "\033[36m"+banner+"\033[0m")
+		} else {
+			fmt.Fprintln(f.factory.IOStreams.Out, banner)
+		}
+
+		// Run the REPL
+		ctx := context.Background()
+		return r.Run(ctx, config)
+	}
+
+	// Otherwise, show help
+	return cmd.Help()
 }
 
 func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
@@ -120,6 +168,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 		PersistentPreRunE: fRoot.persistentPreRunE,
 		SilenceErrors:     true, // Silence errors, so the help message won't be shown on flag error
 		SilenceUsage:      true, // Silence usage on error
+		RunE:              fRoot.runE,
 	}
 
 	cmd.SetIn(fRoot.factory.IOStreams.In)
@@ -136,3 +185,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 
 	return cmd
 }
+
+const banner = `╔╦╗╔╦╗╔═╗  ╦╔╗╔╔╦╗╔═╗╦═╗╔═╗╔═╗╔╦╗╦╦  ╦╔═╗
+║║║ ║║╔═╝  ║║║║ ║ ║╣ ╠╦╝╠═╣║   ║ ║╚╗╔╝║╣ 
+╩ ╩═╩╝╚═╝  ╩╝╚╝ ╩ ╚═╝╩╚═╩ ╩╚═╝ ╩ ╩ ╚╝ ╚═╝`

@@ -18,11 +18,14 @@ import (
 
 // REPL represents the Read-Eval-Print Loop
 type REPL struct {
-	factory  *factory.Factory
-	rootCmd  *cobra.Command
-	rl       *readline.Instance
-	history  []string
-	exitChan chan bool
+	factory     *factory.Factory
+	rootCmd     *cobra.Command
+	rl          *readline.Instance
+	history     []string
+	exitChan    chan bool
+	context     *Context
+	selector    *Selector
+	interceptor *CommandInterceptor
 }
 
 // Config represents REPL configuration
@@ -41,7 +44,7 @@ func DefaultConfig() *Config {
 		Prompt:       "mdz> ",
 		HistoryFile:  homeDir + "/.mdz_history",
 		MaxHistory:   1000,
-		WelcomeMsg:   "Welcome to MDZ Interactive Mode! Type 'help' for commands or 'exit' to quit.",
+		WelcomeMsg:   "Welcome to MDZ Interactive Mode!\n\nCommands:\n  help     - Show help for commands\n  context  - Show current context\n  use      - Set context (e.g., 'use organization <id>')\n  unset    - Clear context\n  exit     - Exit REPL\n\nThe REPL will automatically prompt for missing context when needed.",
 		ExitCommands: []string{"exit", "quit", "q"},
 	}
 }
@@ -79,13 +82,20 @@ func New(f *factory.Factory, rootCmd *cobra.Command, config *Config) (*REPL, err
 		return nil, err
 	}
 
-	return &REPL{
+	repl := &REPL{
 		factory:  f,
 		rootCmd:  rootCmd,
 		rl:       rl,
 		history:  make([]string, 0),
 		exitChan: make(chan bool),
-	}, nil
+		context:  NewContext(),
+		selector: NewSelector(f),
+	}
+
+	// Create interceptor after REPL is created
+	repl.interceptor = NewCommandInterceptor(repl, f)
+
+	return repl, nil
 }
 
 // Run starts the REPL
@@ -122,6 +132,9 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 		case <-r.exitChan:
 			return nil
 		default:
+			// Update prompt based on context
+			r.rl.SetPrompt(r.context.GetPrompt())
+
 			line, err := r.rl.Readline()
 			if err != nil {
 				if err == readline.ErrInterrupt {
@@ -172,6 +185,24 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 		pwd, _ := os.Getwd()
 		fmt.Fprintln(r.factory.IOStreams.Out, pwd)
 		return nil
+	case "context":
+		fmt.Fprintln(r.factory.IOStreams.Out, r.context.String())
+		return nil
+	case "use":
+		if len(args) < 3 {
+			fmt.Fprintln(r.factory.IOStreams.Err, "Usage: use <entity> <id>")
+			fmt.Fprintln(r.factory.IOStreams.Err, "Example: use organization 123-456")
+			return nil
+		}
+		return r.handleUseCommand(ctx, args[1], args[2])
+	case "unset":
+		if len(args) < 2 {
+			r.context.Clear()
+			fmt.Fprintln(r.factory.IOStreams.Out, "Cleared all context")
+		} else {
+			return r.handleUnsetCommand(args[1])
+		}
+		return nil
 	}
 
 	// Reset root command for fresh execution
@@ -179,6 +210,17 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 	r.rootCmd.SetIn(r.factory.IOStreams.In)
 	r.rootCmd.SetOut(r.factory.IOStreams.Out)
 	r.rootCmd.SetErr(r.factory.IOStreams.Err)
+
+	// Find the command that will be executed
+	cmd, _, err := r.rootCmd.Find(args)
+	if err != nil {
+		return r.rootCmd.ExecuteContext(ctx)
+	}
+
+	// Intercept the command to provide context if needed
+	if err := r.interceptor.InterceptCommand(ctx, cmd, args); err != nil {
+		return err
+	}
 
 	// Execute the command
 	return r.rootCmd.ExecuteContext(ctx)
@@ -202,6 +244,71 @@ func (r *REPL) clearScreen() error {
 // Close cleans up REPL resources
 func (r *REPL) Close() error {
 	return r.rl.Close()
+}
+
+// handleUseCommand handles the "use" command to set context
+func (r *REPL) handleUseCommand(_ context.Context, entityType, id string) error {
+	switch strings.ToLower(entityType) {
+	case "organization", "org":
+		// TODO: Fetch organization details to get the name
+		r.context.SetOrganization(id, id)
+		fmt.Fprintf(r.factory.IOStreams.Out, "Using organization: %s\n", id)
+	case "ledger", "led":
+		if r.context.OrganizationID == "" {
+			fmt.Fprintln(r.factory.IOStreams.Err, "No organization selected. Use 'use organization <id>' first")
+			return nil
+		}
+		// TODO: Fetch ledger details to get the name
+		r.context.SetLedger(id, id)
+		fmt.Fprintf(r.factory.IOStreams.Out, "Using ledger: %s\n", id)
+	case "portfolio", "port":
+		if r.context.LedgerID == "" {
+			fmt.Fprintln(r.factory.IOStreams.Err, "No ledger selected. Use 'use ledger <id>' first")
+			return nil
+		}
+		// TODO: Fetch portfolio details to get the name
+		r.context.SetPortfolio(id, id)
+		fmt.Fprintf(r.factory.IOStreams.Out, "Using portfolio: %s\n", id)
+	case "account", "acc":
+		if r.context.PortfolioID == "" {
+			fmt.Fprintln(r.factory.IOStreams.Err, "No portfolio selected. Use 'use portfolio <id>' first")
+			return nil
+		}
+		// TODO: Fetch account details to get the name
+		r.context.SetAccount(id, id)
+		fmt.Fprintf(r.factory.IOStreams.Out, "Using account: %s\n", id)
+	default:
+		fmt.Fprintf(r.factory.IOStreams.Err, "Unknown entity type: %s\n", entityType)
+		fmt.Fprintln(r.factory.IOStreams.Err, "Valid types: organization, ledger, portfolio, account")
+	}
+	return nil
+}
+
+// handleUnsetCommand handles the "unset" command to clear context
+func (r *REPL) handleUnsetCommand(entityType string) error {
+	switch strings.ToLower(entityType) {
+	case "organization", "org":
+		r.context.Clear()
+		fmt.Fprintln(r.factory.IOStreams.Out, "Cleared organization context")
+	case "ledger", "led":
+		r.context.ClearLedger()
+		fmt.Fprintln(r.factory.IOStreams.Out, "Cleared ledger context")
+	case "portfolio", "port":
+		r.context.ClearPortfolio()
+		fmt.Fprintln(r.factory.IOStreams.Out, "Cleared portfolio context")
+	case "account", "acc":
+		r.context.ClearAccount()
+		fmt.Fprintln(r.factory.IOStreams.Out, "Cleared account context")
+	default:
+		fmt.Fprintf(r.factory.IOStreams.Err, "Unknown entity type: %s\n", entityType)
+		fmt.Fprintln(r.factory.IOStreams.Err, "Valid types: organization, ledger, portfolio, account")
+	}
+	return nil
+}
+
+// GetContext returns the current REPL context
+func (r *REPL) GetContext() *Context {
+	return r.context
 }
 
 // parseCommandLine parses a command line into arguments
@@ -272,6 +379,19 @@ func createCompleter(rootCmd *cobra.Command) *readline.PrefixCompleter {
 		readline.PcItem("history"),
 		readline.PcItem("clear"),
 		readline.PcItem("pwd"),
+		readline.PcItem("context"),
+		readline.PcItem("use",
+			readline.PcItem("organization"),
+			readline.PcItem("ledger"),
+			readline.PcItem("portfolio"),
+			readline.PcItem("account"),
+		),
+		readline.PcItem("unset",
+			readline.PcItem("organization"),
+			readline.PcItem("ledger"),
+			readline.PcItem("portfolio"),
+			readline.PcItem("account"),
+		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
 	)
