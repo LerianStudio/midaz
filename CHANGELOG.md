@@ -1,3 +1,11 @@
+## [v2.2.0-beta.32] - 2025-05-23
+
+### 🐛 Bug Fixes
+- Reduce cognitive complexity by extracting `handleAccountFields` and add `isConcat` for array manipulation, improving code readability and maintainability.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.31] - 2025-05-22
 
 ### ✨ Features
