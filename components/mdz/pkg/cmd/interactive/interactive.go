@@ -89,8 +89,6 @@ func (f *factoryInteractive) runE(cmd *cobra.Command, args []string) error {
 	return r.Run(ctx, config)
 }
 
-const banner = `
-╔╦╗╔╦╗╔═╗  ╦╔╗╔╔╦╗╔═╗╦═╗╔═╗╔═╗╔╦╗╦╦  ╦╔═╗
+const banner = `╔╦╗╔╦╗╔═╗  ╦╔╗╔╔╦╗╔═╗╦═╗╔═╗╔═╗╔╦╗╦╦  ╦╔═╗
 ║║║ ║║╔═╝  ║║║║ ║ ║╣ ╠╦╝╠═╣║   ║ ║╚╗╔╝║╣ 
-╩ ╩═╩╝╚═╝  ╩╝╚╝ ╩ ╚═╝╩╚═╩ ╩╚═╝ ╩ ╩ ╚╝ ╚═╝
-`
+╩ ╩═╩╝╚═╝  ╩╝╚╝ ╩ ╚═╝╩╚═╩ ╩╚═╝ ╩ ╩ ╚╝ ╚═╝`

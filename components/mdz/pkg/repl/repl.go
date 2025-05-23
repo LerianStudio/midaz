@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -46,7 +47,7 @@ func DefaultConfig() *Config {
 }
 
 // New creates a new REPL instance
-func New(factory *factory.Factory, rootCmd *cobra.Command, config *Config) (*REPL, error) {
+func New(f *factory.Factory, rootCmd *cobra.Command, config *Config) (*REPL, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -63,14 +64,14 @@ func New(factory *factory.Factory, rootCmd *cobra.Command, config *Config) (*REP
 	}
 
 	// Set custom IO if factory has custom IOStreams
-	if factory.IOStreams.In != os.Stdin {
-		rlConfig.Stdin = factory.IOStreams.In
+	if f.IOStreams.In != os.Stdin {
+		rlConfig.Stdin = f.IOStreams.In
 	}
-	if factory.IOStreams.Out != os.Stdout {
-		rlConfig.Stdout = factory.IOStreams.Out
+	if f.IOStreams.Out != os.Stdout {
+		rlConfig.Stdout = f.IOStreams.Out
 	}
-	if factory.IOStreams.Err != os.Stderr {
-		rlConfig.Stderr = factory.IOStreams.Err
+	if f.IOStreams.Err != os.Stderr {
+		rlConfig.Stderr = f.IOStreams.Err
 	}
 
 	rl, err := readline.NewEx(rlConfig)
@@ -79,7 +80,7 @@ func New(factory *factory.Factory, rootCmd *cobra.Command, config *Config) (*REP
 	}
 
 	return &REPL{
-		factory:  factory,
+		factory:  f,
 		rootCmd:  rootCmd,
 		rl:       rl,
 		history:  make([]string, 0),
@@ -138,10 +139,8 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 			}
 
 			// Check for exit commands
-			for _, exitCmd := range config.ExitCommands {
-				if line == exitCmd {
-					return nil
-				}
+			if slices.Contains(config.ExitCommands, line) {
+				return nil
 			}
 
 			// Add to history
@@ -265,7 +264,8 @@ func parseCommandLine(input string) []string {
 // createCompleter creates an auto-completer for the REPL
 func createCompleter(rootCmd *cobra.Command) *readline.PrefixCompleter {
 	// Build completer from cobra commands
-	var items []readline.PrefixCompleterInterface
+	// Preallocate with estimated size (5 built-in + cobra commands)
+	items := make([]readline.PrefixCompleterInterface, 0, 5+len(rootCmd.Commands()))
 
 	// Add built-in REPL commands
 	items = append(items,
