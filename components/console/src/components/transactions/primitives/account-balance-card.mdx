@@ -1,0 +1,35 @@
+import { Meta, Controls, Primary, Canvas, Stories } from '@storybook/blocks'
+import * as Story from './account-balance-card.stories'
+
+<Meta of={Story} />
+
+# AccountBalanceCard
+
+A component to easy show an account current balance.
+
+### Complete Example
+
+<Canvas className="light" of={Story.Primary} />
+
+### With Icon Example
+
+<Canvas className="light" of={Story.Icon} />
+
+### Loading
+
+<Canvas className="light" of={Story.Loading} />
+
+### Empty State
+
+<Canvas className="light" of={Story.Empty} />
+
+### Without Expand
+
+<Canvas className="light" of={Story.NoExpand} />
+
+### Simple Example
+
+<Canvas className="light" of={Story.Simple} />
+
+<Primary />
+<Controls />
