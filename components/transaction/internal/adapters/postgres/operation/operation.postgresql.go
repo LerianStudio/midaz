@@ -69,8 +69,8 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		return nil, err
 	}
 
-	record := &OperationPostgreSQLModel{}
-	record.FromEntity(operation)
+	record := &OperationPostgreSQLModelPoC{}
+	record.FromEntityPoC(operation)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
@@ -130,7 +130,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		return nil, err
 	}
 
-	return record.ToEntity(), nil
+	return record.ToEntityPoC(), nil
 }
 
 // FindAll retrieves Operations entities from the database.

@@ -2,7 +2,10 @@ package operation
 
 import (
 	"database/sql"
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	"github.com/shopspring/decimal"
+	"math"
 	"time"
 )
 
@@ -35,6 +38,37 @@ type OperationPostgreSQLModel struct {
 	UpdatedAt             time.Time      // Last update timestamp
 	DeletedAt             sql.NullTime   // Deletion timestamp (if soft-deleted)
 	Metadata              map[string]any // Additional custom attributes
+}
+
+// OperationPostgreSQLModelPoC represents the entity OperationPostgreSQLModel into SQL context in Database
+//
+// @Description Database model for storing operation information for a PoCin PostgreSQL
+type OperationPostgreSQLModelPoC struct {
+	ID                    string           // Unique identifier (UUID format)
+	TransactionID         string           // Parent transaction ID
+	Description           string           // Operation description
+	Type                  string           // Operation type (e.g., "DEBIT", "CREDIT")
+	AssetCode             string           // Asset code for the operation
+	Amount                *decimal.Decimal // Operation amount value
+	AmountScale           *int64           // Decimal places for amount
+	AvailableBalance      *decimal.Decimal // Available balance before operation
+	BalanceScale          *int64           // Decimal places for balance
+	OnHoldBalance         *decimal.Decimal // On-hold balance before operation
+	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
+	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
+	BalanceScaleAfter     *int64           // Decimal places for balance after operation
+	Status                string           // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription     *string          // Status description
+	AccountID             string           // Account ID associated with operation
+	AccountAlias          string           // Account alias
+	BalanceID             string           // Balance ID affected by operation
+	ChartOfAccounts       string           // Chart of accounts code
+	OrganizationID        string           // Organization ID
+	LedgerID              string           // Ledger ID
+	CreatedAt             time.Time        // Creation timestamp
+	UpdatedAt             time.Time        // Last update timestamp
+	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
+	Metadata              map[string]any   // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -410,4 +444,129 @@ func (o *Operation) ToLog() *OperationLog {
 		BalanceID:       o.BalanceID,
 		CreatedAt:       o.CreatedAt,
 	}
+}
+
+// ToDecimal is a helper func create to use on POC
+func (t *OperationPostgreSQLModelPoC) ToDecimal(value int64, scale int64) decimal.Decimal {
+	d := decimal.NewFromInt(value)
+	return d.Shift(-int32(scale))
+}
+
+// FromEntityPoC converts an entity Operation to OperationPostgreSQLModel
+func (t *OperationPostgreSQLModelPoC) FromEntityPoC(operation *Operation) {
+	ID := libCommons.GenerateUUIDv7().String()
+	if operation.ID != "" {
+		ID = operation.ID
+	}
+
+	amount := t.ToDecimal(*operation.Amount.Amount, *operation.Amount.Scale)
+	onHoldBalance := t.ToDecimal(*operation.Balance.OnHold, *operation.Balance.Scale)
+	availableBalance := t.ToDecimal(*operation.Balance.Available, *operation.Balance.Scale)
+	availableBalanceAfter := t.ToDecimal(*operation.BalanceAfter.Available, *operation.BalanceAfter.Scale)
+	onHoldBalanceAfter := t.ToDecimal(*operation.BalanceAfter.OnHold, *operation.BalanceAfter.Scale)
+
+	*t = OperationPostgreSQLModelPoC{
+		ID:                    ID,
+		TransactionID:         operation.TransactionID,
+		Description:           operation.Description,
+		Type:                  operation.Type,
+		AssetCode:             operation.AssetCode,
+		ChartOfAccounts:       operation.ChartOfAccounts,
+		Amount:                &amount,
+		AmountScale:           operation.Amount.Scale,
+		BalanceScale:          operation.Balance.Scale,
+		OnHoldBalance:         &onHoldBalance,
+		AvailableBalance:      &availableBalance,
+		BalanceScaleAfter:     operation.BalanceAfter.Scale,
+		AvailableBalanceAfter: &availableBalanceAfter,
+		OnHoldBalanceAfter:    &onHoldBalanceAfter,
+		Status:                operation.Status.Code,
+		StatusDescription:     operation.Status.Description,
+		AccountID:             operation.AccountID,
+		AccountAlias:          operation.AccountAlias,
+		BalanceID:             operation.BalanceID,
+		LedgerID:              operation.LedgerID,
+		OrganizationID:        operation.OrganizationID,
+		CreatedAt:             operation.CreatedAt,
+		UpdatedAt:             operation.UpdatedAt,
+	}
+
+	if operation.DeletedAt != nil {
+		deletedAtCopy := *operation.DeletedAt
+		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+}
+
+// FromDecimal is a helper func create to use on POC
+func (t *OperationPostgreSQLModelPoC) FromDecimal(d decimal.Decimal, scale int64) (int64, error) {
+	scaled := d.Shift(int32(scale))
+	if !scaled.IsInteger() {
+		return 0, fmt.Errorf("value has more decimal digits than scale allows: %s", d.String())
+	}
+
+	if !scaled.IsZero() && (scaled.Cmp(decimal.NewFromInt(math.MinInt64)) < 0 || scaled.Cmp(decimal.NewFromInt(math.MaxInt64)) > 0) {
+		return 0, fmt.Errorf("value overflows int64: %s", scaled.String())
+	}
+
+	return scaled.IntPart(), nil
+}
+
+// ToEntityPoC converts an OperationPostgreSQLModelPoC to entity poc Operation
+func (t *OperationPostgreSQLModelPoC) ToEntityPoC() *Operation {
+	status := Status{
+		Code:        t.Status,
+		Description: t.StatusDescription,
+	}
+	amt, _ := t.FromDecimal(*t.Amount, *t.AmountScale)
+
+	amount := Amount{
+		Amount: &amt,
+		Scale:  t.AmountScale,
+	}
+
+	blca, _ := t.FromDecimal(*t.AvailableBalance, *t.BalanceScale)
+	blcoh, _ := t.FromDecimal(*t.OnHoldBalance, *t.BalanceScale)
+
+	balance := Balance{
+		Available: &blca,
+		OnHold:    &blcoh,
+		Scale:     t.BalanceScale,
+	}
+
+	blcaf, _ := t.FromDecimal(*t.AvailableBalanceAfter, *t.BalanceScaleAfter)
+	blcaoh, _ := t.FromDecimal(*t.OnHoldBalanceAfter, *t.BalanceScaleAfter)
+
+	balanceAfter := Balance{
+		Available: &blcaf,
+		OnHold:    &blcaoh,
+		Scale:     t.BalanceScaleAfter,
+	}
+
+	Operation := &Operation{
+		ID:              t.ID,
+		TransactionID:   t.TransactionID,
+		Description:     t.Description,
+		Type:            t.Type,
+		AssetCode:       t.AssetCode,
+		ChartOfAccounts: t.ChartOfAccounts,
+		Amount:          amount,
+		Balance:         balance,
+		BalanceAfter:    balanceAfter,
+		Status:          status,
+		AccountID:       t.AccountID,
+		AccountAlias:    t.AccountAlias,
+		LedgerID:        t.LedgerID,
+		OrganizationID:  t.OrganizationID,
+		BalanceID:       t.BalanceID,
+		CreatedAt:       t.CreatedAt,
+		UpdatedAt:       t.UpdatedAt,
+		DeletedAt:       nil,
+	}
+
+	if !t.DeletedAt.Time.IsZero() {
+		deletedAtCopy := t.DeletedAt.Time
+		Operation.DeletedAt = &deletedAtCopy
+	}
+
+	return Operation
 }
