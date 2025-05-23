@@ -72,6 +72,8 @@ export const AutocompleteTrigger = React.forwardRef<
 
   React.useImperativeHandle(ref, () => _ref.current as HTMLDivElement)
 
+  const isNoSelection = disabled || readOnly || value.length < 1
+
   return (
     <div
       ref={_ref}
@@ -103,10 +105,7 @@ export const AutocompleteTrigger = React.forwardRef<
     >
       <div className="flex flex-grow flex-wrap gap-1 px-3 py-2">{children}</div>
       <div className="flex flex-shrink-0 items-center justify-end">
-        <button
-          type="button"
-          className={cn((disabled || readOnly || value.length < 1) && 'hidden')}
-        >
+        <button type="button" className={cn(isNoSelection && 'hidden')}>
           <X
             className="mx-2 h-4 cursor-pointer text-muted-foreground"
             onClick={(event) => {
@@ -118,7 +117,7 @@ export const AutocompleteTrigger = React.forwardRef<
         </button>
         <Separator
           orientation="vertical"
-          className={cn((disabled || readOnly || value.length < 1) && 'hidden')}
+          className={cn(isNoSelection && 'hidden')}
         />
         <SelectPrimitive.Icon
           className="cursor-pointer data-[disabled=true]:cursor-not-allowed data-[read-only=true]:cursor-default"
@@ -149,7 +148,6 @@ export const AutocompleteValue = React.forwardRef<
     }
 
     const v = typeof value === 'string' ? value : value[0]
-
     if (v === '') {
       handleValueChange('')
       return
@@ -167,6 +165,20 @@ export const AutocompleteValue = React.forwardRef<
     updateSearch(value)
     onBlur?.(event)
   }
+
+  // If options changes, update only the internal value
+  React.useEffect(() => {
+    if (isNil(value)) {
+      return
+    }
+
+    const v = typeof value === 'string' ? value : value[0]
+    if (v === '') {
+      return
+    }
+
+    setSearch(showValue ? v : options[v])
+  }, [options])
 
   React.useEffect(() => {
     updateSearch(value)
@@ -484,6 +496,7 @@ export const Autocomplete = React.forwardRef<
     },
     ref
   ) => {
+    console.log('autocomplete', value, defaultValue, openProp)
     const _ref = React.useRef<HTMLDivElement>(null)
     const [open, _setOpen] = React.useState(openProp)
     const inputRef = React.useRef<HTMLInputElement>(null)
@@ -563,7 +576,9 @@ export const Autocomplete = React.forwardRef<
 
     // Keeps the selected value in sync with the value prop
     React.useEffect(() => {
-      setSelected(value!)
+      if (!isNil(value)) {
+        setSelected(value!)
+      }
     }, [value])
 
     // Keeps the open state in sync with the open prop
