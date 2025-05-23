@@ -25,16 +25,21 @@ type LedgerHandler struct {
 
 // CreateLedger is a method that creates Ledger information.
 //
-//	@Summary		Create a Ledger
-//	@Description	Create a Ledger with the input payload
+//	@Summary		Create a new ledger
+//	@Description	Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger Input"
-//	@Success		200				{object}	mmodel.Ledger
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger details including name, status, and optional metadata"
+//	@Success		201				{object}	mmodel.Ledger				"Successfully created ledger"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization not found"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers [post]
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -72,15 +77,19 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
 //
-//	@Summary		Get a Ledger by ID
-//	@Description	Get a Ledger with the input ID
+//	@Summary		Retrieve a specific ledger
+//	@Description	Returns detailed information about a ledger identified by its UUID within the specified organization
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			id				path		string	true	"Ledger ID"
-//	@Success		200				{object}	mmodel.Ledger
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			id				path		string	true	"Ledger ID in UUID format"
+//	@Success		200				{object}	mmodel.Ledger	"Successfully retrieved ledger"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id} [get]
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -112,20 +121,25 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 // GetAllLedgers is a method that retrieves all ledgers.
 //
-//	@Summary		Get all Ledgers
-//	@Description	Get all Ledgers with the input metadata or without metadata
+//	@Summary		List all ledgers
+//	@Description	Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			id				path		string	true	"Ledger ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			metadata		query		string	false	"JSON string to filter ledgers by metadata fields"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
+//	@Param			start_date		query		string	false	"Filter ledgers created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}	"Successfully retrieved ledgers list"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers [get]
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -196,17 +210,22 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 // UpdateLedger is a method that updates Ledger information.
 //
-//	@Summary		Update a Ledger
-//	@Description	Update a Ledger with the input payload
+//	@Summary		Update an existing ledger
+//	@Description	Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			id				path		string						true	"Ledger ID"
-//	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger Input"
-//	@Success		200				{object}	mmodel.Ledger
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			id				path		string						true	"Ledger ID in UUID format"
+//	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger fields to update. Only supplied fields will be modified."
+//	@Success		200				{object}	mmodel.Ledger				"Successfully updated ledger"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Ledger or organization not found"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id} [patch]
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -257,14 +276,19 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
 //
-//	@Summary		Delete a Ledger by ID
-//	@Description	Delete a Ledger with the input ID
+//	@Summary		Delete a ledger
+//	@Description	Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.
 //	@Tags			Ledgers
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			id				path	string	true	"Ledger ID"
-//	@Success		204
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			id				path	string	true	"Ledger ID in UUID format"
+//	@Success		204				{string}	string	"Ledger successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden action or not permitted in production environment"
+//	@Failure		404				{object}	mmodel.Error	"Ledger or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete ledger with dependent resources"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id} [delete]
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()

@@ -12,8 +12,13 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
 # Include shared color definitions and utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define local utility functions
+define title1
+	@echo ""
+	@echo "------------------------"
+	@echo "   📝 $(1)  "
+	@echo "------------------------"
+endef
 
 #-------------------------------------------------------
 # Core Commands
@@ -118,8 +123,10 @@ lint:
 	$(call title1,"Running linters")
 	@if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v golangci-lint >/dev/null 2>&1; then \
-			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			echo "$(YELLOW)golangci-lint not found, installing...$(NC)"; \
+			@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		else \
+			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
 		fi; \
 		golangci-lint run --fix ./... --verbose; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
@@ -192,9 +199,9 @@ start:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers, networks, and volumes")
+	$(call title1,"Stopping and removing containers|networks|volumes")
 	@if [ -f "docker-compose.yml" ]; then \
-		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
 	else \
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
 	fi
@@ -268,7 +275,7 @@ run:
 
 .PHONY: generate-docs
 generate-docs:
-	$(call title1,"Generating Swagger API documentation")
+	$(call title1,"Generating Swagger API documentation - Onboarding")
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \
@@ -277,7 +284,24 @@ generate-docs:
 	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
+	@if [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
+		echo "$(YELLOW)Installing npm dependencies for validation...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && npm install > /dev/null; \
+	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: validate-api-docs
+validate-api-docs: generate-docs
+	$(call title1,"Validating API documentation")
+	@if [ -f "scripts/validate-api-docs.js" ] && [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
+		echo "$(YELLOW)Validating API documentation structure...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/onboarding/scripts/validate-api-docs.js; \
+		echo "$(YELLOW)Validating API implementations...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/onboarding/scripts/validate-api-implementations.js; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)Validation scripts not found. Skipping validation.$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Developer Helper Commands

@@ -1,0 +1,20 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './sheet.stories'
+
+<Meta of={Story} />
+
+# Dialog
+
+Extends the Dialog component to display content that complements the main content of the screen. \
+[Docs](https://www.radix-ui.com/primitives/docs/components/dialog)
+
+<Canvas of={Story.Primary} />
+
+### Sides
+
+Use the side property to SheetContent to indicate the edge of the screen where the component will appear. The values can be top, right, bottom or left.
+
+<Canvas of={Story.SheetSide} />
+
+<Primary />
+<Controls />

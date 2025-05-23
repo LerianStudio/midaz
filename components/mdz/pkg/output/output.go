@@ -86,19 +86,31 @@ func Errorf(w io.Writer, err error) error {
 	return e.Output()
 }
 
-// NewTable creates a new table writer.
-func NewTable(w io.Writer) *tablewriter.Table {
-	table := tablewriter.NewWriter(w)
-	table.SetBorder(false)
-	table.SetCenterSeparator("")
-	table.SetColumnSeparator("")
-	table.SetRowSeparator("")
-	table.SetHeaderLine(false)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAutoWrapText(false)
+// TableWriter is a wrapper around tablewriter.Table to provide backwards compatibility
+type TableWriter struct {
+	*tablewriter.Table
+}
 
-	return table
+// SetHeader sets the table header
+func (t *TableWriter) SetHeader(headers []string) {
+	t.Header(headers)
+}
+
+// Append adds a row to the table
+func (t *TableWriter) Append(row []string) {
+	_ = t.Table.Append(row)
+}
+
+// Render renders the table
+func (t *TableWriter) Render() {
+	_ = t.Table.Render()
+}
+
+// NewTable creates a new table writer.
+func NewTable(w io.Writer) *TableWriter {
+	return &TableWriter{
+		Table: tablewriter.NewWriter(w),
+	}
 }
 
 type GeneralOutput struct {

@@ -82,10 +82,10 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:             "bal123",
-						AccountID:      "acc123",
-						Amount:         1000,
-						AmountScale:    2,
+						ID:        "bal123",
+						AccountID: "acc123",
+						Available: 1000,
+						OnHold:    0, Scale: 2,
 						AssetCode:      "USD",
 						OrganizationID: "org123",
 						LedgerID:       "ledger123",
@@ -116,10 +116,10 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:             "bal123",
-						AccountID:      "acc123",
-						Amount:         1000,
-						AmountScale:    2,
+						ID:        "bal123",
+						AccountID: "acc123",
+						Available: 1000,
+						OnHold:    0, Scale: 2,
 						AssetCode:      "USD",
 						OrganizationID: "org123",
 						LedgerID:       "ledger123",
@@ -151,10 +151,10 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:             "bal123",
-						AccountID:      "acc123",
-						Amount:         1000,
-						AmountScale:    2,
+						ID:        "bal123",
+						AccountID: "acc123",
+						Available: 1000,
+						OnHold:    0, Scale: 2,
 						AssetCode:      "USD",
 						OrganizationID: "org123",
 						LedgerID:       "ledger123",

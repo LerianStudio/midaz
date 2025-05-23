@@ -41,6 +41,8 @@ func WithError(c *fiber.Ctx, err error) error {
 			return UnprocessableEntity(c, e.Code, e.Title, e.Message)
 		case libConstants.ErrAssetCodeNotFound.Error():
 			return NotFound(c, e.Code, e.Title, e.Message)
+		case libConstants.ErrOverFlowInt64.Error():
+			return InternalServerError(c, e.Code, e.Title, e.Message)
 		default:
 			return BadRequest(c, pkg.ValidationKnownFieldsError{
 				Code:    e.Code,
@@ -48,10 +50,10 @@ func WithError(c *fiber.Ctx, err error) error {
 				Message: e.Message,
 			})
 		}
-	default:
-		var iErr pkg.InternalServerError
-		_ = errors.As(pkg.ValidateInternalError(err, ""), &iErr)
 
-		return InternalServerError(c, iErr.Code, iErr.Title, iErr.Message)
+	case pkg.InternalServerError:
+		return InternalServerError(c, e.Code, e.Title, e.Message)
+	default:
+		return pkg.ValidateInternalError(err, "")
 	}
 }

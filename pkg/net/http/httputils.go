@@ -20,16 +20,17 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata     *bson.M
-	Limit        int
-	Page         int
-	Cursor       string
-	SortOrder    string
-	StartDate    time.Time
-	EndDate      time.Time
-	UseMetadata  bool
-	PortfolioID  string
-	ToAssetCodes []string
+	Metadata      *bson.M
+	Limit         int
+	Page          int
+	Cursor        string
+	SortOrder     string
+	StartDate     time.Time
+	EndDate       time.Time
+	UseMetadata   bool
+	PortfolioID   string
+	OperationType string
+	ToAssetCodes  []string
 }
 
 // Pagination entity from query parameter from get apis
@@ -45,16 +46,17 @@ type Pagination struct {
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
-		metadata     *bson.M
-		portfolioID  string
-		toAssetCodes []string
-		startDate    time.Time
-		endDate      time.Time
-		cursor       string
-		limit        = 10
-		page         = 1
-		sortOrder    = "desc"
-		useMetadata  = false
+		metadata      *bson.M
+		portfolioID   string
+		operationType string
+		toAssetCodes  []string
+		startDate     time.Time
+		endDate       time.Time
+		cursor        string
+		limit         = 10
+		page          = 1
+		sortOrder     = "desc"
+		useMetadata   = false
 	)
 
 	for key, value := range params {
@@ -76,6 +78,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			endDate, _ = time.Parse("2006-01-02", value)
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
+		case strings.Contains(strings.ToLower(key), "type"):
+			operationType = strings.ToUpper(value)
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
 		}
@@ -99,16 +103,17 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	query := &QueryHeader{
-		Metadata:     metadata,
-		Limit:        limit,
-		Page:         page,
-		Cursor:       cursor,
-		SortOrder:    sortOrder,
-		StartDate:    startDate,
-		EndDate:      endDate,
-		UseMetadata:  useMetadata,
-		PortfolioID:  portfolioID,
-		ToAssetCodes: toAssetCodes,
+		Metadata:      metadata,
+		Limit:         limit,
+		Page:          page,
+		Cursor:        cursor,
+		SortOrder:     sortOrder,
+		StartDate:     startDate,
+		EndDate:       endDate,
+		UseMetadata:   useMetadata,
+		PortfolioID:   portfolioID,
+		OperationType: operationType,
+		ToAssetCodes:  toAssetCodes,
 	}
 
 	return query, nil

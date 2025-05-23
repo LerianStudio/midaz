@@ -1,0 +1,21 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './empty-resource.stories'
+
+<Meta of={Story} />
+
+# Empty Resource
+
+Component used to signal the user when a query returns empty.
+
+<Canvas of={Story.Primary} />
+
+### With Action button
+
+<Canvas of={Story.WithButton} />
+
+### With Action button and extra information
+
+<Canvas of={Story.WithExtra} />
+
+<Primary />
+<Controls />

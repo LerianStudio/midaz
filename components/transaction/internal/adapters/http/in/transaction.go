@@ -1,6 +1,9 @@
 package in
 
 import (
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -18,8 +21,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"reflect"
-	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -39,8 +40,12 @@ type TransactionHandler struct {
 //	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -54,8 +59,84 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	c.SetUserContext(ctx)
 
 	input := p.(*transaction.CreateTransactionInput)
-	parserDSL := input.FromDSl()
+	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
+
+	response := handler.createTransaction(c, logger, *parserDSL)
+
+	return response
+}
+
+// CreateTransactionInflow method that creates a transaction without specifying a source
+//
+//	@Summary		Create a Transaction without passing from source
+//	@Description	Create a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow [post]
+func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_inflow")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*transaction.CreateTransactionInflowInput)
+	parserDSL := input.InflowFromDSL()
+	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
+
+	response := handler.createTransaction(c, logger, *parserDSL)
+
+	return response
+}
+
+// CreateTransactionOutflow method that creates a transaction without specifying a distribution
+//
+//	@Summary		Create a Transaction without passing to distribution
+//	@Description	Create a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow [post]
+func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction_outflow")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	input := p.(*transaction.CreateTransactionOutflowInput)
+	parserDSL := input.OutflowFromDSL()
+	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
 	response := handler.createTransaction(c, logger, *parserDSL)
 
@@ -75,6 +156,10 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -130,26 +215,23 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	return response
 }
 
-// CreateTransactionTemplate method that create transaction template
-//
-// TODO: Implement this method and the swagger documentation related to it
-func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-
-	tracer.Start(ctx, "handler.create_transaction_template")
-
-	payload := p.(*transaction.InputDSL)
-	logger.Infof("Request to create an transaction with details: %#v", payload)
-
-	return http.Created(c, payload)
-}
-
 // CommitTransaction method that commit transaction created before
 //
-// TODO: Implement this method and the swagger documentation related to it
+//	@Summary		Commit a Transaction
+//	@Description	Commit a previously created transaction
+//	@Tags			Transactions
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Success		201				{object}	interface{}
+//	@Failure		400				{object}	interface{}
+//	@Failure		401				{object}	interface{}
+//	@Failure		404				{object}	interface{}
+//	@Failure		500				{object}	interface{}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -175,6 +257,12 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -257,6 +345,11 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -311,6 +404,11 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -379,6 +477,10 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -472,24 +574,25 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
-	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
+	defer spanValidateDSL.End()
 
-	ts, _ := libCommons.StructToJSONString(parserDSL)
-	hash := libCommons.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+	var fromTo []libTransaction.FromTo
 
-	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+	//Helper function to handle account and accountAlias fields - accountAlias is deprecated
+	handleAccountFields := func(entries []libTransaction.FromTo) {
+		for i := range entries {
+			newAlias := entries[i].ConcatAlias(i)
 
-		logger.Infof("Redis idempotency key: %v", err.Error())
+			entries[i].Account = newAlias
+			entries[i].AccountAlias = newAlias
 
-		return http.WithError(c, err)
+			fromTo = append(fromTo, entries[i])
+		}
 	}
 
-	spanIdempotency.End()
-
-	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
+	handleAccountFields(parserDSL.Send.Source.From)
+	handleAccountFields(parserDSL.Send.Distribute.To)
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
@@ -497,12 +600,17 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Error("Validation failed:", err.Error())
 
+		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		}
+
 		return http.WithError(c, err)
 	}
 
-	spanValidateDSL.End()
-
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	defer spanGetBalances.End()
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate)
 	if err != nil {
@@ -513,9 +621,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	spanGetBalances.End()
-
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+	defer spanValidateBalances.End()
 
 	blcs := mmodel.ConvertBalancesToLibBalances(balances)
 
@@ -526,7 +633,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	spanValidateBalances.End()
+	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	defer spanIdempotency.End()
+
+	ts, _ := libCommons.StructToJSONString(parserDSL)
+	hash := libCommons.HashSHA256(ts)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+
+	err = handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+
+		logger.Infof("Redis idempotency key: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	description := constant.CREATED
 	status := transaction.Status{
@@ -560,10 +681,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	var operations []*operation.Operation
-
-	var fromTo []libTransaction.FromTo
-	fromTo = append(fromTo, parserDSL.Send.Source.From...)
-	fromTo = append(fromTo, parserDSL.Send.Distribute.To...)
 
 	for _, blc := range balances {
 		for i := range fromTo {
@@ -616,7 +733,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					BalanceAfter:    balanceAfter,
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
-					AccountAlias:    blc.Alias,
+					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),

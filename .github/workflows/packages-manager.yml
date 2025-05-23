@@ -1,4 +1,4 @@
-name: "packages manager"
+name: "Package Release Manager"
 
 on:
   release:
@@ -10,26 +10,31 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       is_main: ${{ steps.verify_branch.outputs.is_main }}
-      version: ${{ steps.verify_branch.outputs.version }} 
+      version: ${{ steps.verify_branch.outputs.version }}
 
     steps:
+      # Checkout the repository code
       - uses: actions/checkout@v4
+
+      # Verify if this is a main release (not a pre-release) and extract version
       - id: verify_branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
-          
+
           echo "Raw release: $RAW_RELEASE"
           echo "Formatted release: $FORMATTED_RELEASE"
-          
+
+          # Check if this is a main release (no suffix like -beta, -rc, etc.)
           if [ "$RAW_RELEASE" = "$FORMATTED_RELEASE" ]; then
             echo "is_main=true" >> $GITHUB_OUTPUT
           else
             echo "is_main=false" >> $GITHUB_OUTPUT
-          fi          
+          fi
 
+          # Extract version number without 'v' prefix
           version=$(echo "$RAW_RELEASE" | sed 's/^v//')
           echo "version=$version" >> $GITHUB_OUTPUT
 
@@ -38,12 +43,14 @@ jobs:
     runs-on: ubuntu-24.04
     if: needs.get_branch.outputs.is_main == 'true'
     steps:
+      # Wait for release to propagate to all systems
       - name: Wait for 10 minutes
         run: sleep 600
 
   # NOTE: our cli is in homebrew's autobump.txt because it has been updated so much
+  # Job to update Homebrew formula (currently disabled)
   # brew_release:
-  #   needs: [get_branch, wait_job]
+  #   needs: [get_branch, wait_release]
   #   runs-on: ubuntu-24.04
   #   if: needs.get_branch.outputs.is_main == 'true'
   #   steps:
@@ -53,14 +60,17 @@ jobs:
   #         token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
   #         formula: mdz
 
+  # Job to create and publish Chocolatey package for Windows
   chocolatey_release:
     needs: [get_branch, wait_release]
     runs-on: windows-latest
     if: needs.get_branch.outputs.is_main == 'true'
     steps:
+      # Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Download and extract the Windows binary from GitHub release
       - name: Download and extract ZIP
         run: |
           $toolsDir = "$(Resolve-Path .\chocolatey\tools)"
@@ -76,6 +86,7 @@ jobs:
           Expand-Archive -Path $zipFile -DestinationPath $toolsDir -Force
         shell: pwsh
 
+      # Prepare Chocolatey package files with correct version and checksum
       - name: Prepare
         run: |
           # Checksum Calculate
@@ -98,20 +109,23 @@ jobs:
           (Get-Content $verificationPath) -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" | Set-Content $verificationPath
         shell: pwsh
 
+      # Build, test, and publish the Chocolatey package
       - name: Publish Chocolatey package
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
         shell: pwsh
         run: |
+          # Pack the Chocolatey package
           choco pack chocolatey/mdz.nuspec
 
-          # install local test
+          # Test install locally before publishing
           choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           mdz version
 
+          # Configure API key and push package to Chocolatey repository
           choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
           choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
-          
-          # test install public mdz chocolatey
+
+          # Verify the published package can be installed
           choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
           mdz version

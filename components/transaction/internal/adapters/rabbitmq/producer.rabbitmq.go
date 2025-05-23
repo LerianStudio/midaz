@@ -15,6 +15,7 @@ import (
 // // It defines methods for sending messages to a queue.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error)
+	CheckRabbitMQHealth() bool
 }
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
@@ -36,11 +37,16 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 	return prmq
 }
 
+// CheckRabbitMQHealth checks the health of the rabbitmq connection.
+func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
+	return prmq.conn.HealthCheck()
+}
+
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	logger.Infof("Init sent message")
+	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
 	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
@@ -75,7 +81,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		return nil, err
 	}
 
-	logger.Infoln("Messages sent successfully")
+	logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 
 	return nil, nil
 }

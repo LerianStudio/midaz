@@ -32,7 +32,8 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CreateTransactionDSL)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/templates", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.InputDSL), th.CreateTransactionTemplate))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInflowInput), th.CreateTransactionInflow))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionOutflowInput), th.CreateTransactionOutflow))
 
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CommitTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.RevertTransaction)
@@ -53,11 +54,13 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters, ah.GetAllAssetRatesByAssetCode)
 
 	//Balance
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "delete"), http.ParseUUIDPathParameters, bh.DeleteBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetAllBalances)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetAllBalancesByAccountID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "delete"), http.ParseUUIDPathParameters, bh.DeleteBalanceByID)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalancesByAlias)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalancesExternalByCode)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

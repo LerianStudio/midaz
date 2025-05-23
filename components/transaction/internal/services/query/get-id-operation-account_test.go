@@ -23,11 +23,14 @@ func TestGetOperationByAccount(t *testing.T) {
 		AccountID:      accountID.String(),
 	}
 
+	ctrl := gomock.NewController(t)
+	mockRepo := operation.NewMockRepository(ctrl)
+
 	uc := UseCase{
-		OperationRepo: operation.NewMockRepository(gomock.NewController(t)),
+		OperationRepo: mockRepo,
 	}
 
-	uc.OperationRepo.(*operation.MockRepository).
+	mockRepo.
 		EXPECT().
 		FindByAccount(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(o, nil).
@@ -45,11 +48,14 @@ func TestGetOperationByAccountError(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7()
 
+	ctrl := gomock.NewController(t)
+	mockRepo := operation.NewMockRepository(ctrl)
+
 	uc := UseCase{
-		OperationRepo: operation.NewMockRepository(gomock.NewController(t)),
+		OperationRepo: mockRepo,
 	}
 
-	uc.OperationRepo.(*operation.MockRepository).
+	mockRepo.
 		EXPECT().
 		FindByAccount(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, errors.New(errMSG)).

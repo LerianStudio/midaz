@@ -1,0 +1,10 @@
+# trivy-ignore.yaml
+ignore:
+  # Ignore CVE-2024-34156 for the `stdlib` package
+  - vulnerabilityID: 'CVE-2024-34156'
+    resource: 'stdlib'
+    reason: 'Acceptable in the current development context.'
+  # Ignore CVE-2024-21538 for the `cross-spawn` package
+  - vulnerabilityID: 'CVE-2024-21538'
+    resource: 'cross-spawn'
+    reason: 'Will be addressed in future updates.'

@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllMetadataTransactions fetch all Transactions from the repository
@@ -55,6 +56,13 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	for i := range trans {
 		if data, ok := metadataMap[trans[i].ID]; ok {
 			trans[i].Metadata = data
+		}
+
+		trans[i], err = uc.GetOperationsByTransaction(ctx, organizationID, ledgerID, trans[i], filter)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to get operations to transaction by id", err)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 	}
 

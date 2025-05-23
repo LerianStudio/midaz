@@ -90,22 +90,39 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 	table.Append([]string{"Account ID", resp.AccountID})
 	table.Append([]string{"Asset Code", resp.AssetCode})
 
-	// Format amount
-	formattedAmount := strconv.FormatInt(resp.Amount, 10)
+	// Format available amount
+	formattedAvailable := strconv.FormatInt(resp.Available, 10)
 
-	if resp.AmountScale > 0 {
+	if resp.Scale > 0 {
 		// Calculate divisor based on scale (e.g., scale 2 = 100, scale 3 = 1000)
 		divisor := int64(1)
-		for i := int64(0); i < resp.AmountScale; i++ {
+
+		for i := int64(0); i < resp.Scale; i++ {
 			divisor *= 10
 		}
 
-		formattedAmount = fmt.Sprintf("%."+strconv.FormatInt(resp.AmountScale, 10)+"f", float64(resp.Amount)/float64(divisor))
+		formattedAvailable = fmt.Sprintf("%."+strconv.FormatInt(resp.Scale, 10)+"f", float64(resp.Available)/float64(divisor))
 	}
 
-	table.Append([]string{"Amount", formattedAmount})
-	table.Append([]string{"Amount (Raw)", strconv.FormatInt(resp.Amount, 10)})
-	table.Append([]string{"Amount Scale", strconv.FormatInt(resp.AmountScale, 10)})
+	// Format on hold amount
+	formattedOnHold := strconv.FormatInt(resp.OnHold, 10)
+
+	if resp.Scale > 0 {
+		// Calculate divisor based on scale (e.g., scale 2 = 100, scale 3 = 1000)
+		divisor := int64(1)
+
+		for i := int64(0); i < resp.Scale; i++ {
+			divisor *= 10
+		}
+
+		formattedOnHold = fmt.Sprintf("%."+strconv.FormatInt(resp.Scale, 10)+"f", float64(resp.OnHold)/float64(divisor))
+	}
+
+	table.Append([]string{"Available", formattedAvailable})
+	table.Append([]string{"Available (Raw)", strconv.FormatInt(resp.Available, 10)})
+	table.Append([]string{"On Hold", formattedOnHold})
+	table.Append([]string{"On Hold (Raw)", strconv.FormatInt(resp.OnHold, 10)})
+	table.Append([]string{"Scale", strconv.FormatInt(resp.Scale, 10)})
 
 	// Format metadata
 	if len(resp.Metadata) > 0 {

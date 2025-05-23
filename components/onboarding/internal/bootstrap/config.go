@@ -54,7 +54,7 @@ type Config struct {
 	RabbitURI               string `env:"RABBITMQ_URI"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
+	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
@@ -212,7 +212,7 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 

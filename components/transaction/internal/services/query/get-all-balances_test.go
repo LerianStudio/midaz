@@ -70,3 +70,74 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, cur, libHTTP.CursorPagination{})
 	})
 }
+
+// TestGetAllBalancesByAlias is responsible to test GetAllBalancesByAlias with success and error
+func TestGetAllBalancesByAlias(t *testing.T) {
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	alias := "test-alias"
+
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		expectedBalances := []*mmodel.Balance{
+			{
+				ID:             "balance-id-1",
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				AccountID:      "account-id-1",
+				Alias:          alias,
+				AssetCode:      "BRL",
+				Available:      1000,
+				OnHold:         0,
+				Scale:          2,
+			},
+		}
+
+		mockBalanceRepo.
+			EXPECT().
+			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
+			Return(expectedBalances, nil).
+			Times(1)
+
+		balances, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
+
+		assert.NoError(t, err)
+		assert.Len(t, balances, 1)
+		assert.Equal(t, expectedBalances, balances)
+	})
+
+	t.Run("Error_DatabaseFailure", func(t *testing.T) {
+		errMsg := "database connection error"
+		mockBalanceRepo.
+			EXPECT().
+			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
+			Return(nil, errors.New(errMsg)).
+			Times(1)
+
+		balances, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
+
+		assert.EqualError(t, err, errMsg)
+		assert.Nil(t, balances)
+	})
+
+	t.Run("Empty_Result", func(t *testing.T) {
+		mockBalanceRepo.
+			EXPECT().
+			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
+			Return([]*mmodel.Balance{}, nil).
+			Times(1)
+
+		balances, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
+
+		assert.NoError(t, err)
+		assert.Empty(t, balances)
+	})
+}

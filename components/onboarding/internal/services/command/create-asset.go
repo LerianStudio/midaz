@@ -22,6 +22,16 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Infof("Trying to create asset: %v", cii)
 
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
+
+		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+
+		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
+	}
+
 	var status mmodel.Status
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{
@@ -42,14 +52,18 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err := libCommons.ValidateCode(cii.Code); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+		if err.Error() == constant.ErrInvalidCodeFormat.Error() {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+		} else if err.Error() == constant.ErrCodeUppercaseRequirement.Error() {
+			return nil, pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+		}
 	}
 
 	if cii.Type == "currency" {
 		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 

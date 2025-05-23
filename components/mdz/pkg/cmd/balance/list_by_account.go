@@ -77,24 +77,39 @@ func (f *factoryBalanceListByAccount) printBalances(balances *mmodel.Balances) {
 	}
 
 	table := output.NewTable(f.factory.IOStreams.Out)
-	table.SetHeader([]string{"ID", "Amount", "Asset Code", "Created At"})
+	table.SetHeader([]string{"ID", "Available", "On Hold", "Asset Code", "Created At"})
 
 	for _, b := range balances.Items {
-		// Format amount with scale
-		formattedAmount := strconv.FormatInt(b.Amount, 10)
+		// Format available amount with scale
+		formattedAvailable := strconv.FormatInt(b.Available, 10)
 
-		if b.AmountScale > 0 {
+		if b.Scale > 0 {
 			divisor := int64(1)
-			for i := int64(0); i < b.AmountScale; i++ {
+
+			for i := int64(0); i < b.Scale; i++ {
 				divisor *= 10
 			}
 
-			formattedAmount = fmt.Sprintf("%."+strconv.FormatInt(b.AmountScale, 10)+"f", float64(b.Amount)/float64(divisor))
+			formattedAvailable = fmt.Sprintf("%."+strconv.FormatInt(b.Scale, 10)+"f", float64(b.Available)/float64(divisor))
+		}
+
+		// Format on hold amount with scale
+		formattedOnHold := strconv.FormatInt(b.OnHold, 10)
+
+		if b.Scale > 0 {
+			divisor := int64(1)
+
+			for i := int64(0); i < b.Scale; i++ {
+				divisor *= 10
+			}
+
+			formattedOnHold = fmt.Sprintf("%."+strconv.FormatInt(b.Scale, 10)+"f", float64(b.OnHold)/float64(divisor))
 		}
 
 		table.Append([]string{
 			b.ID,
-			formattedAmount,
+			formattedAvailable,
+			formattedOnHold,
 			b.AssetCode,
 			b.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
