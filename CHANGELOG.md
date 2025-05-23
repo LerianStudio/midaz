@@ -1,3 +1,8 @@
+## [v2.2.0-beta.33] - 2025-05-23
+
+### 🔧 Maintenance
+- Update `github.com/gofiber/fiber` to the latest v2 version
+
 ## [v2.2.0-beta.32] - 2025-05-23
 
 ### 🐛 Bug Fixes
