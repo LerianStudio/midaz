@@ -167,24 +167,29 @@ func TestCommandInterceptor_needsAccountSelection(t *testing.T) {
 	interceptor := NewCommandInterceptor(repl, f)
 
 	tests := []struct {
-		cmdPath  string
-		expected bool
+		parentCmd string
+		subCmd    string
+		expected  bool
 	}{
-		{"account describe", true},
-		{"account delete", true},
-		{"account update", true},
-		{"account list", false},
-		{"account create", false},
+		{"account", "describe", true},
+		{"account", "delete", true},
+		{"account", "update", true},
+		{"account", "list", false},
+		{"account", "create", false},
 	}
 
 	for _, test := range tests {
-		cmd := &cobra.Command{Use: test.cmdPath}
-		parentCmd := &cobra.Command{Use: "mdz"}
-		parentCmd.AddCommand(cmd)
+		// Create proper command hierarchy
+		rootCmd := &cobra.Command{Use: "mdz"}
+		parentCmd := &cobra.Command{Use: test.parentCmd}
+		subCmd := &cobra.Command{Use: test.subCmd}
+		
+		rootCmd.AddCommand(parentCmd)
+		parentCmd.AddCommand(subCmd)
 
-		result := interceptor.needsAccountSelection(cmd)
+		result := interceptor.needsAccountSelection(subCmd)
 		if result != test.expected {
-			t.Errorf("needsAccountSelection('%s') = %v, expected %v", test.cmdPath, result, test.expected)
+			t.Errorf("needsAccountSelection('%s %s') = %v, expected %v", test.parentCmd, test.subCmd, result, test.expected)
 		}
 	}
 }

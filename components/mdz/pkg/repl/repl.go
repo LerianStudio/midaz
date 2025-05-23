@@ -468,7 +468,8 @@ func parseCommandLine(input string) []string {
 
 	var quoteChar rune
 
-	for i, char := range input {
+	for i := 0; i < len(input); i++ {
+		char := rune(input[i])
 		switch char {
 		case '"', '\'':
 			if !inQuote {
@@ -493,12 +494,16 @@ func parseCommandLine(input string) []string {
 				switch nextChar {
 				case 'n':
 					current.WriteRune('\n')
+					i++ // Skip the next character
 				case 't':
 					current.WriteRune('\t')
+					i++ // Skip the next character
 				case '\\':
 					current.WriteRune('\\')
+					i++ // Skip the next character
 				case '"', '\'':
 					current.WriteRune(rune(nextChar))
+					i++ // Skip the next character
 				default:
 					current.WriteRune(char)
 				}

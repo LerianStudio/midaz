@@ -211,6 +211,7 @@ func TestSelector_SelectEntity_QuitCommands(t *testing.T) {
 
 	entities := []Entity{
 		{ID: "org-123", Name: "Org One", Type: EntityOrganization},
+		{ID: "org-456", Name: "Org Two", Type: EntityOrganization},
 	}
 
 	quitCommands := []string{"q", "Q", "quit", "QUIT", "Quit"}
