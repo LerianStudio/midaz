@@ -16,7 +16,7 @@ The Midaz Open-Source Ledger offers flexible management options via APIs, gRPC, 
 
 ## Getting Started
 
-To start using Midaz Console, you’ll need a running instance of the Midaz Open-Source Ledger. Please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started) for the [Midaz Open-Source Ledger](https://github.com/LerianStudio/midaz) <img src="https://github.com/favicon.ico" width="20" height="20" alt="GitHub Logo">. For a complete overview of Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio/).
+To start using Midaz Console, you'll need a running instance of the Midaz Open-Source Ledger. Please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started) for the [Midaz Open-Source Ledger](https://github.com/LerianStudio/midaz) <img src="https://github.com/favicon.ico" width="20" height="20" alt="GitHub Logo">. For a complete overview of Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio/).
 
 ### Prerequisites
 
@@ -25,6 +25,22 @@ To start using Midaz Console, you’ll need a running instance of the Midaz Open
 - npm
 - Docker: [Docker Installation](https://docs.docker.com/get-docker/)
 - Docker Compose: [Docker Compose Installation](https://docs.docker.com/compose/install/)
+
+## Node.js Version Management
+
+This project uses Node.js LTS versions and includes automatic version management:
+
+- An `.nvmrc` file specifies the LTS version requirement
+- The `check-node-version.sh` script automatically checks and updates your Node.js version
+- A preinstall hook runs this check before `npm install`
+
+To ensure proper setup:
+
+1. Install [NVM (Node Version Manager)](https://github.com/nvm-sh/nvm)
+2. When you run `npm install`, the script will automatically check your Node version
+3. If needed, it will install the latest LTS version and prompt you to run `nvm use --lts`
+
+These checks help maintain consistent Node.js environments across development and prevent version-related issues.
 
 ## Running the Application Locally
 
@@ -63,7 +79,7 @@ npm run docker-up
 
 ## Repo Activity
 
-![Alt](https://repobeats.axiom.co/api/embed/f428d2468cc360e813df4eb3c0e89777343d3da2.svg "Repobeats analytics image")
+![Alt](https://repobeats.axiom.co/api/embed/f428d2468cc360e813df4eb3c0e89777343d3da2.svg 'Repobeats analytics image')
 
 ## Contributing & License
 

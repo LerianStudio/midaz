@@ -15,15 +15,15 @@ import { useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
 import { useUpdateUser, useUpdateUserPassword } from '@/client/users'
 import { SelectItem } from '../ui/select'
 import { useListGroups } from '@/client/groups'
 import { user, passwordChange } from '@/schema/user'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { UsersType } from '@/types/users-type'
+import { getInitialValues } from '@/lib/form'
+import { useToast } from '@/hooks/use-toast'
 
 export type UserSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -55,7 +55,7 @@ const profileInitialValues = {
   lastName: '',
   username: '',
   email: '',
-  groups: ''
+  groups: []
 }
 
 const passwordInitialValues = {
@@ -72,7 +72,7 @@ export const UserSheet = ({
   ...others
 }: UserSheetProps) => {
   const intl = useIntl()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const { data: groups } = useListGroups({})
   const [activeTab, setActiveTab] = useState('personal-information')
 
@@ -81,21 +81,13 @@ export const UserSheet = ({
     onSuccess: () => {
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage({
-          id: 'user.toast.update.success',
+      toast({
+        description: intl.formatMessage({
+          id: 'success.users.profile.update',
           defaultMessage: 'User profile updated successfully'
-        })
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'user.toast.update.error',
-          defaultMessage: 'Error updating user profile'
-        })
-      )
+        }),
+        variant: 'success'
+      })
     }
   })
 
@@ -105,26 +97,19 @@ export const UserSheet = ({
       onSuccess: () => {
         onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage({
-            id: 'user.toast.password.update.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.users.password.update',
             defaultMessage: 'Password updated successfully'
-          })
-        )
-      },
-      onError: () => {
-        onOpenChange?.(false)
-        showError(
-          intl.formatMessage({
-            id: 'user.toast.password.update.error',
-            defaultMessage: 'Error updating password'
-          })
-        )
+          }),
+          variant: 'success'
+        })
       }
     })
 
   const profileForm = useForm<z.infer<typeof ProfileSchema>>({
     resolver: zodResolver(ProfileSchema),
+    values: getInitialValues(profileInitialValues, data),
     defaultValues: profileInitialValues
   })
 
@@ -152,8 +137,6 @@ export const UserSheet = ({
       })
     }
   }
-
-  usePopulateCreateUpdateForm(profileForm, mode, profileInitialValues, data)
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -305,7 +288,7 @@ export const UserSheet = ({
                       name="newPassword"
                       type="password"
                       label={intl.formatMessage({
-                        id: 'entity.user.newPassword',
+                        id: 'common.newPassword',
                         defaultMessage: 'New Password'
                       })}
                       control={passwordForm.control}
@@ -316,7 +299,7 @@ export const UserSheet = ({
                       name="confirmPassword"
                       type="password"
                       label={intl.formatMessage({
-                        id: 'entity.user.confirmPassword',
+                        id: 'common.confirmPassword',
                         defaultMessage: 'Confirm Password'
                       })}
                       control={passwordForm.control}

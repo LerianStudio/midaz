@@ -1,12 +1,11 @@
-import { StatusEntity } from './status-entity'
+import { MetadataEntity } from './metadata-entity'
 
-export interface SegmentEntity {
+export type SegmentEntity = {
   id?: string
   ledgerId?: string
   organizationId?: string
   name: string
-  status: StatusEntity
-  metadata: Record<string, any>
+  metadata: MetadataEntity
   createdAt?: Date
   updatedAt?: Date
   deletedAt?: Date | null

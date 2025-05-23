@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useListTransactions } from '@/client/transactions'
 import { TransactionsDataTable } from './transactions-data-table'
 import { TransactionsSkeleton } from './transactions-skeleton'
@@ -79,7 +79,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <React.Fragment>
+    <div className="p-16">
       <Breadcrumb paths={breadcrumbPaths} />
 
       <PageHeader.Root>
@@ -122,14 +122,15 @@ export default function TransactionsPage() {
             defaultMessage: 'What is a Transaction?'
           })}
           answer={intl.formatMessage({
-            id: 'ledgers.helperTrigger.answer',
+            id: 'transactions.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Records of financial movements between accounts, based on the double-entry model.'
           })}
           seeMore={intl.formatMessage({
-            id: 'ledgers.helperTrigger.seeMore',
+            id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/transactions"
         />
       </PageHeader.Root>
 
@@ -140,6 +141,6 @@ export default function TransactionsPage() {
           <TransactionsDataTable {...transactionsTableProps} />
         )}
       </div>
-    </React.Fragment>
+    </div>
   )
 }

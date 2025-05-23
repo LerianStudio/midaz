@@ -18,7 +18,7 @@ import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { OnboardTitle } from '../onboard-title'
-import { usePopulateForm } from '@/lib/form'
+import { getInitialValues } from '@/lib/form'
 
 const initialValues = {
   accentColor: '',
@@ -36,10 +36,12 @@ export function OnboardTheme({ onCancel }: OnboardThemeProps) {
 
   const form = useForm({
     resolver: zodResolver(themeFormSchema),
-    defaultValues: initialValues
+    values: getInitialValues(initialValues, data),
+    defaultValues: initialValues,
+    resetOptions: {
+      keepDefaultValues: true
+    }
   })
-
-  usePopulateForm(form, data)
 
   const handleSubmit = () =>
     form.handleSubmit((values) => {

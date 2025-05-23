@@ -12,7 +12,7 @@ import { useOnboardForm } from './onboard-form-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DetailFormData, detailFormSchema } from './schemas'
 import { OnboardTitle } from '../onboard-title'
-import { usePopulateForm } from '@/lib/form'
+import { getInitialValues } from '@/lib/form'
 
 const initialValues = {
   legalName: '',
@@ -31,10 +31,12 @@ export function OnboardDetail({ onCancel }: OnboardDetailProps) {
 
   const form = useForm<DetailFormData>({
     resolver: zodResolver(detailFormSchema),
-    defaultValues: initialValues
+    values: getInitialValues(initialValues, data),
+    defaultValues: initialValues,
+    resetOptions: {
+      keepDefaultValues: true
+    }
   })
-
-  usePopulateForm(form, data)
 
   const handleSubmit = form.handleSubmit((data) => {
     setData(data)

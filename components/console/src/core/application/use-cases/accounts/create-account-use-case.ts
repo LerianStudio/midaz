@@ -1,26 +1,23 @@
-import { CreateAccountsRepository } from '@/core/domain/repositories/accounts/create-accounts-repository'
+import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
-import type {
-  CreateAccountDto,
-  AccountResponseDto
-} from '../../dto/account-dto'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import type { CreateAccountDto, AccountDto } from '../../dto/account-dto'
 
 export interface CreateAccount {
   execute: (
     organizationId: string,
     ledgerId: string,
     account: CreateAccountDto
-  ) => Promise<AccountResponseDto>
+  ) => Promise<AccountDto>
 }
 
 @injectable()
 export class CreateAccountUseCase implements CreateAccount {
   constructor(
-    @inject(CreateAccountsRepository)
-    private readonly createAccountRepository: CreateAccountsRepository
+    @inject(AccountRepository)
+    private readonly accountRepository: AccountRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -28,13 +25,9 @@ export class CreateAccountUseCase implements CreateAccount {
     organizationId: string,
     ledgerId: string,
     account: CreateAccountDto
-  ): Promise<AccountResponseDto> {
-    account.status = {
-      code: 'ACTIVE',
-      description: 'Active Account'
-    }
+  ): Promise<AccountDto> {
     const accountEntity: AccountEntity = AccountMapper.toDomain(account)
-    const accountCreated = await this.createAccountRepository.create(
+    const accountCreated = await this.accountRepository.create(
       organizationId,
       ledgerId,
       accountEntity

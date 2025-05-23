@@ -1,8 +1,9 @@
-import { LoggerAggregator } from '@/core/application/logger/logger-aggregator'
+import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { MidazError } from '@/core/infrastructure/errors/midaz-error'
+import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-exceptions'
 import { HttpStatus, ApiException } from '@/lib/http'
 import { getIntl } from '@/lib/intl'
+import { AuthApiException } from '@/core/infrastructure/midaz-plugins/auth/exceptions/auth-exceptions'
 
 export interface ErrorResponse {
   message: string
@@ -11,28 +12,33 @@ export interface ErrorResponse {
 
 export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   const intl = await getIntl()
-  const midazLogger = container.get(LoggerAggregator)
+  const logger = container.get(LoggerAggregator)
 
   const errorMetadata = {
     errorType: error.constructor.name,
     originalMessage: error.message
   }
 
-  if (error instanceof MidazError) {
-    midazLogger.error(`Midaz error`, errorMetadata)
-    return { message: error.message, status: HttpStatus.BAD_REQUEST }
-  }
-
-  if (error instanceof ApiException) {
-    midazLogger.error(`Api error`, errorMetadata)
+  if (error instanceof MidazApiException) {
+    logger.error(`Midaz error`, errorMetadata)
     return { message: error.message, status: error.getStatus() }
   }
 
-  midazLogger.error(`Unknown error`, errorMetadata)
+  if (error instanceof AuthApiException) {
+    logger.error(`Auth error`, errorMetadata)
+    return { message: error.message, status: error.getStatus() }
+  }
+
+  if (error instanceof ApiException) {
+    logger.error(`Api error`, errorMetadata)
+    return { message: error.message, status: error.getStatus() }
+  }
+
+  logger.error(`Unknown error`, errorMetadata)
   return {
     message: intl.formatMessage({
       id: 'error.midaz.unknowError',
-      defaultMessage: 'Error on Midaz.'
+      defaultMessage: 'Unknown error on Midaz.'
     }),
     status: HttpStatus.INTERNAL_SERVER_ERROR
   }

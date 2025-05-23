@@ -1,4 +1,4 @@
-export interface AddressDto {
+export type AddressDto = {
   line1: string
   line2?: string
   neighborhood: string

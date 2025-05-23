@@ -1,23 +1,23 @@
 import 'reflect-metadata'
-import { FetchTransactionByIdRepository } from '@/core/domain/repositories/transactions/fetch-transaction-by-id-repository'
+import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { injectable, inject } from 'inversify'
-import { TransactionResponseDto } from '../../dto/transaction-dto'
+import { TransactionDto } from '../../dto/transaction-dto'
 import { TransactionMapper } from '../../mappers/transaction-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchTransactionById {
   execute: (
     organizationId: string,
     ledgerId: string,
     transactionId: string
-  ) => Promise<TransactionResponseDto>
+  ) => Promise<TransactionDto>
 }
 
 @injectable()
 export class FetchTransactionByIdUseCase implements FetchTransactionById {
   constructor(
-    @inject(FetchTransactionByIdRepository)
-    private readonly fetchTransactionByIdRepository: FetchTransactionByIdRepository
+    @inject(TransactionRepository)
+    private readonly transactionRepository: TransactionRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -25,8 +25,8 @@ export class FetchTransactionByIdUseCase implements FetchTransactionById {
     organizationId: string,
     ledgerId: string,
     transactionId: string
-  ): Promise<TransactionResponseDto> {
-    const transaction = await this.fetchTransactionByIdRepository.fetchById(
+  ): Promise<TransactionDto> {
+    const transaction = await this.transactionRepository.fetchById(
       organizationId,
       ledgerId,
       transactionId

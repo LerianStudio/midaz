@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { segment } from '@/schema/segment'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
@@ -20,13 +20,15 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCreateSegment, useUpdateSegment } from '@/client/segments'
-import { SegmentResponseDto } from '@/core/application/dto/segment-dto'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { SegmentType } from '@/types/segment-type'
+import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: SegmentResponseDto | null
+  data?: SegmentType | null
   onSuccess?: () => void
 }
 
@@ -52,12 +54,14 @@ export const SegmentsSheet = ({
 }: SegmentsSheetProps) => {
   const intl = useIntl()
   const { currentOrganization } = useOrganization()
+  const { isReadOnly } = useFormPermissions('segments')
 
   const { mutate: createSegment, isPending: createPending } = useCreateSegment({
     organizationId: currentOrganization.id!,
     ledgerId,
     onSuccess: () => {
       onSuccess?.()
+      form.reset()
       onOpenChange?.(false)
     }
   })
@@ -74,9 +78,9 @@ export const SegmentsSheet = ({
 
   const form = useForm({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const handleSubmit = (data: FormData) => {
     if (mode === 'create') {
@@ -85,8 +89,6 @@ export const SegmentsSheet = ({
       updateSegment(data)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -123,10 +125,15 @@ export const SegmentsSheet = ({
               )}
             </SheetTitle>
             <SheetDescription>
-              {intl.formatMessage({
-                id: 'ledgers.segments.sheet.edit.description',
-                defaultMessage: 'View and edit segment fields.'
-              })}
+              {isReadOnly
+                ? intl.formatMessage({
+                    id: 'ledgers.segments.sheet.edit.description.readonly',
+                    defaultMessage: 'View segment fields in read-only mode.'
+                  })
+                : intl.formatMessage({
+                    id: 'ledgers.segments.sheet.edit.description',
+                    defaultMessage: 'View and edit segment fields.'
+                  })}
             </SheetDescription>
           </SheetHeader>
         )}
@@ -160,6 +167,7 @@ export const SegmentsSheet = ({
                       defaultMessage: 'Segment Name'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -172,23 +180,28 @@ export const SegmentsSheet = ({
                 </div>
               </TabsContent>
               <TabsContent value="metadata">
-                <MetadataField name="metadata" control={form.control} />
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
               </TabsContent>
             </Tabs>
 
             <SheetFooter>
-              <LoadingButton
-                size="lg"
-                type="submit"
-                disabled={!isDirty}
-                fullWidth
-                loading={createPending || updatePending}
-              >
-                {intl.formatMessage({
-                  id: 'common.save',
-                  defaultMessage: 'Save'
-                })}
-              </LoadingButton>
+              <Enforce resource="segments" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  type="submit"
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </SheetFooter>
           </form>
         </Form>

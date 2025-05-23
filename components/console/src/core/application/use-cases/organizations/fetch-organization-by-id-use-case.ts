@@ -1,8 +1,9 @@
-import { FetchOrganizationByIdRepository } from '@/core/domain/repositories/organizations/fetch-organization-by-id-repository'
-import { OrganizationResponseDto } from '../../dto/organization-response-dto'
-import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
+import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { OrganizationResponseDto } from '../../dto/organization-dto'
+import { OrganizationMapper } from '../../mappers/organization-mapper'
 
 export interface FetchOrganizationById {
   execute: (organizationId: string) => Promise<OrganizationResponseDto>
@@ -11,15 +12,26 @@ export interface FetchOrganizationById {
 @injectable()
 export class FetchOrganizationByIdUseCase implements FetchOrganizationById {
   constructor(
-    @inject(FetchOrganizationByIdRepository)
-    private readonly fetchOrganizationByIdRepository: FetchOrganizationByIdRepository
+    @inject(OrganizationRepository)
+    private readonly organizationRepository: OrganizationRepository,
+    @inject(OrganizationAvatarRepository)
+    private readonly organizationAvatarRepository: OrganizationAvatarRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(organizationId: string): Promise<OrganizationResponseDto> {
     const organizationEntity =
-      await this.fetchOrganizationByIdRepository.fetchById(organizationId)
+      await this.organizationRepository.fetchById(organizationId)
 
-    return OrganizationMapper.toResponseDto(organizationEntity)
+    const organizationAvatarEntity =
+      await this.organizationAvatarRepository.fetchById(organizationId)
+
+    const organizationResponseDto: OrganizationResponseDto =
+      OrganizationMapper.toResponseDto(
+        organizationEntity,
+        organizationAvatarEntity?.avatar
+      )
+
+    return organizationResponseDto
   }
 }

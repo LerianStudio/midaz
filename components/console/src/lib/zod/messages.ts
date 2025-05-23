@@ -42,6 +42,11 @@ const messages = defineMessages({
     id: 'errors.too_small.date.not_inclusive',
     defaultMessage: 'Date must be after {minimum}'
   },
+  too_small_array_inclusive: {
+    id: 'errors.too_small.array.inclusive',
+    defaultMessage:
+      'Field must contain at least {minimum} {minimum, plural, =0 {items} one {item} other {items}}'
+  },
 
   // too_big
   too_big_string_exact: {
@@ -111,7 +116,10 @@ const messages = defineMessages({
   },
   custom_avatar_invalid_format: {
     id: 'errors.custom.avatar.invalid_format',
-    defaultMessage: 'Avatar should have a PNG or SVG format'
+    defaultMessage: 'Avatar should have a {format} format',
+    values: {
+      format: ['png', 'svg']
+    }
   },
   custom_confirm_password: {
     id: 'errors.custom.confirm_password',

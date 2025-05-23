@@ -1,4 +1,4 @@
-import { StatusDto } from '@/core/application/dto/status.dto'
+import { StatusDto } from '@/core/application/dto/status-dto'
 
 export interface LedgerType {
   id: string

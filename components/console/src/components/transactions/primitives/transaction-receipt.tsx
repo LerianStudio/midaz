@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { isNil } from 'lodash'
 import { AlignLeft, ArrowRight } from 'lucide-react'
 import { forwardRef, HTMLAttributes, ReactNode } from 'react'
 import { useIntl } from 'react-intl'
@@ -35,20 +36,15 @@ export type TransactionReceiptValueProps =
 export const TransactionReceiptValue = forwardRef<
   HTMLDivElement,
   TransactionReceiptValueProps
->(({ className, asset, value, children, ...props }, ref) => {
-  const intl = useIntl()
-
-  return (
-    <p
-      ref={ref}
-      className={cn('text-4xl font-bold text-neutral-600', className)}
-      {...props}
-    >
-      <span className="text-2xl">{asset}</span>{' '}
-      {intl.formatNumber(Number(value))}
-    </p>
-  )
-})
+>(({ className, asset, value, children, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn('text-4xl font-bold text-neutral-600', className)}
+    {...props}
+  >
+    <span className="text-2xl">{asset}</span> {value}
+  </p>
+))
 TransactionReceiptValue.displayName = 'TransactionReceiptValue'
 
 export const TransactionReceiptDescription = forwardRef<
@@ -92,19 +88,15 @@ export const TransactionReceiptSubjects = forwardRef<
 >(({ className, sources, destinations, children, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex flex-row items-center gap-4', className)}
+    className={cn('flex flex-row items-center gap-5', className)}
     {...props}
   >
     <div className="flex flex-col text-base font-normal">
-      {sources.map((source, index) => (
-        <p key={index}>{source}</p>
-      ))}
+      {sources?.map((source, index) => <p key={index}>{source}</p>)}
     </div>
-    <ArrowRight />
+    <ArrowRight className="h-3 w-3 text-zinc-800" />
     <div className="flex flex-col text-base font-normal">
-      {destinations.map((source, index) => (
-        <p key={index}>{source}</p>
-      ))}
+      {destinations?.map((source, index) => <p key={index}>{source}</p>)}
     </div>
   </div>
 ))
@@ -113,24 +105,36 @@ TransactionReceiptSubjects.displayName = 'TransactionReceiptSubjects'
 export type TransactionReceiptItemProps = HTMLAttributes<HTMLDivElement> & {
   label: string
   value: ReactNode
+  showNone?: boolean
 }
 
 export const TransactionReceiptItem = forwardRef<
   HTMLDivElement,
   TransactionReceiptItemProps
->(({ className, label, value, children, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'flex flex-row px-8 text-xs font-normal text-zinc-700',
-      className
-    )}
-    {...props}
-  >
-    <p className="flex-grow">{label}</p>
-    {value}
-  </div>
-))
+>(({ className, label, value, showNone, children, ...props }, ref) => {
+  const intl = useIntl()
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'flex flex-row px-8 text-xs font-normal text-zinc-700',
+        className
+      )}
+      {...props}
+    >
+      <p className="flex-grow">{label}</p>
+      {!showNone && value}
+      {showNone &&
+        (!isNil(value) && value !== ''
+          ? value
+          : intl.formatMessage({
+              id: 'common.none',
+              defaultMessage: 'None'
+            }))}
+    </div>
+  )
+})
 TransactionReceiptItem.displayName = 'TransactionReceiptTicket'
 
 export type TransactionReceiptOperationProps =
@@ -138,7 +142,7 @@ export type TransactionReceiptOperationProps =
     type: 'debit' | 'credit'
     account: string
     asset: string
-    value: string | number
+    value: string
   }
 
 export const TransactionReceiptOperation = forwardRef<
@@ -173,8 +177,7 @@ export const TransactionReceiptOperation = forwardRef<
               type === 'debit' ? 'text-red-500' : 'text-green-500'
             )}
           >
-            {type === 'debit' ? '-' : '+'} {asset}{' '}
-            {intl.formatNumber(Number(value))}
+            {type === 'debit' ? '-' : '+'} {asset} {value}
           </p>
         </div>
       </div>

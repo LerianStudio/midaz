@@ -1,12 +1,12 @@
 'use client'
 
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolios-dto'
+import { PortfolioResponseDto } from '@/core/application/dto/portfolio-dto'
 import {
   useDeletePortfolio,
   usePortfoliosWithAccounts
 } from '@/client/portfolios'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useIntl } from 'react-intl'
 import React, { useEffect, useState } from 'react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
@@ -19,14 +19,14 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 
 const Page = () => {
   const intl = useIntl()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const [total, setTotal] = useState(0)
   const { form, searchValues, pagination } = useQueryParams({
     total
@@ -69,21 +69,13 @@ const Page = () => {
       onSuccess: () => {
         handleDialogClose()
         refetch()
-        showSuccess(
-          intl.formatMessage({
-            id: 'portfolios.toast.delete.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.portfolios.delete',
             defaultMessage: 'Portfolio successfully deleted'
-          })
-        )
-      },
-      onError: () => {
-        handleDialogClose()
-        showError(
-          intl.formatMessage({
-            id: 'portfolios.toast.delete.error',
-            defaultMessage: 'Error deleting Portfolio'
-          })
-        )
+          }),
+          variant: 'success'
+        })
       }
     })
 
@@ -165,12 +157,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'portfolios.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Groups of accounts assembled for organizational and operational purposes.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/portfolios"
         />
       </PageHeader.Root>
 

@@ -23,7 +23,7 @@ import {
   SidebarRoot
 } from './primitive'
 import { Separator } from '../ui/separator'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 
 export const Sidebar = () => {
   const intl = useIntl()

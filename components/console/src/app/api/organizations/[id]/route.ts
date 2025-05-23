@@ -26,9 +26,11 @@ export const GET = applyMiddleware(
   async (request: Request, { params }: { params: { id: string } }) => {
     try {
       const fetchOrganizationByIdUseCase: FetchOrganizationById =
-        container.get<FetchOrganizationById>(FetchOrganizationByIdUseCase)
-      const organizationId = params.id
+        await container.getAsync<FetchOrganizationById>(
+          FetchOrganizationByIdUseCase
+        )
 
+      const organizationId = params.id
       const organizations =
         await fetchOrganizationByIdUseCase.execute(organizationId)
 
@@ -51,7 +53,8 @@ export const PATCH = applyMiddleware(
   async (request: Request, { params }: { params: { id: string } }) => {
     try {
       const updateOrganizationUseCase: UpdateOrganization =
-        container.get<UpdateOrganization>(UpdateOrganizationUseCase)
+        await container.getAsync<UpdateOrganization>(UpdateOrganizationUseCase)
+
       const body = await request.json()
       const organizationUpdated = await updateOrganizationUseCase.execute(
         params.id,
@@ -76,8 +79,10 @@ export const DELETE = applyMiddleware(
   async (_, { params }: { params: { id: string } }) => {
     try {
       const deleteOrganizationUseCase: DeleteOrganization =
-        container.get<DeleteOrganization>(DeleteOrganizationUseCase)
+        await container.getAsync<DeleteOrganization>(DeleteOrganizationUseCase)
+
       await deleteOrganizationUseCase.execute(params.id)
+
       return NextResponse.json({}, { status: 200 })
     } catch (error: any) {
       const { message, status } = await apiErrorHandler(error)

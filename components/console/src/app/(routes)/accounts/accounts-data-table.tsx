@@ -10,7 +10,7 @@ import {
   TableCell,
   TableBody
 } from '@/components/ui/table'
-import { MoreVertical } from 'lucide-react'
+import { MoreVertical, LockIcon } from 'lucide-react'
 import { isNil } from 'lodash'
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
+import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
 
 type AccountsTableProps = {
   accounts: { items: AccountType[] }
@@ -68,12 +69,15 @@ const AccountRow: React.FC<AccountRowProps> = ({
   onDelete
 }) => {
   const intl = useIntl()
-  const isExternal = account.original.alias?.includes('@external/')
+  const isExternal = account.original.alias?.includes(
+    externalAccountAliasPrefix
+  )
 
   return (
     <TableRow key={account.id}>
       <IdTableCell id={account.original.id} />
       <TableCell>{account.original.name}</TableCell>
+      <TableCell>{account.original.alias}</TableCell>
       <TableCell align="center">{account.original.assetCode}</TableCell>
       <MetadataTableCell align="center" metadata={account.original.metadata} />
       <TableCell align="center">
@@ -88,8 +92,24 @@ const AccountRow: React.FC<AccountRowProps> = ({
             </Button>
           ))}
       </TableCell>
-      <TableCell className="w-0">
-        {!isExternal && (
+      <TableCell className="w-0" align="center">
+        {isExternal ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex h-[36px] w-[36px] items-center justify-center rounded-md border border-border bg-muted">
+                  <LockIcon size={14} className="text-muted-foreground" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {intl.formatMessage({
+                  id: 'accounts.external.noActions',
+                  defaultMessage: 'External accounts cannot be modified'
+                })}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" className="h-auto w-max p-2">
@@ -99,8 +119,8 @@ const AccountRow: React.FC<AccountRowProps> = ({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleEdit(account.original)}>
                 {intl.formatMessage({
-                  id: `common.edit`,
-                  defaultMessage: 'Edit'
+                  id: `common.details`,
+                  defaultMessage: 'Details'
                 })}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -234,8 +254,14 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.account.name',
+                      id: 'accounts.field.name',
                       defaultMessage: 'Account Name'
+                    })}
+                  </TableHead>
+                  <TableHead>
+                    {intl.formatMessage({
+                      id: 'accounts.field.alias',
+                      defaultMessage: 'Account Alias'
                     })}
                   </TableHead>
                   <TableHead className="text-center">

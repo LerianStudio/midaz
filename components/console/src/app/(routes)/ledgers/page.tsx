@@ -15,18 +15,18 @@ import { LedgersSheet } from './ledgers-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { useDeleteLedger, useListLedgers } from '@/client/ledgers'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { LedgersSkeleton } from './ledgers-skeleton'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
 import { Breadcrumb } from '@/components/breadcrumb'
+import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
   const [total, setTotal] = React.useState(0)
   const { currentOrganization, currentLedger, setLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
@@ -83,21 +83,13 @@ const Page = () => {
         )
       }
 
-      showSuccess(
-        intl.formatMessage({
-          id: 'ledgers.toast.delete.success',
+      toast({
+        description: intl.formatMessage({
+          id: 'success.ledgers.delete',
           defaultMessage: 'Ledger successfully deleted'
-        })
-      )
-    },
-    onError: () => {
-      handleDialogClose()
-      showError(
-        intl.formatMessage({
-          id: 'ledgers.toast.delete.error',
-          defaultMessage: 'Error deleting Ledger'
-        })
-      )
+        }),
+        variant: 'success'
+      })
     }
   })
 

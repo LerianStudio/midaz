@@ -1,6 +1,6 @@
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
-import { CreateLedgerDto } from '../dto/create-ledger-dto'
-import { LedgerResponseDto } from '../dto/ledger-response-dto'
+import { CreateLedgerDto } from '../dto/ledger-dto'
+import { LedgerResponseDto } from '../dto/ledger-dto'
 import { UpdateSegmentDto } from '../dto/segment-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
@@ -11,7 +11,6 @@ export class LedgerMapper {
   ): LedgerEntity {
     return {
       name: dto.name!,
-      status: dto.status!,
       metadata: dto.metadata!
     }
   }
@@ -21,10 +20,6 @@ export class LedgerMapper {
       id: ledger.id!,
       organizationId: ledger.organizationId!,
       name: ledger.name,
-      status: {
-        code: ledger.status.code,
-        description: ledger.status.description ?? ''
-      },
       metadata: ledger.metadata ?? {},
       createdAt: ledger.createdAt!,
       updatedAt: ledger.updatedAt!,

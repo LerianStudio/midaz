@@ -1,9 +1,9 @@
-export interface AuthLoginDto {
+export type AuthLoginDto = {
   username: string
   password: string
 }
 
-export interface AuthLoginResponseDto {
+export type AuthLoginResponseDto = {
   access_token: string
   refresh_token: string
   token_type: string
@@ -11,10 +11,15 @@ export interface AuthLoginResponseDto {
   scope: string
 }
 
-export interface AuthSessionDto {
+export type AuthSessionDto = {
   id: string
   username: string
   name: string
   access_token: string
   refresh_token: string
 }
+
+type AuthResourceDto = string
+type AuthActionDto = string
+
+export type AuthPermissionResponseDto = Record<AuthResourceDto, AuthActionDto[]>

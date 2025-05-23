@@ -11,7 +11,6 @@ export class SegmentMapper {
   static toDomain(dto: CreateSegmentDto | UpdateSegmentDto): SegmentEntity {
     return {
       name: dto.name!,
-      status: dto.status!,
       metadata: dto.metadata!
     }
   }
@@ -22,10 +21,6 @@ export class SegmentMapper {
       organizationId: segment.organizationId!,
       ledgerId: segment.ledgerId!,
       name: segment.name,
-      status: {
-        code: segment.status.code,
-        description: segment.status.description ?? ''
-      },
       metadata: segment.metadata ?? {},
       createdAt: segment.createdAt!,
       updatedAt: segment.updatedAt!,

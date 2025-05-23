@@ -30,6 +30,7 @@ export type ComboBoxFieldProps = React.PropsWithChildren & {
   emptyMessage?: string
   control: Control<any>
   disabled?: boolean
+  readOnly?: boolean
   required?: boolean
 }
 
@@ -40,6 +41,7 @@ export const ComboBoxField = ({
   emptyMessage,
   required,
   children,
+  readOnly,
   ...others
 }: ComboBoxFieldProps) => {
   const intl = useIntl()
@@ -74,12 +76,18 @@ export const ComboBoxField = ({
       render={({ field }) => (
         <FormItem required={required}>
           {label && <FormLabel>{label}</FormLabel>}
-          <Popover open={open} onOpenChange={setOpen}>
+
+          <Popover
+            open={readOnly ? false : open}
+            onOpenChange={readOnly ? () => {} : setOpen}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 role="combobox"
-                aria-expanded={open}
+                aria-expanded={readOnly ? false : open}
+                readOnly={readOnly}
+                tabIndex={0}
                 className={cn(
                   'w-full justify-between',
                   !field.value && 'text-muted-foreground'
@@ -90,7 +98,9 @@ export const ComboBoxField = ({
                     id: 'common.selectPlaceholder',
                     defaultMessage: 'Select...'
                   })}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                {!readOnly && (
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">

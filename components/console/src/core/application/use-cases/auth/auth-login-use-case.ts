@@ -4,7 +4,7 @@ import {
 } from '@/core/domain/entities/auth-entity'
 import { AuthLoginRepository } from '@/core/domain/repositories/auth/auth-login-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import type { AuthLoginDto, AuthSessionDto } from '../../dto/auth-dto'
 import { AuthMapper } from '../../mappers/auth-mapper'
 

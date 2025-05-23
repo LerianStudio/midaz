@@ -18,12 +18,14 @@ import { useIntl } from 'react-intl'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateLedger, useUpdateLedger } from '@/client/ledgers'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-response-dto'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { LedgerType } from '@/types/ledgers-type'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { useToast } from '@/hooks/use-toast'
+import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type LedgersSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -52,7 +54,8 @@ export const LedgersSheet = ({
 }: LedgersSheetProps) => {
   const intl = useIntl()
   const { currentOrganization, setLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('ledgers')
 
   const { mutate: createLedger, isPending: createPending } = useCreateLedger({
     organizationId: currentOrganization.id!,
@@ -64,25 +67,16 @@ export const LedgersSheet = ({
 
       await onSuccess?.()
       onOpenChange?.(false)
-
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'ledgers.toast.create.success',
+            id: 'success.ledgers.create',
             defaultMessage: 'Ledger {ledgerName} created successfully'
           },
           { ledgerName: newLedger.name }
-        )
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'ledgers.toast.create.error',
-          defaultMessage: 'Error creating Ledger'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
@@ -92,28 +86,21 @@ export const LedgersSheet = ({
     onSuccess: () => {
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage({
-          id: 'ledgers.toast.update.success',
+      toast({
+        description: intl.formatMessage({
+          id: 'success.ledgers.update',
           defaultMessage: 'Ledger changes saved successfully'
-        })
-      )
-    },
-    onError: () => {
-      showError(
-        intl.formatMessage({
-          id: 'ledgers.toast.update.error',
-          defaultMessage: 'Error updating Ledger'
-        })
-      )
+        }),
+        variant: 'success'
+      })
     }
   })
 
   const form = useForm({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const handleSubmit = (data: FormData) => {
     if (mode === 'create') {
@@ -122,8 +109,6 @@ export const LedgersSheet = ({
       updateLedger(data)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -160,10 +145,15 @@ export const LedgersSheet = ({
               )}
             </SheetTitle>
             <SheetDescription>
-              {intl.formatMessage({
-                id: 'ledgers.sheet.edit.description',
-                defaultMessage: 'View and edit ledger fields.'
-              })}
+              {isReadOnly
+                ? intl.formatMessage({
+                    id: 'ledgers.sheet.edit.description.readonly',
+                    defaultMessage: 'View ledger fields in read-only mode.'
+                  })
+                : intl.formatMessage({
+                    id: 'ledgers.sheet.edit.description',
+                    defaultMessage: 'View and edit ledger fields.'
+                  })}
             </SheetDescription>
           </SheetHeader>
         )}
@@ -200,6 +190,7 @@ export const LedgersSheet = ({
                       defaultMessage: 'Ledger Name'
                     })}
                     control={form.control}
+                    readOnly={isReadOnly}
                     required
                   />
 
@@ -212,23 +203,28 @@ export const LedgersSheet = ({
                 </div>
               </TabsContent>
               <TabsContent value="metadata">
-                <MetadataField name="metadata" control={form.control} />
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
               </TabsContent>
             </Tabs>
 
             <SheetFooter>
-              <LoadingButton
-                size="lg"
-                type="submit"
-                disabled={!isDirty}
-                fullWidth
-                loading={createPending || updatePending}
-              >
-                {intl.formatMessage({
-                  id: 'common.save',
-                  defaultMessage: 'Save'
-                })}
-              </LoadingButton>
+              <Enforce resource="ledgers" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  type="submit"
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
             </SheetFooter>
           </form>
         </Form>

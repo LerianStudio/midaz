@@ -1,28 +1,40 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { cva } from 'class-variance-authority'
 import { CheckCheckIcon, X } from 'lucide-react'
-import { useIntl } from 'react-intl'
+import { defineMessages, useIntl } from 'react-intl'
 
 type TransactionStatus = 'APPROVED' | 'CANCELLED'
 
-interface TransactionStatusBadgeProps {
-  status: TransactionStatus
-  className?: string
-}
-
-const statusConfig = {
-  ['APPROVED']: {
-    className: 'bg-[#16A34A] text-white hover:bg-emerald-600',
-    icon: CheckCheckIcon,
-    messageId: 'transactions.status.approved',
+const statusMessages = defineMessages({
+  APPROVED: {
+    id: 'transactions.status.approved',
     defaultMessage: 'Approved'
   },
-  ['CANCELLED']: {
-    className: 'border-gray-400 bg-gray-100 text-gray-700',
-    icon: X,
-    messageId: 'transactions.status.canceled',
+  CANCELLED: {
+    id: 'transactions.status.canceled',
     defaultMessage: 'Canceled'
   }
+})
+
+const statusBadgeVariants = cva(
+  'flex items-center gap-2 px-4 py-1.5 font-medium cursor-default',
+  {
+    variants: {
+      status: {
+        APPROVED: 'bg-[#16A34A] text-white hover:bg-emerald-600',
+        CANCELLED: 'border-gray-400 bg-gray-100 text-gray-700'
+      }
+    },
+    defaultVariants: {
+      status: 'APPROVED'
+    }
+  }
+)
+
+type TransactionStatusBadgeProps = {
+  className?: string
+  status?: string
 }
 
 export function TransactionStatusBadge({
@@ -30,8 +42,7 @@ export function TransactionStatusBadge({
   className
 }: TransactionStatusBadgeProps) {
   const intl = useIntl()
-  const config = statusConfig[status]
-  const Icon = config.icon
+  const Icon = status === 'APPROVED' ? CheckCheckIcon : X
 
   return (
     <div className="flex items-center gap-2">
@@ -43,16 +54,14 @@ export function TransactionStatusBadge({
       </span>
       <Badge
         className={cn(
-          config.className,
-          'flex items-center gap-2 px-4 py-1.5',
-          'font-medium',
+          statusBadgeVariants({ status: status as TransactionStatus }),
           className
         )}
       >
-        {intl.formatMessage({
-          id: config.messageId,
-          defaultMessage: config.defaultMessage
-        })}
+        {status &&
+          intl.formatMessage(
+            statusMessages[status as keyof typeof statusMessages]
+          )}
         <Icon className="h-4 w-4" />
       </Badge>
     </div>

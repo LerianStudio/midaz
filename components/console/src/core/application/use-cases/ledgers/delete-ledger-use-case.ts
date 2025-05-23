@@ -1,6 +1,6 @@
-import { DeleteLedgerRepository } from '@/core/domain/repositories/ledgers/delete-ledger-repository'
+import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface DeleteLedger {
   execute: (organizationId: string, ledgerId: string) => Promise<void>
@@ -9,12 +9,12 @@ export interface DeleteLedger {
 @injectable()
 export class DeleteLedgerUseCase implements DeleteLedger {
   constructor(
-    @inject(DeleteLedgerRepository)
-    private readonly deleteLedgerRepository: DeleteLedgerRepository
+    @inject(LedgerRepository)
+    private readonly ledgerRepository: LedgerRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(organizationId: string, ledgerId: string): Promise<void> {
-    await this.deleteLedgerRepository.delete(organizationId, ledgerId)
+    await this.ledgerRepository.delete(organizationId, ledgerId)
   }
 }

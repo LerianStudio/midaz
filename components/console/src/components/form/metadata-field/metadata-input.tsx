@@ -11,9 +11,13 @@ const defaultValues = { key: '', value: '' }
 
 export type MetadataInputProps = Omit<ControllerRenderProps, 'ref'> & {
   onAddMetadata?: (metadata: { key: string; value: string }) => void
+  readOnly?: boolean
 }
 
-export const MetadataInput = ({ onAddMetadata }: MetadataInputProps) => {
+export const MetadataInput = ({
+  onAddMetadata,
+  readOnly
+}: MetadataInputProps) => {
   const intl = useIntl()
   const [currentMetadata, setCurrentMetadata] = React.useState(defaultValues)
 
@@ -52,6 +56,7 @@ export const MetadataInput = ({ onAddMetadata }: MetadataInputProps) => {
               defaultMessage: 'Key'
             })}
             className="h-9"
+            readOnly={readOnly}
           />
         </div>
         <div className="flex flex-1 flex-col gap-2">
@@ -70,16 +75,20 @@ export const MetadataInput = ({ onAddMetadata }: MetadataInputProps) => {
               defaultMessage: 'Value'
             })}
             className="h-9"
+            readOnly={readOnly}
           />
         </div>
       </div>
-      <Button
-        className="h-9 w-9 self-end rounded-full bg-shadcn-600 disabled:bg-shadcn-200"
-        onClick={handleAddMetadata}
-        disabled={!currentMetadata.key || !currentMetadata.value}
-      >
-        <Plus size={16} className={cn('shrink-0')} />
-      </Button>
+
+      {!readOnly && (
+        <Button
+          className="h-9 w-9 self-end rounded-full bg-shadcn-600 disabled:bg-shadcn-200"
+          onClick={handleAddMetadata}
+          disabled={!currentMetadata.key || !currentMetadata.value}
+        >
+          <Plus size={16} className={cn('shrink-0')} />
+        </Button>
+      )}
     </div>
   )
 }

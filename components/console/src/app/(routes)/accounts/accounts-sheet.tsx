@@ -11,18 +11,17 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Form } from '@/components/ui/form'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { MetadataField } from '@/components/form/metadata-field'
 import { useListSegments } from '@/client/segments'
 import { useCreateAccount, useUpdateAccount } from '@/client/accounts'
 import { useListPortfolios } from '@/client/portfolios'
 import { isNil, omitBy } from 'lodash'
 import { useListAssets } from '@/client/assets'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { accounts } from '@/schema/account'
 import { AccountType } from '@/types/accounts-type'
 import { SelectItem } from '@/components/ui/select'
@@ -33,8 +32,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ChevronRight, InfoIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SwitchField } from '@/components/form/switch-field'
-import { createQueryString } from '@/lib/search'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { useToast } from '@/hooks/use-toast'
+import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -58,7 +59,7 @@ const initialValues = {
 
 const FormSchema = z.object({
   name: accounts.name,
-  alias: accounts.alias,
+  alias: accounts.alias.optional(),
   entityId: accounts.entityId.optional(),
   assetCode: accounts.assetCode,
   portfolioId: accounts.portfolioId.optional(),
@@ -79,9 +80,10 @@ export const AccountSheet = ({
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
-  const pathname = usePathname()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
+  const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('accounts')
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -127,9 +129,9 @@ export const AccountSheet = ({
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const portfolioId = form.watch('portfolioId')
 
@@ -139,23 +141,16 @@ export const AccountSheet = ({
     onSuccess: (data) => {
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'ledgers.toast.accountCreated',
+            id: 'success.accounts.created',
             defaultMessage: '{accountName} account successfully created'
           },
           { accountName: (data as AccountType)?.name! }
-        )
-      )
-    },
-    onError: () => {
-      showError(
-        intl.formatMessage({
-          id: 'accounts.toast.create.error',
-          defaultMessage: 'Error creating account'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
@@ -166,46 +161,31 @@ export const AccountSheet = ({
     onSuccess: (data) => {
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'ledgers.toast.accountUpdated',
+            id: 'success.accounts.update',
             defaultMessage: '{accountName} account successfully updated'
           },
           { accountName: (data as AccountType)?.name! }
-        )
-      )
-    },
-    onError: () => {
-      showError(
-        intl.formatMessage({
-          id: 'accounts.toast.update.error',
-          defaultMessage: 'Error updating account'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
-  const { showSuccess, showError } = useCustomToast()
-
-  const handlePortfolioClick = () =>
-    router.push(pathname + createQueryString({ tab: 'portfolios' }))
+  const handlePortfolioClick = () => router.push('/portfolios')
 
   const handleSubmit = (data: FormData) => {
     const cleanedData = omitBy(data, (value) => value === '' || isNil(value))
 
     if (mode === 'create') {
       createAccount(cleanedData)
-
-      form.reset(initialValues)
     } else if (mode === 'edit') {
       const { type, assetCode, entityId, ...updateData } = cleanedData
-
       updateAccount(updateData)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <React.Fragment>
@@ -215,13 +195,13 @@ export const AccountSheet = ({
             <SheetHeader>
               <SheetTitle>
                 {intl.formatMessage({
-                  id: 'ledgers.account.sheet.create.title',
+                  id: 'accounts.sheet.create.title',
                   defaultMessage: 'New Account'
                 })}
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'ledgers.account.sheet.create.description',
+                  id: 'accounts.sheet.create.description',
                   defaultMessage:
                     'Fill in the details of the Account you want to create.'
                 })}
@@ -234,7 +214,7 @@ export const AccountSheet = ({
               <SheetTitle>
                 {intl.formatMessage(
                   {
-                    id: 'ledgers.account.sheet.edit.title',
+                    id: 'accounts.sheet.edit.title',
                     defaultMessage: 'Edit {accountName}'
                   },
                   {
@@ -243,10 +223,15 @@ export const AccountSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'ledgers.account.sheet.edit.description',
-                  defaultMessage: 'View and edit account fields.'
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'accounts.sheet.edit.description.readonly',
+                      defaultMessage: 'View account fields in read-only mode.'
+                    })
+                  : intl.formatMessage({
+                      id: 'accounts.sheet.edit.description',
+                      defaultMessage: 'View and edit account fields.'
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
@@ -260,7 +245,7 @@ export const AccountSheet = ({
                 <TabsList className="mb-8 px-0">
                   <TabsTrigger value="details">
                     {intl.formatMessage({
-                      id: 'ledgers.account.sheet.tabs.details',
+                      id: 'accounts.sheet.tabs.details',
                       defaultMessage: 'Account Details'
                     })}
                   </TabsTrigger>
@@ -283,13 +268,14 @@ export const AccountSheet = ({
                       control={form.control}
                       name="name"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.name',
+                        id: 'accounts.field.name',
                         defaultMessage: 'Account Name'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.name.tooltip',
+                        id: 'accounts.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account'
                       })}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -297,15 +283,15 @@ export const AccountSheet = ({
                       control={form.control}
                       name="alias"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.alias',
+                        id: 'accounts.field.alias',
                         defaultMessage: 'Account Alias'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.alias.tooltip',
+                        id: 'accounts.field.alias.tooltip',
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
-                      required
+                      readOnly={isReadOnly}
                     />
 
                     {mode === 'create' && (
@@ -318,9 +304,10 @@ export const AccountSheet = ({
                             defaultMessage: 'Type'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.type.tooltip',
+                            id: 'accounts.field.type.tooltip',
                             defaultMessage: 'The type of account'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           <SelectItem value="deposit">
@@ -370,27 +357,30 @@ export const AccountSheet = ({
                           control={form.control}
                           name="entityId"
                           label={intl.formatMessage({
-                            id: 'ledgers.account.field.entityId',
+                            id: 'accounts.field.entityId',
                             defaultMessage: 'Entity ID'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.entityId.tooltip',
+                            id: 'accounts.field.entityId.tooltip',
                             defaultMessage:
                               'Identification number (EntityId) of the Account holder'
                           })}
+                          readOnly={isReadOnly}
                         />
+
                         <SelectField
                           control={form.control}
                           name="assetCode"
                           label={intl.formatMessage({
-                            id: 'ledgers.account.field.asset',
+                            id: 'accounts.field.asset',
                             defaultMessage: 'Asset'
                           })}
                           tooltip={intl.formatMessage({
-                            id: 'ledgers.account.field.asset.tooltip',
+                            id: 'accounts.field.asset.tooltip',
                             defaultMessage:
                               'Asset or currency that will be operated in this Account using balance'
                           })}
+                          readOnly={isReadOnly}
                           required
                         >
                           {assetListData?.map((asset) => (
@@ -406,14 +396,15 @@ export const AccountSheet = ({
                       control={form.control}
                       name="segmentId"
                       label={intl.formatMessage({
-                        id: 'ledgers.account.field.segment',
+                        id: 'accounts.field.segment',
                         defaultMessage: 'Segment'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'ledgers.account.field.segment.tooltip',
+                        id: 'accounts.field.segment.tooltip',
                         defaultMessage:
                           'Category (cluster) of clients with specific characteristics'
                       })}
+                      readOnly={isReadOnly}
                     >
                       {segmentListData?.map((segment) => (
                         <SelectItem key={segment.value} value={segment.value}>
@@ -430,7 +421,7 @@ export const AccountSheet = ({
                           id: 'accounts.field.allowSending',
                           defaultMessage: 'Allow Sending'
                         })}
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         disabledTooltip={
                           mode === 'create'
                             ? intl.formatMessage({
@@ -447,7 +438,7 @@ export const AccountSheet = ({
                         control={form.control}
                         name="allowReceiving"
                         label={intl.formatMessage({
-                          id: 'ledgers.account.field.allowReceiving',
+                          id: 'accounts.field.allowReceiving',
                           defaultMessage: 'Allow Receiving'
                         })}
                         tooltip={intl.formatMessage({
@@ -463,7 +454,7 @@ export const AccountSheet = ({
                               })
                             : undefined
                         }
-                        disabled={mode === 'create'}
+                        disabled={mode === 'create' || isReadOnly}
                         required
                       />
                     </div>
@@ -483,13 +474,13 @@ export const AccountSheet = ({
                       <InfoIcon className="h-4 w-4" />
                       <AlertTitle>
                         {intl.formatMessage({
-                          id: 'ledgers.account.sheet.noPortfolio.title',
+                          id: 'accounts.sheet.noPortfolio.title',
                           defaultMessage: 'Link to a Portfolio'
                         })}
                       </AlertTitle>
                       <AlertDescription>
                         {intl.formatMessage({
-                          id: 'ledgers.account.sheet.noPortfolio.description',
+                          id: 'accounts.sheet.noPortfolio.description',
                           defaultMessage:
                             'You do not have a portfolio available to link here.'
                         })}
@@ -501,14 +492,14 @@ export const AccountSheet = ({
                     control={form.control}
                     name="portfolioId"
                     label={intl.formatMessage({
-                      id: 'ledgers.account.field.portfolio',
+                      id: 'accounts.field.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                     tooltip={intl.formatMessage({
-                      id: 'ledgers.account.field.portfolio.tooltip',
+                      id: 'accounts.field.portfolio.tooltip',
                       defaultMessage: 'Portfolio that will receive this account'
                     })}
-                    disabled={portfolioListData.length === 0}
+                    readOnly={portfolioListData.length === 0 || isReadOnly}
                   >
                     {portfolioListData?.map((portfolio) => (
                       <SelectItem key={portfolio.value} value={portfolio.value}>
@@ -522,21 +513,23 @@ export const AccountSheet = ({
                       <p className="text-xs font-normal italic text-shadcn-400">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({
-                              id: 'ledgers.account.sheet.noLinkedPortfolio',
+                              id: 'accounts.sheet.noLinkedPortfolio',
                               defaultMessage:
                                 'Account not linked to any portfolio.'
                             })
                           : intl.formatMessage({
-                              id: 'ledgers.account.sheet.linkedPortfolio',
+                              id: 'accounts.sheet.linkedPortfolio',
                               defaultMessage: 'Account linked to a portfolio.'
                             })}
                       </p>
                     </div>
+
                     <Button
                       variant="outline"
                       icon={<ChevronRight />}
                       iconPlacement="end"
                       onClick={handlePortfolioClick}
+                      type="button"
                     >
                       {intl.formatMessage({
                         id: 'common.portfolios',
@@ -547,23 +540,28 @@ export const AccountSheet = ({
                 </TabsContent>
 
                 <TabsContent value="metadata">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </TabsContent>
               </Tabs>
 
               <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <LoadingButton
-                  size="lg"
-                  type="submit"
-                  disabled={!isDirty}
-                  fullWidth
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
+                <Enforce resource="accounts" action="post, patch">
+                  <LoadingButton
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={createPending || updatePending}
+                  >
+                    {intl.formatMessage({
+                      id: 'common.save',
+                      defaultMessage: 'Save'
+                    })}
+                  </LoadingButton>
+                </Enforce>
               </SheetFooter>
             </form>
           </Form>

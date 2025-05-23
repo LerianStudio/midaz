@@ -1,7 +1,7 @@
 /**
  * TODO: Better error handling
  */
-import { MidazError } from '@/core/infrastructure/errors/midaz-error'
+import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-exceptions'
 import { signOut } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { createQueryString } from '../search'
@@ -15,7 +15,7 @@ export const getFetcher = (url: string) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -28,7 +28,7 @@ export const getPaginatedFetcher = (url: string, params?: {}) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -42,7 +42,7 @@ export const postFetcher = (url: string) => {
       body: JSON.stringify(body)
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -56,7 +56,7 @@ export const patchFetcher = (url: string) => {
       body: JSON.stringify(body)
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -69,7 +69,7 @@ export const deleteFetcher = (url: string) => {
       }
     })
 
-    return fetcherResponseHandler(response)
+    return responseHandler(response)
   }
 }
 
@@ -81,19 +81,20 @@ export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
     if (process.env.NODE_ENV !== 'test') {
       console.error('Server Fetcher Error', error)
     }
-    if (error instanceof MidazError && error.code === '0042') {
+    if (error instanceof MidazApiException && error.code === '0042') {
       redirect('/signout')
     }
     return null
   }
 }
 
-const fetcherResponseHandler = async (response: Response) => {
+const responseHandler = async (response: Response) => {
   if (!response.ok) {
     if (response.status === 401) {
       signOut({ callbackUrl: '/login' })
       return
     }
+
     const errorMessage = await response.json()
     throw new Error(errorMessage.message)
   }

@@ -7,7 +7,7 @@ import {
 } from '@/core/application/use-cases/accounts-with-portfolios/fetch-accounts-with-portfolios-use-case'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
-import { LoggerAggregator } from '@/core/application/logger/logger-aggregator'
+import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 
 const midazLogger = container.get(LoggerAggregator)
 
