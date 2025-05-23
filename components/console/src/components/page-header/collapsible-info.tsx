@@ -9,12 +9,14 @@ type CollapsibleInfoProps = {
   question?: string
   answer?: string
   seeMore?: string
+  href?: string
 }
 
 export const CollapsibleInfo = ({
   question,
   answer,
-  seeMore
+  seeMore,
+  href
 }: CollapsibleInfoProps) => (
   <CollapsibleContent>
     <div className="flex w-full justify-between">
@@ -27,9 +29,14 @@ export const CollapsibleInfo = ({
           </p>
 
           <div className="flex items-center gap-1">
-            <Button variant="link" size="link">
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href={href}
+              className="justify-start text-sm font-medium text-shadcn-600 underline underline-offset-4"
+            >
               {seeMore}
-            </Button>
+            </a>
             <ExternalLink size={16} />
           </div>
         </div>

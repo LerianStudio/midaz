@@ -258,12 +258,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'accounts.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Accounts linked to specific assets, used to record balances and financial movements.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/accounts"
         />
       </PageHeader.Root>
 

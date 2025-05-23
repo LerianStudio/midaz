@@ -122,14 +122,15 @@ export default function TransactionsPage() {
             defaultMessage: 'What is a Transaction?'
           })}
           answer={intl.formatMessage({
-            id: 'ledgers.helperTrigger.answer',
+            id: 'transactions.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Records of financial movements between accounts, based on the double-entry model.'
           })}
           seeMore={intl.formatMessage({
-            id: 'ledgers.helperTrigger.seeMore',
+            id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/transactions"
         />
       </PageHeader.Root>
 
