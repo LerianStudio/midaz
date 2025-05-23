@@ -1,3 +1,43 @@
+## [v2.2.0-beta.34] - 2025-05-23
+
+### ✨ Features
+- Implement Transactions Details v2.0 and create Transactions v2.0 for enhanced transaction management.
+- Rework back-end architecture to improve scalability and performance.
+- Implement application management features and API for streamlined application handling.
+- Create AccountBalanceCard component and autocomplete component for improved user interaction.
+- Add search accounts by alias functionality to enhance account lookup.
+- Implement back-end balances and application API integration for better data handling.
+- Add animation to PaperCollapsible and disabled functionality to Tooltip for enhanced UI experience.
+- Include error treatment for identity API and dependency injection on container-registry for robust error handling.
+- Set read-only on form fields based on user permissions to enhance security.
+- Update avatar UI to send base64 image to BFF and include organization avatar flow on organization use cases.
+- Implement multi-select on Users page and create SelectEmpty component for better user management.
+- Create IdentityGroup, MidazPortfolio, MidazSegment, MidazAccount, IdentityUser, MidazTransaction, and MidazOrganization mappers for efficient data mapping.
+- Add Node version management section to README and verify Node LTS version with shell script for improved development environment setup.
+- Implement HTTP service into repositories for consistent data handling.
+
+### 🐛 Bug Fixes
+- Adjust create and listing functionality to resolve data handling issues.
+- Improve applications management UI and API integration for better user experience.
+- Refine validation schema for optional account fields and fix account mapper issues.
+- Resolve build issues and transaction mapping problems.
+- Fix issue when running script on WSL and simplify readOnly component styling and behavior.
+- Update translation keys and standardize password field labels for consistency.
+- Resolve popover content scrolling issue in Sheet components with usePortal option.
+- Refactor and fix image format validation on UI layer for better error handling.
+- Implement organization avatar MongoDB model and error handling for improved data management.
+- Fix front-end redirect issue to sign page and ledger typing on front-end for smoother user navigation.
+- Adjust if statements and error messages for identity and auth for better error communication.
+
+### 📚 Documentation
+- Update console structure documentation and STRUCTURE.md with comprehensive architecture documentation for better developer guidance.
+
+### 🔧 Maintenance
+- Update packages and adjust package.json for dependency management.
+- Merge code from old repo refactor for codebase consolidation.
+- Clean up code and adjust naming consistency for improved code quality.
+- Update components/console/src/lib/intl/use-format-number.ts for better internationalization support.
+
 ## [v2.2.0-beta.33] - 2025-05-23
 
 ### 🔧 Maintenance
