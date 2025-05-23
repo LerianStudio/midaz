@@ -10,7 +10,7 @@ import {
   TableCell,
   TableBody
 } from '@/components/ui/table'
-import { MoreVertical, LockIcon } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import { isNil } from 'lodash'
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
+import { LockedTableActions } from '@/components/table/locked-table-actions'
 import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
 
 type AccountsTableProps = {
@@ -94,21 +95,12 @@ const AccountRow: React.FC<AccountRowProps> = ({
       </TableCell>
       <TableCell className="w-0" align="center">
         {isExternal ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex h-[36px] w-[36px] items-center justify-center rounded-md border border-border bg-muted">
-                  <LockIcon size={14} className="text-muted-foreground" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                {intl.formatMessage({
-                  id: 'accounts.external.noActions',
-                  defaultMessage: 'External accounts cannot be modified'
-                })}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <LockedTableActions
+            message={intl.formatMessage({
+              id: 'accounts.external.noActions',
+              defaultMessage: 'External accounts cannot be modified'
+            })}
+          />
         ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

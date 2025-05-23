@@ -31,6 +31,8 @@ import { ApplicationResponseDto } from '@/core/application/dto/application-dto'
 import { useToast } from '@/hooks/use-toast'
 import { ApplicationsSecurityAlert } from './applications-security-alert'
 import { CopyableTableCell } from '@/components/table/copyable-table-cell'
+import { LockedTableActions } from '@/components/table/locked-table-actions'
+import { protectedApplications } from '@/core/infrastructure/midaz/config/config'
 import dayjs from 'dayjs'
 
 export const ApplicationsTabContent = () => {
@@ -169,48 +171,63 @@ export const ApplicationsTabContent = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {applications.map((application) => (
-                  <TableRow key={application.id}>
-                    <TableCell>{application.name}</TableCell>
-                    <CopyableTableCell value={application.clientId} />
-                    <CopyableTableCell value={application.clientSecret} />
-                    <TableCell>
-                      {application.createdAt
-                        ? dayjs(application.createdAt).format('L')
-                        : '—'}
-                    </TableCell>
-                    <TableCell align="center">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            className="h-auto w-max p-2"
-                          >
-                            <MoreVertical size={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleEdit(application)}
-                          >
-                            {intl.formatMessage({
-                              id: `common.details`,
-                              defaultMessage: 'Details'
+                {applications.map((application) => {
+                  const isProtected =
+                    application.id === protectedApplications.APP_LERIAN
+
+                  return (
+                    <TableRow key={application.id}>
+                      <TableCell>{application.name}</TableCell>
+                      <CopyableTableCell value={application.clientId} />
+                      <CopyableTableCell value={application.clientSecret} />
+                      <TableCell>
+                        {application.createdAt
+                          ? dayjs(application.createdAt).format('L')
+                          : '—'}
+                      </TableCell>
+                      <TableCell align="center">
+                        {isProtected ? (
+                          <LockedTableActions
+                            message={intl.formatMessage({
+                              id: 'applications.default.noActions',
+                              defaultMessage:
+                                'Default applications cannot be modified'
                             })}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDialogOpen(application.id)}
-                          >
-                            {intl.formatMessage({
-                              id: `common.delete`,
-                              defaultMessage: 'Delete'
-                            })}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          />
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                className="h-auto w-max p-2"
+                              >
+                                <MoreVertical size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(application)}
+                              >
+                                {intl.formatMessage({
+                                  id: `common.details`,
+                                  defaultMessage: 'Details'
+                                })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDialogOpen(application.id)}
+                              >
+                                {intl.formatMessage({
+                                  id: `common.delete`,
+                                  defaultMessage: 'Delete'
+                                })}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </TableContainer>

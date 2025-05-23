@@ -46,6 +46,7 @@
   "applications.clientSecret": "ClientSecret",
   "applications.create.name": "Application Name",
   "applications.create.rolesAndPermissions": "Roles and permissions",
+  "applications.default.noActions": "Default applications cannot be modified",
   "applications.delete.confirmDescription": "Deletion revokes access to all connected services. It is irreversible and permanently removes the Application.",
   "applications.dialog.delete.confirmLabel": "Yes, delete it",
   "applications.dialog.delete.confirmTitle": "Are you sure you want to delete?",
