@@ -2,12 +2,13 @@ package rest
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 )
 
 // APIError struct to represent the error received
@@ -19,42 +20,41 @@ type APIError struct {
 }
 
 // formatAPIError function that transforms the JSON error into an error type with customized formatting
-func formatAPIError(jsonData []byte) error {
+func formatAPIError(jsonData []byte, statusCode int) error {
 	var apiError APIError
 
 	err := json.Unmarshal(jsonData, &apiError)
 	if err != nil {
-		return errors.New("failed to parse error JSON")
+		// If we can't parse the error, create a generic one
+		return errors.FromHTTPResponse(statusCode, string(jsonData))
 	}
 
-	// Format the main error message
-	formattedError := fmt.Sprintf("Error %s: %s\nMessage: %s",
-		apiError.Code, apiError.Title, apiError.Message)
+	// Create enhanced error from API response
+	enhancedErr := errors.FromHTTPResponse(statusCode, apiError.Message)
 
-	// Check for fields in “Fields” before adding
-	if len(apiError.Fields) > 0 {
-		formattedError += "\n\nFields:"
-		for field, desc := range apiError.Fields {
-			formattedError += fmt.Sprintf("\n- %s: %s", field, desc)
-		}
+	// Add field-specific errors as context
+	for field, desc := range apiError.Fields {
+		_ = enhancedErr.WithContext(field, desc)
+		_ = enhancedErr.WithSuggestions(fmt.Sprintf("Check field '%s': %s", field, desc))
 	}
 
-	return errors.New(formattedError)
+	return enhancedErr
 }
 
 func checkResponse(resp *http.Response, statusCode int) error {
 	if resp.StatusCode != statusCode {
 		if resp.StatusCode == http.StatusUnauthorized {
-			return errors.New("unauthorized: invalid credentials")
+			return errors.New(errors.ErrorTypeAuth, "unauthorized: invalid credentials").
+				WithSuggestions("Check your credentials", "Run 'mdz login' to authenticate")
 		}
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return errors.New("failed to read response body: " + err.Error())
+			return errors.Wrap(err, errors.ErrorTypeNetwork, "failed to read response body")
 		}
 		defer resp.Body.Close()
 
-		return formatAPIError(bodyBytes)
+		return formatAPIError(bodyBytes, resp.StatusCode)
 	}
 
 	return nil
@@ -64,7 +64,7 @@ func checkResponse(resp *http.Response, statusCode int) error {
 func BuildPaginatedURL(baseURL string, limit, page int, sortOrder, startDate, endDate string) (string, error) {
 	reqURL, err := url.Parse(baseURL)
 	if err != nil {
-		return "", errors.New("parsing base URL: " + err.Error())
+		return "", errors.Wrap(err, errors.ErrorTypeInternal, "parsing base URL")
 	}
 
 	query := reqURL.Query()

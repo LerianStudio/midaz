@@ -79,7 +79,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 			},
 			setupMocks: func(mockRepo *mockOperationRepo) {
 				now := time.Now()
-				metadata := map[string]interface{}{
+				metadata := map[string]any{
 					"source": "test",
 				}
 				operation := &mmodel.Operation{
@@ -116,7 +116,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 			},
 			setupMocks: func(mockRepo *mockOperationRepo) {
 				now := time.Now()
-				metadata := map[string]interface{}{
+				metadata := map[string]any{
 					"source": "test",
 				}
 				operation := &mmodel.Operation{

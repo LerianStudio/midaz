@@ -8,6 +8,8 @@ import (
 	assetrate "github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset_rate"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/balance"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/history"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/interactive"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/operation"
@@ -15,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/portfolio"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/segment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/transaction"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/undo"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -31,6 +34,9 @@ type factoryRoot struct {
 func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(version.NewCmdVersion(f.factory))
 	cmd.AddCommand(login.NewCmdLogin(f.factory))
+	cmd.AddCommand(interactive.NewCmdInteractive(f.factory))
+	cmd.AddCommand(history.NewCmdHistory(f.factory))
+	cmd.AddCommand(undo.NewCmdUndo(f.factory))
 	cmd.AddCommand(organization.NewCmdOrganization(f.factory))
 	cmd.AddCommand(ledger.NewCmdLedger(f.factory))
 	cmd.AddCommand(asset.NewCmdAsset(f.factory))
