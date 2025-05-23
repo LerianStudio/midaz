@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -740,12 +741,7 @@ func TestREPL_buildCommandCompleter(t *testing.T) {
 
 // Helper function to check if slice contains string
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 func clearREPLTestEnvironment() {
