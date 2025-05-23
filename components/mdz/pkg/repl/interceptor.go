@@ -3,6 +3,7 @@ package repl
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
@@ -31,6 +32,11 @@ func (ci *CommandInterceptor) InterceptCommand(ctx context.Context, cmd *cobra.C
 	// Get the full command path
 	cmdPath := cmd.CommandPath()
 
+	// Skip interceptor for organization list in REPL mode - it handles context itself
+	if strings.Contains(cmdPath, "organization list") && os.Getenv("MDZ_REPL_MODE") == "true" {
+		return nil
+	}
+
 	// Check if this command needs context
 	switch {
 	case strings.Contains(cmdPath, "ledger") && !strings.Contains(cmdPath, "create"):
@@ -58,6 +64,9 @@ func (ci *CommandInterceptor) ensureLedgerContext(ctx context.Context, cmd *cobr
 		// Flag is provided, no need to prompt
 		return nil
 	}
+
+	// Refresh context from environment before checking
+	ci.repl.context.loadFromEnvironment()
 
 	// Check if we have organization context
 	if ci.repl.context.OrganizationID == "" {

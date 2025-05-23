@@ -1,14 +1,16 @@
 package ledger
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 
 	"github.com/fatih/color"
 	"github.com/rodaine/table"
@@ -28,14 +30,6 @@ type factoryLedgerList struct {
 }
 
 func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
-	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
-		if err != nil {
-			return err
-		}
-
-		f.OrganizationID = id
-	}
 
 	if len(f.StartDate) > 0 {
 		if err := utils.ValidateDate(f.StartDate); err != nil {
@@ -92,6 +86,51 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	tbl.Print()
+
+	// Add interactive selection if in REPL mode
+	if utils.IsInREPL() && !f.JSON {
+		return f.offerInteractiveSelection(leds.Items)
+	}
+
+	return nil
+}
+
+// offerInteractiveSelection allows users to select a ledger to set as context
+func (f *factoryLedgerList) offerInteractiveSelection(ledgers []mmodel.Ledger) error {
+	if len(ledgers) == 0 {
+		return nil
+	}
+
+	// Convert to interactive selectors
+	items := make([]utils.InteractiveSelector, len(ledgers))
+	for i, ledger := range ledgers {
+		description := fmt.Sprintf("Status: %s", ledger.Status.Code)
+		if ledger.Status.Description != nil {
+			description += fmt.Sprintf(" - %s", *ledger.Status.Description)
+		}
+		items[i] = utils.InteractiveSelector{
+			ID:          ledger.ID,
+			Name:        ledger.Name,
+			Description: description,
+			Type:        "ledger",
+		}
+	}
+
+	// Offer selection
+	selected, err := utils.OfferInteractiveSelection(f.factory, items, "ledger")
+	if err != nil {
+		return err
+	}
+
+	// If user selected something, set context and announce the change
+	if selected != nil {
+		err := utils.SetREPLContext(context.TODO(), "ledger", selected.ID, selected.Name)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(f.factory.IOStreams.Out, "\n🎯 Ledger context set to: %s\n", selected.Name)
+		fmt.Fprintf(f.factory.IOStreams.Out, "💡 You can now run 'account list' or 'portfolio list' to explore this ledger.\n")
+	}
 
 	return nil
 }

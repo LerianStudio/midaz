@@ -107,6 +107,10 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 		config = DefaultConfig()
 	}
 
+	// Set environment variable to indicate REPL mode
+	os.Setenv("MDZ_REPL_MODE", "true")
+	defer func() { _ = os.Unsetenv("MDZ_REPL_MODE") }()
+
 	// Print welcome message
 	fmt.Fprintln(r.factory.IOStreams.Out, config.WelcomeMsg)
 	fmt.Fprintln(r.factory.IOStreams.Out)
@@ -167,6 +171,9 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 			if err := r.executeCommand(ctx, line); err != nil {
 				fmt.Fprintf(r.factory.IOStreams.Err, "Error: %v\n", err)
 			}
+
+			// Refresh context after command execution (for interactive list selections)
+			r.context.loadFromEnvironment()
 		}
 	}
 }
@@ -425,33 +432,30 @@ func (r *REPL) showSuggestions() error {
 
 // handleSmartList provides context-aware listing
 func (r *REPL) handleSmartList(ctx context.Context) error {
+	// Refresh context from environment first
+	r.context.loadFromEnvironment()
+
+	var args []string
 	if r.context.OrganizationID == "" {
 		// No context, list organizations
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing organizations...")
-		return r.rootCmd.ExecuteContext(ctx)
-	}
-
-	if r.context.LedgerID == "" {
+		args = []string{"organization", "list"}
+	} else if r.context.LedgerID == "" {
 		// Organization context, list ledgers
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing ledgers...")
-		r.rootCmd.SetArgs([]string{"ledger", "list"})
-
-		return r.rootCmd.ExecuteContext(ctx)
-	}
-
-	if r.context.AccountID == "" {
+		args = []string{"ledger", "list"}
+	} else if r.context.AccountID == "" {
 		// Ledger context, list accounts
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing accounts...")
-		r.rootCmd.SetArgs([]string{"account", "list"})
-
-		return r.rootCmd.ExecuteContext(ctx)
+		args = []string{"account", "list"}
+	} else {
+		// Account context, list balances
+		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing balances...")
+		args = []string{"balance", "list"}
 	}
 
-	// Account context, list balances
-	fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing balances...")
-	r.rootCmd.SetArgs([]string{"balance", "list"})
-
-	return r.rootCmd.ExecuteContext(ctx)
+	// Use the same pattern as executeCommand to ensure interceptor is called
+	return r.executeCommand(ctx, strings.Join(args, " "))
 }
 
 // parseCommandLine parses a command line into arguments

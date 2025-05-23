@@ -20,8 +20,12 @@ func (ci *CommandInterceptor) ensureAccountContextRefactored(ctx context.Context
 		return err
 	}
 
-	if err := ci.ensurePortfolioContextIfNeeded(ctx, cmd); err != nil {
-		return err
+	// Skip portfolio context for list commands - they should show all accounts
+	cmdPath := cmd.CommandPath()
+	if !strings.Contains(cmdPath, "list") {
+		if err := ci.ensurePortfolioContextIfNeeded(ctx, cmd); err != nil {
+			return err
+		}
 	}
 
 	return ci.ensureAccountContextIfNeeded(ctx, cmd)
@@ -33,6 +37,9 @@ func (ci *CommandInterceptor) ensureLedgerContextForAccount(ctx context.Context,
 	if ledgerFlag != nil && ledgerFlag.Changed {
 		return nil
 	}
+
+	// Refresh context from environment before checking
+	ci.repl.context.loadFromEnvironment()
 
 	if ci.repl.context.LedgerID == "" {
 		ledgers, err := ci.fetchLedgers(ctx, ci.repl.context.OrganizationID)

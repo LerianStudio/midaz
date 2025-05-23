@@ -1,13 +1,16 @@
 package organization
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 
 	"github.com/fatih/color"
 	"github.com/rodaine/table"
@@ -89,6 +92,48 @@ func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	tbl.Print()
+
+	// Add interactive selection if in REPL mode
+	if utils.IsInREPL() && !f.JSON {
+		return f.offerInteractiveSelection(orgs.Items)
+	}
+
+	return nil
+}
+
+// offerInteractiveSelection allows users to select an organization to set as context
+func (f *factoryOrganizationList) offerInteractiveSelection(orgs []mmodel.Organization) error {
+	if len(orgs) == 0 {
+		return nil
+	}
+
+	// Convert to interactive selectors
+	items := make([]utils.InteractiveSelector, len(orgs))
+	for i, org := range orgs {
+		description := fmt.Sprintf("%s | %s", org.LegalDocument, org.Address.Country)
+		items[i] = utils.InteractiveSelector{
+			ID:          org.ID,
+			Name:        org.LegalName,
+			Description: description,
+			Type:        "organization",
+		}
+	}
+
+	// Offer selection
+	selected, err := utils.OfferInteractiveSelection(f.factory, items, "organization")
+	if err != nil {
+		return err
+	}
+
+	// If user selected something, set context and announce the change
+	if selected != nil {
+		err := utils.SetREPLContext(context.TODO(), "organization", selected.ID, selected.Name)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(f.factory.IOStreams.Out, "\n🎯 Organization context set to: %s\n", selected.Name)
+		fmt.Fprintf(f.factory.IOStreams.Out, "💡 You can now run 'ledger list' to see ledgers in this organization.\n")
+	}
 
 	return nil
 }

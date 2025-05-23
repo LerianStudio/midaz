@@ -2,6 +2,7 @@ package repl
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -19,7 +20,35 @@ type Context struct {
 
 // NewContext creates a new REPL context
 func NewContext() *Context {
-	return &Context{}
+	ctx := &Context{}
+	ctx.loadFromEnvironment()
+	return ctx
+}
+
+// loadFromEnvironment loads context from environment variables if available
+func (c *Context) loadFromEnvironment() {
+	if orgID := os.Getenv("MDZ_CONTEXT_ORG_ID"); orgID != "" {
+		c.OrganizationID = orgID
+		c.OrganizationName = os.Getenv("MDZ_CONTEXT_ORG_NAME")
+	}
+
+	if ledgerID := os.Getenv("MDZ_CONTEXT_LEDGER_ID"); ledgerID != "" {
+		c.LedgerID = ledgerID
+		c.LedgerName = os.Getenv("MDZ_CONTEXT_LEDGER_NAME")
+	}
+
+	if portfolioID := os.Getenv("MDZ_CONTEXT_PORTFOLIO_ID"); portfolioID != "" {
+		c.PortfolioID = portfolioID
+		c.PortfolioName = os.Getenv("MDZ_CONTEXT_PORTFOLIO_NAME")
+	}
+
+	if accountID := os.Getenv("MDZ_CONTEXT_ACCOUNT_ID"); accountID != "" {
+		c.AccountID = accountID
+		c.AccountName = os.Getenv("MDZ_CONTEXT_ACCOUNT_NAME")
+	}
+
+	// Clear the update flag after loading
+	_ = os.Unsetenv("MDZ_CONTEXT_UPDATED")
 }
 
 // Clear clears all context
@@ -32,6 +61,15 @@ func (c *Context) Clear() {
 	c.PortfolioName = ""
 	c.AccountID = ""
 	c.AccountName = ""
+	// Clear environment variables
+	_ = os.Unsetenv("MDZ_CONTEXT_ORG_ID")
+	_ = os.Unsetenv("MDZ_CONTEXT_ORG_NAME")
+	_ = os.Unsetenv("MDZ_CONTEXT_LEDGER_ID")
+	_ = os.Unsetenv("MDZ_CONTEXT_LEDGER_NAME")
+	_ = os.Unsetenv("MDZ_CONTEXT_PORTFOLIO_ID")
+	_ = os.Unsetenv("MDZ_CONTEXT_PORTFOLIO_NAME")
+	_ = os.Unsetenv("MDZ_CONTEXT_ACCOUNT_ID")
+	_ = os.Unsetenv("MDZ_CONTEXT_ACCOUNT_NAME")
 }
 
 // ClearLedger clears ledger and dependent context
@@ -40,6 +78,9 @@ func (c *Context) ClearLedger() {
 	c.LedgerName = ""
 	c.ClearPortfolio()
 	c.ClearAccount()
+	// Clear environment variables
+	_ = os.Unsetenv("MDZ_CONTEXT_LEDGER_ID")
+	_ = os.Unsetenv("MDZ_CONTEXT_LEDGER_NAME")
 }
 
 // ClearPortfolio clears portfolio and dependent context
@@ -61,6 +102,9 @@ func (c *Context) SetOrganization(id, name string) {
 	c.OrganizationName = name
 	// Clear dependent context
 	c.ClearLedger()
+	// Sync to environment
+	os.Setenv("MDZ_CONTEXT_ORG_ID", id)
+	os.Setenv("MDZ_CONTEXT_ORG_NAME", name)
 }
 
 // SetLedger sets the ledger context
@@ -70,6 +114,9 @@ func (c *Context) SetLedger(id, name string) {
 	// Clear dependent context
 	c.ClearPortfolio()
 	c.ClearAccount()
+	// Sync to environment
+	os.Setenv("MDZ_CONTEXT_LEDGER_ID", id)
+	os.Setenv("MDZ_CONTEXT_LEDGER_NAME", name)
 }
 
 // SetPortfolio sets the portfolio context

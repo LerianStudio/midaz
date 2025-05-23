@@ -83,7 +83,7 @@ help:
 build:
 	$(call title1,"Building MDZ binary")
 	@go version
-	@go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(NAME) ./main.go
+	@go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(NAME) .
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Binary built successfully at $(BIN_DIR)/$(NAME)$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
