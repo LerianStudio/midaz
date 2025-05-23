@@ -1,15 +1,15 @@
 'use client'
 
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { getStorageObject } from '@/lib/storage'
 import { useReducer, useEffect } from 'react'
 
 type UseDefaultLedgerProps = {
   current: OrganizationEntity
-  ledgers?: LedgerResponseDto[]
-  currentLedger: LedgerResponseDto
-  setCurrentLedger: (ledger: LedgerResponseDto) => void
+  ledgers?: LedgerDto[]
+  currentLedger: LedgerDto
+  setCurrentLedger: (ledger: LedgerDto) => void
 }
 
 const storageKey = 'defaultLedgers'
@@ -47,7 +47,7 @@ export function useDefaultLedger({
 
       // If this organization has no ledgers, set the current ledger to empty
       if (ledgers.length === 0) {
-        setCurrentLedger({} as LedgerResponseDto)
+        setCurrentLedger({} as LedgerDto)
         return
       }
 

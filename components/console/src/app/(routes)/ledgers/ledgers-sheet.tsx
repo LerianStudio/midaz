@@ -18,9 +18,8 @@ import { useIntl } from 'react-intl'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateLedger, useUpdateLedger } from '@/client/ledgers'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
-import { LedgerType } from '@/types/ledgers-type'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
@@ -29,7 +28,7 @@ import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type LedgersSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data?: LedgerResponseDto | null
+  data?: LedgerDto | null
   onSuccess?: () => void
 }
 
@@ -60,7 +59,7 @@ export const LedgersSheet = ({
   const { mutate: createLedger, isPending: createPending } = useCreateLedger({
     organizationId: currentOrganization.id!,
     onSuccess: async (data: unknown) => {
-      const response = data as { ledger: LedgerType }
+      const response = data as { ledger: LedgerDto }
       const newLedger = response.ledger
 
       setLedger(newLedger)

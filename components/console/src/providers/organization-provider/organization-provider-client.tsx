@@ -12,14 +12,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useListLedgers } from '@/client/ledgers'
 import { useDefaultOrg } from './use-default-org'
 import { useDefaultLedger } from './use-default-ledger'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { useListOrganizations } from '@/client/organizations'
 
 type OrganizationContextProps = {
-  currentOrganization: OrganizationResponseDto
-  setOrganization: (organization: OrganizationResponseDto) => void
-  currentLedger: LedgerResponseDto
-  setLedger: (ledger: LedgerResponseDto) => void
+  currentOrganization: OrganizationEntity
+  setOrganization: (organization: OrganizationEntity) => void
+  currentLedger: LedgerDto
+  setLedger: (ledger: LedgerDto) => void
 }
 
 const OrganizationContext = createContext<OrganizationContextProps>(
