@@ -41,6 +41,7 @@ export const OperationSourceSimpleField = ({
           account={accounts[values[0].account!]}
           onRefreshed={handleRefreshed}
           onDelete={() => onRemove?.(values[0].account)}
+          icon
           expand={expand}
           {...props}
         />

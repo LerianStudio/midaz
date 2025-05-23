@@ -9,7 +9,7 @@ export class TransactionMapper {
     return {
       description: transaction.description,
       chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
-      value: transaction.value,
+      amount: transaction.amount,
       asset: transaction.asset,
       source: transaction.source,
       destination: transaction.destination,
@@ -25,7 +25,7 @@ export class TransactionMapper {
       description: transaction.description,
       chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
       status: transaction.status!,
-      value: transaction.value,
+      amount: transaction.amount,
       asset: transaction.asset,
       source: transaction.source,
       destination: transaction.destination,

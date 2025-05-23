@@ -1,11 +1,16 @@
 import { MetadataEntity } from './metadata-entity'
 import { StatusEntity } from './status-entity'
 
+type AmountEntity = {
+  value: number
+  scale: number
+}
+
 type TransactionSourceDto = {
   account: string
   accountAlias?: string
   asset: string
-  value: number
+  amount: AmountEntity
   description?: string
   chartOfAccounts?: string
   metadata: MetadataEntity
@@ -18,7 +23,7 @@ export type TransactionEntity = {
   description?: string
   chartOfAccountsGroupName?: string
   status?: StatusEntity
-  value: number
+  amount: AmountEntity
   asset: string
   source: TransactionSourceDto[]
   destination: TransactionSourceDto[]

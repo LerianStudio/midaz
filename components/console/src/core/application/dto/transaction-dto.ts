@@ -1,10 +1,15 @@
 import { MetadataDto } from './metadata-dto'
 import { StatusDto } from './status-dto'
 
+export type AmountDto = {
+  value: number
+  scale: number
+}
+
 export type CreateTransactionOperationDto = {
   account: string
   asset: string
-  value: number
+  amount: AmountDto
   description?: string
   chartOfAccounts?: string
   metadata: MetadataDto
@@ -13,7 +18,7 @@ export type CreateTransactionOperationDto = {
 export type CreateTransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
-  value: number
+  amount: AmountDto
   asset: string
   source: CreateTransactionOperationDto[]
   destination: CreateTransactionOperationDto[]
@@ -36,7 +41,7 @@ export type TransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
   status: StatusDto
-  value: number
+  amount: AmountDto
   asset: string
   source: TransactionOperationDto[]
   destination: TransactionOperationDto[]

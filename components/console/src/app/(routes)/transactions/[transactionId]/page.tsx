@@ -29,18 +29,18 @@ import { truncateString } from '@/helpers'
 import dayjs from 'dayjs'
 import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TransactionDataTab } from './transaction-data-tab'
-import { TransactionOperationTab } from './transaction-operation-tab'
+import { useFormatAmount } from '@/hooks/use-format-amount'
 
 export const TRANSACTION_DETAILS_TAB_VALUES = {
   SUMMARY: 'summary',
-  TRANSACTION_DATA: 'transaction-data',
-  OPERATIONS: 'operations'
+  TRANSACTION_DATA: 'transaction-data'
 }
 
 const DEFAULT_TAB_VALUE = TRANSACTION_DETAILS_TAB_VALUES.SUMMARY
 
 export default function TransactionDetailsPage() {
   const intl = useIntl()
+  const { formatAmount } = useFormatAmount()
   const { transactionId } = useParams<{
     transactionId: string
   }>()
@@ -68,8 +68,18 @@ export default function TransactionDetailsPage() {
       <Breadcrumb
         paths={getBreadcrumbPaths([
           {
-            name: currentOrganization.legalName,
-            href: `#`
+            name: currentOrganization.legalName
+          },
+          {
+            name: currentLedger.name,
+            href: '/ledgers'
+          },
+          {
+            name: intl.formatMessage({
+              id: 'common.transactions',
+              defaultMessage: 'Transactions'
+            }),
+            href: `/transactions`
           },
           {
             name: intl.formatMessage({
@@ -121,12 +131,6 @@ export default function TransactionDetailsPage() {
               defaultMessage: 'Transaction Data'
             })}
           </TabsTrigger>
-          <TabsTrigger value={TRANSACTION_DETAILS_TAB_VALUES.OPERATIONS}>
-            {intl.formatMessage({
-              id: 'transactions.tab.operations',
-              defaultMessage: 'Operations & Metadata'
-            })}
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={TRANSACTION_DETAILS_TAB_VALUES.SUMMARY}>
@@ -142,7 +146,7 @@ export default function TransactionDetailsPage() {
               />
               <TransactionReceiptValue
                 asset={transaction.asset!}
-                value={intl.formatNumber(transaction.value!)}
+                value={formatAmount(transaction.amount)}
               />
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
@@ -198,27 +202,31 @@ export default function TransactionDetailsPage() {
                   id: 'common.value',
                   defaultMessage: 'Value'
                 })}
-                value={`${transaction.asset} ${intl.formatNumber(transaction.value!)}`}
+                value={`${transaction.asset} ${formatAmount(transaction.amount)}`}
               />
               <Separator orientation="horizontal" />
-              {transaction.source?.map((operation: any, index: number) => (
-                <TransactionReceiptOperation
-                  key={index}
-                  type="debit"
-                  account={operation.accountAlias}
-                  asset={operation.assetCode}
-                  value={intl.formatNumber(operation?.value)}
-                />
-              ))}
-              {transaction.destination?.map((operation: any, index: number) => (
-                <TransactionReceiptOperation
-                  key={index}
-                  type="credit"
-                  account={operation.accountAlias}
-                  asset={operation.assetCode}
-                  value={intl.formatNumber(operation?.value)}
-                />
-              ))}
+              {transaction.source?.map(
+                (operation: TransactionOperationDto, index: number) => (
+                  <TransactionReceiptOperation
+                    key={index}
+                    type="debit"
+                    account={operation.accountAlias!}
+                    asset={operation.asset}
+                    value={formatAmount(operation?.amount)}
+                  />
+                )
+              )}
+              {transaction.destination?.map(
+                (operation: TransactionOperationDto, index: number) => (
+                  <TransactionReceiptOperation
+                    key={index}
+                    type="credit"
+                    account={operation.accountAlias!}
+                    asset={operation.asset}
+                    value={formatAmount(operation?.amount)}
+                  />
+                )
+              )}
               <Separator orientation="horizontal" />
               <TransactionReceiptItem
                 label={intl.formatMessage({
@@ -252,10 +260,6 @@ export default function TransactionDetailsPage() {
 
         <TabsContent value={TRANSACTION_DETAILS_TAB_VALUES.TRANSACTION_DATA}>
           <TransactionDataTab data={transaction} onSuccess={refetch} />
-        </TabsContent>
-
-        <TabsContent value={TRANSACTION_DETAILS_TAB_VALUES.OPERATIONS}>
-          <TransactionOperationTab data={transaction} onSuccess={refetch} />
         </TabsContent>
       </Tabs>
     </div>

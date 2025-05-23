@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, MinusCircle, PlusCircle } from 'lucide-react'
 import { useIntl } from 'react-intl'
 import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { isEmpty } from 'lodash'
+import { useFormatAmount } from '@/hooks/use-format-amount'
 
 const Value = ({
   className,
@@ -34,6 +35,7 @@ export const OperationAccordion = ({
   operation
 }: OperationAccordionProps) => {
   const intl = useIntl()
+  const { formatAmount } = useFormatAmount()
 
   return (
     <PaperCollapsible className="mb-2">
@@ -69,7 +71,7 @@ export const OperationAccordion = ({
                   'text-green-500': type === 'credit'
                 })}
               >
-                {operation.value}
+                {formatAmount(operation.amount)}
               </p>
             </div>
             <p className="text-xs text-shadcn-400">{operation.asset}</p>

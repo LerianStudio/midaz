@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export const SkeletonTransactionDialog = () => {
   return (
-    <div>
+    <div className="p-16">
       <PageHeader.Root>
         <PageHeader.Wrapper>
           <div className="mb-10 flex w-full items-center justify-between">

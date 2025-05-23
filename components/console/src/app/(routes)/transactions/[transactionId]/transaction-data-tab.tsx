@@ -1,10 +1,11 @@
-import Image from 'next/image'
 import { transaction } from '@/schema/transactions'
-import ArrowRightCircle from '/public/svg/arrow-right-circle.svg'
 import { BasicInformationPaper } from './basic-information-paper'
-import { OperationSourceField } from './operation-source-field'
+import { AccountBalanceList } from './account-balance-list'
 import { useIntl } from 'react-intl'
-import { TransactionDto } from '@/core/application/dto/transaction-dto'
+import {
+  TransactionDto,
+  TransactionOperationDto
+} from '@/core/application/dto/transaction-dto'
 import { z } from 'zod'
 import { getInitialValues } from '@/lib/form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,13 +20,19 @@ import { useToast } from '@/hooks/use-toast'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { ArrowRight } from 'lucide-react'
+import { OperationAccordion } from './operation-accordion'
+import { MetaAccordionTransactionDetails } from './meta-accordion-transaction-details'
+import { SectionTitle } from './primitives'
+import { useFormatAmount } from '@/hooks/use-format-amount'
 
 const initialValues = {
-  description: ''
+  description: '',
+  metadata: {}
 }
 
 const FormSchema = z.object({
-  description: transaction.description.optional()
+  description: transaction.description.optional(),
+  metadata: transaction.metadata
 })
 
 type FormData = z.infer<typeof FormSchema>
@@ -40,6 +47,7 @@ export const TransactionDataTab = ({
   onSuccess
 }: TransactionDataTabProps) => {
   const intl = useIntl()
+  const { formatAmount } = useFormatAmount()
   const { toast } = useToast()
   const { currentOrganization, currentLedger } = useOrganization()
 
@@ -48,6 +56,8 @@ export const TransactionDataTab = ({
     values: getInitialValues(initialValues, data),
     defaultValues: initialValues
   })
+  const { metadata } = form.watch()
+  const { isDirty } = form.formState
 
   const { mutate: updateTransaction, isPending: loading } =
     useUpdateTransaction({
@@ -96,34 +106,81 @@ export const TransactionDataTab = ({
       />
 
       <div className="grid grid-cols-3">
-        <div className="col-span-2">
+        <div className="col-span-2 flex flex-col gap-12">
           <BasicInformationPaper
             chartOfAccountsGroupName={data?.chartOfAccountsGroupName}
-            value={data?.value}
+            value={formatAmount(data?.amount)}
             asset={data?.asset}
             control={form.control}
           />
-          <div className="mb-10 flex flex-row items-center gap-3">
-            <OperationSourceField
-              label={intl.formatMessage({
-                id: 'transactions.source',
-                defaultMessage: 'Source'
+
+          <div className="grid grid-cols-11 gap-x-4">
+            <div className="col-span-5 flex flex-grow flex-col gap-1">
+              <SectionTitle>
+                {intl.formatMessage({
+                  id: 'entity.transactions.source',
+                  defaultMessage: 'Source'
+                })}
+              </SectionTitle>
+            </div>
+            <div className="col-span-5 col-start-7 mb-8 flex flex-grow flex-col gap-1">
+              <SectionTitle>
+                {intl.formatMessage({
+                  id: 'entity.transactions.destination',
+                  defaultMessage: 'Destination'
+                })}
+              </SectionTitle>
+            </div>
+
+            <div className="col-span-5 flex items-center justify-center">
+              <AccountBalanceList values={data?.source} />
+            </div>
+            <div className="flex items-center justify-center">
+              <ArrowRight className="h-5 w-5 shrink-0 text-shadcn-400" />
+            </div>
+            <div className="col-span-5 flex items-center justify-center">
+              <AccountBalanceList values={data?.destination} />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <SectionTitle className="mb-4">
+              {intl.formatMessage({
+                id: 'common.operations',
+                defaultMessage: 'Operations'
               })}
-              values={data?.source}
-            />
-            <Image alt="" src={ArrowRightCircle} />
-            <OperationSourceField
-              label={intl.formatMessage({
-                id: 'transactions.destination',
-                defaultMessage: 'Destination'
-              })}
-              values={data?.destination}
+            </SectionTitle>
+            {data?.source?.map(
+              (operation: TransactionOperationDto, index: number) => (
+                <OperationAccordion
+                  key={index}
+                  type="debit"
+                  operation={operation}
+                />
+              )
+            )}
+            {data?.destination?.map(
+              (operation: TransactionOperationDto, index: number) => (
+                <OperationAccordion
+                  key={index}
+                  type="credit"
+                  operation={operation}
+                />
+              )
+            )}
+          </div>
+
+          <div>
+            <MetaAccordionTransactionDetails
+              name="metadata"
+              values={metadata!}
+              control={form.control}
             />
           </div>
         </div>
       </div>
 
-      <PageFooter open={form.formState.isDirty}>
+      <PageFooter open={isDirty}>
         <PageFooterSection>
           <Button variant="outline" onClick={handleCancel}>
             {intl.formatMessage({
