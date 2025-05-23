@@ -7,7 +7,8 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
-	_ "github.com/LerianStudio/midaz/pkg/mmodel" // Used by mockOperationRepo
+	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	_ "github.com/stretchr/testify/mock" // Used by mockOperationRepo
@@ -76,13 +77,28 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				_ = f.OperationID
 				_ = f.OutputFormat
 			},
-			setupMocks: func(_ *mockOperationRepo) {
+			setupMocks: func(mockRepo *mockOperationRepo) {
 				now := time.Now()
 				metadata := map[string]interface{}{
 					"source": "test",
 				}
-				_ = now
-				_ = metadata
+				operation := &mmodel.Operation{
+					ID:          "op123",
+					AccountID:   "acc123",
+					Amount:      1000,
+					Description: "Test operation",
+					Type:        "credit",
+					Status: &mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Active operation"),
+					},
+					Metadata:      metadata,
+					TransactionID: "trans123",
+					AssetCode:     "USD",
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
+				mockRepo.On("GetByID", "org123", "ledger123", "op123").Return(operation, nil)
 			},
 		},
 		{
@@ -98,13 +114,28 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				_ = f.OperationID
 				_ = f.OutputFormat
 			},
-			setupMocks: func(_ *mockOperationRepo) {
+			setupMocks: func(mockRepo *mockOperationRepo) {
 				now := time.Now()
 				metadata := map[string]interface{}{
 					"source": "test",
 				}
-				_ = now
-				_ = metadata
+				operation := &mmodel.Operation{
+					ID:          "op123",
+					AccountID:   "acc123",
+					Amount:      1000,
+					Description: "Test operation",
+					Type:        "credit",
+					Status: &mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Active operation"),
+					},
+					Metadata:      metadata,
+					TransactionID: "trans123",
+					AssetCode:     "USD",
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
+				mockRepo.On("GetByID", "org123", "ledger123", "op123").Return(operation, nil)
 			},
 		},
 		{

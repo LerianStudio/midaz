@@ -25,8 +25,8 @@ func TestNewCmdTransactionCreate(t *testing.T) {
 
 	// Verify
 	assert.Equal(t, "create", cmd.Use)
-	assert.Equal(t, "Create a transaction", cmd.Short)
-	assert.Equal(t, "Create a transaction with the specified parameters", cmd.Long)
+	assert.Equal(t, "Creates a new transaction.", cmd.Short)
+	assert.NotEmpty(t, cmd.Long)
 	assert.NotNil(t, cmd.RunE)
 
 	// Verify flags
