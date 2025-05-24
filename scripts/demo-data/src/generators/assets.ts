@@ -9,6 +9,7 @@ import { ASSET_TEMPLATES } from '../config';
 import { Logger } from '../services/logger';
 import { StateManager } from '../utils/state';
 import { BaseGenerator } from './base.generator';
+import { assetSchema, AssetData } from '../validation/schemas';
 
 /**
  * Asset generator implementation
@@ -126,35 +127,39 @@ export class AssetGenerator extends BaseGenerator<Asset> {
   ): Promise<Asset> {
     this.logger.debug(`Generating asset: ${code} (${name}) for ledger: ${ledgerId}`);
 
-    try {
-      // Use customType if provided, otherwise determine the appropriate asset type based on the code
-      let assetType = customType || 'currency';
-      if (!customType) {
-        if (code === 'BTC' || code === 'ETH') {
-          assetType = 'crypto';
-        } else if (code === 'GOLD' || code === 'SILVER') {
-          assetType = 'commodity';
-        }
+    // Use customType if provided, otherwise determine the appropriate asset type based on the code
+    let assetType = customType || 'currency';
+    if (!customType) {
+      if (code === 'BTC' || code === 'ETH') {
+        assetType = 'crypto';
+      } else if (code === 'GOLD' || code === 'SILVER') {
+        assetType = 'commodity';
       }
+    }
 
-      // Create the asset
-      const asset = await this.client.entities.assets.createAsset(organizationId, ledgerId, {
-        code,
-        name,
-        type: assetType,
-        metadata: {
-          generator: 'midaz-demo-data',
-          symbol: _symbol,
-          scale: _scale,
-          generated_at: new Date().toISOString(),
-        },
-      });
+    // Prepare asset data for validation
+    const assetData: Partial<AssetData> = {
+      name,
+      code,
+      type: assetType as 'currency' | 'crypto' | 'commodity',
+      status: 'ACTIVE',
+      organizationId,
+      ledgerId,
+      metadata: {
+        generator: 'demo-data',
+        template: 'asset-template',
+        createdAt: new Date().toISOString(),
+      },
+    };
 
-      // Store the asset ID and code in state
-      this.stateManager.addAssetId(ledgerId, asset.id, asset.code);
-      this.logger.debug(`Created asset: ${asset.id} (${asset.code})`);
+    // Validate asset data before creating
+    const validatedData = this.validateData(assetSchema, assetData, 'Asset');
 
-      return asset;
+    try {
+      return await this.executeWithProtection(
+        async () => this.createAssetWithClient(organizationId, ledgerId, validatedData),
+        `create-asset-${code}`
+      );
     } catch (error) {
       const result = await this.handleConflict(
         error as Error,
@@ -178,6 +183,29 @@ export class AssetGenerator extends BaseGenerator<Asset> {
       // Re-throw the error for the caller to handle
       throw error;
     }
+  }
+
+  /**
+   * Create an asset using the client with proper error handling
+   */
+  private async createAssetWithClient(
+    organizationId: string,
+    ledgerId: string,
+    validatedData: AssetData
+  ): Promise<Asset> {
+    // Create the asset
+    const asset = await this.client.entities.assets.createAsset(organizationId, ledgerId, {
+      code: validatedData.code,
+      name: validatedData.name,
+      type: validatedData.type,
+      metadata: validatedData.metadata,
+    });
+
+    // Store the asset ID and code in state
+    this.stateManager.addAssetId(ledgerId, asset.id, asset.code);
+    this.logger.debug(`Created asset: ${asset.id} (${asset.code})`);
+
+    return asset;
   }
 
   /**

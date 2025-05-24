@@ -24,7 +24,8 @@ export class GenerationError extends Error {
 export class ValidationError extends Error {
   constructor(
     message: string,
-    public readonly errors: Array<{ path: string; message: string }>
+    public readonly entityType: string,
+    public readonly validationErrors?: string[]
   ) {
     super(message);
     this.name = 'ValidationError';

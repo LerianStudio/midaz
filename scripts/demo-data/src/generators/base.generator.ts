@@ -6,17 +6,33 @@ import { MidazClient } from 'midaz-sdk/src';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
+import { CircuitBreaker, createCircuitBreaker } from '../utils/circuit-breaker';
+import { Validator, ValidationResult } from '../validation/validator';
+import { ValidationError } from '../errors';
+import { z } from 'zod';
 
 /**
  * Abstract base class for all entity generators
  * Provides common functionality like error handling, retries, and conflict resolution
  */
 export abstract class BaseGenerator<T> implements EntityGenerator<T> {
+  protected circuitBreaker: CircuitBreaker;
+
   constructor(
     protected client: MidazClient,
     protected logger: Logger,
-    protected stateManager: StateManager
-  ) {}
+    protected stateManager: StateManager,
+    circuitBreakerOptions?: Partial<import('../utils/circuit-breaker').CircuitBreakerOptions>
+  ) {
+    this.circuitBreaker = createCircuitBreaker({
+      failureThreshold: 3,
+      recoveryTimeout: 30000,
+      monitoringPeriod: 120000,
+      minimumRequests: 2,
+      successThreshold: 0.6,
+      ...circuitBreakerOptions,
+    });
+  }
 
   /**
    * Generate multiple entities
@@ -166,5 +182,89 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
    */
   protected async wait(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Validate data against a schema before processing
+   */
+  protected validateData<V>(
+    schema: z.ZodSchema<V>,
+    data: unknown,
+    entityType: string
+  ): V {
+    return Validator.validateOrThrow(schema, data, entityType);
+  }
+
+  /**
+   * Validate data safely without throwing
+   */
+  protected safeValidateData<V>(
+    schema: z.ZodSchema<V>,
+    data: unknown,
+    entityType: string
+  ): ValidationResult<V> {
+    return Validator.validate(schema, data, entityType);
+  }
+
+  /**
+   * Validate an array of data
+   */
+  protected validateBatchData<V>(
+    schema: z.ZodSchema<V>,
+    dataArray: unknown[],
+    entityType: string
+  ): V[] {
+    return Validator.validateBatchOrThrow(schema, dataArray, entityType);
+  }
+
+  /**
+   * Execute operation with circuit breaker protection
+   */
+  protected async executeWithCircuitBreaker<R>(
+    operation: () => Promise<R>,
+    operationName: string
+  ): Promise<R> {
+    try {
+      return await this.circuitBreaker.execute(operation);
+    } catch (error) {
+      this.logger.error(`Circuit breaker protected operation '${operationName}' failed`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute operation with both circuit breaker and retry logic
+   */
+  protected async executeWithProtection<R>(
+    operation: () => Promise<R>,
+    operationName: string,
+    maxRetries: number = 3
+  ): Promise<R> {
+    return this.executeWithCircuitBreaker(
+      () => this.withRetry(operation, operationName, maxRetries),
+      operationName
+    );
+  }
+
+  /**
+   * Get circuit breaker statistics
+   */
+  protected getCircuitStats() {
+    return this.circuitBreaker.getStats();
+  }
+
+  /**
+   * Check if the circuit breaker is available
+   */
+  protected isCircuitAvailable(): boolean {
+    return this.circuitBreaker.isAvailable();
+  }
+
+  /**
+   * Manually reset the circuit breaker
+   */
+  protected resetCircuit(): void {
+    this.circuitBreaker.manualReset();
+    this.logger.info('Circuit breaker manually reset');
   }
 }

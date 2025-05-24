@@ -4,8 +4,8 @@
  * CLI entry point
  */
 
-// Import yargs in a way that works with TypeScript
-import yargs from 'yargs';
+// Import yargs with proper typing
+import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 // Handle Faker import differently
@@ -20,9 +20,8 @@ import { DEFAULT_OPTIONS } from './config';
 import { VolumeSize } from './types';
 
 async function main() {
-  // Work around yargs typing issues
-  const yargsInstance: any = yargs;
-  const argv = await yargsInstance(hideBin(process.argv))
+  // Properly typed yargs instance
+  const argv = await yargs(hideBin(process.argv))
     .options({
       volume: {
         alias: 'v',

@@ -12,15 +12,17 @@ import {
   OrganizationGenerator,
   PortfolioGenerator,
   SegmentGenerator,
-  TransactionGenerator,
 } from './generators';
+import { TransactionGenerator } from './generators/transactions';
+import { Container } from './container/container';
+import { SERVICE_TOKENS } from './container/generator-factory';
 import { initializeClient } from './services/client';
 import { Logger } from './services/logger';
 import { GeneratorOptions } from './types';
 import { StateManager } from './utils/state';
 
 /**
- * Main generator class
+ * Main generator class with dependency injection support
  */
 export class Generator {
   private client: MidazClient;
@@ -37,28 +39,45 @@ export class Generator {
   private accountGenerator: AccountGenerator;
   private transactionGenerator: TransactionGenerator;
 
-  constructor(options: GeneratorOptions) {
+  constructor(options: GeneratorOptions, container?: Container) {
     this.options = options;
-    this.logger = new Logger(options);
 
-    // Initialize client
-    this.client = initializeClient(options);
+    if (container) {
+      // Use dependency injection
+      this.logger = container.resolve<Logger>(SERVICE_TOKENS.LOGGER);
+      this.client = container.resolve<MidazClient>(SERVICE_TOKENS.CLIENT);
+      this.stateManager = container.resolve<StateManager>(SERVICE_TOKENS.STATE_MANAGER);
+
+      // Resolve generators from container
+      this.organizationGenerator = container.resolve<OrganizationGenerator>(SERVICE_TOKENS.ORGANIZATION_GENERATOR);
+      this.ledgerGenerator = container.resolve<LedgerGenerator>(SERVICE_TOKENS.LEDGER_GENERATOR);
+      this.assetGenerator = container.resolve<AssetGenerator>(SERVICE_TOKENS.ASSET_GENERATOR);
+      this.portfolioGenerator = container.resolve<PortfolioGenerator>(SERVICE_TOKENS.PORTFOLIO_GENERATOR);
+      this.segmentGenerator = container.resolve<SegmentGenerator>(SERVICE_TOKENS.SEGMENT_GENERATOR);
+      this.accountGenerator = container.resolve<AccountGenerator>(SERVICE_TOKENS.ACCOUNT_GENERATOR);
+      this.transactionGenerator = container.resolve<TransactionGenerator>(SERVICE_TOKENS.TRANSACTION_GENERATOR);
+    } else {
+      // Legacy constructor for backward compatibility
+      this.logger = new Logger(options);
+      this.client = initializeClient(options);
+      this.stateManager = StateManager.getInstance();
+
+      // Initialize entity generators directly
+      this.organizationGenerator = new OrganizationGenerator(this.client, this.logger);
+      this.ledgerGenerator = new LedgerGenerator(this.client, this.logger);
+      this.assetGenerator = new AssetGenerator(this.client, this.logger);
+      this.portfolioGenerator = new PortfolioGenerator(this.client, this.logger);
+      this.segmentGenerator = new SegmentGenerator(this.client, this.logger);
+      this.accountGenerator = new AccountGenerator(this.client, this.logger);
+      this.transactionGenerator = new TransactionGenerator(this.client, this.logger);
+    }
+
     this.logger.info(
       `Initialized Midaz client connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`
     );
 
-    // Get state manager
-    this.stateManager = StateManager.getInstance();
+    // Reset state manager
     this.stateManager.reset();
-
-    // Initialize entity generators
-    this.organizationGenerator = new OrganizationGenerator(this.client, this.logger);
-    this.ledgerGenerator = new LedgerGenerator(this.client, this.logger);
-    this.assetGenerator = new AssetGenerator(this.client, this.logger);
-    this.portfolioGenerator = new PortfolioGenerator(this.client, this.logger);
-    this.segmentGenerator = new SegmentGenerator(this.client, this.logger);
-    this.accountGenerator = new AccountGenerator(this.client, this.logger);
-    this.transactionGenerator = new TransactionGenerator(this.client, this.logger);
   }
 
   /**
