@@ -27,18 +27,19 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
    * Generate multiple segments for a ledger
    * @param count Number of segments to generate
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generate(count: number, parentId?: string): Promise<Segment[]> {
+  async generate(count: number, parentId?: string, organizationId?: string): Promise<Segment[]> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate segments without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate segments without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate segments without an organization ID');
     }
     this.logger.info(`Generating ${count} segments for ledger: ${ledgerId}`);
 
@@ -46,7 +47,7 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
 
     for (let i = 0; i < count; i++) {
       try {
-        const segment = await this.generateOne(ledgerId);
+        const segment = await this.generateOne(ledgerId, orgId);
         segments.push(segment);
         this.logger.progress('Segments created', i + 1, count);
       } catch (error) {
@@ -54,7 +55,7 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
           `Failed to generate segment ${i + 1} for ledger ${ledgerId}`,
           error as Error
         );
-        this.stateManager.incrementErrorCount();
+        this.stateManager.incrementErrorCount('segment');
       }
     }
 
@@ -65,21 +66,20 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
   /**
    * Generate a single segment
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generateOne(parentId?: string): Promise<Segment> {
+  async generateOne(parentId?: string, organizationId?: string): Promise<Segment> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate segment without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate segment without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate segment without an organization ID');
     }
-
-    const organizationId = organizationIds[0];
     // Generate a name for the segment
     const segmentTypes = [
       'Retail',
@@ -99,7 +99,7 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
 
     try {
       // Create the segment
-      const segment = await this.client.entities.segments.createSegment(organizationId, ledgerId, {
+      const segment = await this.client.entities.segments.createSegment(orgId, ledgerId, {
         name,
         metadata: {
           type: segmentType.toLowerCase(),

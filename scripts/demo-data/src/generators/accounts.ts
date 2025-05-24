@@ -260,20 +260,20 @@ export class AccountGenerator implements EntityGenerator<Account> {
    * Generate multiple accounts for a ledger
    * @param count Number of accounts to generate
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generate(count: number, parentId?: string): Promise<Account[]> {
+  async generate(count: number, parentId?: string, organizationId?: string): Promise<Account[]> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate accounts without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate accounts without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate accounts without an organization ID');
     }
-    const organizationId = organizationIds[0];
 
     this.logger.info(`Generating ${count} accounts for ledger: ${ledgerId}`);
 
@@ -373,7 +373,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
     try {
       // Execute the batch of account creations
       const batchResult = await this.createAccountBatch(
-        organizationId,
+        orgId,
         ledgerId,
         accountInputs,
         batchOptions
@@ -412,10 +412,12 @@ export class AccountGenerator implements EntityGenerator<Account> {
   /**
    * Generate a single account
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    * @param _options Optional parameters for account generation
    */
   async generateOne(
     parentId?: string,
+    organizationId?: string,
     _options?: {
       assetCode?: string;
       portfolioId?: string;
@@ -429,13 +431,11 @@ export class AccountGenerator implements EntityGenerator<Account> {
       throw new Error('Cannot generate account without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate account without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate account without an organization ID');
     }
-
-    const organizationId = organizationIds[0];
 
     // Get asset code from options or state
     const assetCodes = this.stateManager.getAssetCodes(ledgerId);
@@ -490,7 +490,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
 
       // Create the account
       const account = await this.client.entities.accounts.createAccount(
-        organizationId,
+        orgId,
         ledgerId,
         accountBuilder.build()
       );
@@ -511,7 +511,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
         );
 
         // Try to find the account by listing all and filtering
-        const accounts = await this.client.entities.accounts.listAccounts(organizationId, ledgerId);
+        const accounts = await this.client.entities.accounts.listAccounts(orgId, ledgerId);
         const existingAccount = accounts.items.find((a) => a.alias === alias);
 
         if (existingAccount) {

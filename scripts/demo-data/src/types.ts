@@ -39,12 +39,12 @@ export interface GeneratorOptions {
 }
 
 /**
- * Entity generator interface
+ * Interface for entity generators
  */
 export interface EntityGenerator<T> {
-  generate(count: number, parentId?: string): Promise<T[]>;
-  generateOne(parentId?: string): Promise<T>;
-  exists(id: string): Promise<boolean>;
+  generate(count: number, parentId?: string, organizationId?: string): Promise<T[]>;
+  generateOne(parentId?: string, organizationId?: string, options?: any): Promise<T>;
+  exists?(id: string, parentId?: string): Promise<boolean>;
 }
 
 /**
