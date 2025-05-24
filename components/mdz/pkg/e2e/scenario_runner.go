@@ -18,22 +18,22 @@ type ScenarioRunner struct {
 
 // RunnerConfig configures the scenario runner
 type RunnerConfig struct {
-	MDZBinary    string
-	OutputDir    string
-	Timeout      time.Duration
-	Debug        bool
-	RecordAll    bool
-	AnalyzeFlow  bool
+	MDZBinary   string
+	OutputDir   string
+	Timeout     time.Duration
+	Debug       bool
+	RecordAll   bool
+	AnalyzeFlow bool
 }
 
 // Scenario represents a test scenario to execute
 type Scenario struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Steps       []Step    `json:"steps"`
-	Expected    []string  `json:"expected_outputs"`
-	Setup       *Setup    `json:"setup,omitempty"`
-	Cleanup     *Cleanup  `json:"cleanup,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Steps       []Step   `json:"steps"`
+	Expected    []string `json:"expected_outputs"`
+	Setup       *Setup   `json:"setup,omitempty"`
+	Cleanup     *Cleanup `json:"cleanup,omitempty"`
 }
 
 // Step represents a single interaction step
@@ -57,29 +57,29 @@ type Setup struct {
 
 // Cleanup defines cleanup actions after scenario completion
 type Cleanup struct {
-	Commands    []string          `json:"commands"`
-	Environment []string          `json:"remove_env"`
+	Commands    []string `json:"commands"`
+	Environment []string `json:"remove_env"`
 }
 
 // ScenarioResult contains the results of a scenario execution
 type ScenarioResult struct {
-	Scenario    string           `json:"scenario"`
-	Success     bool             `json:"success"`
-	Duration    time.Duration    `json:"duration"`
-	Error       string           `json:"error,omitempty"`
-	Steps       []StepResult     `json:"steps"`
-	Recording   string           `json:"recording_path"`
-	Screenshot  *TerminalSnapshot `json:"final_screenshot"`
-	Analysis    *FlowAnalysis    `json:"analysis,omitempty"`
+	Scenario   string            `json:"scenario"`
+	Success    bool              `json:"success"`
+	Duration   time.Duration     `json:"duration"`
+	Error      string            `json:"error,omitempty"`
+	Steps      []StepResult      `json:"steps"`
+	Recording  string            `json:"recording_path"`
+	Screenshot *TerminalSnapshot `json:"final_screenshot"`
+	Analysis   *FlowAnalysis     `json:"analysis,omitempty"`
 }
 
 // StepResult contains the result of a single step
 type StepResult struct {
-	Step        Step          `json:"step"`
-	Success     bool          `json:"success"`
-	Duration    time.Duration `json:"duration"`
-	Error       string        `json:"error,omitempty"`
-	OutputMatch bool          `json:"output_match"`
+	Step        Step              `json:"step"`
+	Success     bool              `json:"success"`
+	Duration    time.Duration     `json:"duration"`
+	Error       string            `json:"error,omitempty"`
+	OutputMatch bool              `json:"output_match"`
 	Screenshot  *TerminalSnapshot `json:"screenshot,omitempty"`
 }
 
@@ -88,7 +88,7 @@ func NewScenarioRunner(config *RunnerConfig) *ScenarioRunner {
 	if config.Timeout == 0 {
 		config.Timeout = 60 * time.Second
 	}
-	
+
 	if config.OutputDir == "" {
 		config.OutputDir = "./e2e-results"
 	}
@@ -103,7 +103,7 @@ func NewScenarioRunner(config *RunnerConfig) *ScenarioRunner {
 // RunScenario executes a single scenario
 func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, error) {
 	startTime := time.Now()
-	
+
 	result := &ScenarioResult{
 		Scenario: scenario.Name,
 		Steps:    make([]StepResult, 0),
@@ -115,6 +115,7 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 			result.Error = fmt.Sprintf("Setup failed: %v", err)
 			result.Success = false
 			result.Duration = time.Since(startTime)
+
 			return result, err
 		}
 	}
@@ -139,6 +140,7 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 		result.Error = fmt.Sprintf("Failed to create session: %v", err)
 		result.Success = false
 		result.Duration = time.Since(startTime)
+
 		return result, err
 	}
 
@@ -146,6 +148,7 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 		result.Error = fmt.Sprintf("Failed to start session: %v", err)
 		result.Success = false
 		result.Duration = time.Since(startTime)
+
 		return result, err
 	}
 
@@ -155,10 +158,11 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 	for i, step := range scenario.Steps {
 		stepResult := sr.executeStep(session, &step, i+1)
 		result.Steps = append(result.Steps, *stepResult)
-		
+
 		if !stepResult.Success {
 			result.Success = false
 			result.Error = fmt.Sprintf("Step %d failed: %s", i+1, stepResult.Error)
+
 			break
 		}
 	}
@@ -170,10 +174,11 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 			if !strings.Contains(output, expected) {
 				result.Success = false
 				result.Error = fmt.Sprintf("Expected output not found: %s", expected)
+
 				break
 			}
 		}
-		
+
 		if result.Error == "" {
 			result.Success = true
 		}
@@ -198,13 +203,14 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 	}
 
 	sr.results = append(sr.results, *result)
+
 	return result, nil
 }
 
 // executeStep executes a single scenario step
 func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumber int) *StepResult {
 	startTime := time.Now()
-	
+
 	result := &StepResult{
 		Step: *step,
 	}
@@ -214,7 +220,7 @@ func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumbe
 	}
 
 	var err error
-	
+
 	switch step.Type {
 	case "type":
 		err = session.Type(step.Input)
@@ -227,6 +233,7 @@ func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumbe
 		if timeout == 0 {
 			timeout = 5 * time.Second
 		}
+
 		err = session.WaitForOutput(step.ExpectText, timeout)
 		result.OutputMatch = err == nil
 	case "wait_for_prompt":
@@ -234,6 +241,7 @@ func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumbe
 		if timeout == 0 {
 			timeout = 5 * time.Second
 		}
+
 		err = session.WaitForPrompt(step.ExpectText, timeout)
 		result.OutputMatch = err == nil
 	case "screenshot":
@@ -246,8 +254,9 @@ func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumbe
 	if err != nil {
 		result.Error = err.Error()
 	}
-	
+
 	result.Duration = time.Since(startTime)
+
 	return result
 }
 
@@ -257,15 +266,14 @@ func (sr *ScenarioRunner) executeSetup(setup *Setup) error {
 	for k, v := range setup.Environment {
 		os.Setenv(k, v)
 	}
-	
+
 	// Execute setup commands
 	for _, cmd := range setup.Commands {
 		if sr.config.Debug {
 			fmt.Printf("Setup: %s\n", cmd)
 		}
-		// Could execute setup commands here if needed
 	}
-	
+
 	return nil
 }
 
@@ -275,13 +283,12 @@ func (sr *ScenarioRunner) executeCleanup(cleanup *Cleanup) {
 	for _, env := range cleanup.Environment {
 		os.Unsetenv(env)
 	}
-	
+
 	// Execute cleanup commands
 	for _, cmd := range cleanup.Commands {
 		if sr.config.Debug {
 			fmt.Printf("Cleanup: %s\n", cmd)
 		}
-		// Could execute cleanup commands here if needed
 	}
 }
 
@@ -293,10 +300,10 @@ func (sr *ScenarioRunner) RunScenarios(scenarios []*Scenario) ([]*ScenarioResult
 	}
 
 	results := make([]*ScenarioResult, 0, len(scenarios))
-	
+
 	for _, scenario := range scenarios {
 		fmt.Printf("Running scenario: %s\n", scenario.Name)
-		
+
 		result, err := sr.RunScenario(scenario)
 		if err != nil {
 			fmt.Printf("Scenario %s failed: %v\n", scenario.Name, err)
@@ -305,7 +312,7 @@ func (sr *ScenarioRunner) RunScenarios(scenarios []*Scenario) ([]*ScenarioResult
 		} else {
 			fmt.Printf("Scenario %s failed: %s\n", scenario.Name, result.Error)
 		}
-		
+
 		results = append(results, result)
 	}
 
@@ -320,9 +327,9 @@ func (sr *ScenarioRunner) RunScenarios(scenarios []*Scenario) ([]*ScenarioResult
 // GenerateReport creates a comprehensive test report
 func (sr *ScenarioRunner) GenerateReport(results []*ScenarioResult) error {
 	report := TestReport{
-		Timestamp:    time.Now(),
+		Timestamp:      time.Now(),
 		TotalScenarios: len(results),
-		Results:      results,
+		Results:        results,
 	}
 
 	// Calculate summary statistics
@@ -332,16 +339,18 @@ func (sr *ScenarioRunner) GenerateReport(results []*ScenarioResult) error {
 		} else {
 			report.FailedScenarios++
 		}
+
 		report.TotalDuration += result.Duration
 	}
 
 	// Save JSON report
 	jsonPath := filepath.Join(sr.config.OutputDir, "report.json")
+
 	jsonData, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
 	}
-	
+
 	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
 		return fmt.Errorf("failed to write JSON report: %w", err)
 	}
@@ -361,12 +370,12 @@ func (sr *ScenarioRunner) GenerateReport(results []*ScenarioResult) error {
 
 // TestReport contains the complete test execution report
 type TestReport struct {
-	Timestamp      time.Time        `json:"timestamp"`
-	TotalScenarios int              `json:"total_scenarios"`
-	PassedScenarios int             `json:"passed_scenarios"`
-	FailedScenarios int             `json:"failed_scenarios"`
-	TotalDuration  time.Duration    `json:"total_duration"`
-	Results        []*ScenarioResult `json:"results"`
+	Timestamp       time.Time         `json:"timestamp"`
+	TotalScenarios  int               `json:"total_scenarios"`
+	PassedScenarios int               `json:"passed_scenarios"`
+	FailedScenarios int               `json:"failed_scenarios"`
+	TotalDuration   time.Duration     `json:"total_duration"`
+	Results         []*ScenarioResult `json:"results"`
 }
 
 // generateHTMLReport creates an HTML report
@@ -419,24 +428,25 @@ func (sr *ScenarioRunner) generateHTMLReport(report *TestReport, path string) er
 		if !result.Success {
 			status = "failed"
 		}
-		
+
 		html += fmt.Sprintf(`
     <div class="scenario %s">
         <h3>%s (%s)</h3>
         <p>Duration: %s</p>`, status, result.Scenario, status, result.Duration.String())
-		
+
 		if result.Error != "" {
 			html += fmt.Sprintf(`<p class="failed">Error: %s</p>`, result.Error)
 		}
-		
+
 		if result.Screenshot != nil {
 			html += `<div class="screenshot"><h4>Final Screenshot:</h4><div class="output">`
 			for _, line := range result.Screenshot.Lines {
 				html += line + "\n"
 			}
+
 			html += `</div></div>`
 		}
-		
+
 		html += `</div>`
 	}
 

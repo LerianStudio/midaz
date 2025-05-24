@@ -30,7 +30,6 @@ type factoryLedgerList struct {
 }
 
 func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
-
 	if len(f.StartDate) > 0 {
 		if err := utils.ValidateDate(f.StartDate); err != nil {
 			return err
@@ -103,11 +102,13 @@ func (f *factoryLedgerList) offerInteractiveSelection(ledgers []mmodel.Ledger) e
 
 	// Convert to interactive selectors
 	items := make([]utils.InteractiveSelector, len(ledgers))
+
 	for i, ledger := range ledgers {
 		description := fmt.Sprintf("Status: %s", ledger.Status.Code)
 		if ledger.Status.Description != nil {
 			description += fmt.Sprintf(" - %s", *ledger.Status.Description)
 		}
+
 		items[i] = utils.InteractiveSelector{
 			ID:          ledger.ID,
 			Name:        ledger.Name,
@@ -128,6 +129,7 @@ func (f *factoryLedgerList) offerInteractiveSelection(ledgers []mmodel.Ledger) e
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprintf(f.factory.IOStreams.Out, "\n🎯 Ledger context set to: %s\n", selected.Name)
 		fmt.Fprintf(f.factory.IOStreams.Out, "💡 You can now run 'account list' or 'portfolio list' to explore this ledger.\n")
 	}

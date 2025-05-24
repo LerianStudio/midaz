@@ -462,7 +462,7 @@ func TestREPL_executeCommand_SmartList(t *testing.T) {
 	if err != nil {
 		t.Errorf("ls command should not error in test environment: %v", err)
 	}
-	
+
 	// Test list alias
 	err = repl.executeCommand(ctx, "list")
 	if err != nil {
@@ -539,10 +539,7 @@ func TestREPL_showHistory(t *testing.T) {
 	// Add some history
 	repl.history = []string{"command1", "command2", "command3"}
 
-	err = repl.showHistory()
-	if err != nil {
-		t.Errorf("showHistory should not error: %v", err)
-	}
+	repl.showHistory()
 
 	output := f.IOStreams.Out.(*bytes.Buffer).String()
 	expectedItems := []string{"1  command1", "2  command2", "3  command3"}
@@ -561,10 +558,7 @@ func TestREPL_clearScreen(t *testing.T) {
 		t.Fatalf("New should not return error: %v", err)
 	}
 
-	err = repl.clearScreen()
-	if err != nil {
-		t.Errorf("clearScreen should not error: %v", err)
-	}
+	repl.clearScreen()
 
 	output := f.IOStreams.Out.(*bytes.Buffer).String()
 	if !strings.Contains(output, "\033[2J\033[H") {
@@ -640,10 +634,7 @@ func TestREPL_showContextualHelp_EdgeCases(t *testing.T) {
 			ctx.setupFunc()
 
 			f.IOStreams.Out = &bytes.Buffer{}
-			err := repl.showContextualHelp()
-			if err != nil {
-				t.Errorf("showContextualHelp should not error: %v", err)
-			}
+			repl.showContextualHelp()
 
 			output := f.IOStreams.Out.(*bytes.Buffer).String()
 			if !strings.Contains(output, ctx.expectedText) {
@@ -670,10 +661,7 @@ func TestREPL_showSuggestions_EdgeCases(t *testing.T) {
 	repl.context.SetPortfolio("portfolio-789", "Test Portfolio")
 
 	f.IOStreams.Out = &bytes.Buffer{}
-	err = repl.showSuggestions()
-	if err != nil {
-		t.Errorf("showSuggestions should not error: %v", err)
-	}
+	repl.showSuggestions()
 
 	output := f.IOStreams.Out.(*bytes.Buffer).String()
 	if !strings.Contains(output, "You have context set up") {
@@ -699,10 +687,7 @@ func TestREPL_handleSmartList_EdgeCases(t *testing.T) {
 	repl.context.SetAccount("account-999", "Test Account")
 
 	// Test the smart list functionality
-	err = repl.handleSmartList(ctx)
-	if err != nil {
-		t.Errorf("handleSmartList should not error in test environment: %v", err)
-	}
+	repl.handleSmartList(ctx)
 
 	output := f.IOStreams.Out.(*bytes.Buffer).String()
 	if !strings.Contains(output, "Listing balances") {

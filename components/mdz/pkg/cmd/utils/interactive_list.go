@@ -106,6 +106,7 @@ func selectWithPrompt(f *factory.Factory, items []InteractiveSelector, entityTyp
 
 	selected := &items[choice-1]
 	fmt.Fprintf(f.IOStreams.Out, "✅ Selected %s: %s\n", entityType, selected.Name)
+
 	return selected, nil
 }
 
@@ -154,6 +155,7 @@ func SetREPLContext(ctx context.Context, entityType, id, name string) error {
 		// Also set a flag to indicate context was just updated
 		os.Setenv("MDZ_CONTEXT_UPDATED", "true")
 	}
+
 	return nil
 }
 

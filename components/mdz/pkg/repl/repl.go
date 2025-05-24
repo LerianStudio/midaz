@@ -109,6 +109,7 @@ func (r *REPL) Run(ctx context.Context, config *Config) error {
 
 	// Set environment variable to indicate REPL mode
 	os.Setenv("MDZ_REPL_MODE", "true")
+
 	defer func() { _ = os.Unsetenv("MDZ_REPL_MODE") }()
 
 	// Print welcome message
@@ -189,9 +190,11 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 	// Special handling for built-in REPL commands
 	switch args[0] {
 	case "history":
-		return r.showHistory()
+		r.showHistory()
+		return nil
 	case "clear":
-		return r.clearScreen()
+		r.clearScreen()
+		return nil
 	case "pwd":
 		pwd, _ := os.Getwd()
 		fmt.Fprintln(r.factory.IOStreams.Out, pwd)
@@ -219,11 +222,14 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 
 		return nil
 	case "help":
-		return r.showContextualHelp()
+		r.showContextualHelp()
+		return nil
 	case "suggestions", "suggest":
-		return r.showSuggestions()
+		r.showSuggestions()
+		return nil
 	case "ls", "list":
-		return r.handleSmartList(ctx)
+		r.handleSmartList(ctx)
+		return nil
 	case "status", "st":
 		fmt.Fprintln(r.factory.IOStreams.Out, r.context.String())
 		return nil
@@ -251,19 +257,16 @@ func (r *REPL) executeCommand(ctx context.Context, input string) error {
 }
 
 // showHistory displays command history
-func (r *REPL) showHistory() error {
+func (r *REPL) showHistory() {
 	for i, cmd := range r.history {
 		fmt.Fprintf(r.factory.IOStreams.Out, "%4d  %s\n", i+1, cmd)
 	}
-
-	return nil
 }
 
 // clearScreen clears the terminal screen
-func (r *REPL) clearScreen() error {
+func (r *REPL) clearScreen() {
 	// ANSI escape code to clear screen
 	fmt.Fprint(r.factory.IOStreams.Out, "\033[2J\033[H")
-	return nil
 }
 
 // Close cleans up REPL resources
@@ -339,7 +342,7 @@ func (r *REPL) GetContext() *Context {
 }
 
 // showContextualHelp displays context-aware help
-func (r *REPL) showContextualHelp() error {
+func (r *REPL) showContextualHelp() {
 	fmt.Fprintln(r.factory.IOStreams.Out, "🚀 MDZ Interactive Help")
 	fmt.Fprintln(r.factory.IOStreams.Out, "==================")
 	fmt.Fprintln(r.factory.IOStreams.Out)
@@ -381,12 +384,10 @@ func (r *REPL) showContextualHelp() error {
 
 	fmt.Fprintln(r.factory.IOStreams.Out)
 	fmt.Fprintln(r.factory.IOStreams.Out, "💡 Tip: Use Tab completion for commands and arguments!")
-
-	return nil
 }
 
 // showSuggestions displays contextual command suggestions
-func (r *REPL) showSuggestions() error {
+func (r *REPL) showSuggestions() {
 	fmt.Fprintln(r.factory.IOStreams.Out, "💡 Suggested Next Steps:")
 	fmt.Fprintln(r.factory.IOStreams.Out, "====================")
 
@@ -394,7 +395,7 @@ func (r *REPL) showSuggestions() error {
 		fmt.Fprintln(r.factory.IOStreams.Out, "🏢 Start by selecting an organization:")
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → organization list")
 
-		return nil
+		return
 	}
 
 	if r.context.LedgerID == "" {
@@ -402,7 +403,7 @@ func (r *REPL) showSuggestions() error {
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → ledger list")
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → asset list")
 
-		return nil
+		return
 	}
 
 	if r.context.PortfolioID == "" && r.context.AccountID == "" {
@@ -411,7 +412,7 @@ func (r *REPL) showSuggestions() error {
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → account list      (view accounts)")
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → segment list      (manage segments)")
 
-		return nil
+		return
 	}
 
 	if r.context.AccountID != "" {
@@ -420,42 +421,45 @@ func (r *REPL) showSuggestions() error {
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → operation list    (view operations)")
 		fmt.Fprintln(r.factory.IOStreams.Out, "   → transaction create (make transaction)")
 
-		return nil
+		return
 	}
 
 	fmt.Fprintln(r.factory.IOStreams.Out, "✨ You have context set up! Try:")
 	fmt.Fprintln(r.factory.IOStreams.Out, "   → account list")
 	fmt.Fprintln(r.factory.IOStreams.Out, "   → transaction create")
-
-	return nil
 }
 
 // handleSmartList provides context-aware listing
-func (r *REPL) handleSmartList(ctx context.Context) error {
+func (r *REPL) handleSmartList(ctx context.Context) {
 	// Refresh context from environment first
 	r.context.loadFromEnvironment()
 
 	var args []string
+
 	if r.context.OrganizationID == "" {
 		// No context, list organizations
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing organizations...")
+
 		args = []string{"organization", "list"}
 	} else if r.context.LedgerID == "" {
 		// Organization context, list ledgers
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing ledgers...")
+
 		args = []string{"ledger", "list"}
 	} else if r.context.AccountID == "" {
 		// Ledger context, list accounts
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing accounts...")
+
 		args = []string{"account", "list"}
 	} else {
 		// Account context, list balances
 		fmt.Fprintln(r.factory.IOStreams.Out, "🔄 Listing balances...")
+
 		args = []string{"balance", "list"}
 	}
 
 	// Use the same pattern as executeCommand to ensure interceptor is called
-	return r.executeCommand(ctx, strings.Join(args, " "))
+	r.executeCommand(ctx, strings.Join(args, " "))
 }
 
 // parseCommandLine parses a command line into arguments
@@ -494,15 +498,19 @@ func parseCommandLine(input string) []string {
 				switch nextChar {
 				case 'n':
 					current.WriteRune('\n')
+
 					i++ // Skip the next character
 				case 't':
 					current.WriteRune('\t')
+
 					i++ // Skip the next character
 				case '\\':
 					current.WriteRune('\\')
+
 					i++ // Skip the next character
 				case '"', '\'':
 					current.WriteRune(rune(nextChar))
+
 					i++ // Skip the next character
 				default:
 					current.WriteRune(char)

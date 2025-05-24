@@ -1,2 +1,7 @@
 
 dist/
+debug-results/
+demo-results/
+e2e-results/
+*-results/
+*.log

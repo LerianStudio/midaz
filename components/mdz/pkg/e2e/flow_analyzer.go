@@ -14,13 +14,13 @@ type FlowAnalyzer struct {
 
 // FlowAnalysis contains the analysis results
 type FlowAnalysis struct {
-	UserJourney      []JourneyStep       `json:"user_journey"`
-	UXIssues         []UXIssue          `json:"ux_issues"`
-	Performance      PerformanceMetrics  `json:"performance"`
-	Interactions     InteractionStats    `json:"interactions"`
-	Recommendations  []Recommendation    `json:"recommendations"`
-	FlowEfficiency   float64            `json:"flow_efficiency"`
-	CompletionRate   float64            `json:"completion_rate"`
+	UserJourney     []JourneyStep      `json:"user_journey"`
+	UXIssues        []UXIssue          `json:"ux_issues"`
+	Performance     PerformanceMetrics `json:"performance"`
+	Interactions    InteractionStats   `json:"interactions"`
+	Recommendations []Recommendation   `json:"recommendations"`
+	FlowEfficiency  float64            `json:"flow_efficiency"`
+	CompletionRate  float64            `json:"completion_rate"`
 }
 
 // JourneyStep represents a step in the user journey
@@ -46,23 +46,23 @@ type UXIssue struct {
 
 // PerformanceMetrics contains performance-related metrics
 type PerformanceMetrics struct {
-	TotalDuration     time.Duration `json:"total_duration"`
-	AverageStepTime   time.Duration `json:"average_step_time"`
-	SlowestStep       string        `json:"slowest_step"`
-	SlowestStepTime   time.Duration `json:"slowest_step_time"`
-	ResponseTimes     []time.Duration `json:"response_times"`
-	MenuLoadTimes     []time.Duration `json:"menu_load_times"`
+	TotalDuration   time.Duration   `json:"total_duration"`
+	AverageStepTime time.Duration   `json:"average_step_time"`
+	SlowestStep     string          `json:"slowest_step"`
+	SlowestStepTime time.Duration   `json:"slowest_step_time"`
+	ResponseTimes   []time.Duration `json:"response_times"`
+	MenuLoadTimes   []time.Duration `json:"menu_load_times"`
 }
 
 // InteractionStats contains interaction statistics
 type InteractionStats struct {
-	TotalInputs      int               `json:"total_inputs"`
-	MenuSelections   int               `json:"menu_selections"`
-	TextInputs       int               `json:"text_inputs"`
-	Corrections      int               `json:"corrections"`
-	HelpRequests     int               `json:"help_requests"`
-	ErrorEncounters  int               `json:"error_encounters"`
-	PatternFrequency map[string]int    `json:"pattern_frequency"`
+	TotalInputs      int            `json:"total_inputs"`
+	MenuSelections   int            `json:"menu_selections"`
+	TextInputs       int            `json:"text_inputs"`
+	Corrections      int            `json:"corrections"`
+	HelpRequests     int            `json:"help_requests"`
+	ErrorEncounters  int            `json:"error_encounters"`
+	PatternFrequency map[string]int `json:"pattern_frequency"`
 }
 
 // Recommendation suggests improvements
@@ -96,7 +96,7 @@ func NewFlowAnalyzer() *FlowAnalyzer {
 // AnalyzeSession analyzes a complete CLI session
 func (fa *FlowAnalyzer) AnalyzeSession(session *CLISession) (*FlowAnalysis, error) {
 	events := session.recorder.Events
-	
+
 	analysis := &FlowAnalysis{
 		UserJourney:     make([]JourneyStep, 0),
 		UXIssues:        make([]UXIssue, 0),
@@ -106,19 +106,19 @@ func (fa *FlowAnalyzer) AnalyzeSession(session *CLISession) (*FlowAnalysis, erro
 
 	// Analyze user journey
 	fa.analyzeUserJourney(events, analysis)
-	
+
 	// Analyze performance
 	fa.analyzePerformance(events, analysis)
-	
+
 	// Analyze interactions
 	fa.analyzeInteractions(events, analysis)
-	
+
 	// Detect UX issues
 	fa.detectUXIssues(events, analysis)
-	
+
 	// Generate recommendations
 	fa.generateRecommendations(analysis)
-	
+
 	// Calculate efficiency metrics
 	fa.calculateEfficiencyMetrics(analysis)
 
@@ -137,12 +137,12 @@ func (fa *FlowAnalyzer) analyzeUserJourney(events []SessionEvent, analysis *Flow
 				UserInput: event.Data,
 				Timestamp: event.Timestamp,
 			}
-			
+
 			// Find the corresponding CLI response
 			if i+1 < len(events) && events[i+1].Type == "output" {
 				step.CLIResponse = events[i+1].Data
 			}
-			
+
 			analysis.UserJourney = append(analysis.UserJourney, step)
 		}
 	}
@@ -151,33 +151,39 @@ func (fa *FlowAnalyzer) analyzeUserJourney(events []SessionEvent, analysis *Flow
 // analyzePerformance analyzes performance metrics
 func (fa *FlowAnalyzer) analyzePerformance(events []SessionEvent, analysis *FlowAnalysis) {
 	var totalDuration time.Duration
+
 	var stepTimes []time.Duration
+
 	var slowestTime time.Duration
+
 	var slowestStep string
+
 	var responseTimes []time.Duration
+
 	var menuLoadTimes []time.Duration
 
 	for i, event := range events {
 		stepTime := time.Duration(event.Delay) * time.Millisecond
 		stepTimes = append(stepTimes, stepTime)
 		totalDuration += stepTime
-		
+
 		if stepTime > slowestTime {
 			slowestTime = stepTime
 			slowestStep = fmt.Sprintf("%s: %s", event.Type, event.Data)
 		}
-		
+
 		// Track response times (time between input and output)
 		if event.Type == "input" {
 			for j := i + 1; j < len(events) && j < i+5; j++ {
 				if events[j].Type == "output" {
 					responseTime := events[j].Timestamp.Sub(event.Timestamp)
 					responseTimes = append(responseTimes, responseTime)
-					
+
 					// If it's a menu, track menu load time
 					if fa.patterns["menu_prompt"].MatchString(events[j].Data) {
 						menuLoadTimes = append(menuLoadTimes, responseTime)
 					}
+
 					break
 				}
 			}
@@ -202,29 +208,29 @@ func (fa *FlowAnalyzer) analyzePerformance(events []SessionEvent, analysis *Flow
 // analyzeInteractions analyzes user interaction patterns
 func (fa *FlowAnalyzer) analyzeInteractions(events []SessionEvent, analysis *FlowAnalysis) {
 	stats := &analysis.Interactions
-	
+
 	for _, event := range events {
 		switch event.Type {
 		case "input":
 			stats.TotalInputs++
 			stats.TextInputs++
-			
+
 			// Check for corrections (backspace, delete patterns)
 			if strings.Contains(event.Data, "\b") || strings.Contains(event.Data, "\x7f") {
 				stats.Corrections++
 			}
-			
+
 			// Check for help requests
 			if fa.patterns["help_text"].MatchString(event.Data) {
 				stats.HelpRequests++
 			}
-			
+
 		case "key_press":
 			stats.TotalInputs++
 			if event.Data == "enter" || event.Data == "return" {
 				stats.MenuSelections++
 			}
-			
+
 		case "output":
 			// Count pattern frequencies
 			for patternName, pattern := range fa.patterns {
@@ -232,7 +238,7 @@ func (fa *FlowAnalyzer) analyzeInteractions(events []SessionEvent, analysis *Flo
 					stats.PatternFrequency[patternName]++
 				}
 			}
-			
+
 			// Count errors
 			if fa.patterns["error_message"].MatchString(event.Data) {
 				stats.ErrorEncounters++
@@ -254,7 +260,7 @@ func (fa *FlowAnalyzer) detectUXIssues(events []SessionEvent, analysis *FlowAnal
 			})
 		}
 	}
-	
+
 	// Detect excessive errors
 	if analysis.Interactions.ErrorEncounters > len(analysis.UserJourney)/3 {
 		analysis.UXIssues = append(analysis.UXIssues, UXIssue{
@@ -264,7 +270,7 @@ func (fa *FlowAnalyzer) detectUXIssues(events []SessionEvent, analysis *FlowAnal
 			Suggestion:  "Improve error messages and input validation",
 		})
 	}
-	
+
 	// Detect excessive corrections
 	if analysis.Interactions.Corrections > len(analysis.UserJourney)/2 {
 		analysis.UXIssues = append(analysis.UXIssues, UXIssue{
@@ -274,7 +280,7 @@ func (fa *FlowAnalyzer) detectUXIssues(events []SessionEvent, analysis *FlowAnal
 			Suggestion:  "Consider improving input prompts or adding auto-completion",
 		})
 	}
-	
+
 	// Detect lack of help usage (might indicate poor discoverability)
 	if analysis.Interactions.HelpRequests == 0 && len(analysis.UserJourney) > 5 {
 		analysis.UXIssues = append(analysis.UXIssues, UXIssue{
@@ -284,10 +290,11 @@ func (fa *FlowAnalyzer) detectUXIssues(events []SessionEvent, analysis *FlowAnal
 			Suggestion:  "Consider making help more discoverable or improving initial guidance",
 		})
 	}
-	
+
 	// Detect menu navigation issues
 	menuPrompts := analysis.Interactions.PatternFrequency["menu_prompt"]
 	menuSelections := analysis.Interactions.MenuSelections
+
 	if menuPrompts > 0 && float64(menuSelections)/float64(menuPrompts) < 0.5 {
 		analysis.UXIssues = append(analysis.UXIssues, UXIssue{
 			Type:        "navigation",
@@ -311,7 +318,7 @@ func (fa *FlowAnalyzer) generateRecommendations(analysis *FlowAnalysis) {
 			Effort:      "Medium",
 		})
 	}
-	
+
 	// Error handling recommendations
 	if analysis.Interactions.ErrorEncounters > 2 {
 		analysis.Recommendations = append(analysis.Recommendations, Recommendation{
@@ -323,7 +330,7 @@ func (fa *FlowAnalyzer) generateRecommendations(analysis *FlowAnalysis) {
 			Effort:      "Low",
 		})
 	}
-	
+
 	// Usability recommendations
 	if analysis.Interactions.Corrections > 3 {
 		analysis.Recommendations = append(analysis.Recommendations, Recommendation{
@@ -335,7 +342,7 @@ func (fa *FlowAnalyzer) generateRecommendations(analysis *FlowAnalysis) {
 			Effort:      "Medium",
 		})
 	}
-	
+
 	// Menu design recommendations
 	menuPrompts := analysis.Interactions.PatternFrequency["menu_prompt"]
 	if menuPrompts > 5 {
@@ -348,7 +355,7 @@ func (fa *FlowAnalyzer) generateRecommendations(analysis *FlowAnalysis) {
 			Effort:      "High",
 		})
 	}
-	
+
 	// Help system recommendations
 	if analysis.Interactions.HelpRequests == 0 && len(analysis.UserJourney) > 5 {
 		analysis.Recommendations = append(analysis.Recommendations, Recommendation{
@@ -367,11 +374,11 @@ func (fa *FlowAnalyzer) calculateEfficiencyMetrics(analysis *FlowAnalysis) {
 	// Flow efficiency: successful actions / total actions
 	totalActions := analysis.Interactions.TotalInputs
 	unsuccessfulActions := analysis.Interactions.ErrorEncounters + analysis.Interactions.Corrections
-	
+
 	if totalActions > 0 {
 		analysis.FlowEfficiency = float64(totalActions-unsuccessfulActions) / float64(totalActions)
 	}
-	
+
 	// Completion rate: assume completion if no errors in final steps
 	finalStepErrors := 0
 	if len(analysis.UserJourney) > 3 {
@@ -381,17 +388,20 @@ func (fa *FlowAnalyzer) calculateEfficiencyMetrics(analysis *FlowAnalysis) {
 	} else {
 		analysis.CompletionRate = 1.0
 	}
-	
+
 	// Ensure rates are between 0 and 1
 	if analysis.FlowEfficiency < 0 {
 		analysis.FlowEfficiency = 0
 	}
+
 	if analysis.FlowEfficiency > 1 {
 		analysis.FlowEfficiency = 1
 	}
+
 	if analysis.CompletionRate < 0 {
 		analysis.CompletionRate = 0
 	}
+
 	if analysis.CompletionRate > 1 {
 		analysis.CompletionRate = 1
 	}

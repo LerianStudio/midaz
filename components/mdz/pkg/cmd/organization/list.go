@@ -109,6 +109,7 @@ func (f *factoryOrganizationList) offerInteractiveSelection(orgs []mmodel.Organi
 
 	// Convert to interactive selectors
 	items := make([]utils.InteractiveSelector, len(orgs))
+
 	for i, org := range orgs {
 		description := fmt.Sprintf("%s | %s", org.LegalDocument, org.Address.Country)
 		items[i] = utils.InteractiveSelector{
@@ -131,6 +132,7 @@ func (f *factoryOrganizationList) offerInteractiveSelection(orgs []mmodel.Organi
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprintf(f.factory.IOStreams.Out, "\n🎯 Organization context set to: %s\n", selected.Name)
 		fmt.Fprintf(f.factory.IOStreams.Out, "💡 You can now run 'ledger list' to see ledgers in this organization.\n")
 	}

@@ -13,15 +13,16 @@ import (
 
 func main() {
 	var (
-		mdzBinary   = flag.String("binary", "./mdz", "Path to MDZ binary")
-		outputDir   = flag.String("output", "./e2e-results", "Output directory for results")
-		timeout     = flag.Duration("timeout", 60*time.Second, "Timeout for each scenario")
-		debug       = flag.Bool("debug", false, "Enable debug output")
-		recordAll   = flag.Bool("record", true, "Record all sessions")
-		analyzeFlow = flag.Bool("analyze", true, "Analyze user flows for UX insights")
-		scenario    = flag.String("scenario", "", "Run specific scenario (empty for all)")
+		mdzBinary     = flag.String("binary", "./mdz", "Path to MDZ binary")
+		outputDir     = flag.String("output", "./e2e-results", "Output directory for results")
+		timeout       = flag.Duration("timeout", 60*time.Second, "Timeout for each scenario")
+		debug         = flag.Bool("debug", false, "Enable debug output")
+		recordAll     = flag.Bool("record", true, "Record all sessions")
+		analyzeFlow   = flag.Bool("analyze", true, "Analyze user flows for UX insights")
+		scenario      = flag.String("scenario", "", "Run specific scenario (empty for all)")
 		listScenarios = flag.Bool("list", false, "List available scenarios")
 	)
+
 	flag.Parse()
 
 	// Verify MDZ binary exists
@@ -35,24 +36,29 @@ func main() {
 	// List scenarios if requested
 	if *listScenarios {
 		fmt.Println("Available scenarios:")
+
 		for _, s := range scenarios {
 			fmt.Printf("  %-20s - %s\n", s.Name, s.Description)
 		}
+
 		return
 	}
 
 	// Filter scenarios if specific one requested
 	if *scenario != "" {
 		filtered := make([]*e2e.Scenario, 0)
+
 		for _, s := range scenarios {
 			if s.Name == *scenario {
 				filtered = append(filtered, s)
 				break
 			}
 		}
+
 		if len(filtered) == 0 {
 			log.Fatalf("Scenario '%s' not found", *scenario)
 		}
+
 		scenarios = filtered
 	}
 
@@ -88,6 +94,7 @@ func main() {
 	fmt.Println()
 
 	startTime := time.Now()
+
 	results, err := runner.RunScenarios(scenarios)
 	if err != nil {
 		log.Fatalf("Failed to run scenarios: %v", err)
@@ -97,7 +104,7 @@ func main() {
 	totalDuration := time.Since(startTime)
 	passed := 0
 	failed := 0
-	
+
 	for _, result := range results {
 		if result.Success {
 			passed++
@@ -116,6 +123,7 @@ func main() {
 
 	if failed > 0 {
 		fmt.Printf("\n❌ Failed scenarios:\n")
+
 		for _, result := range results {
 			if !result.Success {
 				fmt.Printf("  - %s: %s\n", result.Scenario, result.Error)
@@ -127,26 +135,27 @@ func main() {
 	if *analyzeFlow {
 		fmt.Printf("\n🔍 UX Analysis Summary\n")
 		fmt.Printf("======================\n")
-		
+
 		totalIssues := 0
 		highPriorityRecs := 0
-		
+
 		for _, result := range results {
 			if result.Analysis != nil {
 				totalIssues += len(result.Analysis.UXIssues)
+
 				for _, rec := range result.Analysis.Recommendations {
 					if rec.Priority == "High" {
 						highPriorityRecs++
 					}
 				}
-				
+
 				fmt.Printf("%s:\n", result.Scenario)
 				fmt.Printf("  Flow efficiency: %.1f%%\n", result.Analysis.FlowEfficiency*100)
 				fmt.Printf("  UX issues: %d\n", len(result.Analysis.UXIssues))
 				fmt.Printf("  Recommendations: %d\n", len(result.Analysis.Recommendations))
 			}
 		}
-		
+
 		fmt.Printf("\nOverall:\n")
 		fmt.Printf("  Total UX issues: %d\n", totalIssues)
 		fmt.Printf("  High priority recommendations: %d\n", highPriorityRecs)

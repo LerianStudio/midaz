@@ -22,6 +22,7 @@ type Context struct {
 func NewContext() *Context {
 	ctx := &Context{}
 	ctx.loadFromEnvironment()
+
 	return ctx
 }
 

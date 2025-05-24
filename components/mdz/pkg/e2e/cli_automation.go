@@ -16,19 +16,19 @@ import (
 
 // CLISession represents an interactive CLI session similar to Playwright's Page
 type CLISession struct {
-	cmd        *exec.Cmd
-	stdin      io.WriteCloser
-	stdout     io.ReadCloser
-	stderr     io.ReadCloser
-	context    context.Context
-	cancel     context.CancelFunc
-	recorder   *SessionRecorder
-	config     *SessionConfig
-	outputBuf  *SafeBuffer
-	errorBuf   *SafeBuffer
-	wg         sync.WaitGroup
-	closed     bool
-	mu         sync.Mutex
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	stdout    io.ReadCloser
+	stderr    io.ReadCloser
+	context   context.Context
+	cancel    context.CancelFunc
+	recorder  *SessionRecorder
+	config    *SessionConfig
+	outputBuf *SafeBuffer
+	errorBuf  *SafeBuffer
+	wg        sync.WaitGroup
+	closed    bool
+	mu        sync.Mutex
 }
 
 // SessionConfig configures the CLI session behavior
@@ -81,18 +81,21 @@ type SafeBuffer struct {
 func (sb *SafeBuffer) Write(p []byte) (n int, err error) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+
 	return sb.buf.Write(p)
 }
 
 func (sb *SafeBuffer) String() string {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+
 	return sb.buf.String()
 }
 
 func (sb *SafeBuffer) Bytes() []byte {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+
 	return sb.buf.Bytes()
 }
 
@@ -143,7 +146,7 @@ func (s *CLISession) Start() error {
 	}
 
 	s.cmd = exec.CommandContext(s.context, s.config.Command, s.config.Args...)
-	
+
 	if s.config.WorkingDir != "" {
 		s.cmd.Dir = s.config.WorkingDir
 	}
@@ -159,18 +162,21 @@ func (s *CLISession) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
+
 	s.stdin = stdin
 
 	stdout, err := s.cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
+
 	s.stdout = stdout
 
 	stderr, err := s.cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
+
 	s.stderr = stderr
 
 	// Start the command
@@ -203,13 +209,14 @@ func (s *CLISession) Type(text string) error {
 	}
 
 	s.recorder.recordEvent("input", text, "user_typing")
+
 	return nil
 }
 
 // Press sends special keys (Enter, Tab, Ctrl+C, etc.)
 func (s *CLISession) Press(key string) error {
 	var keyBytes []byte
-	
+
 	switch strings.ToLower(key) {
 	case "enter", "return":
 		keyBytes = []byte("\n")
@@ -242,23 +249,26 @@ func (s *CLISession) Press(key string) error {
 	}
 
 	s.recorder.recordEvent("key_press", key, "special_key")
+
 	return nil
 }
 
 // WaitForOutput waits for specific text to appear in stdout
 func (s *CLISession) WaitForOutput(text string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	
+
 	for time.Now().Before(deadline) {
 		output := s.outputBuf.String()
 		if strings.Contains(output, text) {
 			s.recorder.recordEvent("wait_success", fmt.Sprintf("Found: %s", text), "output_match")
 			return nil
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
-	
+
 	s.recorder.recordEvent("wait_timeout", fmt.Sprintf("Timeout waiting for: %s", text), "error")
+
 	return fmt.Errorf("timeout waiting for output: %s", text)
 }
 
@@ -281,18 +291,18 @@ func (s *CLISession) GetError() string {
 func (s *CLISession) Screenshot() *TerminalSnapshot {
 	output := s.outputBuf.String()
 	lines := strings.Split(output, "\n")
-	
+
 	// Get last 25 lines for terminal-like view
 	start := 0
 	if len(lines) > 25 {
 		start = len(lines) - 25
 	}
-	
+
 	return &TerminalSnapshot{
-		Timestamp: time.Now(),
-		Lines:     lines[start:],
+		Timestamp:  time.Now(),
+		Lines:      lines[start:],
 		FullOutput: output,
-		Cursor:    len(output),
+		Cursor:     len(output),
 	}
 }
 
@@ -338,6 +348,7 @@ func (s *CLISession) Close() error {
 
 	if s.cmd != nil && s.cmd.Process != nil {
 		s.cmd.Wait() // Wait for process to complete
+
 		if s.cmd.ProcessState != nil {
 			s.recorder.Metadata.ExitCode = s.cmd.ProcessState.ExitCode()
 			s.recorder.Metadata.Success = s.cmd.ProcessState.Success()
@@ -367,16 +378,16 @@ func (s *CLISession) SaveRecording(path string) error {
 // readOutput continuously reads from stdout
 func (s *CLISession) readOutput() {
 	defer s.wg.Done()
-	
+
 	scanner := bufio.NewScanner(s.stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
 		s.outputBuf.Write([]byte(line + "\n"))
-		
+
 		if s.config.Debug {
 			fmt.Printf("[OUT] %s\n", line)
 		}
-		
+
 		s.recorder.recordEvent("output", line, "stdout")
 	}
 }
@@ -384,16 +395,16 @@ func (s *CLISession) readOutput() {
 // readError continuously reads from stderr
 func (s *CLISession) readError() {
 	defer s.wg.Done()
-	
+
 	scanner := bufio.NewScanner(s.stderr)
 	for scanner.Scan() {
 		line := scanner.Text()
 		s.errorBuf.Write([]byte(line + "\n"))
-		
+
 		if s.config.Debug {
 			fmt.Printf("[ERR] %s\n", line)
 		}
-		
+
 		s.recorder.recordEvent("error", line, "stderr")
 	}
 }
@@ -402,13 +413,14 @@ func (s *CLISession) readError() {
 func (r *SessionRecorder) recordEvent(eventType, data, context string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	now := time.Now()
 	delay := int64(0)
+
 	if len(r.Events) > 0 {
 		delay = now.Sub(r.Events[len(r.Events)-1].Timestamp).Milliseconds()
 	}
-	
+
 	event := SessionEvent{
 		Type:      eventType,
 		Timestamp: now,
@@ -416,6 +428,6 @@ func (r *SessionRecorder) recordEvent(eventType, data, context string) {
 		Context:   context,
 		Delay:     delay,
 	}
-	
+
 	r.Events = append(r.Events, event)
 }

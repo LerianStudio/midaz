@@ -63,6 +63,7 @@ func TestLoginCommand_FlagDefaults(t *testing.T) {
 	if usernameFlag == nil {
 		t.Fatal("username flag should exist")
 	}
+
 	if usernameFlag.DefValue != "" {
 		t.Errorf("username flag default should be empty, got '%s'", usernameFlag.DefValue)
 	}
@@ -72,6 +73,7 @@ func TestLoginCommand_FlagDefaults(t *testing.T) {
 	if passwordFlag == nil {
 		t.Fatal("password flag should exist")
 	}
+
 	if passwordFlag.DefValue != "" {
 		t.Errorf("password flag default should be empty, got '%s'", passwordFlag.DefValue)
 	}
@@ -81,6 +83,7 @@ func TestLoginCommand_FlagDefaults(t *testing.T) {
 	if browserFlag == nil {
 		t.Fatal("browser flag should exist")
 	}
+
 	if browserFlag.DefValue != "false" {
 		t.Errorf("browser flag default should be 'false', got '%s'", browserFlag.DefValue)
 	}
@@ -125,9 +128,11 @@ func TestLoginCommand_Examples(t *testing.T) {
 		if strings.Contains(example, "mdz login") && !strings.Contains(example, "--") {
 			foundBasicLogin = true
 		}
+
 		if strings.Contains(example, "--username") {
 			foundUsernameFlag = true
 		}
+
 		if strings.Contains(example, "--browser") {
 			foundBrowserFlag = true
 		}
@@ -136,9 +141,11 @@ func TestLoginCommand_Examples(t *testing.T) {
 	if !foundBasicLogin {
 		t.Error("Examples should include basic login usage")
 	}
+
 	if !foundUsernameFlag {
 		t.Error("Examples should include --username flag usage")
 	}
+
 	if !foundBrowserFlag {
 		t.Error("Examples should include --browser flag usage")
 	}
