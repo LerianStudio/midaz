@@ -128,9 +128,9 @@ if [ ! -d "$SDK_PATH/src" ]; then
   # Remove any partial installations
   rm -rf "$SDK_PATH"
   
-  # Clone from GitHub (develop branch)
-  log "Cloning SDK from GitHub: $SDK_REPO"
-  git clone "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
+  # Clone from GitHub (main branch)
+  log "Cloning SDK from GitHub: $SDK_REPO (main branch)"
+  git clone -b main "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
     
   # Install SDK dependencies
   log "Installing SDK dependencies..."
