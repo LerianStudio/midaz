@@ -4,6 +4,7 @@
 
 import { MidazClient } from 'midaz-sdk/src';
 import { VOLUME_METRICS } from './config';
+import { DependencyError, GenerationError } from './errors';
 import {
   AccountGenerator,
   AssetGenerator,
@@ -61,6 +62,69 @@ export class Generator {
   }
 
   /**
+   * Validate that dependencies exist before generating dependent entities
+   */
+  private async validateDependencies(ledgerId: string): Promise<boolean> {
+    const assets = this.stateManager.getAssetCodes(ledgerId);
+    if (assets.length === 0) {
+      this.logger.error(`No assets found for ledger ${ledgerId}`);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Verify that generation produced expected results
+   */
+  private async verifyGeneration<T>(
+    entities: T[],
+    entityType: string,
+    minimumRequired: number = 1
+  ): void {
+    if (entities.length < minimumRequired) {
+      throw new GenerationError(
+        `Failed to generate minimum ${minimumRequired} ${entityType}s, got ${entities.length}`,
+        entityType
+      );
+    }
+  }
+
+  /**
+   * Generate entities with retry logic
+   */
+  private async generateWithRetry<T>(
+    generator: () => Promise<T[]>,
+    entityType: string,
+    maxRetries: number = 3
+  ): Promise<T[]> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await generator();
+        if (result.length > 0) return result;
+        
+        this.logger.warn(`${entityType} generation returned empty result, attempt ${attempt}/${maxRetries}`);
+      } catch (error) {
+        this.logger.error(`${entityType} generation failed, attempt ${attempt}/${maxRetries}`, error as Error);
+        
+        if (attempt === maxRetries) {
+          throw new GenerationError(
+            `Failed to generate ${entityType} after ${maxRetries} attempts`,
+            entityType,
+            undefined,
+            { lastError: error }
+          );
+        }
+        
+        // Exponential backoff
+        const delay = Math.pow(2, attempt) * 1000;
+        this.logger.debug(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    return [];
+  }
+
+  /**
    * Run the generator with the provided options
    */
   public async run(): Promise<void> {
@@ -70,34 +134,79 @@ export class Generator {
       // Get the metrics for the selected volume
       const volumeMetrics = VOLUME_METRICS[this.options.volume];
 
-      // Generate organizations
-      const organizations = await this.organizationGenerator.generate(volumeMetrics.organizations);
+      // Generate organizations with retry
+      const organizations = await this.generateWithRetry(
+        () => this.organizationGenerator.generate(volumeMetrics.organizations),
+        'organization'
+      );
+      
+      await this.verifyGeneration(organizations, 'organization');
 
       // For each organization, generate ledgers and their nested entities
       for (const org of organizations) {
         this.logger.info(`Generating data for organization: ${org.id} (${org.legalName})`);
 
-        // Generate ledgers for this organization
-        const ledgers = await this.ledgerGenerator.generate(volumeMetrics.ledgersPerOrg, org.id);
+        // Generate ledgers for this organization with retry
+        const ledgers = await this.generateWithRetry(
+          () => this.ledgerGenerator.generate(volumeMetrics.ledgersPerOrg, org.id),
+          'ledger'
+        );
+        
+        await this.verifyGeneration(ledgers, 'ledger');
 
         // For each ledger, generate assets, portfolios, segments, accounts, and transactions
         for (const ledger of ledgers) {
           this.logger.info(`Generating data for ledger: ${ledger.id} (${ledger.name})`);
 
-          // Generate assets for this ledger
-          await this.assetGenerator.generate(volumeMetrics.assetsPerLedger, ledger.id);
+          // Generate assets for this ledger - CRITICAL for accounts
+          const assets = await this.generateWithRetry(
+            () => this.assetGenerator.generate(volumeMetrics.assetsPerLedger, ledger.id, org.id),
+            'asset'
+          );
+          
+          await this.verifyGeneration(assets, 'asset');
 
-          // Generate portfolios for this ledger
-          await this.portfolioGenerator.generate(volumeMetrics.portfoliosPerLedger, ledger.id);
+          // Generate portfolios for this ledger (optional entities)
+          const portfolios = await this.portfolioGenerator.generate(
+            volumeMetrics.portfoliosPerLedger, 
+            ledger.id,
+            org.id
+          );
 
-          // Generate segments for this ledger
-          await this.segmentGenerator.generate(volumeMetrics.segmentsPerLedger, ledger.id);
+          // Generate segments for this ledger (optional entities)
+          const segments = await this.segmentGenerator.generate(
+            volumeMetrics.segmentsPerLedger, 
+            ledger.id,
+            org.id
+          );
+
+          // Validate dependencies before generating accounts
+          if (!await this.validateDependencies(ledger.id)) {
+            this.logger.error(`Skipping account generation for ledger ${ledger.id} due to missing dependencies`);
+            this.stateManager.incrementErrorCount('account');
+            continue;
+          }
 
           // Generate accounts for this ledger
-          await this.accountGenerator.generate(volumeMetrics.accountsPerLedger, ledger.id);
+          const accounts = await this.accountGenerator.generate(
+            volumeMetrics.accountsPerLedger, 
+            ledger.id,
+            org.id
+          );
+          
+          // Accounts are critical - verify we have at least some
+          if (accounts.length === 0) {
+            this.logger.error(`No accounts generated for ledger ${ledger.id}, skipping transactions`);
+            this.stateManager.incrementErrorCount('transaction');
+            continue;
+          }
 
           // Generate transactions for this ledger
-          await this.transactionGenerator.generate(volumeMetrics.transactionsPerAccount, ledger.id);
+          await this.transactionGenerator.generate(
+            volumeMetrics.transactionsPerAccount, 
+            ledger.id,
+            org.id
+          );
         }
       }
 

@@ -206,23 +206,22 @@ export class TransactionGenerator {
    * Generate multiple transactions for accounts in a ledger
    * @param count Number of transactions to generate per account
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generate(count: number, parentId?: string): Promise<any[]> {
+  async generate(count: number, parentId?: string, organizationId?: string): Promise<any[]> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate transactions without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      this.logger.warn('Cannot generate transactions without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      this.logger.warn('Cannot generate transactions without an organization ID');
       this.stateManager.incrementErrorCount('transaction');
       return [];
     }
-
-    const organizationId = organizationIds[0];
 
     // Get accounts for this ledger
     const accountIds = this.stateManager.getAccountIds(ledgerId);
@@ -246,7 +245,7 @@ export class TransactionGenerator {
 
     // First, fetch and organize account details and asset codes
     const depositPreparations = await this.prepareAccountsForDeposits(
-      organizationId,
+      orgId,
       ledgerId,
       accountIds,
       accountAliases
@@ -368,7 +367,7 @@ export class TransactionGenerator {
         // Execute the batch of deposits
         const batchResult = await createTransactionBatch(
           this.client,
-          organizationId,
+          orgId,
           ledgerId,
           accountsWithSameAsset.map((account) => ({
             description: `Initial deposit of ${assetCode} to ${account.accountAlias}`,
@@ -671,7 +670,7 @@ export class TransactionGenerator {
           // Execute the batch of transfers
           const batchResult = await createTransactionBatch(
             this.client,
-            organizationId,
+            orgId,
             ledgerId,
             transferBatch,
             batchOptions
@@ -717,28 +716,30 @@ export class TransactionGenerator {
   /**
    * Generate a single transaction
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    * @param options Optional parameters for transaction generation
    */
-  async generateOne(parentId: string, options: TransactionOptions): Promise<Transaction | null> {
+  async generateOne(parentId: string, organizationId?: string, options?: TransactionOptions): Promise<Transaction | null> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate transaction without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate transaction without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate transaction without an organization ID');
     }
 
-    const organizationId = organizationIds[0];
+    // Default options if not provided
+    const transactionOptions = options || {};
 
     // Get account information
-    const sourceAccountId = options.sourceAccountId || '';
-    const sourceAccountAlias = options.sourceAccountAlias || '';
-    const targetAccountId = options.targetAccountId || '';
-    const targetAccountAlias = options.targetAccountAlias || '';
+    const sourceAccountId = transactionOptions.sourceAccountId || '';
+    const sourceAccountAlias = transactionOptions.sourceAccountAlias || '';
+    const targetAccountId = transactionOptions.targetAccountId || '';
+    const targetAccountAlias = transactionOptions.targetAccountAlias || '';
 
     if (!sourceAccountId || !sourceAccountAlias || !targetAccountId || !targetAccountAlias) {
       throw new Error('Cannot generate transaction without source and target account details');
@@ -829,7 +830,7 @@ export class TransactionGenerator {
 
       // Create the transaction directly
       const transaction = await this.client.entities.transactions.createTransaction(
-        organizationId,
+        orgId,
         ledgerId,
         transactionInput
       );
@@ -877,7 +878,7 @@ export class TransactionGenerator {
    * Create a deposit transaction to fund an account
    */
   private async createDepositTransaction(
-    organizationId: string,
+    orgId: string,
     ledgerId: string,
     accountId: string,
     accountAlias: string,
@@ -888,7 +889,7 @@ export class TransactionGenerator {
     try {
       // Query the account to get its actual asset code
       const accountDetails = await this.client.entities.accounts.getAccount(
-        organizationId,
+        orgId,
         ledgerId,
         accountId
       );

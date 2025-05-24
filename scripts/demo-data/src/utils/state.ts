@@ -4,6 +4,7 @@
  */
 
 import { GenerationMetrics, GeneratorState } from '../types';
+import { ErrorTracker, GenerationErrorInfo } from './error-tracker';
 
 /**
  * Generator state singleton
@@ -11,6 +12,7 @@ import { GenerationMetrics, GeneratorState } from '../types';
  */
 export class StateManager {
   private static instance: StateManager;
+  private errorTracker = new ErrorTracker();
   private state: GeneratorState = {
     organizationIds: [],
     ledgerIds: new Map<string, string[]>(),
@@ -60,6 +62,31 @@ export class StateManager {
   }
 
   /**
+   * Track a generation error
+   */
+  public trackGenerationError(
+    entityType: string,
+    parentId: string,
+    error: Error,
+    context?: Record<string, any>
+  ): void {
+    this.errorTracker.trackError({
+      entityType,
+      parentId,
+      error,
+      timestamp: new Date(),
+      context: context || {}
+    });
+  }
+
+  /**
+   * Get error tracker
+   */
+  public getErrorTracker(): ErrorTracker {
+    return this.errorTracker;
+  }
+
+  /**
    * Reset state to start fresh
    */
   public reset(): void {
@@ -75,6 +102,8 @@ export class StateManager {
       transactionIds: new Map<string, string[]>(),
       accountAssets: new Map<string, Map<string, string>>(),
     };
+
+    this.errorTracker.clear();
 
     this.metrics = {
       startTime: new Date(),
