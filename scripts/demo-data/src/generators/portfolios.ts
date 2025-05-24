@@ -27,28 +27,27 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
    * Generate multiple portfolios for a ledger
    * @param count Number of portfolios to generate
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generate(count: number, parentId?: string): Promise<Portfolio[]> {
+  async generate(count: number, parentId?: string, organizationId?: string): Promise<Portfolio[]> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate portfolios without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate portfolios without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate portfolios without an organization ID');
     }
-
-    const organizationId = organizationIds[0];
     this.logger.info(`Generating ${count} portfolios for ledger: ${ledgerId}`);
 
     const portfolios: Portfolio[] = [];
 
     for (let i = 0; i < count; i++) {
       try {
-        const portfolio = await this.generateOne(ledgerId);
+        const portfolio = await this.generateOne(ledgerId, orgId);
         portfolios.push(portfolio);
         this.logger.progress('Portfolios created', i + 1, count);
       } catch (error) {
@@ -56,7 +55,7 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
           `Failed to generate portfolio ${i + 1} for ledger ${ledgerId}`,
           error as Error
         );
-        this.stateManager.incrementErrorCount();
+        this.stateManager.incrementErrorCount('portfolio');
       }
     }
 
@@ -69,21 +68,20 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
   /**
    * Generate a single portfolio
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generateOne(parentId?: string): Promise<Portfolio> {
+  async generateOne(parentId?: string, organizationId?: string): Promise<Portfolio> {
     // Get ledger ID from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate portfolio without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate portfolio without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate portfolio without an organization ID');
     }
-
-    const organizationId = organizationIds[0];
     // Generate a name for the portfolio
     const portfolioTypes = [
       'Retail',
@@ -103,7 +101,7 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
     try {
       // Create the portfolio
       const portfolio = await this.client.entities.portfolios.createPortfolio(
-        organizationId,
+        orgId,
         ledgerId,
         {
           name,
@@ -133,7 +131,7 @@ export class PortfolioGenerator implements EntityGenerator<Portfolio> {
 
         // Try to find the portfolio by listing all and filtering
         const portfolios = await this.client.entities.portfolios.listPortfolios(
-          organizationId,
+          orgId,
           ledgerId
         );
         const existingPortfolio = portfolios.items.find((p) => p.name === name);

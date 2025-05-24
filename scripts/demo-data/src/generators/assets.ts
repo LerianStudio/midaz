@@ -28,21 +28,21 @@ export class AssetGenerator implements EntityGenerator<Asset> {
    * Generate multiple assets for a ledger
    * @param count Number of assets to generate
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generate(count: number, parentId?: string): Promise<Asset[]> {
+  async generate(count: number, parentId?: string, organizationId?: string): Promise<Asset[]> {
     // Get ledgerId from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate assets without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate assets without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate assets without an organization ID');
     }
 
-    const organizationId = organizationIds[0];
     this.logger.info(`Generating ${count} assets for ledger: ${ledgerId}`);
 
     const assets: Asset[] = [];
@@ -54,7 +54,7 @@ export class AssetGenerator implements EntityGenerator<Asset> {
 
       try {
         const asset = await this.createAssetFromTemplate(
-          organizationId,
+          orgId,
           ledgerId,
           template.code,
           template.name,
@@ -69,7 +69,7 @@ export class AssetGenerator implements EntityGenerator<Asset> {
           `Failed to generate template asset ${i + 1} for ledger ${ledgerId}`,
           error as Error
         );
-        this.stateManager.incrementErrorCount();
+        this.stateManager.incrementErrorCount('asset');
       }
     }
 
@@ -79,7 +79,7 @@ export class AssetGenerator implements EntityGenerator<Asset> {
 
       for (let i = 0; i < remainingCount; i++) {
         try {
-          const asset = await this.generateOne(ledgerId);
+          const asset = await this.generateOne(ledgerId, orgId);
           assets.push(asset);
           this.logger.progress('Assets created', ASSET_TEMPLATES.length + i + 1, count);
         } catch (error) {
@@ -87,7 +87,7 @@ export class AssetGenerator implements EntityGenerator<Asset> {
             `Failed to generate custom asset ${i + 1} for ledger ${ledgerId}`,
             error as Error
           );
-          this.stateManager.incrementErrorCount();
+          this.stateManager.incrementErrorCount('asset');
         }
       }
     }
@@ -99,21 +99,20 @@ export class AssetGenerator implements EntityGenerator<Asset> {
   /**
    * Generate a single custom asset
    * @param parentId Parent ledger ID
+   * @param organizationId Organization ID
    */
-  async generateOne(parentId?: string): Promise<Asset> {
+  async generateOne(parentId?: string, organizationId?: string): Promise<Asset> {
     // Get ledgerId from parentId
     const ledgerId = parentId || '';
     if (!ledgerId) {
       throw new Error('Cannot generate asset without a ledger ID');
     }
 
-    // Get organization ID from state
-    const organizationIds = this.stateManager.getOrganizationIds();
-    if (organizationIds.length === 0) {
-      throw new Error('Cannot generate asset without any organizations');
+    // Use provided organizationId or get from state
+    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
+    if (!orgId) {
+      throw new Error('Cannot generate asset without an organization ID');
     }
-
-    const organizationId = organizationIds[0];
     // Generate a unique code for the asset
     const assetCode = faker.finance.currencyCode();
     const assetName = faker.finance.currencyName();
@@ -125,7 +124,7 @@ export class AssetGenerator implements EntityGenerator<Asset> {
     const randomType = validTypes[faker.datatype.number({ min: 0, max: validTypes.length - 1 })];
 
     return this.createAssetFromTemplate(
-      organizationId,
+      orgId,
       ledgerId,
       assetCode,
       assetName,
