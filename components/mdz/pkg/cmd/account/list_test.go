@@ -26,7 +26,6 @@ func Test_newCmdAssetList(t *testing.T) {
 
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
-		portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
 
 		ledFactory := factoryAccountList{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -42,7 +41,6 @@ func Test_newCmdAssetList(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
-			"--portfolio-id", portfolioID,
 		})
 
 		list := &mmodel.Accounts{
@@ -121,12 +119,11 @@ func Test_newCmdAssetList(t *testing.T) {
 			LedgerID:       ledgerID,
 		}
 
-		ledFactory.tuiInput = func(message string) (string, error) {
-			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
-		}
-
 		cmd := newCmdAccountList(&ledFactory)
-		cmd.SetArgs([]string{})
+		cmd.SetArgs([]string{
+			"--organization-id", organizationID,
+			"--ledger-id", ledgerID,
+		})
 
 		list := &mmodel.Accounts{
 			Page:  1,
@@ -206,12 +203,13 @@ func Test_newCmdAssetList(t *testing.T) {
 			EndDate:        "2023-11-10",
 		}
 
-		ledFactory.tuiInput = func(message string) (string, error) {
-			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
-		}
-
 		cmd := newCmdAccountList(&ledFactory)
-		cmd.SetArgs([]string{"--start-date", "2023-11-01", "--end-date", "2023-11-10"})
+		cmd.SetArgs([]string{
+			"--organization-id", organizationID,
+			"--ledger-id", ledgerID,
+			"--start-date", "2023-11-01",
+			"--end-date", "2023-11-10",
+		})
 
 		list := &mmodel.Accounts{
 			Page:  1,
