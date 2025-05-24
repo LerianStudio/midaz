@@ -8,4 +8,4 @@ export * from './assets';
 export * from './portfolios';
 export * from './segments';
 export * from './accounts';
-export * from './transactions';
+// Note: transactions generator is now modular and exported separately
