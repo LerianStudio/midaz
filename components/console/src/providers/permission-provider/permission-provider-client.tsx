@@ -19,7 +19,9 @@ export const usePermissions = () => {
   const context = React.useContext(PermissionContext)
 
   if (!context || !context.validate) {
-    console.warn('PermissionContext not properly initialized, using default permissions')
+    console.warn(
+      'PermissionContext not properly initialized, using default permissions'
+    )
     return {
       permissions: { '*': ['*'] },
       validate: () => true

@@ -7,7 +7,10 @@ import {
 import { container } from '@/core/infrastructure/container-registry/container-registry'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { getServerSession } from 'next-auth'
-import { PermissionProviderClient, Permissions } from './permission-provider-client'
+import {
+  PermissionProviderClient,
+  Permissions
+} from './permission-provider-client'
 import { serverFetcher } from '@/lib/fetcher'
 
 const authPermissionUseCase = container.get<AuthPermission>(

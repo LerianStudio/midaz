@@ -10,7 +10,8 @@ import {
   Home,
   LibraryBig,
   Users,
-  Puzzle
+  Puzzle,
+  Receipt
 } from 'lucide-react'
 import { OrganizationSwitcher } from '../organization-switcher'
 import { useIntl } from 'react-intl'
@@ -149,6 +150,15 @@ export const Sidebar = () => {
             })}
             icon={<Users />}
             href="/plugins/crm"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.fees',
+              defaultMessage: 'Fees'
+            })}
+            icon={<Receipt />}
+            href="/plugins/fees"
           />
 
           <SidebarItem

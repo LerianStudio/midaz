@@ -8,6 +8,7 @@ import { PageContent, PageRoot, PageView } from '@/components/page'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
 import { CRMDashboardWidget } from '@/components/crm/crm-dashboard-widget'
+import { FeesDashboardWidget } from '@/components/fees/fees-dashboard-widget'
 
 const Page = () => {
   const intl = useIntl()
@@ -46,9 +47,10 @@ const Page = () => {
                 />
               </PageHeader.Root>
 
-              {/* CRM Dashboard Widget */}
-              <div className="mt-8">
+              {/* Dashboard Widgets */}
+              <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <CRMDashboardWidget />
+                <FeesDashboardWidget />
               </div>
             </>
           )}

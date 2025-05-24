@@ -13,32 +13,34 @@ import { Badge } from '@/components/ui/badge'
 import { CustomerType } from './customer-types'
 
 // Create safe input component that doesn't use form context
-const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, type, ...props }, ref) => {
-    return (
-      <input
-        type={type}
-        className={`flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${className || ''}`}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
+const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ className, type, ...props }, ref) => {
+  return (
+    <input
+      type={type}
+      className={`flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${className || ''}`}
+      ref={ref}
+      {...props}
+    />
+  )
+})
 Input.displayName = 'Input'
 
 // Create safe label component that doesn't use form context
-const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttributes<HTMLLabelElement>>(
-  ({ className, ...props }, ref) => {
-    return (
-      <label
-        ref={ref}
-        className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`}
-        {...props}
-      />
-    )
-  }
-)
+const Label = React.forwardRef<
+  HTMLLabelElement,
+  React.LabelHTMLAttributes<HTMLLabelElement>
+>(({ className, ...props }, ref) => {
+  return (
+    <label
+      ref={ref}
+      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`}
+      {...props}
+    />
+  )
+})
 Label.displayName = 'Label'
 
 interface CustomerWizardProps {
@@ -87,9 +89,7 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="document">
-              {isNaturalPerson ? 'CPF' : 'CNPJ'}
-            </Label>
+            <Label htmlFor="document">{isNaturalPerson ? 'CPF' : 'CNPJ'}</Label>
             <Input
               id="document"
               placeholder={
@@ -122,13 +122,17 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                   id="birthDate"
                   type="date"
                   value={formData.birthDate || ''}
-                  onChange={(e) => handleInputChange('birthDate', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange('birthDate', e.target.value)
+                  }
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="gender">Gender</Label>
-                <Select onValueChange={(value) => handleInputChange('gender', value)}>
+                <Select
+                  onValueChange={(value) => handleInputChange('gender', value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
@@ -136,14 +140,20 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                     <SelectItem value="Male">Male</SelectItem>
                     <SelectItem value="Female">Female</SelectItem>
                     <SelectItem value="Other">Other</SelectItem>
-                    <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                    <SelectItem value="Prefer not to say">
+                      Prefer not to say
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="civilStatus">Civil Status</Label>
-                <Select onValueChange={(value) => handleInputChange('civilStatus', value)}>
+                <Select
+                  onValueChange={(value) =>
+                    handleInputChange('civilStatus', value)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -162,7 +172,9 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                   id="nationality"
                   placeholder="Brazilian"
                   value={formData.nationality || ''}
-                  onChange={(e) => handleInputChange('nationality', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange('nationality', e.target.value)
+                  }
                 />
               </div>
             </div>
@@ -181,7 +193,9 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                     id="tradeName"
                     placeholder="Acme"
                     value={formData.tradeName || ''}
-                    onChange={(e) => handleInputChange('tradeName', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('tradeName', e.target.value)
+                    }
                   />
                 </div>
 
@@ -191,13 +205,19 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                     id="activity"
                     placeholder="Software Development"
                     value={formData.activity || ''}
-                    onChange={(e) => handleInputChange('activity', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('activity', e.target.value)
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="companyType">Company Type</Label>
-                  <Select onValueChange={(value) => handleInputChange('companyType', value)}>
+                  <Select
+                    onValueChange={(value) =>
+                      handleInputChange('companyType', value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -220,21 +240,35 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                     id="foundingDate"
                     type="date"
                     value={formData.foundingDate || ''}
-                    onChange={(e) => handleInputChange('foundingDate', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('foundingDate', e.target.value)
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="companySize">Company Size</Label>
-                  <Select onValueChange={(value) => handleInputChange('companySize', value)}>
+                  <Select
+                    onValueChange={(value) =>
+                      handleInputChange('companySize', value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select size" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Micro">Micro (1-9 employees)</SelectItem>
-                      <SelectItem value="Small">Small (10-49 employees)</SelectItem>
-                      <SelectItem value="Medium">Medium (50-249 employees)</SelectItem>
-                      <SelectItem value="Large">Large (250+ employees)</SelectItem>
+                      <SelectItem value="Micro">
+                        Micro (1-9 employees)
+                      </SelectItem>
+                      <SelectItem value="Small">
+                        Small (10-49 employees)
+                      </SelectItem>
+                      <SelectItem value="Medium">
+                        Medium (50-249 employees)
+                      </SelectItem>
+                      <SelectItem value="Large">
+                        Large (250+ employees)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -245,22 +279,33 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
               <h4 className="mb-4 font-medium">Legal Representative</h4>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="representativeName">Representative Name</Label>
+                  <Label htmlFor="representativeName">
+                    Representative Name
+                  </Label>
                   <Input
                     id="representativeName"
                     placeholder="John Doe"
                     value={formData.representativeName || ''}
-                    onChange={(e) => handleInputChange('representativeName', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('representativeName', e.target.value)
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="representativeDocument">Representative CPF</Label>
+                  <Label htmlFor="representativeDocument">
+                    Representative CPF
+                  </Label>
                   <Input
                     id="representativeDocument"
                     placeholder="000.000.000-00"
                     value={formData.representativeDocument || ''}
-                    onChange={(e) => handleInputChange('representativeDocument', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(
+                        'representativeDocument',
+                        e.target.value
+                      )
+                    }
                   />
                 </div>
 
@@ -270,17 +315,23 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
                     id="representativeRole"
                     placeholder="CEO"
                     value={formData.representativeRole || ''}
-                    onChange={(e) => handleInputChange('representativeRole', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('representativeRole', e.target.value)
+                    }
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="representativeEmail">Representative Email</Label>
+                  <Label htmlFor="representativeEmail">
+                    Representative Email
+                  </Label>
                   <Input
                     id="representativeEmail"
                     placeholder="john@company.com"
                     value={formData.representativeEmail || ''}
-                    onChange={(e) => handleInputChange('representativeEmail', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('representativeEmail', e.target.value)
+                    }
                   />
                 </div>
               </div>
@@ -310,7 +361,9 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
               type="email"
               placeholder="john@example.com"
               value={formData.primaryEmail || ''}
-              onChange={(e) => handleInputChange('primaryEmail', e.target.value)}
+              onChange={(e) =>
+                handleInputChange('primaryEmail', e.target.value)
+              }
             />
           </div>
 
@@ -321,7 +374,9 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
               type="email"
               placeholder="john.personal@example.com"
               value={formData.secondaryEmail || ''}
-              onChange={(e) => handleInputChange('secondaryEmail', e.target.value)}
+              onChange={(e) =>
+                handleInputChange('secondaryEmail', e.target.value)
+              }
             />
           </div>
 
@@ -415,7 +470,9 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="country">Country *</Label>
-            <Select onValueChange={(value) => handleInputChange('country', value)}>
+            <Select
+              onValueChange={(value) => handleInputChange('country', value)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
@@ -458,16 +515,24 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Name:</span>
-                <span className="ml-2 font-medium">{formData.name || 'Not provided'}</span>
+                <span className="ml-2 font-medium">
+                  {formData.name || 'Not provided'}
+                </span>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Document:</span>
-                <span className="ml-2 font-medium">{formData.document || 'Not provided'}</span>
+                <span className="ml-2 font-medium">
+                  {formData.document || 'Not provided'}
+                </span>
               </div>
               {formData.externalId && (
                 <div>
-                  <span className="text-sm text-muted-foreground">External ID:</span>
-                  <span className="ml-2 font-medium">{formData.externalId}</span>
+                  <span className="text-sm text-muted-foreground">
+                    External ID:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {formData.externalId}
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -480,17 +545,29 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
             </CardHeader>
             <CardContent className="space-y-2">
               <div>
-                <span className="text-sm text-muted-foreground">Primary Email:</span>
-                <span className="ml-2 font-medium">{formData.primaryEmail || 'Not provided'}</span>
+                <span className="text-sm text-muted-foreground">
+                  Primary Email:
+                </span>
+                <span className="ml-2 font-medium">
+                  {formData.primaryEmail || 'Not provided'}
+                </span>
               </div>
               <div>
-                <span className="text-sm text-muted-foreground">Mobile Phone:</span>
-                <span className="ml-2 font-medium">{formData.mobilePhone || 'Not provided'}</span>
+                <span className="text-sm text-muted-foreground">
+                  Mobile Phone:
+                </span>
+                <span className="ml-2 font-medium">
+                  {formData.mobilePhone || 'Not provided'}
+                </span>
               </div>
               {formData.secondaryEmail && (
                 <div>
-                  <span className="text-sm text-muted-foreground">Secondary Email:</span>
-                  <span className="ml-2 font-medium">{formData.secondaryEmail}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Secondary Email:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {formData.secondaryEmail}
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -503,12 +580,19 @@ export const CustomerWizard: React.FC<CustomerWizardProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
-                <p className="font-medium">{formData.line1 || 'Address not provided'}</p>
-                {formData.line2 && <p className="text-muted-foreground">{formData.line2}</p>}
-                <p className="text-muted-foreground">
-                  {formData.city || 'City'}, {formData.state || 'State'} {formData.zipCode || 'ZIP'}
+                <p className="font-medium">
+                  {formData.line1 || 'Address not provided'}
                 </p>
-                <p className="text-muted-foreground">{formData.country || 'Country'}</p>
+                {formData.line2 && (
+                  <p className="text-muted-foreground">{formData.line2}</p>
+                )}
+                <p className="text-muted-foreground">
+                  {formData.city || 'City'}, {formData.state || 'State'}{' '}
+                  {formData.zipCode || 'ZIP'}
+                </p>
+                <p className="text-muted-foreground">
+                  {formData.country || 'Country'}
+                </p>
               </div>
             </CardContent>
           </Card>

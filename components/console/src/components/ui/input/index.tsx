@@ -9,7 +9,7 @@ export interface InputProps
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, id, ...props }, ref) => {
     let formItemId = id
-    
+
     // Try to use form context if available
     try {
       const formField = useFormField()
@@ -17,7 +17,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     } catch (error) {
       // If not in a form context, just use the provided id
     }
-    
+
     return (
       <input
         id={formItemId}
