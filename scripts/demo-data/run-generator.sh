@@ -132,13 +132,13 @@ if [ ! -d "$SDK_PATH/src" ]; then
   log "Cloning SDK from GitHub: $SDK_REPO (main branch)"
   git clone -b main "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
     
-  # Install SDK dependencies
+  # Install SDK dependencies (skip prepare script to avoid build failure)
   log "Installing SDK dependencies..."
-  (cd "$SDK_PATH" && npm install) || log_warning "SDK dependency installation had issues"
+  (cd "$SDK_PATH" && npm install --ignore-scripts) || log_warning "SDK dependency installation had issues"
   
   # Install missing Node.js types
   log "Installing Node.js types for SDK..."
-  (cd "$SDK_PATH" && npm install --save-dev @types/node) || log_warning "Failed to install @types/node"
+  (cd "$SDK_PATH" && npm install --save-dev @types/node --ignore-scripts) || log_warning "Failed to install @types/node"
     
   # Try to build the SDK, but don't fail if it doesn't work
   log "Attempting to build SDK..."
