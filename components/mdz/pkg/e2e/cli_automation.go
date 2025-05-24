@@ -347,7 +347,7 @@ func (s *CLISession) Close() error {
 	s.recorder.Metadata.Duration = s.recorder.Metadata.EndTime.Sub(s.recorder.Metadata.StartTime).Milliseconds()
 
 	if s.cmd != nil && s.cmd.Process != nil {
-		s.cmd.Wait() // Wait for process to complete
+		_ = s.cmd.Wait() // Wait for process to complete
 
 		if s.cmd.ProcessState != nil {
 			s.recorder.Metadata.ExitCode = s.cmd.ProcessState.ExitCode()
@@ -382,7 +382,7 @@ func (s *CLISession) readOutput() {
 	scanner := bufio.NewScanner(s.stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
-		s.outputBuf.Write([]byte(line + "\n"))
+		_, _ = s.outputBuf.Write([]byte(line + "\n"))
 
 		if s.config.Debug {
 			fmt.Printf("[OUT] %s\n", line)
@@ -399,7 +399,7 @@ func (s *CLISession) readError() {
 	scanner := bufio.NewScanner(s.stderr)
 	for scanner.Scan() {
 		line := scanner.Text()
-		s.errorBuf.Write([]byte(line + "\n"))
+		_, _ = s.errorBuf.Write([]byte(line + "\n"))
 
 		if s.config.Debug {
 			fmt.Printf("[ERR] %s\n", line)
@@ -410,7 +410,7 @@ func (s *CLISession) readError() {
 }
 
 // recordEvent adds an event to the recording
-func (r *SessionRecorder) recordEvent(eventType, data, context string) {
+func (r *SessionRecorder) recordEvent(eventType, data, ctx string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -425,7 +425,7 @@ func (r *SessionRecorder) recordEvent(eventType, data, context string) {
 		Type:      eventType,
 		Timestamp: now,
 		Data:      data,
-		Context:   context,
+		Context:   ctx,
 		Delay:     delay,
 	}
 

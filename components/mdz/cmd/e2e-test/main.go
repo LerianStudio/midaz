@@ -30,49 +30,9 @@ func main() {
 		log.Fatalf("MDZ binary not found at %s", *mdzBinary)
 	}
 
-	// Get scenarios
-	scenarios := e2e.GetDefaultScenarios()
+	scenarios := getScenarios(*listScenarios, *scenario)
+	absOutputDir := setupOutputDirectory(*outputDir)
 
-	// List scenarios if requested
-	if *listScenarios {
-		fmt.Println("Available scenarios:")
-
-		for _, s := range scenarios {
-			fmt.Printf("  %-20s - %s\n", s.Name, s.Description)
-		}
-
-		return
-	}
-
-	// Filter scenarios if specific one requested
-	if *scenario != "" {
-		filtered := make([]*e2e.Scenario, 0)
-
-		for _, s := range scenarios {
-			if s.Name == *scenario {
-				filtered = append(filtered, s)
-				break
-			}
-		}
-
-		if len(filtered) == 0 {
-			log.Fatalf("Scenario '%s' not found", *scenario)
-		}
-
-		scenarios = filtered
-	}
-
-	// Create output directory
-	absOutputDir, err := filepath.Abs(*outputDir)
-	if err != nil {
-		log.Fatalf("Failed to resolve output directory: %v", err)
-	}
-
-	if err := os.MkdirAll(absOutputDir, 0755); err != nil {
-		log.Fatalf("Failed to create output directory: %v", err)
-	}
-
-	// Configure runner
 	config := &e2e.RunnerConfig{
 		MDZBinary:   *mdzBinary,
 		OutputDir:   absOutputDir,
@@ -82,29 +42,104 @@ func main() {
 		AnalyzeFlow: *analyzeFlow,
 	}
 
-	// Create and run scenarios
+	results := runScenarios(config, scenarios, *mdzBinary, absOutputDir, *debug, *analyzeFlow)
+	printSummary(results, *analyzeFlow, absOutputDir)
+
+	// Exit with error code if any tests failed
+	failed := countFailures(results)
+	if failed > 0 {
+		os.Exit(1)
+	}
+}
+
+func getScenarios(listScenarios bool, scenario string) []*e2e.Scenario {
+	scenarios := e2e.GetDefaultScenarios()
+
+	if listScenarios {
+		fmt.Println("Available scenarios:")
+
+		for _, s := range scenarios {
+			fmt.Printf("  %-20s - %s\n", s.Name, s.Description)
+		}
+
+		os.Exit(0)
+	}
+
+	if scenario != "" {
+		filtered := make([]*e2e.Scenario, 0)
+
+		for _, s := range scenarios {
+			if s.Name == scenario {
+				filtered = append(filtered, s)
+				break
+			}
+		}
+
+		if len(filtered) == 0 {
+			log.Fatalf("Scenario '%s' not found", scenario)
+		}
+
+		scenarios = filtered
+	}
+
+	return scenarios
+}
+
+func setupOutputDirectory(outputDir string) string {
+	absOutputDir, err := filepath.Abs(outputDir)
+	if err != nil {
+		log.Fatalf("Failed to resolve output directory: %v", err)
+	}
+
+	if err := os.MkdirAll(absOutputDir, 0755); err != nil {
+		log.Fatalf("Failed to create output directory: %v", err)
+	}
+
+	return absOutputDir
+}
+
+func runScenarios(config *e2e.RunnerConfig, scenarios []*e2e.Scenario, mdzBinary, absOutputDir string, debug, analyzeFlow bool) []*e2e.ScenarioResult {
 	runner := e2e.NewScenarioRunner(config)
 
 	fmt.Printf("🚀 Starting MDZ CLI E2E Testing\n")
-	fmt.Printf("Binary: %s\n", *mdzBinary)
+	fmt.Printf("Binary: %s\n", mdzBinary)
 	fmt.Printf("Output: %s\n", absOutputDir)
 	fmt.Printf("Scenarios: %d\n", len(scenarios))
-	fmt.Printf("Debug: %v\n", *debug)
-	fmt.Printf("Analysis: %v\n", *analyzeFlow)
+	fmt.Printf("Debug: %v\n", debug)
+	fmt.Printf("Analysis: %v\n", analyzeFlow)
 	fmt.Println()
-
-	startTime := time.Now()
 
 	results, err := runner.RunScenarios(scenarios)
 	if err != nil {
 		log.Fatalf("Failed to run scenarios: %v", err)
 	}
 
-	// Summary
-	totalDuration := time.Since(startTime)
-	passed := 0
-	failed := 0
+	return results
+}
 
+func printSummary(results []*e2e.ScenarioResult, analyzeFlow bool, absOutputDir string) {
+	passed, failed := countResults(results)
+
+	fmt.Printf("\n📊 Test Summary\n")
+	fmt.Printf("================\n")
+	fmt.Printf("Total scenarios: %d\n", len(results))
+	fmt.Printf("Passed: %d ✓\n", passed)
+	fmt.Printf("Failed: %d ✗\n", failed)
+	fmt.Printf("Success rate: %.1f%%\n", float64(passed)/float64(len(results))*100)
+
+	printFailures(results)
+
+	if analyzeFlow {
+		printAnalysis(results)
+	}
+
+	fmt.Printf("\n📁 Results saved to: %s\n", absOutputDir)
+	fmt.Printf("   - report.html (detailed report)\n")
+	fmt.Printf("   - report.json (machine-readable)\n")
+	fmt.Printf("   - *.json (individual recordings)\n")
+}
+
+func countResults(results []*e2e.ScenarioResult) (passed, failed int) {
 	for _, result := range results {
 		if result.Success {
 			passed++
@@ -113,15 +148,24 @@ func main() {
 		}
 	}
 
-	fmt.Printf("\n📊 Test Summary\n")
-	fmt.Printf("================\n")
-	fmt.Printf("Total scenarios: %d\n", len(results))
-	fmt.Printf("Passed: %d ✓\n", passed)
-	fmt.Printf("Failed: %d ✗\n", failed)
-	fmt.Printf("Duration: %v\n", totalDuration)
-	fmt.Printf("Success rate: %.1f%%\n", float64(passed)/float64(len(results))*100)
+	return
+}
 
-	if failed > 0 {
+func countFailures(results []*e2e.ScenarioResult) int {
+	_, failed := countResults(results)
+	return failed
+}
+
+func printFailures(results []*e2e.ScenarioResult) {
+	failures := 0
+
+	for _, result := range results {
+		if !result.Success {
+			failures++
+		}
+	}
+
+	if failures > 0 {
 		fmt.Printf("\n❌ Failed scenarios:\n")
 
 		for _, result := range results {
@@ -130,44 +174,33 @@ func main() {
 			}
 		}
 	}
+}
 
-	// Analysis summary
-	if *analyzeFlow {
-		fmt.Printf("\n🔍 UX Analysis Summary\n")
-		fmt.Printf("======================\n")
+func printAnalysis(results []*e2e.ScenarioResult) {
+	fmt.Printf("\n🔍 UX Analysis Summary\n")
+	fmt.Printf("======================\n")
 
-		totalIssues := 0
-		highPriorityRecs := 0
+	totalIssues := 0
+	highPriorityRecs := 0
 
-		for _, result := range results {
-			if result.Analysis != nil {
-				totalIssues += len(result.Analysis.UXIssues)
+	for _, result := range results {
+		if result.Analysis != nil {
+			totalIssues += len(result.Analysis.UXIssues)
 
-				for _, rec := range result.Analysis.Recommendations {
-					if rec.Priority == "High" {
-						highPriorityRecs++
-					}
+			for _, rec := range result.Analysis.Recommendations {
+				if rec.Priority == "High" {
+					highPriorityRecs++
 				}
-
-				fmt.Printf("%s:\n", result.Scenario)
-				fmt.Printf("  Flow efficiency: %.1f%%\n", result.Analysis.FlowEfficiency*100)
-				fmt.Printf("  UX issues: %d\n", len(result.Analysis.UXIssues))
-				fmt.Printf("  Recommendations: %d\n", len(result.Analysis.Recommendations))
 			}
+
+			fmt.Printf("%s:\n", result.Scenario)
+			fmt.Printf("  Flow efficiency: %.1f%%\n", result.Analysis.FlowEfficiency*100)
+			fmt.Printf("  UX issues: %d\n", len(result.Analysis.UXIssues))
+			fmt.Printf("  Recommendations: %d\n", len(result.Analysis.Recommendations))
 		}
-
-		fmt.Printf("\nOverall:\n")
-		fmt.Printf("  Total UX issues: %d\n", totalIssues)
-		fmt.Printf("  High priority recommendations: %d\n", highPriorityRecs)
 	}
 
-	fmt.Printf("\n📁 Results saved to: %s\n", absOutputDir)
-	fmt.Printf("   - report.html (detailed report)\n")
-	fmt.Printf("   - report.json (machine-readable)\n")
-	fmt.Printf("   - *.json (individual recordings)\n")
-
-	// Exit with error code if any tests failed
-	if failed > 0 {
-		os.Exit(1)
-	}
+	fmt.Printf("\nOverall:\n")
+	fmt.Printf("  Total UX issues: %d\n", totalIssues)
+	fmt.Printf("  High priority recommendations: %d\n", highPriorityRecs)
 }

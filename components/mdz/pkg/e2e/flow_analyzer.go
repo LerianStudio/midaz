@@ -152,7 +152,7 @@ func (fa *FlowAnalyzer) analyzeUserJourney(events []SessionEvent, analysis *Flow
 func (fa *FlowAnalyzer) analyzePerformance(events []SessionEvent, analysis *FlowAnalysis) {
 	var totalDuration time.Duration
 
-	var stepTimes []time.Duration
+	stepTimes := make([]time.Duration, 0, len(events))
 
 	var slowestTime time.Duration
 
@@ -248,7 +248,7 @@ func (fa *FlowAnalyzer) analyzeInteractions(events []SessionEvent, analysis *Flo
 }
 
 // detectUXIssues identifies potential user experience issues
-func (fa *FlowAnalyzer) detectUXIssues(events []SessionEvent, analysis *FlowAnalysis) {
+func (fa *FlowAnalyzer) detectUXIssues(_ []SessionEvent, analysis *FlowAnalysis) {
 	// Detect long response times
 	for _, responseTime := range analysis.Performance.ResponseTimes {
 		if responseTime > 3*time.Second {

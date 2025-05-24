@@ -111,13 +111,7 @@ func (sr *ScenarioRunner) RunScenario(scenario *Scenario) (*ScenarioResult, erro
 
 	// Setup
 	if scenario.Setup != nil {
-		if err := sr.executeSetup(scenario.Setup); err != nil {
-			result.Error = fmt.Sprintf("Setup failed: %v", err)
-			result.Success = false
-			result.Duration = time.Since(startTime)
-
-			return result, err
-		}
+		sr.executeSetup(scenario.Setup)
 	}
 
 	// Prepare session config
@@ -261,7 +255,7 @@ func (sr *ScenarioRunner) executeStep(session *CLISession, step *Step, stepNumbe
 }
 
 // executeSetup executes scenario setup
-func (sr *ScenarioRunner) executeSetup(setup *Setup) error {
+func (sr *ScenarioRunner) executeSetup(setup *Setup) {
 	// Set environment variables
 	for k, v := range setup.Environment {
 		os.Setenv(k, v)
@@ -273,15 +267,13 @@ func (sr *ScenarioRunner) executeSetup(setup *Setup) error {
 			fmt.Printf("Setup: %s\n", cmd)
 		}
 	}
-
-	return nil
 }
 
 // executeCleanup executes scenario cleanup
 func (sr *ScenarioRunner) executeCleanup(cleanup *Cleanup) {
 	// Remove environment variables
 	for _, env := range cleanup.Environment {
-		os.Unsetenv(env)
+		_ = os.Unsetenv(env)
 	}
 
 	// Execute cleanup commands

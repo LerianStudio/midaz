@@ -459,7 +459,7 @@ func (r *REPL) handleSmartList(ctx context.Context) {
 	}
 
 	// Use the same pattern as executeCommand to ensure interceptor is called
-	r.executeCommand(ctx, strings.Join(args, " "))
+	_ = r.executeCommand(ctx, strings.Join(args, " "))
 }
 
 // parseCommandLine parses a command line into arguments
