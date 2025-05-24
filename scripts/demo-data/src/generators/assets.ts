@@ -7,21 +7,15 @@ import { MidazClient } from 'midaz-sdk/src';
 import { Asset } from 'midaz-sdk/src/models/asset';
 import { ASSET_TEMPLATES } from '../config';
 import { Logger } from '../services/logger';
-import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
+import { BaseGenerator } from './base.generator';
 
 /**
  * Asset generator implementation
  */
-export class AssetGenerator implements EntityGenerator<Asset> {
-  private logger: Logger;
-  private client: MidazClient;
-  private stateManager: StateManager;
-
+export class AssetGenerator extends BaseGenerator<Asset> {
   constructor(client: MidazClient, logger: Logger) {
-    this.client = client;
-    this.logger = logger;
-    this.stateManager = StateManager.getInstance();
+    super(client, logger, StateManager.getInstance());
   }
 
   /**
@@ -31,17 +25,9 @@ export class AssetGenerator implements EntityGenerator<Asset> {
    * @param organizationId Organization ID
    */
   async generate(count: number, parentId?: string, organizationId?: string): Promise<Asset[]> {
-    // Get ledgerId from parentId
-    const ledgerId = parentId || '';
-    if (!ledgerId) {
-      throw new Error('Cannot generate assets without a ledger ID');
-    }
-
-    // Use provided organizationId or get from state
-    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
-    if (!orgId) {
-      throw new Error('Cannot generate assets without an organization ID');
-    }
+    this.validateRequired(parentId, 'ledger ID');
+    const ledgerId = parentId!;
+    const orgId = this.getOrganizationId(organizationId);
 
     this.logger.info(`Generating ${count} assets for ledger: ${ledgerId}`);
 
@@ -63,13 +49,13 @@ export class AssetGenerator implements EntityGenerator<Asset> {
         );
 
         assets.push(asset);
-        this.logger.progress('Assets created', i + 1, count);
+        this.logProgress('Asset', i + 1, count, ledgerId);
       } catch (error) {
         this.logger.error(
           `Failed to generate template asset ${i + 1} for ledger ${ledgerId}`,
           error as Error
         );
-        this.stateManager.incrementErrorCount('asset');
+        this.trackError('asset', ledgerId, error as Error, { templateIndex: i });
       }
     }
 
@@ -81,18 +67,18 @@ export class AssetGenerator implements EntityGenerator<Asset> {
         try {
           const asset = await this.generateOne(ledgerId, orgId);
           assets.push(asset);
-          this.logger.progress('Assets created', ASSET_TEMPLATES.length + i + 1, count);
+          this.logProgress('Asset', ASSET_TEMPLATES.length + i + 1, count, ledgerId);
         } catch (error) {
           this.logger.error(
             `Failed to generate custom asset ${i + 1} for ledger ${ledgerId}`,
             error as Error
           );
-          this.stateManager.incrementErrorCount('asset');
+          this.trackError('asset', ledgerId, error as Error, { customAssetIndex: i });
         }
       }
     }
 
-    this.logger.info(`Successfully generated ${assets.length} assets for ledger: ${ledgerId}`);
+    this.logCompletion('asset', assets.length, ledgerId);
     return assets;
   }
 
@@ -102,17 +88,9 @@ export class AssetGenerator implements EntityGenerator<Asset> {
    * @param organizationId Organization ID
    */
   async generateOne(parentId?: string, organizationId?: string): Promise<Asset> {
-    // Get ledgerId from parentId
-    const ledgerId = parentId || '';
-    if (!ledgerId) {
-      throw new Error('Cannot generate asset without a ledger ID');
-    }
-
-    // Use provided organizationId or get from state
-    const orgId = organizationId || this.stateManager.getOrganizationIds()[0];
-    if (!orgId) {
-      throw new Error('Cannot generate asset without an organization ID');
-    }
+    this.validateRequired(parentId, 'ledger ID');
+    const ledgerId = parentId!;
+    const orgId = this.getOrganizationId(organizationId);
     // Generate a unique code for the asset
     const assetCode = faker.finance.currencyCode();
     const assetName = faker.finance.currencyName();
@@ -178,24 +156,23 @@ export class AssetGenerator implements EntityGenerator<Asset> {
 
       return asset;
     } catch (error) {
-      // Check if it's a conflict error (already exists)
-      if (
-        (error as Error).message.includes('already exists') ||
-        (error as Error).message.includes('conflict')
-      ) {
-        this.logger.warn(
-          `Asset with code "${code}" may already exist for ledger ${ledgerId}, trying to retrieve it`
-        );
-
-        // Try to find the asset by listing all and filtering
-        const assets = await this.client.entities.assets.listAssets(organizationId, ledgerId);
-        const existingAsset = assets.items.find((a) => a.code === code);
-
-        if (existingAsset) {
-          this.logger.info(`Found existing asset: ${existingAsset.id} (${existingAsset.code})`);
-          this.stateManager.addAssetId(ledgerId, existingAsset.id, existingAsset.code);
-          return existingAsset;
+      const result = await this.handleConflict(
+        error as Error,
+        `Asset with code "${code}"`,
+        async () => {
+          const assets = await this.client.entities.assets.listAssets(organizationId, ledgerId);
+          const existingAsset = assets.items.find((a) => a.code === code);
+          if (existingAsset) {
+            this.logger.info(`Found existing asset: ${existingAsset.id} (${existingAsset.code})`);
+            this.stateManager.addAssetId(ledgerId, existingAsset.id, existingAsset.code);
+            return existingAsset;
+          }
+          throw new Error('Asset not found');
         }
+      );
+
+      if (result) {
+        return result;
       }
 
       // Re-throw the error for the caller to handle

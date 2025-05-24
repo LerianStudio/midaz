@@ -6,21 +6,15 @@ import * as faker from 'faker';
 import { MidazClient } from 'midaz-sdk/src';
 import { Portfolio } from 'midaz-sdk/src/models/portfolio';
 import { Logger } from '../services/logger';
-import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
+import { BaseGenerator } from './base.generator';
 
 /**
  * Portfolio generator implementation
  */
-export class PortfolioGenerator implements EntityGenerator<Portfolio> {
-  private logger: Logger;
-  private client: MidazClient;
-  private stateManager: StateManager;
-
+export class PortfolioGenerator extends BaseGenerator<Portfolio> {
   constructor(client: MidazClient, logger: Logger) {
-    this.client = client;
-    this.logger = logger;
-    this.stateManager = StateManager.getInstance();
+    super(client, logger, StateManager.getInstance());
   }
 
   /**
