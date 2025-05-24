@@ -129,8 +129,8 @@ if [ ! -d "$SDK_PATH/src" ]; then
   rm -rf "$SDK_PATH"
   
   # Clone from GitHub (develop branch)
-  log "Cloning SDK from GitHub: $SDK_REPO (develop branch)"
-  git clone -b develop "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
+  log "Cloning SDK from GitHub: $SDK_REPO"
+  git clone "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
     
   # Install SDK dependencies
   log "Installing SDK dependencies..."
