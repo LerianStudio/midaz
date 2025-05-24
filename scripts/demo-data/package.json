@@ -14,7 +14,12 @@
     "clean": "rimraf dist",
     "test": "jest --testTimeout=10000 --detectOpenHandles --forceExit --testPathIgnorePatterns=sdk-source",
     "test:watch": "jest --watch --testTimeout=10000 --detectOpenHandles --testPathIgnorePatterns=sdk-source",
-    "test:coverage": "jest --coverage --testTimeout=10000 --detectOpenHandles --forceExit --testPathIgnorePatterns=sdk-source"
+    "test:coverage": "jest --coverage --testTimeout=10000 --detectOpenHandles --forceExit --testPathIgnorePatterns=sdk-source",
+    "test:unit": "jest tests/unit --testTimeout=10000 --detectOpenHandles --forceExit",
+    "test:integration": "jest tests/integration --testTimeout=30000 --detectOpenHandles --forceExit",
+    "test:comprehensive": "jest --config jest.config.comprehensive.js",
+    "test:comprehensive:coverage": "jest --config jest.config.comprehensive.js --coverage",
+    "test:ci": "jest --config jest.config.comprehensive.js --coverage --ci --runInBand"
   },
   "dependencies": {
     "faker": "^5.5.3",
@@ -31,6 +36,7 @@
     "@typescript-eslint/parser": "^5.59.0",
     "eslint": "^8.39.0",
     "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
     "prettier": "^2.8.8",
     "rimraf": "^5.0.0",
     "ts-jest": "^29.3.4",
