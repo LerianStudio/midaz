@@ -30,7 +30,9 @@ export default async function RootLayout({
 
   return (
     <OrganizationProvider>
-      <SidebarProvider>{children}</SidebarProvider>
+      <PermissionProvider>
+        <SidebarProvider>{children}</SidebarProvider>
+      </PermissionProvider>
     </OrganizationProvider>
   )
 }

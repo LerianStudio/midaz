@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { PageContent, PageRoot, PageView } from '@/components/page'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
+import { CRMDashboardWidget } from '@/components/crm/crm-dashboard-widget'
 
 const Page = () => {
   const intl = useIntl()
@@ -25,19 +26,31 @@ const Page = () => {
         <Header />
         <PageContent>
           {hasOrganizations && (
-            <PageHeader.Root>
-              <PageHeader.InfoTitle
-                title={intl.formatMessage(
-                  {
-                    id: 'homePage.welcome.title',
-                    defaultMessage: 'Welcome, {user}!'
-                  },
-                  {
-                    user: (session?.user?.name as string) || 'Guest'
-                  }
-                )}
-              />
-            </PageHeader.Root>
+            <>
+              <PageHeader.Root>
+                <PageHeader.InfoTitle
+                  title={intl.formatMessage(
+                    {
+                      id: 'homePage.welcome.title',
+                      defaultMessage: 'Welcome, {user}!'
+                    },
+                    {
+                      user: (session?.user?.name as string) || 'Guest'
+                    }
+                  )}
+                  subtitle={intl.formatMessage({
+                    id: 'homePage.welcome.subtitle',
+                    defaultMessage:
+                      "Here's an overview of your organization's activity."
+                  })}
+                />
+              </PageHeader.Root>
+
+              {/* CRM Dashboard Widget */}
+              <div className="mt-8">
+                <CRMDashboardWidget />
+              </div>
+            </>
           )}
         </PageContent>
       </PageView>

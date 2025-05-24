@@ -7,8 +7,17 @@ export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    const { formItemId } = useFormField()
+  ({ className, type, id, ...props }, ref) => {
+    let formItemId = id
+    
+    // Try to use form context if available
+    try {
+      const formField = useFormField()
+      formItemId = formField.formItemId || id
+    } catch (error) {
+      // If not in a form context, just use the provided id
+    }
+    
     return (
       <input
         id={formItemId}

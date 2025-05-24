@@ -480,6 +480,20 @@ console:
 	fi
 	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
 
+# Convenience commands for console development
+.PHONY: console-dev console-logs
+console-dev:
+	$(call print_title,"Starting console in development mode with hot-reload")
+	@cd $(CONSOLE_DIR) && $(MAKE) up-dev-hot
+
+console-rebuild-dev:
+	$(call print_title,"Rebuilding console in development mode with hot-reload")
+	@cd $(CONSOLE_DIR) && $(MAKE) rebuild-dev-hot
+
+console-logs:
+	$(call print_title,"Showing console development logs")
+	@cd $(CONSOLE_DIR) && $(MAKE) logs-dev
+
 all-components:
 	$(call print_title,"Running command across all components")
 	@if [ -z "$(COMMAND)" ]; then \

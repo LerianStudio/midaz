@@ -39,10 +39,13 @@ help:
 	@echo "  make format             - Format code"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                 - Start Docker container"
+	@echo "  make up                 - Start Docker container (production)"
+	@echo "  make up-dev             - Start Docker container with hot-reload (development)"
 	@echo "  make down               - Stop Docker container"
 	@echo "  make restart            - Restart Docker container"
 	@echo "  make rebuild-up         - Rebuild and restart services"
+	@echo "  make rebuild-dev        - Rebuild and restart in development mode"
+	@echo "  make logs-dev           - Show development server logs"
 	@echo "  make set-env            - Copy .env.example to .env"
 	@echo ""
 	@echo "$(BOLD)Storybook Commands:$(NC)"
@@ -110,6 +113,20 @@ up:
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: up-dev-hot
+up-dev-hot:
+	$(call title1,"Starting console in development mode with hot-reload")
+	@$(DOCKER_CMD) -f docker-compose.yml -f docker-compose.dev.yml up console -d
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Console development server started with hot-reload$(GREEN) ✔️$(NC)"
+	@echo "$(CYAN)Access the console at: http://localhost:8081$(NC)"
+	@echo "$(CYAN)To view logs: make logs-dev$(NC)"
+
+.PHONY: rebuild-dev-hot
+rebuild-dev-hot:
+	$(call title1,"Rebuilding console in development mode with hot-reload")
+	@$(DOCKER_CMD) -f docker-compose.yml -f docker-compose.dev.yml up console -d --build
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Console development server rebuilt and restarted$(GREEN) ✔️$(NC)"
+
 .PHONY: down
 down:
 	$(call title1,"Stopping and removing containers|networks|volumes")
@@ -135,6 +152,17 @@ rebuild-up:
 		echo "No docker-compose.yml file found. Skipping rebuild-up command."; \
 	fi
 	@echo "[ok] Services rebuilt and restarted successfully ✔️"
+
+.PHONY: logs-dev
+logs-dev:
+	$(call title1,"Showing console development logs")
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f console
+
+.PHONY: rebuild-dev
+rebuild-dev:
+	$(call title1,"Rebuilding console in development mode")
+	@$(DOCKER_CMD) -f docker-compose.yml -f docker-compose.dev.yml up console -d --build
+	@echo "$(GREEN)[ok] Console development server rebuilt and restarted$(GREEN) ✔️$(NC)"
 
 .PHONY: set-env
 set-env:

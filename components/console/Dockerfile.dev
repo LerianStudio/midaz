@@ -1,0 +1,30 @@
+# Development Dockerfile with hot-reloading
+FROM node:22-alpine
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Install necessary packages
+RUN apk update && apk add bash curl
+
+# Copy package.json and package-lock.json first for better caching
+COPY package*.json ./
+
+# Configure npm and install dependencies
+RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
+    npm install && \
+    npm cache clean --force && \
+    rm -f ~/.npmrc
+
+# Copy environment files
+COPY .env.example .env.example
+RUN npm run set-env
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8081
+
+# Command to run the application in development mode
+CMD ["npm", "run", "dev"]

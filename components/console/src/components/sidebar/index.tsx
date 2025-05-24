@@ -8,7 +8,9 @@ import {
   DollarSign,
   Group,
   Home,
-  LibraryBig
+  LibraryBig,
+  Users,
+  Puzzle
 } from 'lucide-react'
 import { OrganizationSwitcher } from '../organization-switcher'
 import { useIntl } from 'react-intl'
@@ -127,6 +129,36 @@ export const Sidebar = () => {
             icon={<ArrowLeftRight />}
             href="/transactions"
             disabled={Object.keys(currentLedger).length === 0}
+          />
+        </SidebarGroup>
+
+        {isCollapsed && <Separator />}
+
+        <SidebarGroup>
+          <SidebarGroupTitle collapsed={isCollapsed}>
+            {intl.formatMessage({
+              id: 'sideBar.plugins.title',
+              defaultMessage: 'Native Plugins'
+            })}
+          </SidebarGroupTitle>
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.crm',
+              defaultMessage: 'CRM'
+            })}
+            icon={<Users />}
+            href="/plugins/crm"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.more',
+              defaultMessage: 'More Plugins'
+            })}
+            icon={<Puzzle />}
+            href="/plugins"
+            disabled={true}
           />
         </SidebarGroup>
       </SidebarContent>
