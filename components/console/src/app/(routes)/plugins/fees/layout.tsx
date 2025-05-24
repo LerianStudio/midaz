@@ -1,16 +1,19 @@
 import React from 'react'
-import { PageRoot } from '@/components/page'
+import { ReactNode } from 'react'
+import { Header } from '@/components/header'
+import { Sidebar } from '@/components/sidebar'
+import { PageContent, PageRoot, PageView } from '@/components/page'
 import { FeesNavigation } from '@/components/fees/fees-navigation'
 
-export default function FeesLayout({
-  children
-}: {
-  children: React.ReactNode
-}) {
+export default function FeesLayout({ children }: { children: ReactNode }) {
   return (
-    <PageRoot className="flex flex-col gap-6">
-      <FeesNavigation />
-      <div className="flex-1">{children}</div>
+    <PageRoot>
+      <Sidebar />
+      <PageView>
+        <Header />
+        <FeesNavigation />
+        <PageContent>{children}</PageContent>
+      </PageView>
     </PageRoot>
   )
 }
