@@ -19,7 +19,8 @@ import {
   Mail,
   Phone,
   MapPin,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
@@ -28,16 +29,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import {
-  generateMockCustomers,
-  generateMockAliases
-} from '@/components/crm/customers/customer-mock-data'
+import { useListHolders } from '@/client/holders'
+import { useListAliases } from '@/client/aliases'
+import { usePagination } from '@/hooks/use-pagination'
+import { Pagination } from '@/components/pagination'
+import { HolderEntity } from '@/core/domain/entities/holder-entity'
 
 const CustomersPage = () => {
   const intl = useIntl()
   const router = useRouter()
   const { currentOrganization } = useOrganization()
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Pagination
+  const { page, limit, handleNextPage, handlePreviousPage, setPageLimit } =
+    usePagination({ initialPage: 1, initialLimit: 10 })
+
+  // Fetch holders data
+  const {
+    data: holdersData,
+    isLoading,
+    error
+  } = useListHolders({
+    page,
+    limit,
+    enabled: true
+  })
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -65,24 +82,16 @@ const CustomersPage = () => {
     }
   ])
 
-  // Generate mock customer data
-  const mockCustomers = generateMockCustomers(50)
-  const allAliases = generateMockAliases(200)
-
-  // Enhance customers with alias counts
-  const enrichedCustomers = mockCustomers.map((customer) => ({
-    ...customer,
-    aliasCount: allAliases.filter((alias) => alias.holderId === customer.id)
-      .length
-  }))
-
-  const filteredCustomers = enrichedCustomers.filter(
+  // Filter customers based on search term
+  const customers = holdersData?.items || []
+  const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.document.includes(searchTerm) ||
-      customer.contact.primaryEmail
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
+      (customer.contacts &&
+        customer.contacts.some((contact) =>
+          contact.value.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
   )
 
   const getStatusColor = (status: string) => {
@@ -226,7 +235,30 @@ const CustomersPage = () => {
 
       {/* Customer List */}
       <div className="mt-6 space-y-4">
-        {filteredCustomers.length === 0 ? (
+        {isLoading ? (
+          <Card className="p-8">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          </Card>
+        ) : error ? (
+          <Card className="p-8">
+            <div className="text-center">
+              <h3 className="mb-2 text-lg font-semibold text-destructive">
+                {intl.formatMessage({
+                  id: 'common.error',
+                  defaultMessage: 'Error'
+                })}
+              </h3>
+              <p className="text-muted-foreground">
+                {intl.formatMessage({
+                  id: 'common.error.loading',
+                  defaultMessage: 'Failed to load data. Please try again.'
+                })}
+              </p>
+            </div>
+          </Card>
+        ) : filteredCustomers.length === 0 ? (
           <Card className="p-8">
             <div className="text-center">
               <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -288,35 +320,47 @@ const CustomersPage = () => {
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <div className="flex items-center space-x-4">
                         <span>{customer.document}</span>
-                        <div className="flex items-center space-x-1">
-                          <Mail className="h-3 w-3" />
-                          <span>{customer.contact.primaryEmail}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Phone className="h-3 w-3" />
-                          <span>{customer.contact.mobilePhone}</span>
-                        </div>
+                        {customer.contacts &&
+                          customer.contacts.map((contact, index) => {
+                            if (contact.name === 'email' && index === 0) {
+                              return (
+                                <div
+                                  key={contact.name}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Mail className="h-3 w-3" />
+                                  <span>{contact.value}</span>
+                                </div>
+                              )
+                            }
+                            if (contact.name === 'phone' && index === 0) {
+                              return (
+                                <div
+                                  key={contact.name}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Phone className="h-3 w-3" />
+                                  <span>{contact.value}</span>
+                                </div>
+                              )
+                            }
+                            return null
+                          })}
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="h-3 w-3" />
-                        <span>
-                          {customer.addresses.primary.city},{' '}
-                          {customer.addresses.primary.state},{' '}
-                          {customer.addresses.primary.country}
-                        </span>
-                      </div>
+                      {customer.address && (
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="h-3 w-3" />
+                          <span>
+                            {customer.address.city}, {customer.address.state},{' '}
+                            {customer.address.country}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-right text-sm">
-                    <div className="font-medium">
-                      {customer.aliasCount}{' '}
-                      {intl.formatMessage({
-                        id: 'crm.customers.aliases',
-                        defaultMessage: 'aliases'
-                      })}
-                    </div>
                     <div className="text-muted-foreground">
                       {intl.formatMessage({
                         id: 'crm.customers.created',
@@ -381,6 +425,20 @@ const CustomersPage = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {holdersData && holdersData.totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination
+            currentPage={page}
+            totalPages={holdersData.totalPages}
+            onNextPage={handleNextPage}
+            onPreviousPage={handlePreviousPage}
+            setPageLimit={setPageLimit}
+            limit={limit}
+          />
+        </div>
+      )}
     </React.Fragment>
   )
 }

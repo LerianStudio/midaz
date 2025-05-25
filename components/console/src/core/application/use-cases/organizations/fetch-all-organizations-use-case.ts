@@ -8,6 +8,7 @@ import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllOrganizations {
   execute: (
@@ -19,7 +20,7 @@ export interface FetchAllOrganizations {
 @injectable()
 export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private organizationRepository: OrganizationRepository,
     @inject(OrganizationAvatarRepository)
     private organizationAvatarRepository: OrganizationAvatarRepository

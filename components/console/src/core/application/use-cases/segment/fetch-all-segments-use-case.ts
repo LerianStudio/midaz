@@ -4,6 +4,7 @@ import { SegmentResponseDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllSegments {
   execute: (
@@ -17,7 +18,7 @@ export interface FetchAllSegments {
 @injectable()
 export class FetchAllSegmentsUseCase implements FetchAllSegments {
   constructor(
-    @inject(SegmentRepository)
+    @inject(MIDAZ_SYMBOLS.SegmentRepository)
     private readonly segmentRepository: SegmentRepository
   ) {}
 

@@ -1,6 +1,7 @@
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface DeleteSegment {
   execute: (
@@ -13,7 +14,7 @@ export interface DeleteSegment {
 @injectable()
 export class DeleteSegmentUseCase implements DeleteSegment {
   constructor(
-    @inject(SegmentRepository)
+    @inject(MIDAZ_SYMBOLS.SegmentRepository)
     private readonly segmentRepository: SegmentRepository
   ) {}
 

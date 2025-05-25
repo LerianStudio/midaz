@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,16 +15,40 @@ import {
   FileText,
   Phone,
   MapPin,
-  CreditCard
+  CreditCard,
+  Loader2
 } from 'lucide-react'
 import { CustomerWizard } from '@/components/crm/customers/customer-wizard'
 import { CustomerType } from '@/components/crm/customers/customer-types'
+import { useCreateHolder } from '@/client/holders'
+import { useToast } from '@/hooks/use-toast'
+import { CreateHolderEntity } from '@/core/domain/entities/holder-entity'
 
 export default function CreateCustomerPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(1)
   const [customerType, setCustomerType] = useState<CustomerType | null>(null)
-  const [formData, setFormData] = useState({})
+  const [formData, setFormData] = useState<any>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const createHolderMutation = useCreateHolder({
+    onSuccess: () => {
+      toast({
+        title: 'Customer created successfully',
+        description: 'The customer has been added to your CRM.'
+      })
+      router.push('/plugins/crm/customers')
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to create customer',
+        description: error.message || 'Please try again.',
+        variant: 'destructive'
+      })
+      setIsSubmitting(false)
+    }
+  })
 
   const steps = [
     {
@@ -69,16 +93,63 @@ export default function CreateCustomerPage() {
     handleNext()
   }
 
-  const handleFormDataUpdate = (stepData: any) => {
-    setFormData({ ...formData, ...stepData })
-  }
+  const handleFormDataUpdate = useCallback((stepData: any) => {
+    setFormData((prevData) => ({ ...prevData, ...stepData }))
+  }, [])
 
-  const handleSubmit = () => {
-    // Simulate customer creation
-    console.log('Creating customer:', formData)
+  const handleSubmit = async () => {
+    if (isSubmitting) return
 
-    // Navigate to customer list with success message
-    router.push('/plugins/crm/customers?created=true')
+    setIsSubmitting(true)
+
+    // Transform formData to match API structure
+    const holderData: CreateHolderEntity = {
+      name: formData.name || '',
+      type:
+        customerType === CustomerType.NATURAL_PERSON
+          ? 'NATURAL_PERSON'
+          : 'LEGAL_PERSON',
+      document: formData.document || '',
+      status: 'Active',
+      address: formData.address
+        ? {
+            line1: formData.address || '',
+            line2: formData.address2 || '',
+            zipCode: formData.zipCode || '',
+            city: formData.city || '',
+            state: formData.state || '',
+            country: formData.country || ''
+          }
+        : undefined,
+      contacts: [
+        ...(formData.primaryEmail
+          ? [
+              {
+                name: 'email',
+                value: formData.primaryEmail
+              }
+            ]
+          : []),
+        ...(formData.mobilePhone
+          ? [
+              {
+                name: 'phone',
+                value: formData.mobilePhone
+              }
+            ]
+          : [])
+      ],
+      metadata: formData.metadata || {},
+      // Add legal person specific fields
+      ...(customerType === CustomerType.LEGAL_PERSON && {
+        tradingName: formData.tradingName,
+        legalName: formData.legalName || formData.name,
+        website: formData.website,
+        establishedOn: formData.establishedOn
+      })
+    }
+
+    createHolderMutation.mutate(holderData)
   }
 
   return (
@@ -173,7 +244,7 @@ export default function CreateCustomerPage() {
                   Choose Customer Type
                 </h3>
                 <p className="mb-6 text-muted-foreground">
-                  Select whether you're adding an individual customer or a
+                  Select whether you&apos;re adding an individual customer or a
                   company.
                 </p>
               </div>
@@ -267,9 +338,18 @@ export default function CreateCustomerPage() {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit}>
-              <CreditCard className="mr-2 h-4 w-4" />
-              Create Customer
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Create Customer
+                </>
+              )}
             </Button>
           )}
         </div>

@@ -127,12 +127,14 @@ export function WorkflowMetadataEditor({
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
+    <Card className="flex max-h-[80vh] w-full flex-col overflow-hidden">
+      <CardHeader className="flex-shrink-0 pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">Workflow Metadata</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-sm sm:text-base">
+              Workflow Metadata
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
               Configure workflow properties and settings
             </CardDescription>
           </div>
@@ -142,33 +144,44 @@ export function WorkflowMetadataEditor({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="flex-1 space-y-4 overflow-y-auto p-3 sm:space-y-6 sm:p-6">
         {/* Basic Information */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="workflow-name">Workflow Name</Label>
+            <Label htmlFor="workflow-name" className="text-xs sm:text-sm">
+              Workflow Name
+            </Label>
             <Input
               id="workflow-name"
               value={metadata.name}
               onChange={(e) => updateMetadata({ name: e.target.value })}
               placeholder="Enter workflow name"
+              className="text-sm"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="workflow-description">Description</Label>
+            <Label
+              htmlFor="workflow-description"
+              className="text-xs sm:text-sm"
+            >
+              Description
+            </Label>
             <Textarea
               id="workflow-description"
               value={metadata.description}
               onChange={(e) => updateMetadata({ description: e.target.value })}
               placeholder="Describe what this workflow does"
               rows={3}
+              className="resize-none text-sm"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div className="space-y-2">
-              <Label htmlFor="workflow-version">Version</Label>
+              <Label htmlFor="workflow-version" className="text-xs sm:text-sm">
+                Version
+              </Label>
               <Input
                 id="workflow-version"
                 type="number"
@@ -177,16 +190,20 @@ export function WorkflowMetadataEditor({
                 onChange={(e) =>
                   updateMetadata({ version: parseInt(e.target.value) || 1 })
                 }
+                className="text-sm"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="workflow-category">Category</Label>
+              <Label htmlFor="workflow-category" className="text-xs sm:text-sm">
+                Category
+              </Label>
               <Input
                 id="workflow-category"
                 value={metadata.category}
                 onChange={(e) => updateMetadata({ category: e.target.value })}
                 placeholder="e.g., payments, onboarding"
+                className="text-sm"
               />
             </div>
           </div>
@@ -196,37 +213,40 @@ export function WorkflowMetadataEditor({
 
         {/* Input Parameters */}
         <div className="space-y-3">
-          <Label>Input Parameters</Label>
-          <div className="space-y-2">
+          <Label className="text-xs sm:text-sm">Input Parameters</Label>
+          <div className="max-h-32 space-y-2 overflow-y-auto">
             {metadata.inputParameters.map((param) => (
               <div
                 key={param}
-                className="flex items-center justify-between rounded border p-2"
+                className="flex items-center justify-between rounded border p-1.5 sm:p-2"
               >
-                <span className="font-mono text-sm">{param}</span>
+                <span className="truncate font-mono text-xs sm:text-sm">
+                  {param}
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => removeInputParameter(param)}
-                  className="h-6 w-6 p-0 text-red-600"
+                  className="h-5 w-5 p-0 text-red-600 sm:h-6 sm:w-6"
                 >
                   <Minus className="h-3 w-3" />
                 </Button>
               </div>
             ))}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Input
               value={newInputParam}
               onChange={(e) => setNewInputParam(e.target.value)}
               placeholder="Parameter name"
-              className="text-sm"
+              className="text-xs sm:text-sm"
               onKeyPress={(e) => e.key === 'Enter' && addInputParameter()}
             />
             <Button
               onClick={addInputParameter}
               disabled={!newInputParam.trim()}
               size="sm"
+              className="flex-shrink-0"
             >
               <Plus className="h-3 w-3" />
             </Button>
@@ -278,35 +298,40 @@ export function WorkflowMetadataEditor({
 
         {/* Tags */}
         <div className="space-y-3">
-          <Label>Tags</Label>
-          <div className="flex flex-wrap gap-2">
+          <Label className="text-xs sm:text-sm">Tags</Label>
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {metadata.tags.map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"
-                className="flex items-center space-x-1"
+                className="flex items-center gap-1 text-[10px] sm:text-xs"
               >
                 <span>{tag}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => removeTag(tag)}
-                  className="h-4 w-4 p-0 hover:bg-transparent"
+                  className="h-3 w-3 p-0 hover:bg-transparent sm:h-4 sm:w-4"
                 >
                   <X className="h-2 w-2" />
                 </Button>
               </Badge>
             ))}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
               placeholder="Add tag"
-              className="text-sm"
+              className="text-xs sm:text-sm"
               onKeyPress={(e) => e.key === 'Enter' && addTag()}
             />
-            <Button onClick={addTag} disabled={!newTag.trim()} size="sm">
+            <Button
+              onClick={addTag}
+              disabled={!newTag.trim()}
+              size="sm"
+              className="flex-shrink-0"
+            >
               <Plus className="h-3 w-3" />
             </Button>
           </div>
@@ -345,11 +370,16 @@ export function WorkflowMetadataEditor({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-2 border-t pt-4">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            size="sm"
+            className="text-xs sm:text-sm"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} size="sm" className="text-xs sm:text-sm">
             <Save className="mr-2 h-3 w-3" />
             Save Changes
           </Button>

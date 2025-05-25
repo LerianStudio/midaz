@@ -12,6 +12,8 @@ import { PortfolioUseCaseModule } from './portfolios-module'
 import { SegmentUseCaseModule } from './segment-module'
 import { TransactionUseCaseModule } from './transactions-module'
 import { UserUseCaseModule } from './user-module'
+import { WorkflowModule } from './workflow-module'
+import { CrmUseCaseModule } from './crm-module'
 
 export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(AuthUseCaseModule)
@@ -27,4 +29,6 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(TransactionUseCaseModule)
   container.load(GroupUseCaseModule)
   container.load(ApplicationModule)
+  container.load(WorkflowModule)
+  container.load(CrmUseCaseModule)
 })

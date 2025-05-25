@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,11 +22,34 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@/components/ui/resizable'
+// Temporary replacement for resizable panels
+const ResizablePanelGroup = ({ children, direction, ...props }: any) => (
+  <div
+    className={`flex ${direction === 'horizontal' ? 'flex-row' : 'flex-col'} h-full`}
+    {...props}
+  >
+    {children}
+  </div>
+)
+
+const ResizablePanel = ({
+  children,
+  defaultSize,
+  minSize,
+  maxSize,
+  ...props
+}: any) => (
+  <div className="flex-1 overflow-hidden" {...props}>
+    {children}
+  </div>
+)
+
+const ResizableHandle = (props: any) => (
+  <div
+    className="w-1 cursor-col-resize bg-gray-200 hover:bg-gray-300"
+    {...props}
+  />
+)
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Save,

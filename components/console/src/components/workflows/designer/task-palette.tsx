@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import {
   Card,
   CardContent,
@@ -9,6 +10,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Globe,
   GitBranch,
@@ -21,9 +24,15 @@ import {
   MessageCircle,
   Settings,
   RotateCcw,
-  Filter
+  Filter,
+  Search,
+  GripVertical,
+  Move
 } from 'lucide-react'
 import { TaskType } from '@/core/domain/entities/workflow'
+import { useMediaQuery } from '@/hooks/use-media-query'
+import { useWorkflowDnd } from '@/hooks/use-workflow-dnd'
+import { cn } from '@/lib/utils'
 
 interface TaskTypeInfo {
   type: TaskType
@@ -157,87 +166,224 @@ const taskTypes: TaskTypeInfo[] = [
 
 const categories = Array.from(new Set(taskTypes.map((task) => task.category)))
 
-export function TaskPalette() {
-  const onDragStart = (event: React.DragEvent, taskType: TaskType) => {
-    event.dataTransfer.setData('application/reactflow', taskType)
-    event.dataTransfer.effectAllowed = 'move'
-  }
+interface TaskPaletteProps {
+  onTaskDrop?: (taskType: TaskType, position: { x: number; y: number }) => void
+}
 
-  const renderTaskCard = (task: TaskTypeInfo) => (
-    <Card
-      key={task.type}
-      className="cursor-grab transition-shadow hover:shadow-md active:cursor-grabbing"
-      draggable
-      onDragStart={(event) => onDragStart(event, task.type)}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-start space-x-3">
-          <div className={`rounded-lg p-2 ${task.color}`}>{task.icon}</div>
-          <div className="min-w-0 flex-1">
-            <h4 className="text-sm font-medium">{task.name}</h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {task.description}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {task.examples.slice(0, 2).map((example) => (
-                <Badge key={example} variant="outline" className="text-xs">
-                  {example}
-                </Badge>
-              ))}
-              {task.examples.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{task.examples.length - 2}
-                </Badge>
+export function TaskPalette({ onTaskDrop }: TaskPaletteProps) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [activeTaskType, setActiveTaskType] = useState<TaskType | null>(null)
+  const isMobile = useMediaQuery('(max-width: 768px)')
+  const isTablet = useMediaQuery('(max-width: 1024px)')
+
+  const { dragState, handlers } = useWorkflowDnd({
+    onDrop: onTaskDrop,
+    enabled: true
+  })
+
+  // Filter tasks based on search query and category
+  const filteredTasks = useMemo(() => {
+    return taskTypes.filter((task) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.examples.some((ex) =>
+          ex.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+
+      const matchesCategory =
+        selectedCategory === 'all' || task.category === selectedCategory
+
+      return matchesSearch && matchesCategory
+    })
+  }, [searchQuery, selectedCategory])
+
+  const renderTaskCard = (task: TaskTypeInfo) => {
+    const isDragging =
+      dragState.isDragging && dragState.draggedTaskType === task.type
+    const isActive = activeTaskType === task.type
+
+    return (
+      <Card
+        key={task.type}
+        className={cn(
+          'transition-all duration-200',
+          'cursor-grab hover:shadow-md',
+          isDragging && 'scale-95 opacity-50',
+          isActive && 'ring-2 ring-primary ring-offset-2',
+          isMobile && 'touch-manipulation',
+          'relative overflow-hidden'
+        )}
+        draggable={!isMobile}
+        onDragStart={(event) => {
+          if (!isMobile) {
+            setActiveTaskType(task.type)
+            handlers.onDragStart(event, task.type)
+          }
+        }}
+        onDragEnd={() => {
+          setActiveTaskType(null)
+          handlers.onDragEnd()
+        }}
+        onTouchStart={(event) => {
+          if (isMobile) {
+            setActiveTaskType(task.type)
+            handlers.onTouchStart(event, task.type)
+          }
+        }}
+        onTouchMove={handlers.onTouchMove}
+        onTouchEnd={(event) => {
+          setActiveTaskType(null)
+          handlers.onTouchEnd(event)
+        }}
+      >
+        {/* Drag indicator overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-primary/10 backdrop-blur-sm" />
+        )}
+
+        <CardContent className={`${isMobile ? 'p-3' : 'p-4'}`}>
+          <div className="flex items-start space-x-3">
+            {!isMobile && (
+              <div className="mt-0.5 text-muted-foreground">
+                {isDragging ? (
+                  <Move className="h-4 w-4 animate-pulse" />
+                ) : (
+                  <GripVertical className="h-4 w-4" />
+                )}
+              </div>
+            )}
+            <div className={`rounded-lg p-2 ${task.color} flex-shrink-0`}>
+              {task.icon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className={`font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>
+                {task.name}
+              </h4>
+              <p
+                className={`mt-1 text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs'}`}
+              >
+                {task.description}
+              </p>
+              {!isMobile && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {task.examples.slice(0, 2).map((example) => (
+                    <Badge key={example} variant="outline" className="text-xs">
+                      {example}
+                    </Badge>
+                  ))}
+                  {task.examples.length > 2 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{task.examples.length - 2}
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b p-4">
+      <div className={`border-b ${isMobile ? 'p-3' : 'p-4'}`}>
         <h3 className="font-semibold">Task Palette</h3>
-        <p className="text-sm text-muted-foreground">
-          Drag tasks to the canvas to build your workflow
+        <p
+          className={`text-muted-foreground ${isMobile ? 'mt-1 text-xs' : 'text-sm'}`}
+        >
+          {isMobile
+            ? 'Tap tasks to add to workflow'
+            : 'Drag tasks to the canvas to build your workflow'}
         </p>
+
+        {/* Search Input */}
+        <div className="relative mt-3">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+          <Input
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-6">
-          {categories.map((category) => (
-            <div key={category}>
-              <h4 className="mb-3 flex items-center space-x-2 text-sm font-medium">
-                <span>{category}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {
-                    taskTypes.filter((task) => task.category === category)
-                      .length
-                  }
-                </Badge>
-              </h4>
+      {/* Category Tabs for Mobile */}
+      {isMobile && (
+        <Tabs
+          value={selectedCategory}
+          onValueChange={setSelectedCategory}
+          className="w-full"
+        >
+          <TabsList className="h-auto w-full flex-wrap justify-start px-2">
+            <TabsTrigger value="all" className="text-xs">
+              All
+            </TabsTrigger>
+            {categories.map((cat) => (
+              <TabsTrigger key={cat} value={cat} className="text-xs">
+                {cat}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
 
-              <div className="space-y-2">
-                {taskTypes
-                  .filter((task) => task.category === category)
-                  .map(renderTaskCard)}
-              </div>
-            </div>
-          ))}
+      <ScrollArea className={`flex-1 ${isMobile ? 'p-3' : 'p-4'}`}>
+        <div className={`${isMobile ? 'space-y-3' : 'space-y-6'}`}>
+          {isMobile ? (
+            // Mobile: Show filtered tasks without category grouping
+            <div className="space-y-2">{filteredTasks.map(renderTaskCard)}</div>
+          ) : (
+            // Desktop: Show tasks grouped by category
+            categories
+              .filter(
+                (category) =>
+                  selectedCategory === 'all' || category === selectedCategory
+              )
+              .map((category) => {
+                const categoryTasks = filteredTasks.filter(
+                  (task) => task.category === category
+                )
+                if (categoryTasks.length === 0) return null
+
+                return (
+                  <div key={category}>
+                    <h4 className="mb-3 flex items-center space-x-2 text-sm font-medium">
+                      <span>{category}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {categoryTasks.length}
+                      </Badge>
+                    </h4>
+
+                    <div className="space-y-2">
+                      {categoryTasks.map(renderTaskCard)}
+                    </div>
+                  </div>
+                )
+              })
+          )}
         </div>
       </ScrollArea>
 
-      <div className="border-t bg-muted/30 p-4">
-        <div className="text-xs text-muted-foreground">
-          <p className="mb-1">
-            💡 <strong>Tip:</strong> Drag any task to the canvas to add it to
-            your workflow
-          </p>
-          <p>Click on tasks in the canvas to configure their properties</p>
+      {!isMobile && (
+        <div className="border-t bg-muted/30 p-4">
+          <div className="text-xs text-muted-foreground">
+            <p className="mb-1">
+              💡 <strong>Tip:</strong> Drag any task to the canvas to add it to
+              your workflow
+            </p>
+            <p>
+              {dragState.isDragging
+                ? '🎯 Drop the task on the canvas to create a new node'
+                : 'Click on tasks in the canvas to configure their properties'}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -30,13 +30,11 @@ import {
   FileText,
   Settings,
   Database,
-  Eye
+  Eye,
+  Upload
 } from 'lucide-react'
-import {
-  TemplateCategory,
-  TemplateFormat,
-  CreateTemplateInput
-} from '@/core/domain/entities/template'
+import { useToast } from '@/hooks/use-toast'
+import { TemplateFileUpload } from './template-file-upload'
 
 interface WizardStep {
   id: string

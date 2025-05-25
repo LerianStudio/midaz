@@ -31,10 +31,14 @@ import {
   Filter,
   Search,
   Play,
-  Settings
+  GitBranch,
+  Share2
 } from 'lucide-react'
 import { TemplateDetailDialog } from './template-detail-dialog'
 import { TemplateInstantiationDialog } from './template-instantiation-dialog'
+import { TemplateVersionManager } from './template-version-manager'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/use-toast'
 
 interface TemplateCatalogProps {
   onUseTemplate?: (
@@ -44,6 +48,8 @@ interface TemplateCatalogProps {
 }
 
 export function TemplateCatalog({ onUseTemplate }: TemplateCatalogProps) {
+  const router = useRouter()
+  const { toast } = useToast()
   const [templates] = useState<WorkflowTemplate[]>(mockWorkflowTemplates)
   const [filteredTemplates, setFilteredTemplates] = useState<
     WorkflowTemplate[]
@@ -57,6 +63,9 @@ export function TemplateCatalog({ onUseTemplate }: TemplateCatalogProps) {
     useState<WorkflowTemplate | null>(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [showInstantiationDialog, setShowInstantiationDialog] = useState(false)
+  const [showVersionManager, setShowVersionManager] = useState(false)
+  const [versionManagerTemplate, setVersionManagerTemplate] =
+    useState<WorkflowTemplate | null>(null)
 
   const handleSearch = (query: string) => {
     setSearchQuery(query)
@@ -139,17 +148,46 @@ export function TemplateCatalog({ onUseTemplate }: TemplateCatalogProps) {
   }
 
   const handleUseTemplate = (template: WorkflowTemplate) => {
-    setInstantiationTemplate(template)
-    setShowInstantiationDialog(true)
+    if (onUseTemplate) {
+      // If a custom handler is provided, use the dialog
+      setInstantiationTemplate(template)
+      setShowInstantiationDialog(true)
+    } else {
+      // Otherwise, navigate to the workflow creation page with template
+      router.push(`/plugins/workflows/library/create?templateId=${template.id}`)
+    }
+  }
+
+  const handleManageVersions = (template: WorkflowTemplate) => {
+    setVersionManagerTemplate(template)
+    setShowVersionManager(true)
+  }
+
+  const handleShareTemplate = (template: WorkflowTemplate) => {
+    // In a real implementation, this would open sharing settings
+    toast({
+      title: 'Template shared',
+      description: `Template "${template.name}" has been shared successfully`
+    })
   }
 
   const handleInstantiateTemplate = (
     template: WorkflowTemplate,
     parameters: Record<string, any>
   ) => {
-    onUseTemplate?.(template, parameters)
-    setShowInstantiationDialog(false)
-    setInstantiationTemplate(null)
+    if (onUseTemplate) {
+      onUseTemplate(template, parameters)
+      setShowInstantiationDialog(false)
+      setInstantiationTemplate(null)
+    } else {
+      // Navigate to workflow creation with parameters
+      const params = encodeURIComponent(JSON.stringify(parameters))
+      router.push(
+        `/plugins/workflows/library/create?templateId=${template.id}&parameters=${params}`
+      )
+      setShowInstantiationDialog(false)
+      setInstantiationTemplate(null)
+    }
   }
 
   return (
@@ -274,24 +312,46 @@ export function TemplateCatalog({ onUseTemplate }: TemplateCatalogProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleViewTemplate(template)}
-                    className="flex-1"
-                  >
-                    <Eye className="mr-1 h-3 w-3" />
-                    View
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleUseTemplate(template)}
-                    className="flex-1"
-                  >
-                    <Play className="mr-1 h-3 w-3" />
-                    Use
-                  </Button>
+                <div className="space-y-2 pt-2">
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewTemplate(template)}
+                      className="flex-1"
+                    >
+                      <Eye className="mr-1 h-3 w-3" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleUseTemplate(template)}
+                      className="flex-1"
+                    >
+                      <Play className="mr-1 h-3 w-3" />
+                      Use
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleManageVersions(template)}
+                      className="flex-1"
+                    >
+                      <GitBranch className="mr-1 h-3 w-3" />
+                      Versions
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleShareTemplate(template)}
+                      className="flex-1"
+                    >
+                      <Share2 className="mr-1 h-3 w-3" />
+                      Share
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -328,6 +388,28 @@ export function TemplateCatalog({ onUseTemplate }: TemplateCatalogProps) {
           onInstantiate={(parameters) =>
             handleInstantiateTemplate(instantiationTemplate, parameters)
           }
+        />
+      )}
+
+      {versionManagerTemplate && (
+        <TemplateVersionManager
+          open={showVersionManager}
+          onOpenChange={setShowVersionManager}
+          template={versionManagerTemplate}
+          onVersionCreate={(version) => {
+            console.log('New version created:', version)
+            toast({
+              title: 'Version created',
+              description: `Version ${version.version} has been created successfully`
+            })
+          }}
+          onShare={(shareSettings) => {
+            console.log('Share settings updated:', shareSettings)
+            toast({
+              title: 'Sharing updated',
+              description: 'Template sharing settings have been updated'
+            })
+          }}
         />
       )}
     </div>

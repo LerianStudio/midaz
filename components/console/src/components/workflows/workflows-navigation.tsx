@@ -14,7 +14,15 @@ import {
   Zap
 } from 'lucide-react'
 
-const workflowsNavItems = [
+interface NavItem {
+  title: string
+  href: string
+  icon: any
+  description: string
+  highlight?: boolean
+}
+
+const workflowsNavItems: NavItem[] = [
   {
     title: 'Overview',
     href: '/plugins/workflows',
@@ -50,6 +58,13 @@ const workflowsNavItems = [
     href: '/plugins/workflows/analytics',
     icon: BarChart3,
     description: 'Performance metrics and insights'
+  },
+  {
+    title: 'Demos',
+    href: '/plugins/workflows/demo',
+    icon: Zap,
+    description: 'Interactive workflow demos and examples',
+    highlight: true
   }
 ]
 
@@ -71,17 +86,31 @@ export function WorkflowsNavigation() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center space-x-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground',
+                  'relative flex items-center space-x-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                  item.highlight &&
+                    !isActive &&
+                    'bg-primary/10 text-primary hover:bg-primary/20'
                 )}
                 title={item.description}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon
+                  className={cn(
+                    'h-4 w-4',
+                    item.highlight && !isActive && 'text-primary'
+                  )}
+                />
                 <span>{item.title}</span>
                 {isActive && (
                   <div className="h-1 w-1 rounded-full bg-primary-foreground/60" />
+                )}
+                {item.highlight && !isActive && (
+                  <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-primary"></span>
+                  </span>
                 )}
               </Link>
             )

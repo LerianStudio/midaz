@@ -8,10 +8,10 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { 
-  Users, 
-  ArrowRight, 
-  GitMerge, 
+import {
+  Users,
+  ArrowRight,
+  GitMerge,
   Receipt,
   Calculator,
   Shield,

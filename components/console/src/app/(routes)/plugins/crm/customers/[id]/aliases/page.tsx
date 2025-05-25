@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,46 +30,108 @@ import {
   Building2,
   Users,
   ExternalLink,
-  Banknote
+  Banknote,
+  Loader2
 } from 'lucide-react'
 import {
-  generateMockCustomers,
-  generateMockAliases
-} from '@/components/crm/customers/customer-mock-data'
-import { Customer, Alias } from '@/components/crm/customers/customer-types'
+  getHolderById,
+  getAliasesByHolderId,
+  deleteAlias
+} from '@/app/actions/crm'
+import { HolderEntity } from '@/core/domain/entities/holder-entity'
+import { AliasEntity } from '@/core/domain/entities/alias-entity'
+import { useToast } from '@/hooks/use-toast'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 
 export default function CustomerAliasesPage() {
   const params = useParams()
-  const customerId = params.id as string
+  const holderId = params.id as string
+  const { toast } = useToast()
+  const { currentOrganization } = useOrganization()
   const [searchTerm, setSearchTerm] = useState('')
+  const [holder, setHolder] = useState<HolderEntity | null>(null)
+  const [aliases, setAliases] = useState<AliasEntity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPending, startTransition] = useTransition()
+  const [totalAliases, setTotalAliases] = useState(0)
 
-  // Get customer and aliases from mock data
-  const customers = generateMockCustomers(50)
-  const customer = customers.find((c) => c.id === customerId)
-  const allAliases = generateMockAliases(100)
-  const customerAliases = allAliases.filter(
-    (alias) => alias.holderId === customerId
-  )
+  // Fetch holder and aliases on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      try {
+        // Fetch holder details
+        const holderResult = await getHolderById(holderId)
+        if (holderResult.success && holderResult.data) {
+          setHolder(holderResult.data)
+
+          // Fetch aliases for this holder
+          const aliasesResult = await getAliasesByHolderId({
+            holderId,
+            organizationId: currentOrganization.id,
+            limit: 100
+          })
+
+          if (aliasesResult.success && aliasesResult.data) {
+            setAliases(aliasesResult.data.aliases)
+            setTotalAliases(aliasesResult.data.total)
+          } else if (aliasesResult.error) {
+            toast({
+              title: 'Error fetching aliases',
+              description: aliasesResult.error,
+              variant: 'destructive'
+            })
+          }
+        } else if (holderResult.error) {
+          toast({
+            title: 'Error fetching holder',
+            description: holderResult.error,
+            variant: 'destructive'
+          })
+        }
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load data',
+          variant: 'destructive'
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [holderId, currentOrganization.id, toast])
 
   // Filter aliases based on search
-  const filteredAliases = customerAliases.filter(
+  const filteredAliases = aliases.filter(
     (alias) =>
       alias.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alias.bankingDetails.account
+      alias.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alias.bankAccount?.number || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      alias.bankingDetails.bankId
+      (alias.bankAccount?.bankCode || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase())
   )
 
-  if (!customer) {
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!holder) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
         <div className="space-y-2 text-center">
-          <h2 className="text-xl font-semibold">Customer Not Found</h2>
+          <h2 className="text-xl font-semibold">Holder Not Found</h2>
           <p className="text-muted-foreground">
-            The customer you're looking for doesn't exist or has been removed.
+            The holder you&apos;re looking for doesn&apos;t exist or has been
+            removed.
           </p>
         </div>
         <Button onClick={() => window.history.back()}>Go Back</Button>
@@ -77,60 +139,62 @@ export default function CustomerAliasesPage() {
     )
   }
 
-  const handleEditAlias = (alias: Alias) => {
+  const handleEditAlias = (alias: AliasEntity) => {
     console.log('Edit alias:', alias)
     // TODO: Open edit alias dialog
   }
 
-  const handleDeleteAlias = (alias: Alias) => {
-    console.log('Delete alias:', alias)
-    // TODO: Show confirmation dialog and delete
+  const handleDeleteAlias = async (alias: AliasEntity) => {
+    if (confirm('Are you sure you want to delete this alias?')) {
+      startTransition(async () => {
+        const result = await deleteAlias(holderId, alias.id)
+        if (result.success) {
+          setAliases((prev) => prev.filter((a) => a.id !== alias.id))
+          setTotalAliases((prev) => prev - 1)
+          toast({
+            title: 'Success',
+            description: 'Alias deleted successfully'
+          })
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to delete alias',
+            variant: 'destructive'
+          })
+        }
+      })
+    }
   }
 
-  const handleViewAccount = (alias: Alias) => {
+  const handleViewAccount = (alias: AliasEntity) => {
     console.log('View account:', alias.accountId)
     // TODO: Navigate to account detail page
   }
 
-  const getBankStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return (
-          <Badge variant="default" className="bg-green-100 text-green-800">
-            Active
-          </Badge>
-        )
-      case 'inactive':
-        return <Badge variant="secondary">Inactive</Badge>
-      case 'pending':
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-            Pending
-          </Badge>
-        )
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
-
-  const getAccountTypeBadge = (type: string) => {
+  const getAliasTypeBadge = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'checking':
+      case 'bank_account':
         return (
           <Badge variant="outline" className="bg-blue-100 text-blue-800">
-            Checking
+            Bank Account
           </Badge>
         )
-      case 'savings':
+      case 'pix':
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800">
-            Savings
+            PIX
           </Badge>
         )
-      case 'business':
+      case 'email':
         return (
           <Badge variant="outline" className="bg-purple-100 text-purple-800">
-            Business
+            Email
+          </Badge>
+        )
+      case 'phone':
+        return (
+          <Badge variant="outline" className="bg-orange-100 text-orange-800">
+            Phone
           </Badge>
         )
       default:
@@ -144,13 +208,13 @@ export default function CustomerAliasesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            {customer.type === 'NATURAL_PERSON' ? (
+            {holder.type === 'NATURAL_PERSON' ? (
               <Users className="h-6 w-6 text-blue-600" />
             ) : (
               <Building2 className="h-6 w-6 text-purple-600" />
             )}
             <div>
-              <h1 className="text-2xl font-bold">{customer.name}</h1>
+              <h1 className="text-2xl font-bold">{holder.name}</h1>
               <p className="text-muted-foreground">
                 Banking Aliases & Account Links
               </p>
@@ -184,7 +248,7 @@ export default function CustomerAliasesPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="text-2xl font-bold">{customerAliases.length}</div>
+              <div className="text-2xl font-bold">{totalAliases}</div>
               <p className="text-xs text-muted-foreground">Total Aliases</p>
             </div>
           </CardContent>
@@ -222,11 +286,10 @@ export default function CustomerAliasesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Alias ID</TableHead>
-                  <TableHead>Bank Details</TableHead>
-                  <TableHead>Account Type</TableHead>
+                  <TableHead>Alias Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Details</TableHead>
                   <TableHead>Ledger</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -234,37 +297,37 @@ export default function CustomerAliasesPage() {
               <TableBody>
                 {filteredAliases.map((alias) => (
                   <TableRow key={alias.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center space-x-2">
-                        <Banknote className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-mono text-sm">
-                          {alias.id.slice(-8)}
-                        </span>
+                    <TableCell>
+                      <div className="font-medium">{alias.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {alias.id.slice(-8)}
                       </div>
                     </TableCell>
+                    <TableCell>{getAliasTypeBadge(alias.type)}</TableCell>
                     <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">
-                            Bank {alias.bankingDetails.bankId}
-                          </span>
-                          <span className="text-muted-foreground">•</span>
-                          <span className="text-muted-foreground">
-                            Branch {alias.bankingDetails.branch}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Account: {alias.bankingDetails.account}
-                        </div>
-                        {alias.bankingDetails.iban && (
-                          <div className="font-mono text-xs text-muted-foreground">
-                            IBAN: {alias.bankingDetails.iban}
+                      {alias.bankAccount ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">
+                              {alias.bankAccount.bankCode}
+                            </span>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-muted-foreground">
+                              Branch {alias.bankAccount.branch}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getAccountTypeBadge(alias.bankingDetails.type)}
+                          <div className="text-sm text-muted-foreground">
+                            Account: {alias.bankAccount.number}
+                          </div>
+                          {alias.bankAccount.type && (
+                            <div className="text-xs text-muted-foreground">
+                              Type: {alias.bankAccount.type}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -277,14 +340,17 @@ export default function CustomerAliasesPage() {
                         <ExternalLink className="ml-1 h-3 w-3" />
                       </Button>
                     </TableCell>
-                    <TableCell>{getBankStatusBadge(alias.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(alias.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            disabled={isPending}
+                          >
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
@@ -320,7 +386,7 @@ export default function CustomerAliasesPage() {
         </CardContent>
       </Card>
 
-      {/* Customer Summary */}
+      {/* Holder Summary */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
@@ -328,15 +394,9 @@ export default function CustomerAliasesPage() {
               <CreditCard className="h-5 w-5 text-blue-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {
-                    customerAliases.filter(
-                      (a) => a.bankingDetails.type === 'CHECKING'
-                    ).length
-                  }
+                  {aliases.filter((a) => a.type === 'bank_account').length}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Checking Accounts
-                </p>
+                <p className="text-xs text-muted-foreground">Bank Accounts</p>
               </div>
             </div>
           </CardContent>
@@ -348,15 +408,9 @@ export default function CustomerAliasesPage() {
               <Banknote className="h-5 w-5 text-green-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {
-                    customerAliases.filter(
-                      (a) => a.bankingDetails.type === 'SAVINGS'
-                    ).length
-                  }
+                  {aliases.filter((a) => a.type === 'pix').length}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Savings Accounts
-                </p>
+                <p className="text-xs text-muted-foreground">PIX Keys</p>
               </div>
             </div>
           </CardContent>
@@ -368,9 +422,13 @@ export default function CustomerAliasesPage() {
               <Building2 className="h-5 w-5 text-purple-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {customerAliases.filter((a) => a.status === 'active').length}
+                  {
+                    aliases.filter(
+                      (a) => !['bank_account', 'pix'].includes(a.type)
+                    ).length
+                  }
                 </div>
-                <p className="text-xs text-muted-foreground">Active Aliases</p>
+                <p className="text-xs text-muted-foreground">Other Aliases</p>
               </div>
             </div>
           </CardContent>

@@ -6,6 +6,7 @@ import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface CompleteOnboarding {
   execute: (
@@ -17,9 +18,9 @@ export interface CompleteOnboarding {
 @injectable()
 export class CompleteOnboardingUseCase implements CompleteOnboarding {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly ledgerRepository: LedgerRepository
   ) {}
 

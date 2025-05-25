@@ -4,6 +4,7 @@ import { SegmentEntity } from '@/core/domain/entities/segment-entity'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface UpdateSegment {
   execute: (
@@ -17,7 +18,7 @@ export interface UpdateSegment {
 @injectable()
 export class UpdateSegmentUseCase implements UpdateSegment {
   constructor(
-    @inject(SegmentRepository)
+    @inject(MIDAZ_SYMBOLS.SegmentRepository)
     private readonly segmentRepository: SegmentRepository
   ) {}
 

@@ -4,6 +4,7 @@ import { BalanceDto } from '@/core/application/dto/balance-dto'
 import { BalanceMapper } from '@/core/application/mappers/balance-mapper'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchBalanceByAccountId {
   execute: (
@@ -16,7 +17,7 @@ export interface FetchBalanceByAccountId {
 @injectable()
 export class FetchBalanceByAccountIdUseCase implements FetchBalanceByAccountId {
   constructor(
-    @inject(BalanceRepository)
+    @inject(MIDAZ_SYMBOLS.BalanceRepository)
     private readonly balanceRepository: BalanceRepository
   ) {}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ColumnDef,
@@ -55,13 +55,18 @@ import {
   Clock,
   AlertTriangle,
   Filter,
-  Plus
+  Plus,
+  Wifi,
+  WifiOff
 } from 'lucide-react'
 import {
   WorkflowExecution,
   ExecutionStatus
 } from '@/core/domain/entities/workflow-execution'
 import { mockWorkflowExecutions } from '@/lib/mock-data/workflows'
+import { useExecutionMonitoring } from '@/hooks/use-websocket'
+import { ExecutionUpdateMessage } from '@/core/infrastructure/websocket/websocket-client'
+import { cn } from '@/lib/utils'
 
 const statusColors = {
   RUNNING: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
@@ -96,9 +101,57 @@ export function ExecutionListTable() {
     'ALL'
   )
   const [globalFilter, setGlobalFilter] = useState('')
+  const [executionData, setExecutionData] = useState(mockWorkflowExecutions)
+  const [recentlyUpdated, setRecentlyUpdated] = useState<Set<string>>(new Set())
+
+  // Get IDs of running executions to monitor
+  const runningExecutionIds = useMemo(() => {
+    return executionData
+      .filter(
+        (execution) =>
+          execution.status === 'RUNNING' || execution.status === 'PAUSED'
+      )
+      .map((execution) => execution.executionId)
+  }, [executionData])
+
+  // Monitor running executions with WebSocket
+  const { updates, isConnected } = useExecutionMonitoring(runningExecutionIds)
+
+  // Apply WebSocket updates to execution data
+  useEffect(() => {
+    if (updates.size === 0) return
+
+    setExecutionData((prevData) => {
+      const newData = [...prevData]
+      const updatedIds = new Set<string>()
+
+      updates.forEach((update, executionId) => {
+        const index = newData.findIndex(
+          (exec) => exec.executionId === executionId
+        )
+        if (index !== -1) {
+          // Merge updates with existing data
+          newData[index] = {
+            ...newData[index],
+            ...update.updates,
+            status: update.status
+          }
+          updatedIds.add(executionId)
+        }
+      })
+
+      // Track recently updated items for visual indicator
+      setRecentlyUpdated(updatedIds)
+      setTimeout(() => {
+        setRecentlyUpdated(new Set())
+      }, 2000)
+
+      return newData
+    })
+  }, [updates])
 
   const data = useMemo(() => {
-    return mockWorkflowExecutions.filter((execution) => {
+    return executionData.filter((execution) => {
       const matchesStatus =
         statusFilter === 'ALL' || execution.status === statusFilter
       const matchesSearch =
@@ -113,7 +166,23 @@ export function ExecutionListTable() {
 
       return matchesStatus && matchesSearch
     })
-  }, [statusFilter, globalFilter])
+  }, [executionData, statusFilter, globalFilter])
+
+  // Update duration for running executions every second
+  const [, forceUpdate] = useState({})
+  useEffect(() => {
+    const hasRunningExecutions = executionData.some(
+      (exec) => exec.status === 'RUNNING'
+    )
+
+    if (!hasRunningExecutions) return
+
+    const interval = setInterval(() => {
+      forceUpdate({})
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [executionData])
 
   const formatDuration = (startTime: number, endTime?: number) => {
     if (!endTime && startTime) {
@@ -174,11 +243,26 @@ export function ExecutionListTable() {
       header: 'Status',
       cell: ({ row }) => {
         const status = row.getValue('status') as ExecutionStatus
+        const executionId = row.original.executionId
+        const isLiveUpdating =
+          recentlyUpdated.has(executionId) &&
+          (status === 'RUNNING' || status === 'PAUSED')
+
         return (
-          <Badge className={statusColors[status]} variant="secondary">
+          <Badge
+            className={cn(
+              statusColors[status],
+              isLiveUpdating &&
+                'ring-2 ring-blue-400 ring-offset-2 dark:ring-blue-600'
+            )}
+            variant="secondary"
+          >
             <div className="flex items-center space-x-1">
               {statusIcons[status]}
               <span>{status}</span>
+              {isConnected && status === 'RUNNING' && (
+                <Activity className="ml-1 h-3 w-3 animate-pulse" />
+              )}
             </div>
           </Badge>
         )
@@ -372,6 +456,24 @@ export function ExecutionListTable() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          {/* Connection Status Indicator */}
+          <Badge
+            variant={isConnected ? 'default' : 'destructive'}
+            className="flex items-center space-x-1"
+          >
+            {isConnected ? (
+              <>
+                <Wifi className="h-3 w-3" />
+                <span>Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3 w-3" />
+                <span>Offline</span>
+              </>
+            )}
+          </Badge>
+
           <Button
             onClick={() =>
               router.push('/plugins/workflows/executions/monitoring')
@@ -436,7 +538,7 @@ export function ExecutionListTable() {
             'TERMINATED'
           ] as ExecutionStatus[]
         ).map((status) => {
-          const count = data.filter(
+          const count = executionData.filter(
             (execution) => execution.status === status
           ).length
           return (
@@ -500,27 +602,34 @@ export function ExecutionListTable() {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className="cursor-pointer"
-                  onClick={() =>
-                    router.push(
-                      `/plugins/workflows/executions/${row.original.executionId}`
-                    )
-                  }
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const isUpdating = recentlyUpdated.has(row.original.executionId)
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && 'selected'}
+                    className={cn(
+                      'cursor-pointer transition-all duration-300',
+                      isUpdating &&
+                        'animate-pulse bg-blue-50 dark:bg-blue-950/20'
+                    )}
+                    onClick={() =>
+                      router.push(
+                        `/plugins/workflows/executions/${row.original.executionId}`
+                      )
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell

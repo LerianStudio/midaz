@@ -295,3 +295,5 @@ export const TaskNodeComponent = memo(
     )
   }
 )
+
+TaskNodeComponent.displayName = 'TaskNodeComponent'

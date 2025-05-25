@@ -38,7 +38,12 @@ export interface TemplateFieldMapping {
 
 export type TemplateStatus = 'active' | 'inactive' | 'draft' | 'archived'
 
-export type TemplateCategory = 'FINANCIAL' | 'OPERATIONAL' | 'COMPLIANCE' | 'MARKETING' | 'CUSTOM'
+export type TemplateCategory =
+  | 'FINANCIAL'
+  | 'OPERATIONAL'
+  | 'COMPLIANCE'
+  | 'MARKETING'
+  | 'CUSTOM'
 
 export interface CreateTemplateInput {
   name: string

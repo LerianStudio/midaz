@@ -1,6 +1,6 @@
 'use client'
 
-import { Database, External, Info } from 'lucide-react'
+import { Database, ExternalLink, Info } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -42,7 +42,7 @@ export function DomainSelector({
       id: 'external' as const,
       title: 'External Domain',
       description: 'External system accounts for third-party integrations',
-      icon: External,
+      icon: ExternalLink,
       color: 'bg-orange-50 border-orange-200 hover:bg-orange-100',
       iconColor: 'text-orange-600',
       badgeColor: 'bg-orange-100 text-orange-700',

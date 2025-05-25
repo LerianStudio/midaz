@@ -6,6 +6,7 @@ import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operat
 import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
 import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image'
 import { inject, injectable } from 'inversify'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 import type {
   CreateOrganizationDto,
   OrganizationResponseDto
@@ -23,7 +24,7 @@ export interface CreateOrganization {
 @injectable()
 export class CreateOrganizationUseCase implements CreateOrganization {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,
     @inject(OrganizationAvatarRepository)
     private readonly organizationAvatarRepository: OrganizationAvatarRepository

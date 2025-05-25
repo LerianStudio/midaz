@@ -99,10 +99,12 @@ export const AccountBalanceCardLoading = React.forwardRef<
   HTMLDivElement,
   React.HtmlHTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <Skeleton
-    className={cn('mt-3 h-3 w-full rounded-md bg-zinc-200', className)}
-    {...props}
-  />
+  <div ref={ref}>
+    <Skeleton
+      className={cn('mt-3 h-3 w-full rounded-md bg-zinc-200', className)}
+      {...props}
+    />
+  </div>
 ))
 AccountBalanceCardLoading.displayName = 'AccountBalanceCardLoading'
 
@@ -220,10 +222,16 @@ export const AccountBalanceCardUpdateButton = React.forwardRef<
 })
 AccountBalanceCardUpdateButton.displayName = 'AccountBalanceCardUpdateButton'
 
+export type AccountBalanceCardTriggerProps = React.ComponentPropsWithoutRef<
+  typeof Button
+> & {
+  open?: boolean
+}
+
 export const AccountBalanceCardTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
-  React.ComponentPropsWithoutRef<typeof Button>
->(({ className, children, ...props }, ref) => {
+  AccountBalanceCardTriggerProps
+>(({ className, children, open, ...props }, ref) => {
   const intl = useIntl()
 
   return (

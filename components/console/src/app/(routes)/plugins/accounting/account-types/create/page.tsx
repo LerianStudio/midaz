@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/page-header'
 import { AccountTypeWizard } from '@/components/accounting/account-types/account-type-wizard'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/hooks/use-toast'
 
 interface AccountTypeFormData {
   name: string

@@ -6,7 +6,7 @@ import {
   ArrowLeft,
   Edit,
   Database,
-  External,
+  ExternalLink,
   Users,
   Activity,
   Calendar,
@@ -121,7 +121,7 @@ export default function AccountTypeDetailsPage() {
           <div>
             <PageHeader.InfoTitle
               title={accountType.name}
-              description={accountType.description}
+              subtitle={accountType.description}
             />
             <div className="mt-2 flex items-center gap-2">
               <code className="rounded bg-gray-100 px-2 py-1 font-mono text-sm">
@@ -136,7 +136,7 @@ export default function AccountTypeDetailsPage() {
                 {accountType.domain === 'ledger' ? (
                   <Database className="h-3 w-3" />
                 ) : (
-                  <External className="h-3 w-3" />
+                  <ExternalLink className="h-3 w-3" />
                 )}
                 {accountType.domain === 'ledger'
                   ? 'Ledger Domain'
@@ -158,7 +158,7 @@ export default function AccountTypeDetailsPage() {
             </div>
           </div>
         </div>
-        <PageHeader.InfoTooltip content="View and manage account type details, analytics, and audit trail." />
+        <PageHeader.InfoTooltip subtitle="View and manage account type details, analytics, and audit trail." />
         <div className="flex items-center gap-2">
           <Button size="sm">
             <Edit className="mr-2 h-4 w-4" />
@@ -301,7 +301,7 @@ export default function AccountTypeDetailsPage() {
                         {accountType.domain === 'ledger' ? (
                           <Database className="h-3 w-3" />
                         ) : (
-                          <External className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3" />
                         )}
                         {accountType.domain === 'ledger'
                           ? 'Ledger Domain'

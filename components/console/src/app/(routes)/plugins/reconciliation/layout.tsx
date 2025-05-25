@@ -8,7 +8,9 @@ interface ReconciliationLayoutProps {
   children: React.ReactNode
 }
 
-export default function ReconciliationLayout({ children }: ReconciliationLayoutProps) {
+export default function ReconciliationLayout({
+  children
+}: ReconciliationLayoutProps) {
   return (
     <PageRoot>
       <Sidebar />

@@ -4,6 +4,7 @@ import type { CreateAssetDto, AssetResponseDto } from '../../dto/asset-dto'
 import { inject, injectable } from 'inversify'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface CreateAsset {
   execute: (
@@ -16,7 +17,7 @@ export interface CreateAsset {
 @injectable()
 export class CreateAssetUseCase implements CreateAsset {
   constructor(
-    @inject(AssetRepository)
+    @inject(MIDAZ_SYMBOLS.AssetRepository)
     private readonly assetRepository: AssetRepository
   ) {}
 

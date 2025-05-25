@@ -5,6 +5,7 @@ import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { BalanceMapper } from '../../mappers/balance-mapper'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAccountById {
   execute: (
@@ -17,9 +18,9 @@ export interface FetchAccountById {
 @injectable()
 export class FetchAccountByIdUseCase implements FetchAccountById {
   constructor(
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository,
-    @inject(BalanceRepository)
+    @inject(MIDAZ_SYMBOLS.BalanceRepository)
     private readonly balanceRepository: BalanceRepository
   ) {}
 

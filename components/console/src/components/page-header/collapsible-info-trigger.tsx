@@ -11,9 +11,13 @@ export const CollapsibleInfoTrigger = ({
 }: CollapsibleInfoTrigger) => {
   return (
     <CollapsibleTrigger asChild>
-      <Button variant="link" className="flex gap-2 pr-0">
+      <Button
+        variant="link"
+        className="flex gap-2 pr-0"
+        icon={<HelpCircle className="h-4 w-4" />}
+        iconPlacement="end"
+      >
         <span className="text-sm font-medium text-[#3f3f46]">{question}</span>
-        <HelpCircle className="h-4 w-4" />
       </Button>
     </CollapsibleTrigger>
   )

@@ -187,18 +187,18 @@ export function WorkflowAnalyticsDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 p-2 sm:space-y-6 sm:p-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Workflow Analytics</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold sm:text-2xl">Workflow Analytics</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
             Performance insights and execution statistics
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-28 sm:w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -215,29 +215,29 @@ export function WorkflowAnalyticsDashboard() {
             className={autoRefresh ? 'text-green-600' : ''}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`}
+              className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''} sm:mr-2`}
             />
-            Auto Refresh
+            <span className="hidden sm:inline">Auto Refresh</span>
           </Button>
         </div>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground sm:text-sm">
                   Total Executions
                 </p>
-                <p className="text-2xl font-bold">
+                <p className="text-lg font-bold sm:text-2xl">
                   {data.totalExecutions.toLocaleString()}
                 </p>
               </div>
-              <Activity className="h-8 w-8 text-blue-600" />
+              <Activity className="h-6 w-6 text-blue-600 sm:h-8 sm:w-8" />
             </div>
-            <div className="mt-2 flex items-center text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center text-[10px] text-muted-foreground sm:text-xs">
               <TrendingUp className="mr-1 h-3 w-3 text-green-600" />
               +12.5% from last period
             </div>
@@ -245,56 +245,58 @@ export function WorkflowAnalyticsDashboard() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground sm:text-sm">
                   Success Rate
                 </p>
-                <p className="text-2xl font-bold">
+                <p className="text-lg font-bold sm:text-2xl">
                   {data.successRate.toFixed(1)}%
                 </p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <CheckCircle className="h-6 w-6 text-green-600 sm:h-8 sm:w-8" />
             </div>
             <div className="mt-2">
-              <Progress value={data.successRate} className="h-2" />
+              <Progress value={data.successRate} className="h-1.5 sm:h-2" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground sm:text-sm">
                   Avg Execution Time
                 </p>
-                <p className="text-2xl font-bold">
+                <p className="text-lg font-bold sm:text-2xl">
                   {formatDuration(data.avgExecutionTime)}
                 </p>
               </div>
-              <Clock className="h-8 w-8 text-orange-600" />
+              <Clock className="h-6 w-6 text-orange-600 sm:h-8 sm:w-8" />
             </div>
-            <div className="mt-2 flex items-center text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center text-[10px] text-muted-foreground sm:text-xs">
               <TrendingDown className="mr-1 h-3 w-3 text-green-600" />
               -8.2% improvement
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
+        <Card className="col-span-2 md:col-span-1">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground sm:text-sm">
                   Active Workflows
                 </p>
-                <p className="text-2xl font-bold">{data.activeWorkflows}</p>
+                <p className="text-lg font-bold sm:text-2xl">
+                  {data.activeWorkflows}
+                </p>
               </div>
-              <Zap className="h-8 w-8 text-purple-600" />
+              <Zap className="h-6 w-6 text-purple-600 sm:h-8 sm:w-8" />
             </div>
-            <div className="mt-2 flex items-center text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center text-[10px] text-muted-foreground sm:text-xs">
               <Users className="mr-1 h-3 w-3" />
               {data.statusDistribution.running} currently running
             </div>
@@ -303,26 +305,34 @@ export function WorkflowAnalyticsDashboard() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="workflows">Top Workflows</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="text-xs sm:text-sm">
+            Performance
+          </TabsTrigger>
+          <TabsTrigger value="workflows" className="text-xs sm:text-sm">
+            Top Workflows
+          </TabsTrigger>
+          <TabsTrigger value="trends" className="text-xs sm:text-sm">
+            Trends
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           {/* Status Distribution */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">
                 Execution Status Distribution
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Current distribution of workflow execution statuses
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 {Object.entries(data.statusDistribution).map(
                   ([status, count]) => (
                     <div key={status} className="text-center">
@@ -330,14 +340,14 @@ export function WorkflowAnalyticsDashboard() {
                         className={`mb-2 flex items-center justify-center ${getStatusColor(status)}`}
                       >
                         {getStatusIcon(status)}
-                        <span className="ml-2 text-sm font-medium capitalize">
+                        <span className="ml-1 text-xs font-medium capitalize sm:ml-2 sm:text-sm">
                           {status}
                         </span>
                       </div>
-                      <div className="text-2xl font-bold">
+                      <div className="text-lg font-bold sm:text-2xl">
                         {count.toLocaleString()}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-[10px] text-muted-foreground sm:text-xs">
                         {((count / data.totalExecutions) * 100).toFixed(1)}%
                       </div>
                     </div>
@@ -349,36 +359,38 @@ export function WorkflowAnalyticsDashboard() {
 
           {/* Recent Activity */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Execution Trends</CardTitle>
-              <CardDescription>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">
+                Recent Execution Trends
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 Daily execution volume over the selected period
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-3 sm:space-y-4">
                 {data.executionTrends.slice(-5).map((trend, index) => (
                   <div
                     key={trend.date}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground sm:h-4 sm:w-4" />
+                      <span className="text-xs font-medium sm:text-sm">
                         {new Date(trend.date).toLocaleDateString()}
                       </span>
                     </div>
-                    <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-3 text-[10px] sm:gap-6 sm:text-sm">
                       <div className="flex items-center gap-1">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
+                        <div className="h-2 w-2 rounded-full bg-blue-500 sm:h-3 sm:w-3"></div>
                         <span>Total: {trend.executions}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                        <div className="h-2 w-2 rounded-full bg-green-500 sm:h-3 sm:w-3"></div>
                         <span>Success: {trend.success}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="h-3 w-3 rounded-full bg-red-500"></div>
+                        <div className="h-2 w-2 rounded-full bg-red-500 sm:h-3 sm:w-3"></div>
                         <span>Failed: {trend.failed}</span>
                       </div>
                     </div>
@@ -389,19 +401,23 @@ export function WorkflowAnalyticsDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="performance" className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <TabsContent value="performance" className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Throughput Metrics</CardTitle>
-                <CardDescription>System performance indicators</CardDescription>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">
+                  Throughput Metrics
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  System performance indicators
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 p-4 sm:space-y-4 sm:p-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs text-muted-foreground sm:text-sm">
                     Executions/hour
                   </span>
-                  <span className="font-bold">
+                  <span className="text-sm font-bold sm:text-base">
                     {data.performanceMetrics.throughput}
                   </span>
                 </div>
@@ -473,45 +489,48 @@ export function WorkflowAnalyticsDashboard() {
           </div>
         </TabsContent>
 
-        <TabsContent value="workflows" className="space-y-6">
+        <TabsContent value="workflows" className="space-y-4 sm:space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">
                 Top Performing Workflows
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Most frequently executed workflows and their performance
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-3 sm:space-y-4">
                 {data.topWorkflows.map((workflow, index) => (
                   <div
                     key={workflow.name}
-                    className="flex items-center justify-between rounded-lg border p-4"
+                    className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-600">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 sm:h-8 sm:w-8 sm:text-sm">
                         {index + 1}
                       </div>
-                      <div>
-                        <h4 className="font-medium">{workflow.name}</h4>
-                        <p className="text-sm text-muted-foreground">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="truncate text-xs font-medium sm:text-sm">
+                          {workflow.name}
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground sm:text-sm">
                           {workflow.executions.toLocaleString()} executions
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="mb-1 flex items-center gap-2">
+                    <div className="flex items-center justify-between sm:block sm:text-right">
+                      <div className="mb-0 flex items-center gap-2 sm:mb-1">
                         <Badge
                           variant={
                             workflow.successRate > 95 ? 'default' : 'secondary'
                           }
+                          className="text-[10px] sm:text-xs"
                         >
                           {workflow.successRate}% success
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-[10px] text-muted-foreground sm:text-sm">
                         Avg: {workflow.avgDuration}
                       </p>
                     </div>

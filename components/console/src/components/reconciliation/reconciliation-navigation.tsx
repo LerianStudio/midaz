@@ -117,7 +117,8 @@ export function ReconciliationNavigation({
           {navigationItems.map((item) => {
             const href = `${basePath}${item.href}`
             const isActive =
-              pathname === href || (item.href !== '' && pathname.startsWith(href))
+              pathname === href ||
+              (item.href !== '' && pathname.startsWith(href))
             const Icon = item.icon
             const badgeInfo = getBadgeInfo(item.badge)
 

@@ -1,6 +1,7 @@
 import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface DeletePortfolio {
   execute: (
@@ -13,7 +14,7 @@ export interface DeletePortfolio {
 @injectable()
 export class DeletePortfolioUseCase implements DeletePortfolio {
   constructor(
-    @inject(PortfolioRepository)
+    @inject(MIDAZ_SYMBOLS.PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository
   ) {}
 

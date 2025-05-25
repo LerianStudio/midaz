@@ -13,9 +13,12 @@ export default function AuthPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Authentication & Authorization</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Authentication & Authorization
+        </h1>
         <p className="text-muted-foreground">
-          User authentication, role-based access control, and security management with JWT integration.
+          User authentication, role-based access control, and security
+          management with JWT integration.
         </p>
       </div>
 
@@ -25,7 +28,9 @@ export default function AuthPage() {
           <div className="flex items-center">
             <Users className="h-8 w-8 text-blue-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Active Users</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Active Users
+              </p>
               <p className="text-2xl font-bold">1,234</p>
             </div>
           </div>
@@ -34,7 +39,9 @@ export default function AuthPage() {
           <div className="flex items-center">
             <Shield className="h-8 w-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Security Score</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Security Score
+              </p>
               <p className="text-2xl font-bold">98%</p>
             </div>
           </div>
@@ -43,7 +50,9 @@ export default function AuthPage() {
           <div className="flex items-center">
             <Key className="h-8 w-8 text-orange-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Active Tokens</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Active Tokens
+              </p>
               <p className="text-2xl font-bold">567</p>
             </div>
           </div>
@@ -125,19 +134,25 @@ export default function AuthPage() {
       {/* Recent Activity */}
       <Card>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Recent Authentication Activity</h3>
+          <h3 className="mb-4 text-lg font-semibold">
+            Recent Authentication Activity
+          </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
               <div>
                 <p className="font-medium">User Login</p>
-                <p className="text-sm text-muted-foreground">john.doe@example.com</p>
+                <p className="text-sm text-muted-foreground">
+                  john.doe@example.com
+                </p>
               </div>
               <span className="text-sm text-green-600">Success</span>
             </div>
             <div className="flex items-center justify-between border-b pb-2">
               <div>
                 <p className="font-medium">Failed Login Attempt</p>
-                <p className="text-sm text-muted-foreground">suspicious.user@example.com</p>
+                <p className="text-sm text-muted-foreground">
+                  suspicious.user@example.com
+                </p>
               </div>
               <span className="text-sm text-red-600">Failed</span>
             </div>

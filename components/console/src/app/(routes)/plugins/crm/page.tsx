@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useIntl } from 'react-intl'
 import { PageHeader } from '@/components/page-header'
 import { Breadcrumb } from '@/components/breadcrumb'
@@ -14,14 +14,45 @@ import {
   Building,
   Link as LinkIcon,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useAction } from 'next-safe-action/hooks'
+import { getDashboardStats, getRecentActivity } from '@/lib/actions/crm'
 
 const CRMDashboardPage = () => {
   const intl = useIntl()
   const router = useRouter()
-  const { currentOrganization } = useOrganization()
+  const { currentOrganization, currentLedger } = useOrganization()
+
+  // Fetch dashboard stats using server action
+  const {
+    execute: fetchStats,
+    result: statsResult,
+    isExecuting: isLoadingStats
+  } = useAction(getDashboardStats)
+
+  // Fetch recent activity using server action
+  const {
+    execute: fetchActivity,
+    result: activityResult,
+    isExecuting: isLoadingActivity
+  } = useAction(getRecentActivity)
+
+  useEffect(() => {
+    if (currentOrganization?.id && currentLedger?.id) {
+      fetchStats({
+        organizationId: currentOrganization.id,
+        ledgerId: currentLedger.id
+      })
+      fetchActivity({
+        organizationId: currentOrganization.id,
+        ledgerId: currentLedger.id,
+        limit: 5
+      })
+    }
+  }, [currentOrganization?.id, currentLedger?.id])
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -42,49 +73,51 @@ const CRMDashboardPage = () => {
     }
   ])
 
-  // Mock stats data
-  const stats = [
-    {
-      title: intl.formatMessage({
-        id: 'crm.stats.totalCustomers',
-        defaultMessage: 'Total Customers'
-      }),
-      value: '1,247',
-      change: '+12%',
-      changeType: 'positive' as const,
-      icon: <Users className="h-4 w-4" />
-    },
-    {
-      title: intl.formatMessage({
-        id: 'crm.stats.individualCustomers',
-        defaultMessage: 'Individual Customers'
-      }),
-      value: '892',
-      change: '+8%',
-      changeType: 'positive' as const,
-      icon: <UserPlus className="h-4 w-4" />
-    },
-    {
-      title: intl.formatMessage({
-        id: 'crm.stats.corporateCustomers',
-        defaultMessage: 'Corporate Customers'
-      }),
-      value: '355',
-      change: '+24%',
-      changeType: 'positive' as const,
-      icon: <Building className="h-4 w-4" />
-    },
-    {
-      title: intl.formatMessage({
-        id: 'crm.stats.accountLinks',
-        defaultMessage: 'Account Links'
-      }),
-      value: '2,103',
-      change: '+15%',
-      changeType: 'positive' as const,
-      icon: <LinkIcon className="h-4 w-4" />
-    }
-  ]
+  // Prepare stats data from server response
+  const stats = statsResult?.data
+    ? [
+        {
+          title: intl.formatMessage({
+            id: 'crm.stats.totalCustomers',
+            defaultMessage: 'Total Customers'
+          }),
+          value: statsResult.data.totalCustomers.toLocaleString(),
+          change: `+${statsResult.data.monthlyGrowth.totalCustomers}%`,
+          changeType: 'positive' as const,
+          icon: <Users className="h-4 w-4" />
+        },
+        {
+          title: intl.formatMessage({
+            id: 'crm.stats.individualCustomers',
+            defaultMessage: 'Individual Customers'
+          }),
+          value: statsResult.data.individualCustomers.toLocaleString(),
+          change: `+${statsResult.data.monthlyGrowth.individualCustomers}%`,
+          changeType: 'positive' as const,
+          icon: <UserPlus className="h-4 w-4" />
+        },
+        {
+          title: intl.formatMessage({
+            id: 'crm.stats.corporateCustomers',
+            defaultMessage: 'Corporate Customers'
+          }),
+          value: statsResult.data.corporateCustomers.toLocaleString(),
+          change: `+${statsResult.data.monthlyGrowth.corporateCustomers}%`,
+          changeType: 'positive' as const,
+          icon: <Building className="h-4 w-4" />
+        },
+        {
+          title: intl.formatMessage({
+            id: 'crm.stats.accountLinks',
+            defaultMessage: 'Account Links'
+          }),
+          value: statsResult.data.accountLinks.toLocaleString(),
+          change: `+${statsResult.data.monthlyGrowth.accountLinks}%`,
+          changeType: 'positive' as const,
+          icon: <LinkIcon className="h-4 w-4" />
+        }
+      ]
+    : []
 
   const quickActions = [
     {
@@ -176,29 +209,62 @@ const CRMDashboardPage = () => {
 
       {/* Stats Overview */}
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
-              {stat.icon}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                <TrendingUp className="h-3 w-3" />
-                <span className="text-green-600">{stat.change}</span>
-                <span>
-                  {intl.formatMessage({
-                    id: 'crm.stats.fromLastMonth',
-                    defaultMessage: 'from last month'
-                  })}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {isLoadingStats ? (
+          // Loading skeleton
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-32 animate-pulse rounded bg-muted"></div>
+                <div className="h-4 w-4 animate-pulse rounded bg-muted"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-20 animate-pulse rounded bg-muted"></div>
+                <div className="mt-2 h-3 w-24 animate-pulse rounded bg-muted"></div>
+              </CardContent>
+            </Card>
+          ))
+        ) : stats.length > 0 ? (
+          stats.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {stat.title}
+                </CardTitle>
+                {stat.icon}
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                  <TrendingUp className="h-3 w-3" />
+                  <span className="text-green-600">{stat.change}</span>
+                  <span>
+                    {intl.formatMessage({
+                      id: 'crm.stats.fromLastMonth',
+                      defaultMessage: 'from last month'
+                    })}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          // No data state
+          <div className="col-span-full">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center text-muted-foreground">
+                  <Users className="mx-auto mb-2 h-12 w-12 opacity-50" />
+                  <p>
+                    {intl.formatMessage({
+                      id: 'crm.stats.noData',
+                      defaultMessage: 'No statistics available yet.'
+                    })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -241,7 +307,7 @@ const CRMDashboardPage = () => {
         </div>
       </div>
 
-      {/* Recent Activity Placeholder */}
+      {/* Recent Activity */}
       <div className="mt-8">
         <h2 className="mb-4 text-lg font-semibold">
           {intl.formatMessage({
@@ -249,20 +315,72 @@ const CRMDashboardPage = () => {
             defaultMessage: 'Recent Activity'
           })}
         </h2>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-muted-foreground">
-              <Users className="mx-auto mb-2 h-12 w-12 opacity-50" />
-              <p>
-                {intl.formatMessage({
-                  id: 'crm.recentActivity.placeholder',
-                  defaultMessage:
-                    'Customer activity will appear here once you start managing customers.'
-                })}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {isLoadingActivity ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="flex items-center space-x-4">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-muted"></div>
+                      <div className="h-3 w-1/2 animate-pulse rounded bg-muted"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : activityResult?.data && activityResult.data.length > 0 ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {activityResult.data.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-center space-x-4"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      {activity.type === 'customer_created' && (
+                        <UserPlus className="h-5 w-5 text-primary" />
+                      )}
+                      {activity.type === 'customer_updated' && (
+                        <Users className="h-5 w-5 text-primary" />
+                      )}
+                      {(activity.type === 'account_linked' ||
+                        activity.type === 'account_unlinked') && (
+                        <LinkIcon className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {activity.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(activity.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center text-muted-foreground">
+                <Users className="mx-auto mb-2 h-12 w-12 opacity-50" />
+                <p>
+                  {intl.formatMessage({
+                    id: 'crm.recentActivity.placeholder',
+                    defaultMessage:
+                      'Customer activity will appear here once you start managing customers.'
+                  })}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </React.Fragment>
   )

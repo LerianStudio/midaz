@@ -1,5 +1,6 @@
 import React from 'react'
 import { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Accounting - Midaz Console',
@@ -128,7 +129,7 @@ export default function AccountingPage() {
         <div className="rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
           <div className="grid gap-4 md:grid-cols-3">
-            <a
+            <Link
               href="/plugins/accounting/account-types/create"
               className="flex items-center space-x-3 rounded-lg border p-4 transition-colors hover:bg-muted"
             >
@@ -154,9 +155,9 @@ export default function AccountingPage() {
                   Add new account type to chart
                 </p>
               </div>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/plugins/accounting/transaction-routes/create"
               className="flex items-center space-x-3 rounded-lg border p-4 transition-colors hover:bg-muted"
             >
@@ -182,9 +183,9 @@ export default function AccountingPage() {
                   Create accounting template
                 </p>
               </div>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/plugins/accounting/compliance"
               className="flex items-center space-x-3 rounded-lg border p-4 transition-colors hover:bg-muted"
             >
@@ -211,7 +212,7 @@ export default function AccountingPage() {
                   Check validation status
                 </p>
               </div>
-            </a>
+            </Link>
           </div>
         </div>
 

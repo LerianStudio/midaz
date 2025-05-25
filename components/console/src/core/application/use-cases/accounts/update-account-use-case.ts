@@ -10,6 +10,7 @@ import { BalanceEntity } from '@/core/domain/entities/balance-entity'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { BalanceMapper } from '@/core/application/mappers/balance-mapper'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface UpdateAccount {
   execute: (
@@ -23,9 +24,9 @@ export interface UpdateAccount {
 @injectable()
 export class UpdateAccountUseCase implements UpdateAccount {
   constructor(
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository,
-    @inject(BalanceRepository)
+    @inject(MIDAZ_SYMBOLS.BalanceRepository)
     private readonly balanceRepository: BalanceRepository
   ) {}
 

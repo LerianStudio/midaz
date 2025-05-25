@@ -11,6 +11,7 @@ import { BalanceRepository } from '@/core/domain/repositories/balance-repository
 import { BalanceMapper } from '../../mappers/balance-mapper'
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAccountsWithPortfolios {
   execute: (
@@ -26,11 +27,11 @@ export class FetchAccountsWithPortfoliosUseCase
   implements FetchAccountsWithPortfolios
 {
   constructor(
-    @inject(PortfolioRepository)
+    @inject(MIDAZ_SYMBOLS.PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository,
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository,
-    @inject(BalanceRepository)
+    @inject(MIDAZ_SYMBOLS.BalanceRepository)
     private readonly balanceRepository: BalanceRepository,
     @inject(LoggerAggregator)
     private readonly midazLogger: LoggerAggregator

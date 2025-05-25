@@ -1,13 +1,13 @@
 'use client'
 
+import React from 'react'
 import { useState, useMemo } from 'react'
-import { ColumnDef } from '@tanstack/react-table'
 import {
   MoreHorizontal,
   Search,
   Filter,
-  External,
   Database,
+  ExternalLink,
   Eye,
   Edit,
   Copy,
@@ -36,6 +36,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table'
+import { TableContainer } from '@/components/table-container'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { AccountType } from '@/core/domain/mock-data/accounting-mock-data'
 
@@ -68,154 +77,6 @@ export function AccountTypeDataTable({ data }: AccountTypeDataTableProps) {
       return matchesSearch && matchesDomain && matchesStatus
     })
   }, [data, searchQuery, domainFilter, statusFilter])
-
-  const columns: ColumnDef<AccountType>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Account Type',
-      cell: ({ row }) => {
-        const accountType = row.original
-        return (
-          <div className="min-w-0">
-            <div className="truncate font-medium text-gray-900">
-              {accountType.name}
-            </div>
-            <div className="truncate text-sm text-gray-500">
-              {accountType.description}
-            </div>
-          </div>
-        )
-      }
-    },
-    {
-      accessorKey: 'keyValue',
-      header: 'Key Value',
-      cell: ({ row }) => (
-        <code className="rounded bg-gray-100 px-2 py-1 font-mono text-sm">
-          {row.getValue('keyValue')}
-        </code>
-      )
-    },
-    {
-      accessorKey: 'domain',
-      header: 'Domain',
-      cell: ({ row }) => {
-        const domain = row.getValue('domain') as string
-        return (
-          <Badge
-            variant={domain === 'ledger' ? 'default' : 'secondary'}
-            className="gap-1"
-          >
-            {domain === 'ledger' ? (
-              <Database className="h-3 w-3" />
-            ) : (
-              <External className="h-3 w-3" />
-            )}
-            {domain === 'ledger' ? 'Ledger' : 'External'}
-          </Badge>
-        )
-      }
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => {
-        const status = row.getValue('status') as string
-        const variants = {
-          active: 'default',
-          inactive: 'secondary',
-          draft: 'outline',
-          invalid: 'destructive'
-        } as const
-
-        return (
-          <Badge
-            variant={variants[status as keyof typeof variants] || 'secondary'}
-          >
-            {status}
-          </Badge>
-        )
-      }
-    },
-    {
-      accessorKey: 'usageCount',
-      header: 'Usage',
-      cell: ({ row }) => {
-        const accountType = row.original
-        return (
-          <div className="text-center">
-            <div className="font-medium">
-              {accountType.usageCount.toLocaleString()}
-            </div>
-            <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
-              <Users className="h-3 w-3" />
-              {accountType.linkedAccounts} accounts
-            </div>
-          </div>
-        )
-      }
-    },
-    {
-      accessorKey: 'lastUsed',
-      header: 'Last Used',
-      cell: ({ row }) => {
-        const lastUsed = row.getValue('lastUsed') as string
-        return (
-          <div className="text-sm text-gray-600">
-            {formatDistanceToNow(new Date(lastUsed), { addSuffix: true })}
-          </div>
-        )
-      }
-    },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => {
-        const accountType = row.original
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link
-                  href={`/plugins/accounting/account-types/${accountType.id}`}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Details
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link
-                  href={`/plugins/accounting/account-types/${accountType.id}/analytics`}
-                >
-                  <Activity className="mr-2 h-4 w-4" />
-                  Analytics
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Copy className="mr-2 h-4 w-4" />
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      }
-    }
-  ]
 
   return (
     <div className="space-y-4">
@@ -295,17 +156,150 @@ export function AccountTypeDataTable({ data }: AccountTypeDataTableProps) {
       </div>
 
       {/* Data Table */}
-      <div className="rounded-lg border bg-white">
-        <EntityDataTable
-          columns={columns}
-          data={filteredData}
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          enableColumnVisibility
-          enablePagination
-          pageSize={10}
-        />
-      </div>
+      <EntityDataTable.Root>
+        {filteredData.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-muted-foreground">No account types found</p>
+          </div>
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account Type</TableHead>
+                  <TableHead>Key Value</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Usage</TableHead>
+                  <TableHead>Last Used</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredData.map((accountType) => (
+                  <TableRow key={accountType.id}>
+                    <TableCell>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-gray-900">
+                          {accountType.name}
+                        </div>
+                        <div className="truncate text-sm text-gray-500">
+                          {accountType.description}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <code className="rounded bg-gray-100 px-2 py-1 font-mono text-sm">
+                        {accountType.keyValue}
+                      </code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          accountType.domain === 'ledger'
+                            ? 'default'
+                            : 'secondary'
+                        }
+                        className="gap-1"
+                      >
+                        {accountType.domain === 'ledger' ? (
+                          <Database className="h-3 w-3" />
+                        ) : (
+                          <ExternalLink className="h-3 w-3" />
+                        )}
+                        {accountType.domain === 'ledger'
+                          ? 'Ledger'
+                          : 'External'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          accountType.status === 'active'
+                            ? 'default'
+                            : accountType.status === 'inactive'
+                              ? 'secondary'
+                              : accountType.status === 'draft'
+                                ? 'outline'
+                                : 'destructive'
+                        }
+                      >
+                        {accountType.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div>
+                        <div className="font-medium">
+                          {accountType.usageCount.toLocaleString()}
+                        </div>
+                        <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
+                          <Users className="h-3 w-3" />
+                          {accountType.linkedAccounts} accounts
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-gray-600">
+                        {formatDistanceToNow(new Date(accountType.lastUsed), {
+                          addSuffix: true
+                        })}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/plugins/accounting/account-types/${accountType.id}`}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/plugins/accounting/account-types/${accountType.id}/analytics`}
+                            >
+                              <Activity className="mr-2 h-4 w-4" />
+                              Analytics
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        <EntityDataTable.Footer>
+          <EntityDataTable.FooterText>
+            Showing <span className="font-bold">{filteredData.length}</span> of{' '}
+            <span className="font-bold">{data.length}</span> account types
+          </EntityDataTable.FooterText>
+        </EntityDataTable.Footer>
+      </EntityDataTable.Root>
     </div>
   )
 }

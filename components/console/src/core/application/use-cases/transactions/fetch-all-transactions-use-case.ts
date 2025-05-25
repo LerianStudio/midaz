@@ -4,6 +4,7 @@ import { TransactionMapper } from '../../mappers/transaction-mapper'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { TransactionDto } from '../../dto/transaction-dto'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllTransactions {
   execute: (
@@ -17,7 +18,7 @@ export interface FetchAllTransactions {
 @injectable()
 export class FetchAllTransactionsUseCase implements FetchAllTransactions {
   constructor(
-    @inject(TransactionRepository)
+    @inject(MIDAZ_SYMBOLS.TransactionRepository)
     private readonly transactionRepository: TransactionRepository
   ) {}
 

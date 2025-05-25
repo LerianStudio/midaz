@@ -1,6 +1,6 @@
 import React from 'react'
 import { Metadata } from 'next'
-import { ExecutionDetailView } from '@/components/workflows/executions/execution-detail-view'
+import { ExecutionDetailViewEnhanced } from '@/components/workflows/executions/execution-detail-view-enhanced'
 
 export const metadata: Metadata = {
   title: 'Execution Details - Workflows',
@@ -16,5 +16,5 @@ interface ExecutionDetailPageProps {
 export default function ExecutionDetailPage({
   params
 }: ExecutionDetailPageProps) {
-  return <ExecutionDetailView executionId={params.id} />
+  return <ExecutionDetailViewEnhanced executionId={params.id} />
 }

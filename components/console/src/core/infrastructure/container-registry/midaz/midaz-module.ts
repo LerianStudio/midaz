@@ -16,28 +16,62 @@ import { MidazPortfolioRepository } from '@/core/infrastructure/midaz/repositori
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { MidazTransactionRepository } from '@/core/infrastructure/midaz/repositories/midaz-transaction-repository'
 import { MidazHttpService } from '../../midaz/services/midaz-http-service'
+import { WorkflowRepository } from '@/core/domain/repositories/workflow-repository'
+import { WorkflowMockRepository } from '@/core/infrastructure/mock/repositories/workflow-mock-repository'
+import { WorkflowExecutionRepository } from '@/core/application/repositories/workflow-execution-repository'
+import { WorkflowExecutionMockRepository } from '@/core/infrastructure/mock/workflow-execution-mock-repository'
+
+// Create symbols for injection
+export const MIDAZ_SYMBOLS = {
+  OrganizationRepository: Symbol.for('OrganizationRepository'),
+  LedgerRepository: Symbol.for('LedgerRepository'),
+  PortfolioRepository: Symbol.for('PortfolioRepository'),
+  AccountRepository: Symbol.for('AccountRepository'),
+  AssetRepository: Symbol.for('AssetRepository'),
+  SegmentRepository: Symbol.for('SegmentRepository'),
+  TransactionRepository: Symbol.for('TransactionRepository'),
+  BalanceRepository: Symbol.for('BalanceRepository'),
+  WorkflowRepository: Symbol.for('WorkflowRepository'),
+  WorkflowExecutionRepository: Symbol.for('WorkflowExecutionRepository')
+}
 
 export const MidazModule = new ContainerModule((container: Container) => {
   container.bind<MidazHttpService>(MidazHttpService).toSelf()
 
   container
-    .bind<OrganizationRepository>(OrganizationRepository)
+    .bind<OrganizationRepository>(MIDAZ_SYMBOLS.OrganizationRepository)
     .to(MidazOrganizationRepository)
-  container.bind<LedgerRepository>(LedgerRepository).to(MidazLedgerRepository)
   container
-    .bind<PortfolioRepository>(PortfolioRepository)
+    .bind<LedgerRepository>(MIDAZ_SYMBOLS.LedgerRepository)
+    .to(MidazLedgerRepository)
+  container
+    .bind<PortfolioRepository>(MIDAZ_SYMBOLS.PortfolioRepository)
     .to(MidazPortfolioRepository)
   container
-    .bind<AccountRepository>(AccountRepository)
+    .bind<AccountRepository>(MIDAZ_SYMBOLS.AccountRepository)
     .to(MidazAccountRepository)
-  container.bind<AssetRepository>(AssetRepository).to(MidazAssetRepository)
   container
-    .bind<SegmentRepository>(SegmentRepository)
+    .bind<AssetRepository>(MIDAZ_SYMBOLS.AssetRepository)
+    .to(MidazAssetRepository)
+  container
+    .bind<SegmentRepository>(MIDAZ_SYMBOLS.SegmentRepository)
     .to(MidazSegmentRepository)
   container
-    .bind<TransactionRepository>(TransactionRepository)
+    .bind<TransactionRepository>(MIDAZ_SYMBOLS.TransactionRepository)
     .to(MidazTransactionRepository)
   container
-    .bind<BalanceRepository>(BalanceRepository)
+    .bind<BalanceRepository>(MIDAZ_SYMBOLS.BalanceRepository)
     .to(MidazBalanceRepository)
+
+  // Workflow repository - using mock for now
+  container
+    .bind<WorkflowRepository>(MIDAZ_SYMBOLS.WorkflowRepository)
+    .to(WorkflowMockRepository)
+
+  // Workflow execution repository - using mock for now
+  container
+    .bind<WorkflowExecutionRepository>(
+      MIDAZ_SYMBOLS.WorkflowExecutionRepository
+    )
+    .to(WorkflowExecutionMockRepository)
 })

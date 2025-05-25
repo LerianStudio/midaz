@@ -14,6 +14,7 @@ import type {
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { IntlShape } from 'react-intl'
 import { getIntl } from '@/lib/intl'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface UpdateOrganization {
   execute: (
@@ -25,7 +26,7 @@ export interface UpdateOrganization {
 @injectable()
 export class UpdateOrganizationUseCase implements UpdateOrganization {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,
     @inject(OrganizationAvatarRepository)
     private readonly organizationAvatarRepository: OrganizationAvatarRepository

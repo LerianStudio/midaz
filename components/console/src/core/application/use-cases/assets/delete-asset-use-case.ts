@@ -1,6 +1,7 @@
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface DeleteAsset {
   execute: (
@@ -13,7 +14,7 @@ export interface DeleteAsset {
 @injectable()
 export class DeleteAssetUseCase implements DeleteAsset {
   constructor(
-    @inject(AssetRepository)
+    @inject(MIDAZ_SYMBOLS.AssetRepository)
     private readonly assetRepository: AssetRepository
   ) {}
 

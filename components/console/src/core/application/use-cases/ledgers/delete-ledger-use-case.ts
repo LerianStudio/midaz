@@ -1,6 +1,7 @@
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface DeleteLedger {
   execute: (organizationId: string, ledgerId: string) => Promise<void>
@@ -9,7 +10,7 @@ export interface DeleteLedger {
 @injectable()
 export class DeleteLedgerUseCase implements DeleteLedger {
   constructor(
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly ledgerRepository: LedgerRepository
   ) {}
 

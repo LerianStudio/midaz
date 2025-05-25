@@ -108,7 +108,7 @@ export function TaskConfigurationPanel({
           placeholder="Unique reference name"
         />
         <p className="text-xs text-muted-foreground">
-          Used to reference this task's output in other tasks
+          Used to reference this task&apos;s output in other tasks
         </p>
       </div>
 

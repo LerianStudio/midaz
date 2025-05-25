@@ -8,6 +8,7 @@ import {
 } from '../../dto/transaction-dto'
 import { TransactionDto } from '../../dto/transaction-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface UpdateTransaction {
   execute: (
@@ -21,7 +22,7 @@ export interface UpdateTransaction {
 @injectable()
 export class UpdateTransactionUseCase implements UpdateTransaction {
   constructor(
-    @inject(TransactionRepository)
+    @inject(MIDAZ_SYMBOLS.TransactionRepository)
     private readonly transactionRepository: TransactionRepository
   ) {}
 

@@ -87,3 +87,59 @@
   mask: radial-gradient(21px 13px at 50% 102%, #0000 98%, #000) 50%
     calc(100% - 16px) / 64px 100% repeat-x;
 }
+
+/* Workflow Designer Drag & Drop Styles */
+@layer components {
+  /* Custom drag ghost styling */
+  .drag-ghost {
+    @apply fixed -left-[1000px] -top-[1000px] z-[9999];
+    @apply rounded-md bg-primary px-4 py-2;
+    @apply text-sm font-medium text-primary-foreground;
+    @apply pointer-events-none shadow-lg;
+  }
+
+  /* React Flow enhancements for drag and drop */
+  .react-flow__renderer {
+    @apply transition-all duration-200;
+  }
+
+  /* Drop zone active state */
+  .react-flow__renderer.drop-active {
+    @apply ring-2 ring-primary ring-offset-2;
+  }
+
+  /* Task node dragging state */
+  .react-flow__node.dragging {
+    @apply opacity-50;
+  }
+
+  /* Smooth transitions for nodes */
+  .react-flow__node {
+    @apply transition-all duration-200;
+  }
+
+  /* Enhanced minimap styling */
+  .react-flow__minimap {
+    @apply rounded-lg border bg-background/80 backdrop-blur-sm;
+  }
+
+  /* Touch-friendly node handles */
+  .react-flow__handle {
+    @apply h-3 w-3 border-2 transition-all;
+  }
+
+  .react-flow__handle:hover {
+    @apply scale-125;
+  }
+
+  /* Mobile-optimized controls */
+  @media (max-width: 768px) {
+    .react-flow__controls {
+      @apply scale-110;
+    }
+
+    .react-flow__handle {
+      @apply h-4 w-4;
+    }
+  }
+}

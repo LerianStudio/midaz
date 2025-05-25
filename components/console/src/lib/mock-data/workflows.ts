@@ -752,7 +752,10 @@ export const mockWorkflowExecutions: WorkflowExecution[] = [
 ]
 
 // Mock Workflow Templates Data
+import { crossServiceTemplates } from '@/core/domain/mock-data/cross-service-templates'
+
 export const mockWorkflowTemplates: WorkflowTemplate[] = [
+  ...crossServiceTemplates,
   {
     id: 'tmpl_payment_processing',
     name: 'Payment Processing Template',

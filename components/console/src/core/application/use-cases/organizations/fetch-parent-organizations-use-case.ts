@@ -3,6 +3,7 @@ import { OrganizationRepository } from '@/core/domain/repositories/organization-
 import { OrganizationResponseDto } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchParentOrganizations {
   execute(organizationId?: string): Promise<OrganizationResponseDto[]>
@@ -13,7 +14,7 @@ export class FetchParentOrganizationsUseCase
   implements FetchParentOrganizations
 {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository
   ) {}
 

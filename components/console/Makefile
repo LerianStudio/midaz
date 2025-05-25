@@ -11,6 +11,16 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
+# Docker command
+DOCKER_CMD ?= docker compose
+
+# Color variables
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+CYAN := \033[0;36m
+NC := \033[0m
+BOLD := \033[1m
+
 # Define local utility functions
 define title1
 	@echo ""

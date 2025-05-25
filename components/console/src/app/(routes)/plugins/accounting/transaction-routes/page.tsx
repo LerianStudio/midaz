@@ -130,11 +130,11 @@ export default function TransactionRoutesPage() {
   return (
     <div className="space-y-6">
       <PageHeader.Root>
-        <PageHeader.InfoTitle>Transaction Routes</PageHeader.InfoTitle>
-        <PageHeader.InfoTooltip>
-          Configure transaction routing rules and operation mappings for
-          automated transaction processing.
-        </PageHeader.InfoTooltip>
+        <PageHeader.InfoTitle
+          title="Transaction Routes"
+          subtitle="Configure transaction routing rules and operation mappings for automated transaction processing"
+        />
+        <PageHeader.InfoTooltip subtitle="Transaction routes define how operations flow through your accounting system, ensuring proper validation and processing of financial transactions." />
       </PageHeader.Root>
 
       {/* Stats Cards */}

@@ -7,6 +7,7 @@ import type {
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface CreatePortfolio {
   execute: (
@@ -19,7 +20,7 @@ export interface CreatePortfolio {
 @injectable()
 export class CreatePortfolioUseCase implements CreatePortfolio {
   constructor(
-    @inject(PortfolioRepository)
+    @inject(MIDAZ_SYMBOLS.PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository
   ) {}
 

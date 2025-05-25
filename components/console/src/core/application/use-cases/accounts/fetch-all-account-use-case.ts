@@ -6,6 +6,7 @@ import { AccountDto, type AccountSearchParamDto } from '../../dto/account-dto'
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllAccounts {
   execute: (
@@ -18,7 +19,7 @@ export interface FetchAllAccounts {
 @injectable()
 export class FetchAllAccountsUseCase implements FetchAllAccounts {
   constructor(
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository
   ) {}
 

@@ -1,6 +1,7 @@
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface DeleteAccount {
   execute: (
@@ -12,7 +13,7 @@ export interface DeleteAccount {
 @injectable()
 export class DeleteAccountUseCase implements DeleteAccount {
   constructor(
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository
   ) {}
 

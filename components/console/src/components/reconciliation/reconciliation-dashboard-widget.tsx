@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -8,7 +9,9 @@ import {
   GitMerge,
   AlertTriangle,
   TrendingUp,
-  TrendingDown
+  CheckCircle,
+  Clock,
+  BarChart3
 } from 'lucide-react'
 import {
   Card,
@@ -20,6 +23,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  mockReconciliationAnalytics,
+  mockReconciliationProcesses
+} from '@/lib/mock-data/reconciliation-unified'
 
 interface ReconciliationDashboardWidgetProps {
   className?: string
@@ -28,41 +35,48 @@ interface ReconciliationDashboardWidgetProps {
 export function ReconciliationDashboardWidget({
   className
 }: ReconciliationDashboardWidgetProps) {
-  // Mock data - in real implementation, this would come from API
+  const analytics = mockReconciliationAnalytics
+  const activeProcesses = mockReconciliationProcesses.filter(
+    (p) => p.status === 'processing'
+  )
+  const completedToday = mockReconciliationProcesses.filter(
+    (p) =>
+      p.status === 'completed' &&
+      new Date(p.completedAt || '').toDateString() === new Date().toDateString()
+  ).length
+
   const stats = {
-    activeProcesses: 3,
-    pendingExceptions: 47,
-    matchesReview: 156,
-    todayImports: 8,
-    reconciliationRate: 94.2,
-    avgProcessingTime: '4.2m',
-    criticalExceptions: 5
+    activeProcesses: activeProcesses.length,
+    pendingExceptions: analytics.overview.exceptionsCount,
+    matchesReview: analytics.overview.matchedTransactions,
+    todayImports: completedToday,
+    reconciliationRate: Math.round(analytics.overview.matchRate * 100),
+    avgProcessingTime: analytics.overview.averageProcessingTime,
+    criticalExceptions: analytics.exceptions.priorityDistribution.critical || 0,
+    throughput: analytics.overview.throughput,
+    aiMatches: analytics.performance.aiPerformance.totalAiMatches,
+    modelAccuracy: Math.round(
+      analytics.performance.aiPerformance.modelAccuracy * 100
+    )
   }
 
   const recentActivity = [
-    {
-      id: '1',
+    ...mockReconciliationProcesses.slice(0, 2).map((process) => ({
+      id: process.id,
       type: 'process',
-      name: 'Bank Statement Q4-2024',
-      status: 'processing',
-      progress: 67,
-      timestamp: '2 hours ago'
-    },
+      name: process.name,
+      status: process.status,
+      progress: process.progress.progressPercentage,
+      timestamp: new Date(process.updatedAt).toLocaleString(),
+      throughput: process.summary?.throughput
+    })),
     {
-      id: '2',
+      id: 'exception-1',
       type: 'exception',
       name: 'Amount mismatch detected',
       status: 'critical',
       amount: '$2,547.82',
       timestamp: '3 hours ago'
-    },
-    {
-      id: '3',
-      type: 'import',
-      name: 'payment_processor_december.csv',
-      status: 'completed',
-      records: 2500,
-      timestamp: '5 hours ago'
     }
   ]
 
@@ -126,143 +140,190 @@ export function ReconciliationDashboardWidget({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              Active Processes
-            </p>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold">{stats.activeProcesses}</p>
-              <Badge
-                variant="secondary"
-                className="bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
-              >
-                <Activity className="mr-1 h-3 w-3" />
-                Running
-              </Badge>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              Pending Exceptions
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold text-orange-600">
-                {stats.pendingExceptions}
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Match Rate
               </p>
-              {stats.criticalExceptions > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  {stats.criticalExceptions} critical
-                </Badge>
-              )}
             </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              Matches to Review
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold">{stats.matchesReview}</p>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">
-              Reconciliation Rate
-            </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-baseline gap-2">
               <p className="text-2xl font-bold text-green-600">
                 {stats.reconciliationRate}%
               </p>
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <span className="text-xs text-green-600">+2.3%</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-600" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Active
+              </p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold">{stats.activeProcesses}</p>
+              <span className="text-xs text-muted-foreground">
+                {stats.todayImports} today
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Exceptions
+              </p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold text-orange-600">
+                {stats.pendingExceptions.toLocaleString()}
+              </p>
+              <span className="text-xs text-red-600">-12.5%</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-purple-600" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Throughput
+              </p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold">{stats.throughput}/min</p>
+              <span className="text-xs text-green-600">+8.7%</span>
             </div>
           </div>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Today's Progress</h4>
-            <span className="text-sm text-muted-foreground">
-              {stats.todayImports} imports processed
-            </span>
-          </div>
-          <Progress value={stats.reconciliationRate} className="h-2" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Average processing time: {stats.avgProcessingTime}</span>
-            <span>{stats.reconciliationRate}% completed</span>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Recent Activity</h4>
+        {/* Active Process Progress */}
+        {activeProcesses.length > 0 && (
           <div className="space-y-3">
-            {recentActivity.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
-              >
-                {getActivityIcon(activity.type)}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium">
-                      {activity.name}
-                    </p>
-                    {getStatusBadge(activity.status)}
-                  </div>
-                  <div className="mt-1 flex items-center gap-4">
-                    <p className="text-xs text-muted-foreground">
-                      {activity.timestamp}
-                    </p>
-                    {activity.progress && (
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={activity.progress}
-                          className="h-1 w-16"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {activity.progress}%
-                        </span>
-                      </div>
-                    )}
-                    {activity.amount && (
-                      <span className="text-xs font-medium text-red-600">
-                        {activity.amount}
-                      </span>
-                    )}
-                    {activity.records && (
-                      <span className="text-xs text-muted-foreground">
-                        {activity.records.toLocaleString()} records
-                      </span>
-                    )}
-                  </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Active Reconciliation</span>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {activeProcesses.slice(0, 2).map((process) => (
+              <div key={process.id} className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="max-w-[200px] truncate">{process.name}</span>
+                  <span className="text-muted-foreground">
+                    {process.progress.progressPercentage}%
+                  </span>
+                </div>
+                <Progress
+                  value={process.progress.progressPercentage}
+                  className="h-2"
+                />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {process.progress.processedTransactions.toLocaleString()} /{' '}
+                    {process.progress.totalTransactions.toLocaleString()}{' '}
+                    transactions
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {process.progress.currentStage}
+                  </Badge>
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* AI Performance */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">AI Performance</span>
+            <Badge
+              variant="outline"
+              className="bg-gradient-to-r from-blue-50 to-purple-50 text-xs"
+            >
+              AI Enhanced
+            </Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Model Accuracy</span>
+              <span className="font-medium">{stats.modelAccuracy}%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">AI Matches</span>
+              <span className="font-medium">
+                {stats.aiMatches.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Exception Summary */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Exception Breakdown</span>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+          </div>
+          <div className="space-y-2">
+            {Object.entries(analytics.exceptions.categoryBreakdown)
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 3)
+              .map(([category, count]) => (
+                <div
+                  key={category}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="capitalize text-muted-foreground">
+                    {category.replace('_', ' ')}
+                  </span>
+                  <span className="font-medium">{count.toLocaleString()}</span>
+                </div>
+              ))}
+          </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="flex flex-wrap gap-2">
-          <Link href="/plugins/reconciliation/imports/create">
-            <Button variant="outline" size="sm" className="gap-2">
-              <FileText className="h-4 w-4" />
-              Import File
+        <div className="space-y-3">
+          <span className="text-sm font-medium">Quick Actions</span>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/plugins/reconciliation/imports/create">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-full text-xs"
+              >
+                <FileText className="mr-1 h-3 w-3" />
+                New Import
+              </Button>
+            </Link>
+            <Link href="/plugins/reconciliation/processes/create">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-full text-xs"
+              >
+                <Activity className="mr-1 h-3 w-3" />
+                Monitor
+              </Button>
+            </Link>
+          </div>
+          <Link href="/plugins/reconciliation" className="block">
+            <Button variant="default" size="sm" className="h-8 w-full text-xs">
+              <span>View Dashboard</span>
+              <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
           </Link>
-          <Link href="/plugins/reconciliation/processes/create">
-            <Button variant="outline" size="sm" className="gap-2">
-              <Activity className="h-4 w-4" />
-              Start Process
-            </Button>
-          </Link>
-          <Link href="/plugins/reconciliation/exceptions">
-            <Button variant="outline" size="sm" className="gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Review Exceptions
-            </Button>
-          </Link>
+        </div>
+
+        {/* Status Indicator */}
+        <div className="border-t pt-2">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center space-x-2">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+              <span className="text-muted-foreground">System Healthy</span>
+            </div>
+            <span className="text-muted-foreground">
+              Last sync: {new Date().toLocaleTimeString()}
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>

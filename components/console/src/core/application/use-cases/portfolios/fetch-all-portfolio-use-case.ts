@@ -6,6 +6,7 @@ import { PortfolioRepository } from '@/core/domain/repositories/portfolio-reposi
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllPortfolios {
   execute: (
@@ -19,7 +20,7 @@ export interface FetchAllPortfolios {
 @injectable()
 export class FetchAllPortfoliosUseCase implements FetchAllPortfolios {
   constructor(
-    @inject(PortfolioRepository)
+    @inject(MIDAZ_SYMBOLS.PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository
   ) {}
 

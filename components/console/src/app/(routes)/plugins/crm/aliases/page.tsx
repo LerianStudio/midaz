@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useTransition } from 'react'
 import { useIntl } from 'react-intl'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/page-header'
@@ -36,23 +36,25 @@ import {
   ExternalLink,
   Users,
   Building2,
-  Banknote
+  Banknote,
+  Loader2
 } from 'lucide-react'
-import {
-  generateMockCustomers,
-  generateMockAliases
-} from '@/components/crm/customers/customer-mock-data'
-import {
-  Alias,
-  Customer,
-  CustomerType
-} from '@/components/crm/customers/customer-types'
+import { getAllAliases, getHolders, deleteAlias } from '@/app/actions/crm'
+import { AliasEntity } from '@/core/domain/entities/alias-entity'
+import { HolderEntity } from '@/core/domain/entities/holder-entity'
+import { useToast } from '@/hooks/use-toast'
 
 const AliasesPage = () => {
   const intl = useIntl()
   const router = useRouter()
   const { currentOrganization } = useOrganization()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
+  const [aliases, setAliases] = useState<AliasEntity[]>([])
+  const [holders, setHolders] = useState<HolderEntity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPending, startTransition] = useTransition()
+  const [totalAliases, setTotalAliases] = useState(0)
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -80,93 +82,138 @@ const AliasesPage = () => {
     }
   ])
 
-  // Generate mock data
-  const customers = generateMockCustomers(50)
-  const aliases = generateMockAliases(150)
+  // Fetch data on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      try {
+        // Fetch aliases and holders in parallel
+        const [aliasesResult, holdersResult] = await Promise.all([
+          getAllAliases({ organizationId: currentOrganization.id, limit: 100 }),
+          getHolders({ organizationId: currentOrganization.id, limit: 100 })
+        ])
 
-  // Create customer lookup map
-  const customerMap = customers.reduce(
-    (acc, customer) => {
-      acc[customer.id] = customer
+        if (aliasesResult.success && aliasesResult.data) {
+          setAliases(aliasesResult.data.aliases)
+          setTotalAliases(aliasesResult.data.total)
+        } else if (aliasesResult.error && !aliasesResult.error.includes('404')) {
+          // Only show error for non-404 errors (404 means no data found, which is OK)
+          toast({
+            title: 'Error fetching aliases',
+            description: aliasesResult.error,
+            variant: 'destructive'
+          })
+        }
+
+        if (holdersResult.success && holdersResult.data) {
+          setHolders(holdersResult.data.holders)
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [currentOrganization.id, toast])
+
+  // Create holder lookup map
+  const holderMap = holders.reduce(
+    (acc, holder) => {
+      acc[holder.id] = holder
       return acc
     },
-    {} as Record<string, Customer>
+    {} as Record<string, HolderEntity>
   )
 
   // Filter aliases based on search
   const filteredAliases = aliases.filter((alias) => {
-    const customer = customerMap[alias.holderId]
+    const holder = holderMap[alias.accountId] // Note: using accountId as holderId proxy
     return (
       alias.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alias.bankingDetails.account
+      alias.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alias.bankAccount?.number || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      alias.bankingDetails.bankId
+      (alias.bankAccount?.bankCode || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      customer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer?.document.includes(searchTerm)
+      holder?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      holder?.document.includes(searchTerm)
     )
   })
 
-  const handleEditAlias = (alias: Alias) => {
+  const handleEditAlias = (alias: AliasEntity) => {
     console.log('Edit alias:', alias)
     // TODO: Open edit alias dialog
   }
 
-  const handleDeleteAlias = (alias: Alias) => {
-    console.log('Delete alias:', alias)
-    // TODO: Show confirmation dialog and delete
+  const handleDeleteAlias = async (alias: AliasEntity) => {
+    // Find the holder for this alias
+    const holder = holders.find((h) => h.id === alias.accountId)
+    if (!holder) {
+      toast({
+        title: 'Error',
+        description: 'Could not find holder for this alias',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    if (confirm('Are you sure you want to delete this alias?')) {
+      startTransition(async () => {
+        const result = await deleteAlias(holder.id, alias.id)
+        if (result.success) {
+          setAliases((prev) => prev.filter((a) => a.id !== alias.id))
+          toast({
+            title: 'Success',
+            description: 'Alias deleted successfully'
+          })
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to delete alias',
+            variant: 'destructive'
+          })
+        }
+      })
+    }
   }
 
-  const handleViewCustomer = (customerId: string) => {
-    router.push(`/plugins/crm/customers/${customerId}`)
+  const handleViewHolder = (holderId: string) => {
+    router.push(`/plugins/crm/holders/${holderId}`)
   }
 
-  const handleViewAccount = (alias: Alias) => {
+  const handleViewAccount = (alias: AliasEntity) => {
     console.log('View account:', alias.accountId)
     // TODO: Navigate to account detail page
   }
 
-  const getBankStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return (
-          <Badge variant="default" className="bg-green-100 text-green-800">
-            Active
-          </Badge>
-        )
-      case 'inactive':
-        return <Badge variant="secondary">Inactive</Badge>
-      case 'pending':
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-            Pending
-          </Badge>
-        )
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
-
-  const getAccountTypeBadge = (type: string) => {
+  const getAliasTypeBadge = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'checking':
+      case 'bank_account':
         return (
           <Badge variant="outline" className="bg-blue-100 text-blue-800">
-            Checking
+            Bank Account
           </Badge>
         )
-      case 'savings':
+      case 'pix':
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800">
-            Savings
+            PIX
           </Badge>
         )
-      case 'business':
+      case 'email':
         return (
           <Badge variant="outline" className="bg-purple-100 text-purple-800">
-            Business
+            Email
+          </Badge>
+        )
+      case 'phone':
+        return (
+          <Badge variant="outline" className="bg-orange-100 text-orange-800">
+            Phone
           </Badge>
         )
       default:
@@ -174,8 +221,8 @@ const AliasesPage = () => {
     }
   }
 
-  const getCustomerTypeIcon = (type: CustomerType) => {
-    return type === CustomerType.NATURAL_PERSON ? (
+  const getHolderTypeIcon = (type: string) => {
+    return type === 'NATURAL_PERSON' ? (
       <Users className="h-4 w-4 text-blue-600" />
     ) : (
       <Building2 className="h-4 w-4 text-purple-600" />
@@ -184,11 +231,11 @@ const AliasesPage = () => {
 
   // Calculate metrics
   const metrics = {
-    total: aliases.length,
-    active: aliases.filter((a) => a.status === 'active').length,
-    checking: aliases.filter((a) => a.bankingDetails.type === 'CHECKING')
-      .length,
-    savings: aliases.filter((a) => a.bankingDetails.type === 'SAVINGS').length
+    total: totalAliases,
+    bankAccounts: aliases.filter((a) => a.type === 'bank_account').length,
+    pix: aliases.filter((a) => a.type === 'pix').length,
+    other: aliases.filter((a) => !['bank_account', 'pix'].includes(a.type))
+      .length
   }
 
   return (
@@ -267,8 +314,8 @@ const AliasesPage = () => {
                 <Banknote className="h-4 w-4 text-green-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{metrics.active}</div>
-                <p className="text-xs text-muted-foreground">Active Aliases</p>
+                <div className="text-2xl font-bold">{metrics.bankAccounts}</div>
+                <p className="text-xs text-muted-foreground">Bank Accounts</p>
               </div>
             </div>
           </CardContent>
@@ -281,10 +328,8 @@ const AliasesPage = () => {
                 <CreditCard className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{metrics.checking}</div>
-                <p className="text-xs text-muted-foreground">
-                  Checking Accounts
-                </p>
+                <div className="text-2xl font-bold">{metrics.pix}</div>
+                <p className="text-xs text-muted-foreground">PIX Keys</p>
               </div>
             </div>
           </CardContent>
@@ -297,10 +342,8 @@ const AliasesPage = () => {
                 <Banknote className="h-4 w-4 text-orange-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{metrics.savings}</div>
-                <p className="text-xs text-muted-foreground">
-                  Savings Accounts
-                </p>
+                <div className="text-2xl font-bold">{metrics.other}</div>
+                <p className="text-xs text-muted-foreground">Other Aliases</p>
               </div>
             </div>
           </CardContent>
@@ -341,7 +384,11 @@ const AliasesPage = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredAliases.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredAliases.length === 0 ? (
             <div className="py-8 text-center">
               <CreditCard className="mx-auto h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-2 text-sm font-semibold">No aliases found</h3>
@@ -363,62 +410,74 @@ const AliasesPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Alias ID</TableHead>
-                  <TableHead>Bank Details</TableHead>
-                  <TableHead>Account Type</TableHead>
+                  <TableHead>Holder</TableHead>
+                  <TableHead>Alias Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Details</TableHead>
                   <TableHead>Ledger</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAliases.map((alias) => {
-                  const customer = customerMap[alias.holderId]
+                  // Find holder by matching accountId (temporary mapping)
+                  const holder = holders.find((h) => h.id === alias.accountId)
                   return (
                     <TableRow key={alias.id}>
                       <TableCell>
-                        {customer && (
+                        {holder ? (
                           <div className="flex items-center space-x-3">
                             <div className="flex-shrink-0">
-                              {getCustomerTypeIcon(customer.type)}
+                              {getHolderTypeIcon(holder.type)}
                             </div>
                             <div>
                               <button
-                                onClick={() => handleViewCustomer(customer.id)}
+                                onClick={() => handleViewHolder(holder.id)}
                                 className="text-left font-medium hover:underline"
                               >
-                                {customer.name}
+                                {holder.name}
                               </button>
                               <div className="text-sm text-muted-foreground">
-                                {customer.document}
+                                {holder.document}
                               </div>
                             </div>
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground">Unknown</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {alias.id.slice(-8)}
-                      </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">
-                              Bank {alias.bankingDetails.bankId}
-                            </span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-muted-foreground">
-                              Branch {alias.bankingDetails.branch}
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Account: {alias.bankingDetails.account}
-                          </div>
+                        <div className="font-medium">{alias.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          {alias.id.slice(-8)}
                         </div>
                       </TableCell>
+                      <TableCell>{getAliasTypeBadge(alias.type)}</TableCell>
                       <TableCell>
-                        {getAccountTypeBadge(alias.bankingDetails.type)}
+                        {alias.bankAccount ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">
+                                {alias.bankAccount.bankCode}
+                              </span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-muted-foreground">
+                                Branch {alias.bankAccount.branch}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Account: {alias.bankAccount.number}
+                            </div>
+                            {alias.bankAccount.type && (
+                              <div className="text-xs text-muted-foreground">
+                                Type: {alias.bankAccount.type}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -431,14 +490,17 @@ const AliasesPage = () => {
                           <ExternalLink className="ml-1 h-3 w-3" />
                         </Button>
                       </TableCell>
-                      <TableCell>{getBankStatusBadge(alias.status)}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(alias.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              disabled={isPending}
+                            >
                               <span className="sr-only">Open menu</span>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
@@ -450,14 +512,14 @@ const AliasesPage = () => {
                               <ExternalLink className="mr-2 h-4 w-4" />
                               View Account
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                customer && handleViewCustomer(customer.id)
-                              }
-                            >
-                              <Users className="mr-2 h-4 w-4" />
-                              View Customer
-                            </DropdownMenuItem>
+                            {holder && (
+                              <DropdownMenuItem
+                                onClick={() => handleViewHolder(holder.id)}
+                              >
+                                <Users className="mr-2 h-4 w-4" />
+                                View Holder
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => handleEditAlias(alias)}
                             >

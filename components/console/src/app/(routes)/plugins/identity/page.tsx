@@ -5,12 +5,12 @@ import { useIntl } from 'react-intl'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  UserCheck, 
-  FileText, 
-  CheckCircle, 
-  AlertTriangle, 
-  Clock, 
+import {
+  UserCheck,
+  FileText,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
   Shield,
   BarChart3,
   Upload
@@ -23,9 +23,12 @@ export default function IdentityPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Identity Verification</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Identity Verification
+        </h1>
         <p className="text-muted-foreground">
-          KYC/AML compliance, identity verification workflows, and document validation processes.
+          KYC/AML compliance, identity verification workflows, and document
+          validation processes.
         </p>
       </div>
 
@@ -35,7 +38,9 @@ export default function IdentityPage() {
           <div className="flex items-center">
             <CheckCircle className="h-8 w-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Verified</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Verified
+              </p>
               <p className="text-2xl font-bold">1,845</p>
             </div>
           </div>
@@ -44,7 +49,9 @@ export default function IdentityPage() {
           <div className="flex items-center">
             <Clock className="h-8 w-8 text-yellow-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Pending</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Pending
+              </p>
               <p className="text-2xl font-bold">123</p>
             </div>
           </div>
@@ -53,7 +60,9 @@ export default function IdentityPage() {
           <div className="flex items-center">
             <AlertTriangle className="h-8 w-8 text-red-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Rejected</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Rejected
+              </p>
               <p className="text-2xl font-bold">45</p>
             </div>
           </div>
@@ -62,7 +71,9 @@ export default function IdentityPage() {
           <div className="flex items-center">
             <Shield className="h-8 w-8 text-blue-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Compliance Score</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Compliance Score
+              </p>
               <p className="text-2xl font-bold">96%</p>
             </div>
           </div>
@@ -135,14 +146,18 @@ export default function IdentityPage() {
       {/* Recent Verifications */}
       <Card>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Recent Verification Requests</h3>
+          <h3 className="mb-4 text-lg font-semibold">
+            Recent Verification Requests
+          </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
               <div className="flex items-center gap-3">
                 <UserCheck className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">Individual KYC</p>
-                  <p className="text-sm text-muted-foreground">John Smith - ID: KYC-001234</p>
+                  <p className="text-sm text-muted-foreground">
+                    John Smith - ID: KYC-001234
+                  </p>
                 </div>
               </div>
               <Badge variant="default" className="bg-green-100 text-green-800">
@@ -154,10 +169,15 @@ export default function IdentityPage() {
                 <FileText className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">Document Review</p>
-                  <p className="text-sm text-muted-foreground">Corporate Registration - ID: DOC-005678</p>
+                  <p className="text-sm text-muted-foreground">
+                    Corporate Registration - ID: DOC-005678
+                  </p>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+              <Badge
+                variant="secondary"
+                className="bg-yellow-100 text-yellow-800"
+              >
                 Pending
               </Badge>
             </div>
@@ -166,7 +186,9 @@ export default function IdentityPage() {
                 <Shield className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">AML Screening</p>
-                  <p className="text-sm text-muted-foreground">Sarah Johnson - ID: AML-002345</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sarah Johnson - ID: AML-002345
+                  </p>
                 </div>
               </div>
               <Badge variant="destructive" className="bg-red-100 text-red-800">
@@ -178,7 +200,9 @@ export default function IdentityPage() {
                 <UserCheck className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">Enhanced DD</p>
-                  <p className="text-sm text-muted-foreground">TechCorp Ltd - ID: EDD-007890</p>
+                  <p className="text-sm text-muted-foreground">
+                    TechCorp Ltd - ID: EDD-007890
+                  </p>
                 </div>
               </div>
               <Badge variant="default" className="bg-blue-100 text-blue-800">

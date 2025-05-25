@@ -13,6 +13,7 @@ import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-av
 import { OrganizationAvatarMapper } from '@/core/infrastructure/mongo/mappers/mongo-organization-avatar-mapper'
 import { IntlShape } from 'react-intl'
 import { getIntl } from '@/lib/intl'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface CreateOnboardingOrganization {
   execute: (
@@ -25,7 +26,7 @@ export class CreateOnboardingOrganizationUseCase
   implements CreateOnboardingOrganization
 {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,
     @inject(OrganizationAvatarRepository)
     private readonly organizationAvatarRepository: OrganizationAvatarRepository

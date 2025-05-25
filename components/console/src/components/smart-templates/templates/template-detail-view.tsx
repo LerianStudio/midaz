@@ -46,7 +46,7 @@ import { mockTemplates } from '@/lib/mock-data/smart-templates'
 const getInitials = (name: string) => {
   return name
     .split(' ')
-    .map(word => word.charAt(0))
+    .map((word) => word.charAt(0))
     .join('')
     .toUpperCase()
     .slice(0, 2)
@@ -257,19 +257,25 @@ export function TemplateDetailView({ templateId }: TemplateDetailViewProps) {
                       <p className="mb-1 text-sm text-muted-foreground">
                         Format
                       </p>
-                      <Badge variant="outline">{template.format || 'Unknown'}</Badge>
+                      <Badge variant="outline">
+                        {template.format || 'Unknown'}
+                      </Badge>
                     </div>
                     <div>
                       <p className="mb-1 text-sm text-muted-foreground">
                         Engine
                       </p>
-                      <p className="font-medium">{template.engine || 'Default'}</p>
+                      <p className="font-medium">
+                        {template.engine || 'Default'}
+                      </p>
                     </div>
                     <div>
                       <p className="mb-1 text-sm text-muted-foreground">
                         Version
                       </p>
-                      <p className="font-medium">v{template.version || '1.0'}</p>
+                      <p className="font-medium">
+                        v{template.version || '1.0'}
+                      </p>
                     </div>
                   </div>
                   <div>
@@ -465,30 +471,34 @@ export function TemplateDetailView({ templateId }: TemplateDetailViewProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {(template.dataSourceIds || []).map((dsId: string, index: number) => (
-                  <div
-                    key={dsId}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Database className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <h4 className="font-medium">Data Source {index + 1}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Connected and active
-                        </p>
+                {(template.dataSourceIds || []).map(
+                  (dsId: string, index: number) => (
+                    <div
+                      key={dsId}
+                      className="flex items-center justify-between rounded-lg border p-4"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Database className="h-5 w-5 text-blue-500" />
+                        <div>
+                          <h4 className="font-medium">
+                            Data Source {index + 1}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            Connected and active
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
+                          Connected
+                        </Badge>
+                        <Button variant="outline" size="sm">
+                          Configure
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200">
-                        Connected
-                      </Badge>
-                      <Button variant="outline" size="sm">
-                        Configure
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             </CardContent>
           </Card>

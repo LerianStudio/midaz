@@ -6,6 +6,7 @@ import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllAssets {
   execute: (
@@ -22,7 +23,7 @@ export interface FetchAllAssets {
 @injectable()
 export class FetchAllAssetsUseCase implements FetchAllAssets {
   constructor(
-    @inject(AssetRepository)
+    @inject(MIDAZ_SYMBOLS.AssetRepository)
     private readonly assetRepository: AssetRepository
   ) {}
 

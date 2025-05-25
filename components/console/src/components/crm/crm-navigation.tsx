@@ -62,8 +62,7 @@ export const CRMNavigation: React.FC = () => {
       description: intl.formatMessage({
         id: 'crm.nav.analytics.description',
         defaultMessage: 'Customer insights and reporting'
-      }),
-      disabled: true
+      })
     }
   ]
 
@@ -73,7 +72,7 @@ export const CRMNavigation: React.FC = () => {
         <nav className="scrollbar-hide flex items-center space-x-1 overflow-x-auto py-2">
           {navigationItems.map((item) => {
             const isActive =
-              pathname === item.href || 
+              pathname === item.href ||
               (item.href !== '/plugins/crm' && pathname.startsWith(item.href))
 
             return (

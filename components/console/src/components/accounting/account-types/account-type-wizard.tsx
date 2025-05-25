@@ -1,12 +1,12 @@
 'use client'
 
+import React from 'react'
 import { useState } from 'react'
 import {
   Check,
   ArrowLeft,
-  ArrowRight,
   Database,
-  External,
+  ExternalLink,
   AlertCircle,
   CheckCircle
 } from 'lucide-react'
@@ -44,7 +44,6 @@ export function AccountTypeWizard({
 }: AccountTypeWizardProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<Partial<AccountTypeWizardData>>({})
-  const [isFormValid, setIsFormValid] = useState(false)
 
   const steps = [
     {
@@ -87,7 +86,7 @@ export function AccountTypeWizard({
         {domain === 'ledger' ? (
           <Database className="h-3 w-3" />
         ) : (
-          <External className="h-3 w-3" />
+          <ExternalLink className="h-3 w-3" />
         )}
         {domain === 'ledger' ? 'Ledger Domain' : 'External Domain'}
       </Badge>
@@ -134,7 +133,19 @@ export function AccountTypeWizard({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Stepper */}
-      <Stepper currentStep={currentStep} steps={steps} />
+      <Stepper>
+        {steps.map((step, index) => (
+          <div
+            key={index}
+            className={`step ${index === currentStep ? 'active' : ''} ${index < currentStep ? 'completed' : ''}`}
+          >
+            <span className="font-medium">{step.title}</span>
+            <span className="text-sm text-muted-foreground">
+              {step.description}
+            </span>
+          </div>
+        ))}
+      </Stepper>
 
       {/* Step Content */}
       <Card>

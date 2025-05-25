@@ -4,6 +4,7 @@ import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-
 import { HttpStatus, ApiException } from '@/lib/http'
 import { getIntl } from '@/lib/intl'
 import { AuthApiException } from '@/core/infrastructure/midaz-plugins/auth/exceptions/auth-exceptions'
+import { CrmApiException } from '@/core/infrastructure/midaz-plugins/crm/exceptions/crm-exception'
 
 export interface ErrorResponse {
   message: string
@@ -26,6 +27,11 @@ export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
 
   if (error instanceof AuthApiException) {
     logger.error(`Auth error`, errorMetadata)
+    return { message: error.message, status: error.getStatus() }
+  }
+
+  if (error instanceof CrmApiException) {
+    logger.error(`CRM error`, errorMetadata)
     return { message: error.message, status: error.getStatus() }
   }
 

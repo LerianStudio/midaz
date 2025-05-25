@@ -5,6 +5,7 @@ import { inject, injectable } from 'inversify'
 import { groupBy } from 'lodash'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchPortfoliosWithAccounts {
   execute: (
@@ -20,9 +21,9 @@ export class FetchPortfoliosWithAccountsUseCase
   implements FetchPortfoliosWithAccounts
 {
   constructor(
-    @inject(PortfolioRepository)
+    @inject(MIDAZ_SYMBOLS.PortfolioRepository)
     private readonly portfolioRepository: PortfolioRepository,
-    @inject(AccountRepository)
+    @inject(MIDAZ_SYMBOLS.AccountRepository)
     private readonly accountRepository: AccountRepository
   ) {}
 

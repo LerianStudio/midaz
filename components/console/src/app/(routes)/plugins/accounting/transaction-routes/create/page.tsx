@@ -445,12 +445,11 @@ export default function CreateTransactionRoutePage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <PageHeader.InfoTitle>
-              Create Transaction Route
-            </PageHeader.InfoTitle>
-            <PageHeader.InfoTooltip>
-              Create a new transaction route with automated operation mapping.
-            </PageHeader.InfoTooltip>
+            <PageHeader.InfoTitle
+              title="Create Transaction Route"
+              subtitle="Create a new transaction route with automated operation mapping"
+            />
+            <PageHeader.InfoTooltip subtitle="Define routing rules and operation mappings for automated transaction processing. Routes control how transactions flow through your accounting system." />
           </div>
         </div>
       </PageHeader.Root>

@@ -6,6 +6,7 @@ import { PaginationDto } from '../../dto/pagination-dto'
 import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllLedgers {
   execute: (
@@ -18,7 +19,7 @@ export interface FetchAllLedgers {
 @injectable()
 export class FetchAllLedgersUseCase implements FetchAllLedgers {
   constructor(
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly ledgerRepository: LedgerRepository
   ) {}
 

@@ -3,6 +3,7 @@ import { LedgerResponseDto } from '../../dto/ledger-dto'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchLedgerById {
   execute: (
@@ -14,7 +15,7 @@ export interface FetchLedgerById {
 @injectable()
 export class FetchLedgerByIdUseCase implements FetchLedgerById {
   constructor(
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly LedgerRepository: LedgerRepository
   ) {}
 

@@ -89,6 +89,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const Comp = asChild ? Slot : 'button'
 
+    // When using asChild, we need to ensure only one child for Slot
+    if (asChild && icon) {
+      // If using asChild with icons, we need to clone the child and add the icon to it
+      // For now, let's not support icons with asChild to avoid complexity
+      console.warn(
+        'Button: Using asChild with icons is not supported. Please add icons directly to your child element.'
+      )
+    }
+
     return (
       <Comp
         className={cn(
@@ -109,16 +118,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {icon && iconPlacement === 'start' && (
-          <span className={cn(iconVariants({ position: iconPlacement }))}>
-            {icon}
-          </span>
-        )}
-        {props.children}
-        {icon && iconPlacement !== 'start' && (
-          <span className={cn(iconVariants({ position: iconPlacement }))}>
-            {icon}
-          </span>
+        {asChild ? (
+          // When asChild is true, only render children (no icons)
+          props.children
+        ) : (
+          // When asChild is false, render icons + children
+          <>
+            {icon && iconPlacement === 'start' && (
+              <span className={cn(iconVariants({ position: iconPlacement }))}>
+                {icon}
+              </span>
+            )}
+            {props.children}
+            {icon && iconPlacement !== 'start' && (
+              <span className={cn(iconVariants({ position: iconPlacement }))}>
+                {icon}
+              </span>
+            )}
+          </>
         )}
       </Comp>
     )

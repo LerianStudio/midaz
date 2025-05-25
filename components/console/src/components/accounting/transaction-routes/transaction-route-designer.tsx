@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useCallback, useMemo } from 'react'
 import {
   ReactFlow,
@@ -18,17 +19,10 @@ import {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import {
-  ArrowUpDown,
-  DollarSign,
-  Building,
-  Plus,
-  Settings,
-  Trash2
-} from 'lucide-react'
+import { DollarSign, Building, Plus, Settings, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -39,14 +33,12 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
-  SheetTitle,
-  SheetTrigger
+  SheetTitle
 } from '@/components/ui/sheet'
 
 import {
@@ -212,7 +204,7 @@ export function TransactionRouteDesigner({
     }))
   }, [route.operationRoutes])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [nodes, _setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   const onConnect = useCallback(
@@ -266,7 +258,7 @@ export function TransactionRouteDesigner({
       // Simple expression evaluation for preview
       const expression = operation.amount.expression
         .replace(/\{\{amount\}\}/g, sampleData.amount.toString())
-        .replace(/\{\{(\w+)\}\}/g, (match, field) => {
+        .replace(/\{\{(\w+)\}\}/g, (match, _field) => {
           // Handle other template variables
           return match // Keep as-is if we don't have the value
         })

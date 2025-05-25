@@ -5,6 +5,7 @@ import { LedgerResponseDto } from '../../dto/ledger-dto'
 import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface CreateLedger {
   execute: (
@@ -16,7 +17,7 @@ export interface CreateLedger {
 @injectable()
 export class CreateLedgerUseCase implements CreateLedger {
   constructor(
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly ledgerRepository: LedgerRepository
   ) {}
 

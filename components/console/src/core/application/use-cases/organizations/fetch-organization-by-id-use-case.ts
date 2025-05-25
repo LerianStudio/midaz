@@ -4,6 +4,7 @@ import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import { OrganizationResponseDto } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchOrganizationById {
   execute: (organizationId: string) => Promise<OrganizationResponseDto>
@@ -12,7 +13,7 @@ export interface FetchOrganizationById {
 @injectable()
 export class FetchOrganizationByIdUseCase implements FetchOrganizationById {
   constructor(
-    @inject(OrganizationRepository)
+    @inject(MIDAZ_SYMBOLS.OrganizationRepository)
     private readonly organizationRepository: OrganizationRepository,
     @inject(OrganizationAvatarRepository)
     private readonly organizationAvatarRepository: OrganizationAvatarRepository

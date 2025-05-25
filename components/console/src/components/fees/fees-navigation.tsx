@@ -43,8 +43,7 @@ export function FeesNavigation() {
           {feesNavItems.map((item) => {
             const isActive =
               pathname === item.href ||
-              (item.href !== '/plugins/fees' &&
-                pathname.startsWith(item.href))
+              (item.href !== '/plugins/fees' && pathname.startsWith(item.href))
 
             return (
               <Link

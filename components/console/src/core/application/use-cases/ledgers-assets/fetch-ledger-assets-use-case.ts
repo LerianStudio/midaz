@@ -8,6 +8,7 @@ import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { inject, injectable } from 'inversify'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAllLedgersAssets {
   execute: (
@@ -20,9 +21,9 @@ export interface FetchAllLedgersAssets {
 @injectable()
 export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
   constructor(
-    @inject(LedgerRepository)
+    @inject(MIDAZ_SYMBOLS.LedgerRepository)
     private readonly ledgerRepository: LedgerRepository,
-    @inject(AssetRepository)
+    @inject(MIDAZ_SYMBOLS.AssetRepository)
     private readonly assetRepository: AssetRepository
   ) {}
 

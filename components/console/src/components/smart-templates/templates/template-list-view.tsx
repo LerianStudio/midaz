@@ -54,7 +54,7 @@ type ViewMode = 'grid' | 'list'
 const getInitials = (name: string) => {
   return name
     .split(' ')
-    .map(word => word.charAt(0))
+    .map((word) => word.charAt(0))
     .join('')
     .toUpperCase()
     .slice(0, 2)
@@ -288,7 +288,9 @@ export function TemplateListView() {
 
               <div className="flex flex-shrink-0 items-center space-x-4">
                 <div className="text-right">
-                  <p className="text-sm font-medium">{template.format || 'Unknown'}</p>
+                  <p className="text-sm font-medium">
+                    {template.format || 'Unknown'}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     v{template.version || '1.0'}
                   </p>

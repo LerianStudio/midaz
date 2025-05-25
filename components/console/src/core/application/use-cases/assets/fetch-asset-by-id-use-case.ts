@@ -3,6 +3,7 @@ import { AssetResponseDto } from '../../dto/asset-dto'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { MIDAZ_SYMBOLS } from '@/core/infrastructure/container-registry/midaz/midaz-module'
 
 export interface FetchAssetById {
   execute: (
@@ -15,7 +16,7 @@ export interface FetchAssetById {
 @injectable()
 export class FetchAssetByIdUseCase implements FetchAssetById {
   constructor(
-    @inject(AssetRepository)
+    @inject(MIDAZ_SYMBOLS.AssetRepository)
     private readonly assetRepository: AssetRepository
   ) {}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Card,
@@ -13,8 +13,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import {
   ArrowLeft,
   Play,
@@ -28,18 +26,29 @@ import {
   Clock,
   AlertTriangle,
   Eye,
-  Code,
   FileText,
   User,
   Calendar,
-  Timer
+  Timer,
+  Wifi,
+  WifiOff
 } from 'lucide-react'
-import {
-  WorkflowExecution,
-  TaskExecution
-} from '@/core/domain/entities/workflow-execution'
+import { WorkflowExecution } from '@/core/domain/entities/workflow-execution'
 import { mockWorkflowExecutions } from '@/lib/mock-data/workflows'
 import { ExecutionTimeline } from './execution-timeline'
+import { ExecutionControlPanel } from './execution-control-panel'
+import { TaskInspector } from './task-inspector'
+import { useExecutionUpdates } from '@/hooks/use-websocket'
+import { ExecutionUpdateMessage } from '@/core/infrastructure/websocket/websocket-client'
+import { toast } from '@/hooks/use-toast'
+import { useWebSocket } from '@/hooks/use-websocket'
+import { useMediaQuery } from '@/hooks/use-media-query'
+import { TaskExecution } from '@/core/domain/entities/workflow-execution'
+
+// Import mock server in development
+if (process.env.NODE_ENV === 'development') {
+  import('@/core/infrastructure/websocket/mock-websocket-server')
+}
 
 interface ExecutionDetailViewProps {
   executionId: string
@@ -85,10 +94,103 @@ const statusIcons = {
 
 export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
   const router = useRouter()
-  const [execution] = useState<WorkflowExecution>(
+  const [execution, setExecution] = useState<WorkflowExecution>(
     mockWorkflowExecutions.find((e) => e.executionId === executionId) ||
       mockWorkflowExecutions[0]
   )
+  const [lastPolled, setLastPolled] = useState<Date>(new Date())
+  const [isPolling, setIsPolling] = useState(false)
+  const [lastUpdateTime, setLastUpdateTime] = useState<number | null>(null)
+  const [selectedTask, setSelectedTask] = useState<TaskExecution | null>(null)
+  const [showTaskInspector, setShowTaskInspector] = useState(false)
+  const isMobile = useMediaQuery('(max-width: 768px)')
+  const isTablet = useMediaQuery('(max-width: 1024px)')
+
+  // Use WebSocket for real-time updates
+  const { isConnected } = useExecutionUpdates(
+    executionId,
+    useCallback(
+      (update: ExecutionUpdateMessage) => {
+        // Update execution state with WebSocket data
+        setExecution((prev) => ({
+          ...prev,
+          ...update.updates,
+          status: update.status
+        }))
+
+        // Update last update time
+        setLastUpdateTime(Date.now())
+
+        // Show toast for significant status changes
+        if (update.status === 'COMPLETED') {
+          toast({
+            title: 'Execution Completed',
+            description: `Workflow execution ${executionId} has completed successfully.`
+          })
+        } else if (update.status === 'FAILED') {
+          toast({
+            variant: 'destructive',
+            title: 'Execution Failed',
+            description: `Workflow execution ${executionId} has failed.`
+          })
+        }
+      },
+      [executionId]
+    )
+  )
+
+  // Subscribe to task updates as well
+  const { subscribe } = useWebSocket()
+  useEffect(() => {
+    if (!isConnected) return
+
+    const unsubscribe = subscribe('task_update', (message) => {
+      if (message.data.executionId === executionId) {
+        // Update specific task in the execution
+        setExecution((prev) => ({
+          ...prev,
+          tasks: prev.tasks.map((task) =>
+            task.taskId === message.data.taskId
+              ? { ...task, ...message.data.updates }
+              : task
+          )
+        }))
+        // Update last update time
+        setLastUpdateTime(message.timestamp)
+      }
+    })
+
+    return unsubscribe
+  }, [isConnected, executionId, subscribe])
+
+  // Fallback to polling if WebSocket is not available
+  useEffect(() => {
+    if (!isConnected && execution.status === 'RUNNING') {
+      const pollInterval = setInterval(() => {
+        setIsPolling(true)
+
+        // In a real app, this would fetch from API
+        // For now, simulate updates
+        console.log('Polling for updates...')
+        setLastPolled(new Date())
+
+        // Simulate completion after some time
+        const runtime = Date.now() - execution.startTime
+        if (runtime > 30000) {
+          // 30 seconds
+          setExecution((prev) => ({
+            ...prev,
+            status: 'COMPLETED',
+            endTime: Date.now()
+          }))
+        }
+
+        setIsPolling(false)
+      }, 5000) // Poll every 5 seconds
+
+      return () => clearInterval(pollInterval)
+    }
+  }, [isConnected, execution.status, execution.startTime])
 
   const formatDuration = (startTime: number, endTime?: number) => {
     if (!endTime) {
@@ -120,22 +222,67 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
       : 0
   }
 
-  const handlePause = () => {
+  const handlePause = async () => {
     console.log('Pausing execution:', execution.executionId)
+    // In a real implementation, this would call the API
+    setExecution((prev) => ({ ...prev, status: 'PAUSED' }))
+    toast({
+      title: 'Execution paused',
+      description: 'The workflow execution has been paused.'
+    })
   }
 
-  const handleResume = () => {
+  const handleResume = async () => {
     console.log('Resuming execution:', execution.executionId)
+    // In a real implementation, this would call the API
+    setExecution((prev) => ({ ...prev, status: 'RUNNING' }))
+    toast({
+      title: 'Execution resumed',
+      description: 'The workflow execution has been resumed.'
+    })
   }
 
-  const handleTerminate = () => {
-    if (confirm('Are you sure you want to terminate this execution?')) {
-      console.log('Terminating execution:', execution.executionId)
-    }
+  const handleTerminate = async (reason?: string) => {
+    console.log(
+      'Terminating execution:',
+      execution.executionId,
+      'Reason:',
+      reason
+    )
+    // In a real implementation, this would call the API
+    setExecution((prev) => ({
+      ...prev,
+      status: 'TERMINATED',
+      endTime: Date.now(),
+      reasonForIncompletion: reason || 'Manually terminated by user'
+    }))
+    toast({
+      title: 'Execution terminated',
+      description: 'The workflow execution has been terminated.',
+      variant: 'destructive'
+    })
   }
 
-  const handleRetry = () => {
-    console.log('Retrying execution:', execution.executionId)
+  const handleRetry = async (options?: any) => {
+    console.log(
+      'Retrying execution:',
+      execution.executionId,
+      'Options:',
+      options
+    )
+    // In a real implementation, this would call the API
+    toast({
+      title: 'Retry initiated',
+      description: 'Failed tasks are being retried.'
+    })
+  }
+
+  const handleRerun = async () => {
+    console.log('Rerunning workflow with same input:', execution.input)
+    // In a real implementation, this would create a new execution
+    router.push(
+      `/plugins/workflows/executions/start?workflowId=${execution.workflowId}&input=${encodeURIComponent(JSON.stringify(execution.input))}`
+    )
   }
 
   const canControl =
@@ -187,18 +334,30 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
                   )}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router.push(
-                    `/plugins/workflows/executions/${execution.executionId}/tasks/${task.taskId}`
-                  )
-                }
-              >
-                <Eye className="mr-1 h-3 w-3" />
-                Details
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedTask(task)
+                    setShowTaskInspector(true)
+                  }}
+                >
+                  <Eye className="mr-1 h-3 w-3" />
+                  Inspect
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    router.push(
+                      `/plugins/workflows/executions/${execution.executionId}/tasks/${task.taskId}`
+                    )
+                  }
+                >
+                  Details
+                </Button>
+              </div>
             </div>
 
             {task.reasonForIncompletion && (
@@ -264,8 +423,12 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center space-x-4">
+      <div
+        className={`${isMobile ? 'space-y-3' : 'flex items-start justify-between'}`}
+      >
+        <div
+          className={`${isMobile ? 'space-y-3' : 'flex items-center space-x-4'}`}
+        >
           <Button
             variant="ghost"
             size="sm"
@@ -273,73 +436,146 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
             className="flex items-center space-x-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <span>{!isMobile && 'Back'}</span>
           </Button>
-          <div>
-            <div className="mb-2 flex items-center space-x-3">
-              <h1 className="text-2xl font-bold">{execution.workflowName}</h1>
-              <Badge
-                className={statusColors[execution.status]}
-                variant="secondary"
-              >
+          <div className="flex-1">
+            <div
+              className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center space-x-3'} ${!isMobile && 'mb-2'}`}
+            >
+              <h1 className={`font-bold ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                {execution.workflowName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  className={statusColors[execution.status]}
+                  variant="secondary"
+                >
+                  <div className="flex items-center space-x-1">
+                    {statusIcons[execution.status]}
+                    <span>{execution.status}</span>
+                  </div>
+                </Badge>
+                {/* Connection Status Indicator */}
                 <div className="flex items-center space-x-1">
-                  {statusIcons[execution.status]}
-                  <span>{execution.status}</span>
+                  {isConnected ? (
+                    <>
+                      <Wifi className="h-4 w-4 text-green-500" />
+                      <span className="text-xs text-green-600">Live</span>
+                    </>
+                  ) : execution.status === 'RUNNING' ? (
+                    <>
+                      <WifiOff className="h-4 w-4 text-yellow-500" />
+                      <span className="text-xs text-yellow-600">
+                        Polling {isPolling && '...'}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
-              </Badge>
+              </div>
             </div>
-            <p className="text-muted-foreground">
-              Execution ID: {execution.executionId} • Version:{' '}
-              {execution.workflowVersion}
+            <p
+              className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}
+            >
+              {isMobile ? (
+                <>
+                  ID: {execution.executionId.slice(-8)} • v
+                  {execution.workflowVersion}
+                </>
+              ) : (
+                <>
+                  Execution ID: {execution.executionId} • Version:{' '}
+                  {execution.workflowVersion}
+                </>
+              )}
+              {!isConnected && execution.status === 'RUNNING' && (
+                <span className="ml-2 text-xs">
+                  • Last checked: {lastPolled.toLocaleTimeString()}
+                </span>
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div
+          className={`flex items-center ${isMobile ? 'justify-between gap-2' : 'space-x-2'}`}
+        >
           {canControl && (
             <>
               {execution.status === 'RUNNING' && (
-                <Button variant="outline" onClick={handlePause}>
-                  <Pause className="mr-2 h-4 w-4" />
-                  Pause
+                <Button
+                  variant="outline"
+                  onClick={handlePause}
+                  size={isMobile ? 'sm' : 'default'}
+                >
+                  <Pause
+                    className={`${isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'}`}
+                  />
+                  {!isMobile && 'Pause'}
                 </Button>
               )}
               {execution.status === 'PAUSED' && (
-                <Button variant="outline" onClick={handleResume}>
-                  <Play className="mr-2 h-4 w-4" />
-                  Resume
+                <Button
+                  variant="outline"
+                  onClick={handleResume}
+                  size={isMobile ? 'sm' : 'default'}
+                >
+                  <Play
+                    className={`${isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'}`}
+                  />
+                  {!isMobile && 'Resume'}
                 </Button>
               )}
-              <Button variant="destructive" onClick={handleTerminate}>
-                <Square className="mr-2 h-4 w-4" />
-                Terminate
+              <Button
+                variant="destructive"
+                onClick={() => handleTerminate()}
+                size={isMobile ? 'sm' : 'default'}
+              >
+                <Square
+                  className={`${isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'}`}
+                />
+                {!isMobile && 'Terminate'}
               </Button>
             </>
           )}
 
           {canRetry && (
-            <Button onClick={handleRetry}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Retry
+            <Button
+              onClick={() => handleRetry()}
+              size={isMobile ? 'sm' : 'default'}
+            >
+              <RotateCcw
+                className={`${isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'}`}
+              />
+              {!isMobile && 'Retry'}
             </Button>
           )}
 
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export
+          <Button variant="outline" size={isMobile ? 'sm' : 'default'}>
+            <Download className={`${isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'}`} />
+            {!isMobile && 'Export'}
           </Button>
         </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div
+        className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-4'}`}
+      >
         <Card>
-          <CardContent className="p-4">
+          <CardContent className={`${isMobile ? 'p-3' : 'p-4'}`}>
             <div className="flex items-center space-x-2">
-              <Timer className="h-5 w-5 text-blue-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Duration</p>
-                <p className="text-xl font-bold">
+              <Timer
+                className={`text-blue-500 ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`}
+              />
+              <div className="min-w-0">
+                <p
+                  className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}
+                >
+                  Duration
+                </p>
+                <p
+                  className={`font-bold ${isMobile ? 'truncate text-sm' : 'text-xl'}`}
+                >
                   {formatDuration(execution.startTime, execution.endTime)}
                 </p>
               </div>
@@ -348,14 +584,25 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className={`${isMobile ? 'p-3' : 'p-4'}`}>
             <div className="flex items-center space-x-2">
-              <Activity className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Tasks Progress</p>
+              <Activity
+                className={`text-orange-500 ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`}
+              />
+              <div className="min-w-0">
+                <p
+                  className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}
+                >
+                  Progress
+                </p>
                 <div className="mt-1 flex items-center space-x-2">
-                  <Progress value={progress} className="h-2 w-16" />
-                  <span className="text-sm font-medium">
+                  <Progress
+                    value={progress}
+                    className={`${isMobile ? 'h-1.5 w-12' : 'h-2 w-16'}`}
+                  />
+                  <span
+                    className={`font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}
+                  >
                     {progress.toFixed(0)}%
                   </span>
                 </div>
@@ -365,24 +612,42 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className={`${isMobile ? 'p-3' : 'p-4'}`}>
             <div className="flex items-center space-x-2">
-              <User className="h-5 w-5 text-purple-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Created By</p>
-                <p className="text-lg font-bold">{execution.createdBy}</p>
+              <User
+                className={`text-purple-500 ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`}
+              />
+              <div className="min-w-0">
+                <p
+                  className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}
+                >
+                  Created By
+                </p>
+                <p
+                  className={`truncate font-bold ${isMobile ? 'text-sm' : 'text-lg'}`}
+                >
+                  {execution.createdBy}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className={`${isMobile ? 'p-3' : 'p-4'}`}>
             <div className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Started</p>
-                <p className="text-sm font-medium">
+              <Calendar
+                className={`text-green-500 ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`}
+              />
+              <div className="min-w-0">
+                <p
+                  className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}
+                >
+                  Started
+                </p>
+                <p
+                  className={`truncate font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}
+                >
                   {formatDate(execution.startTime)}
                 </p>
               </div>
@@ -428,6 +693,7 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
         <TabsList>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="control">Control</TabsTrigger>
           <TabsTrigger value="data">Input/Output</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
@@ -438,28 +704,67 @@ export function ExecutionDetailView({ executionId }: ExecutionDetailViewProps) {
 
         <TabsContent value="tasks">{renderTaskDetails()}</TabsContent>
 
+        <TabsContent value="control">
+          <ExecutionControlPanel
+            execution={execution}
+            onPause={handlePause}
+            onResume={handleResume}
+            onTerminate={handleTerminate}
+            onRetry={handleRetry}
+            onRerun={handleRerun}
+          />
+        </TabsContent>
+
         <TabsContent value="data">{renderInputOutput()}</TabsContent>
 
         <TabsContent value="logs">
           <Card>
             <CardHeader>
-              <CardTitle>Execution Logs</CardTitle>
-              <CardDescription>
-                Detailed execution logs and debug information
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Execution Logs</CardTitle>
+                  <CardDescription>
+                    Detailed execution logs and debug information
+                  </CardDescription>
+                </div>
+                {isConnected && execution.status === 'RUNNING' && (
+                  <div className="flex items-center space-x-2">
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                    <span className="text-sm text-green-600">
+                      Streaming logs...
+                    </span>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="py-8 text-center text-muted-foreground">
                 <FileText className="mx-auto mb-4 h-12 w-12 opacity-50" />
                 <p>Execution logs will appear here</p>
                 <p className="text-sm">
-                  Real-time log streaming integration needed
+                  {isConnected
+                    ? 'Real-time log streaming active'
+                    : 'Real-time log streaming unavailable - falling back to polling'}
                 </p>
+                {lastUpdateTime && (
+                  <p className="mt-2 text-xs">
+                    Last update: {new Date(lastUpdateTime).toLocaleTimeString()}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Task Inspector Dialog */}
+      {selectedTask && (
+        <TaskInspector
+          task={selectedTask}
+          open={showTaskInspector}
+          onOpenChange={setShowTaskInspector}
+        />
+      )}
     </div>
   )
 }
