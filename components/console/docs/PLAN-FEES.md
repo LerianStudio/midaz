@@ -358,12 +358,14 @@ interface RuleBuilderProps {
             "minValue": 100,
             "currency": "USD"
           },
-          "calculationType": [{
-            "percentage": 2.5,
-            "refAmount": "ORIGINAL",
-            "origin": ["fees-revenue"],
-            "target": ["merchant-account"]
-          }]
+          "calculationType": [
+            {
+              "percentage": 2.5,
+              "refAmount": "ORIGINAL",
+              "origin": ["fees-revenue"],
+              "target": ["merchant-account"]
+            }
+          ]
         }
       ],
       "waivedAccounts": ["vip-123", "vip-456"],
@@ -381,19 +383,23 @@ interface RuleBuilderProps {
         {
           "priority": 1,
           "type": "FLAT",
-          "calculationType": [{
-            "value": 0.30,
-            "fromTo": ["fees-fixed"],
-            "fromToType": "ORIGIN"
-          }]
+          "calculationType": [
+            {
+              "value": 0.3,
+              "fromTo": ["fees-fixed"],
+              "fromToType": "ORIGIN"
+            }
+          ]
         },
         {
           "priority": 2,
           "type": "PERCENTAGE",
-          "calculationType": [{
-            "percentage": 1.5,
-            "refAmount": "FEES"
-          }]
+          "calculationType": [
+            {
+              "percentage": 1.5,
+              "refAmount": "FEES"
+            }
+          ]
         }
       ]
     }
@@ -409,29 +415,27 @@ interface RuleBuilderProps {
     {
       "name": "Small Transaction",
       "transaction": {
-        "amount": 50.00,
+        "amount": 50.0,
         "from": "customer-123",
         "to": "merchant-456"
       },
       "result": {
         "fees": 1.25,
-        "breakdown": [
-          { "type": "PERCENTAGE", "amount": 1.25 }
-        ]
+        "breakdown": [{ "type": "PERCENTAGE", "amount": 1.25 }]
       }
     },
     {
       "name": "Large Transaction with Multiple Fees",
       "transaction": {
-        "amount": 10000.00,
+        "amount": 10000.0,
         "from": "customer-789",
         "to": "merchant-012"
       },
       "result": {
-        "fees": 250.30,
+        "fees": 250.3,
         "breakdown": [
-          { "type": "FLAT", "amount": 0.30 },
-          { "type": "PERCENTAGE", "amount": 250.00 }
+          { "type": "FLAT", "amount": 0.3 },
+          { "type": "PERCENTAGE", "amount": 250.0 }
         ]
       }
     }
@@ -560,25 +564,30 @@ test.describe('Fee Package Management', () => {
 ### Demo Script
 
 1. **Introduction** (2 min)
+
    - Overview of fee management challenges
    - Midaz Fees solution benefits
 
 2. **Package Management** (5 min)
+
    - Create new fee package
    - Configure complex rules
    - Demonstrate priority system
 
 3. **Visual Rule Builder** (5 min)
+
    - Build multi-tier fee structure
    - Show drag-and-drop priority
    - Validate rules in real-time
 
 4. **Fee Calculator** (3 min)
+
    - Test various scenarios
    - Compare different packages
    - Export results
 
 5. **Analytics Dashboard** (3 min)
+
    - Fee revenue insights
    - Package performance
    - Optimization opportunities
@@ -674,12 +683,14 @@ The Fees plugin integration has been fully implemented with all major features o
 ### 📋 Next Steps
 
 1. **Test the Implementation**:
+
    - Navigate to `/fees` in the Console
    - Create sample fee packages
    - Test calculator with various scenarios
    - Review analytics dashboards
 
 2. **Future Enhancements**:
+
    - API integration with actual Fees service
    - Transaction integration for automatic fee application
    - Advanced rule validation and conflict detection

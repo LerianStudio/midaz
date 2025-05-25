@@ -11,7 +11,13 @@ import {
   LibraryBig,
   Users,
   Puzzle,
-  Receipt
+  Receipt,
+  GitMerge,
+  Calculator,
+  Shield,
+  UserCheck,
+  FileText,
+  Workflow
 } from 'lucide-react'
 import { OrganizationSwitcher } from '../organization-switcher'
 import { useIntl } from 'react-intl'
@@ -145,6 +151,24 @@ export const Sidebar = () => {
 
           <SidebarItem
             title={intl.formatMessage({
+              id: 'sideBar.plugins.accounting',
+              defaultMessage: 'Accounting'
+            })}
+            icon={<Calculator />}
+            href="/plugins/accounting"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.auth',
+              defaultMessage: 'Auth'
+            })}
+            icon={<Shield />}
+            href="/plugins/auth"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
               id: 'sideBar.plugins.crm',
               defaultMessage: 'CRM'
             })}
@@ -159,6 +183,42 @@ export const Sidebar = () => {
             })}
             icon={<Receipt />}
             href="/plugins/fees"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.identity',
+              defaultMessage: 'Identity'
+            })}
+            icon={<UserCheck />}
+            href="/plugins/identity"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.reconciliation',
+              defaultMessage: 'Reconciliation'
+            })}
+            icon={<GitMerge />}
+            href="/plugins/reconciliation"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.smartTemplates',
+              defaultMessage: 'Smart Templates'
+            })}
+            icon={<FileText />}
+            href="/plugins/smart-templates"
+          />
+
+          <SidebarItem
+            title={intl.formatMessage({
+              id: 'sideBar.plugins.workflows',
+              defaultMessage: 'Workflows'
+            })}
+            icon={<Workflow />}
+            href="/plugins/workflows"
           />
 
           <SidebarItem

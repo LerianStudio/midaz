@@ -8,7 +8,17 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, Puzzle, ArrowRight } from 'lucide-react'
+import { 
+  Users, 
+  ArrowRight, 
+  GitMerge, 
+  Receipt,
+  Calculator,
+  Shield,
+  UserCheck,
+  FileText,
+  Workflow
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const PluginsPage = () => {
@@ -30,6 +40,36 @@ const PluginsPage = () => {
 
   const plugins = [
     {
+      id: 'accounting',
+      name: intl.formatMessage({
+        id: 'plugins.accounting.name',
+        defaultMessage: 'Accounting & Compliance'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.accounting.description',
+        defaultMessage:
+          'Chart of accounts management, transaction routing, and compliance monitoring for financial operations.'
+      }),
+      icon: <Calculator className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/accounting'
+    },
+    {
+      id: 'auth',
+      name: intl.formatMessage({
+        id: 'plugins.auth.name',
+        defaultMessage: 'Authentication & Authorization'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.auth.description',
+        defaultMessage:
+          'User authentication, role-based access control, and security management with JWT integration.'
+      }),
+      icon: <Shield className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/auth'
+    },
+    {
       id: 'crm',
       name: intl.formatMessage({
         id: 'plugins.crm.name',
@@ -45,19 +85,79 @@ const PluginsPage = () => {
       href: '/plugins/crm'
     },
     {
-      id: 'more',
+      id: 'fees',
       name: intl.formatMessage({
-        id: 'plugins.more.name',
-        defaultMessage: 'More Plugins Coming Soon'
+        id: 'plugins.fees.name',
+        defaultMessage: 'Fee Management'
       }),
       description: intl.formatMessage({
-        id: 'plugins.more.description',
+        id: 'plugins.fees.description',
         defaultMessage:
-          'Additional native plugins are being developed to extend Midaz functionality.'
+          'Configure and manage fee structures, calculations, and revenue tracking across your platform.'
       }),
-      icon: <Puzzle className="h-8 w-8" />,
-      available: false,
-      href: '#'
+      icon: <Receipt className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/fees'
+    },
+    {
+      id: 'identity',
+      name: intl.formatMessage({
+        id: 'plugins.identity.name',
+        defaultMessage: 'Identity Verification'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.identity.description',
+        defaultMessage:
+          'KYC/AML compliance, identity verification workflows, and document validation processes.'
+      }),
+      icon: <UserCheck className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/identity'
+    },
+    {
+      id: 'reconciliation',
+      name: intl.formatMessage({
+        id: 'plugins.reconciliation.name',
+        defaultMessage: 'Transaction Reconciliation'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.reconciliation.description',
+        defaultMessage:
+          'AI-powered transaction matching and reconciliation with comprehensive exception management.'
+      }),
+      icon: <GitMerge className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/reconciliation'
+    },
+    {
+      id: 'smart-templates',
+      name: intl.formatMessage({
+        id: 'plugins.smartTemplates.name',
+        defaultMessage: 'Smart Templates'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.smartTemplates.description',
+        defaultMessage:
+          'Dynamic template engine for documents, reports, and automated content generation.'
+      }),
+      icon: <FileText className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/smart-templates'
+    },
+    {
+      id: 'workflows',
+      name: intl.formatMessage({
+        id: 'plugins.workflows.name',
+        defaultMessage: 'Workflow Orchestration'
+      }),
+      description: intl.formatMessage({
+        id: 'plugins.workflows.description',
+        defaultMessage:
+          'Netflix Conductor-based workflow engine for business process automation and orchestration.'
+      }),
+      icon: <Workflow className="h-8 w-8" />,
+      available: true,
+      href: '/plugins/workflows'
     }
   ]
 

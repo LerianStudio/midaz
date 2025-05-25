@@ -7,11 +7,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Users, BarChart3, CreditCard, TrendingUp } from 'lucide-react'
 
-interface CRMNavigationProps {
-  className?: string
-}
-
-export const CRMNavigation: React.FC<CRMNavigationProps> = ({ className }) => {
+export const CRMNavigation: React.FC = () => {
   const intl = useIntl()
   const pathname = usePathname()
 
@@ -72,32 +68,39 @@ export const CRMNavigation: React.FC<CRMNavigationProps> = ({ className }) => {
   ]
 
   return (
-    <div className={cn('border-b bg-background', className)}>
-      <div className="flex h-10 items-center space-x-8 px-6">
-        {navigationItems.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + '/')
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4">
+        <nav className="scrollbar-hide flex items-center space-x-1 overflow-x-auto py-2">
+          {navigationItems.map((item) => {
+            const isActive =
+              pathname === item.href || 
+              (item.href !== '/plugins/crm' && pathname.startsWith(item.href))
 
-          return (
-            <Link
-              key={item.id}
-              href={item.disabled ? '#' : item.href}
-              className={cn(
-                'flex items-center space-x-2 border-b-2 border-transparent px-1 py-2 text-sm font-medium transition-colors hover:text-foreground',
-                isActive
-                  ? 'border-primary text-foreground'
-                  : 'text-muted-foreground',
-                item.disabled && 'cursor-not-allowed opacity-50'
-              )}
-              onClick={(e: React.MouseEvent) =>
-                item.disabled && e.preventDefault()
-              }
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </Link>
-          )
-        })}
+            return (
+              <Link
+                key={item.id}
+                href={item.disabled ? '#' : item.href}
+                className={cn(
+                  'flex items-center space-x-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                  item.disabled && 'cursor-not-allowed opacity-50'
+                )}
+                title={item.description}
+                onClick={(e: React.MouseEvent) =>
+                  item.disabled && e.preventDefault()
+                }
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {isActive && (
+                  <div className="h-1 w-1 rounded-full bg-primary-foreground/60" />
+                )}
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </div>
   )

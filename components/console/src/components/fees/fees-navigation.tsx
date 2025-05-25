@@ -1,68 +1,73 @@
 'use client'
 
 import React from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { Home, Package, Calculator, TrendingUp } from 'lucide-react'
+
+const feesNavItems = [
+  {
+    title: 'Overview',
+    href: '/plugins/fees',
+    icon: Home,
+    description: 'Fee management dashboard and metrics'
+  },
+  {
+    title: 'Fee Packages',
+    href: '/plugins/fees/packages',
+    icon: Package,
+    description: 'Create and manage fee packages'
+  },
+  {
+    title: 'Calculator',
+    href: '/plugins/fees/calculator',
+    icon: Calculator,
+    description: 'Fee calculation tools and testing'
+  },
+  {
+    title: 'Analytics',
+    href: '/plugins/fees/analytics',
+    icon: TrendingUp,
+    description: 'Fee analytics and reporting'
+  }
+]
 
 export function FeesNavigation() {
   const pathname = usePathname()
-  const router = useRouter()
-
-  const navItems = [
-    {
-      label: 'Overview',
-      href: '/plugins/fees',
-      icon: Home
-    },
-    {
-      label: 'Fee Packages',
-      href: '/plugins/fees/packages',
-      icon: Package
-    },
-    {
-      label: 'Calculator',
-      href: '/plugins/fees/calculator',
-      icon: Calculator
-    },
-    {
-      label: 'Analytics',
-      href: '/plugins/fees/analytics',
-      icon: TrendingUp
-    }
-  ]
-
-  const isActive = (href: string) => {
-    if (href === '/plugins/fees') {
-      return pathname === href
-    }
-    return pathname.startsWith(href)
-  }
 
   return (
-    <nav className="flex space-x-1 border-b">
-      {navItems.map((item) => {
-        const Icon = item.icon
-        const active = isActive(item.href)
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4">
+        <nav className="scrollbar-hide flex items-center space-x-1 overflow-x-auto py-2">
+          {feesNavItems.map((item) => {
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/plugins/fees' &&
+                pathname.startsWith(item.href))
 
-        return (
-          <Button
-            key={item.href}
-            variant="ghost"
-            size="sm"
-            className={cn(
-              'flex items-center gap-2 rounded-none border-b-2 border-transparent px-4 py-2',
-              'hover:border-gray-300 hover:bg-transparent',
-              active && 'border-primary text-primary hover:border-primary'
-            )}
-            onClick={() => router.push(item.href)}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Button>
-        )
-      })}
-    </nav>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center space-x-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground',
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                title={item.description}
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.title}</span>
+                {isActive && (
+                  <div className="h-1 w-1 rounded-full bg-primary-foreground/60" />
+                )}
+              </Link>
+            )
+          })}
+        </nav>
+      </div>
+    </div>
   )
 }
