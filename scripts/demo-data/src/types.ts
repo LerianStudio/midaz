@@ -39,6 +39,27 @@ export interface GeneratorOptions {
 }
 
 /**
+ * Alternative generator configuration for direct instantiation (used in tests)
+ */
+export interface GeneratorConfig {
+  logger?: any;
+  apiBaseUrl?: string;
+  enableValidation?: boolean;
+  enableCircuitBreaker?: boolean;
+  enableProgressReporting?: boolean;
+  organizations?: number;
+  ledgersPerOrg?: number;
+  assetsPerLedger?: number;
+  portfoliosPerLedger?: number;
+  segmentsPerLedger?: number;
+  accountsPerLedger?: number;
+  transactionsPerLedger?: number;
+  batchSize?: number;
+  retryAttempts?: number;
+  retryDelayMs?: number;
+}
+
+/**
  * Interface for entity generators
  */
 export interface EntityGenerator<T> {

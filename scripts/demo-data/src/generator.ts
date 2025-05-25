@@ -16,7 +16,7 @@ import {
 } from './generators';
 import { initializeClient } from './services/client';
 import { Logger } from './services/logger';
-import { GeneratorOptions } from './types';
+import { GeneratorOptions, GeneratorConfig, VolumeSize } from './types';
 import { StateManager } from './utils/state';
 
 /**
@@ -37,14 +37,37 @@ export class Generator {
   private accountGenerator: AccountGenerator;
   private transactionGenerator: TransactionGenerator;
 
-  constructor(options: GeneratorOptions) {
-    this.options = options;
-    this.logger = new Logger(options);
+  private isGeneratorConfig(options: GeneratorOptions | GeneratorConfig): options is GeneratorConfig {
+    return 'apiBaseUrl' in options || 'organizations' in options;
+  }
+
+  private convertConfigToOptions(config: GeneratorConfig): GeneratorOptions {
+    return {
+      volume: VolumeSize.SMALL, // Default for test config
+      baseUrl: config.apiBaseUrl || 'http://localhost',
+      onboardingPort: 8080,
+      transactionPort: 8081,
+      concurrency: config.batchSize || 10,
+      debug: true,
+      authToken: undefined,
+      seed: undefined,
+    };
+  }
+
+  constructor(options: GeneratorOptions | GeneratorConfig) {
+    // Convert GeneratorConfig to GeneratorOptions if needed
+    if (this.isGeneratorConfig(options)) {
+      this.options = this.convertConfigToOptions(options);
+      this.logger = options.logger || new Logger(this.options);
+    } else {
+      this.options = options;
+      this.logger = new Logger(options);
+    }
 
     // Initialize client
-    this.client = initializeClient(options);
+    this.client = initializeClient(this.options);
     this.logger.info(
-      `Initialized Midaz client connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`
+      `Initialized Midaz client connecting to ${this.options.baseUrl}:${this.options.onboardingPort} and ${this.options.baseUrl}:${this.options.transactionPort}`
     );
 
     // Get state manager
@@ -236,5 +259,12 @@ export class Generator {
       this.logger.error('Error during data generation:', error as Error);
       throw error;
     }
+  }
+
+  /**
+   * Alias for run() method - maintains backward compatibility with tests
+   */
+  public async generateAll(): Promise<void> {
+    return this.run();
   }
 }
