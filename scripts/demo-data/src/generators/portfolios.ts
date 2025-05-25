@@ -2,9 +2,9 @@
  * Portfolio generator
  */
 
-import * as faker from 'faker';
-import { MidazClient } from 'midaz-sdk/src';
-import { Portfolio } from 'midaz-sdk/src/models/portfolio';
+import faker from 'faker';
+import { MidazClient } from 'midaz-sdk';
+import { Portfolio } from 'midaz-sdk';
 import { Logger } from '../services/logger';
 import { StateManager } from '../utils/state';
 import { BaseGenerator } from './base.generator';

@@ -2,9 +2,9 @@
  * Asset generator
  */
 
-import * as faker from 'faker';
-import { MidazClient } from 'midaz-sdk/src';
-import { Asset } from 'midaz-sdk/src/models/asset';
+import faker from 'faker';
+import { MidazClient } from 'midaz-sdk';
+import { Asset } from 'midaz-sdk';
 import { ASSET_TEMPLATES } from '../config';
 import { Logger } from '../services/logger';
 import { StateManager } from '../utils/state';

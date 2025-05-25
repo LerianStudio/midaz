@@ -128,9 +128,9 @@ if [ ! -d "$SDK_PATH/src" ]; then
   # Remove any partial installations
   rm -rf "$SDK_PATH"
   
-  # Clone from GitHub (develop branch for testing)
-  log "Cloning SDK from GitHub: $SDK_REPO (develop branch)"
-  git clone -b develop "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
+  # Clone from GitHub (main branch)
+  log "Cloning SDK from GitHub: $SDK_REPO (main branch)"
+  git clone -b main "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
     
   # Install SDK dependencies (skip prepare script to avoid build failure)
   log "Installing SDK dependencies..."
@@ -169,6 +169,16 @@ if [ ! -d "node_modules" ]; then
   log "Installing dependencies..."
   # Install with ignore-scripts to prevent build issues with local SDK dependency
   npm install --ignore-scripts || die "Failed to install npm dependencies"
+fi
+
+# Build the demo data generator if needed
+if [ ! -d "dist" ] || [ ! -f "dist/index.js" ]; then
+  log "Building demo data generator..."
+  if npm run build; then
+    log_success "Demo data generator built successfully"
+  else
+    log_warning "Build failed, will use ts-node to run TypeScript directly"
+  fi
 fi
 
 # ============================================================================

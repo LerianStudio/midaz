@@ -31,7 +31,7 @@ export interface ProgressReportOptions {
 
 export class ProgressReporter {
   private metrics: ProgressMetrics;
-  private intervalId?: NodeJS.Timeout;
+  private intervalId?: any;
   private lastUpdateTime: Date;
   private itemTimes: number[] = [];
   private readonly maxItemTimesSamples = 100;

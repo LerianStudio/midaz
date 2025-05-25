@@ -2,15 +2,18 @@
  * Account generator
  */
 
-import * as faker from 'faker';
-import { MidazClient } from 'midaz-sdk/src';
-import { Account, AccountType, createAccountBuilder } from 'midaz-sdk/src/models/account';
-import { workerPool } from 'midaz-sdk/src/util/concurrency/worker-pool';
+import faker from 'faker';
+import { MidazClient } from 'midaz-sdk';
+import { Account, createAccountBuilder } from 'midaz-sdk';
+import { workerPool } from '../utils/worker-pool';
 import { MAX_CONCURRENCY } from '../config';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { generateAccountAlias } from '../utils/faker-pt-br';
 import { StateManager } from '../utils/state';
+
+// AccountType from SDK (not exported)
+type AccountType = 'deposit' | 'savings' | 'loans' | 'marketplace' | 'creditCard' | 'external';
 
 /**
  * Options for batch account creation
@@ -102,7 +105,8 @@ export class AccountGenerator implements EntityGenerator<Account> {
     // Process accounts in parallel using worker pool
     await workerPool(
       accountInputs,
-      async (accountInput: CreateAccountInput, index: number) => {
+      async (accountInput: CreateAccountInput) => {
+        const index = accountInputs.indexOf(accountInput);
         let account: Account | null = null;
         let success = false;
         let error: Error | null = null;
@@ -249,7 +253,6 @@ export class AccountGenerator implements EntityGenerator<Account> {
         concurrency,
         preserveOrder: true,
         continueOnError: !stopOnError,
-        batchDelay: 0, // We're already handling delays in the worker function
       }
     );
 

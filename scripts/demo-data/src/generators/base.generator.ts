@@ -2,7 +2,7 @@
  * Base generator class with common functionality
  */
 
-import { MidazClient } from 'midaz-sdk/src';
+import { MidazClient } from 'midaz-sdk';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
@@ -11,6 +11,7 @@ import { Validator, ValidationResult } from '../validation/validator';
 import { ValidationError } from '../errors';
 import { ProgressReporter, ProgressReportOptions } from '../utils/progress-reporter';
 import { z } from 'zod';
+import { GENERATOR_CONFIG } from '../config/generator-config';
 
 /**
  * Abstract base class for all entity generators
@@ -24,11 +25,7 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
     protected logger: Logger,
     protected stateManager: StateManager
   ) {
-    this.circuitBreaker = createCircuitBreaker({
-      failureThreshold: 5,
-      resetTimeout: 30000,
-      monitoringPeriod: 10000
-    });
+    this.circuitBreaker = createCircuitBreaker(GENERATOR_CONFIG.circuitBreaker);
   }
 
   /**
@@ -83,7 +80,7 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
   protected async withRetry<R>(
     operation: () => Promise<R>,
     operationName: string,
-    maxRetries: number = 3
+    maxRetries: number = GENERATOR_CONFIG.retry.maxRetries
   ): Promise<R> {
     let lastError: Error;
 
@@ -94,7 +91,10 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
         lastError = error as Error;
         
         if (attempt < maxRetries) {
-          const delay = Math.min(100 * Math.pow(2, attempt), 2000);
+          const delay = Math.min(
+            GENERATOR_CONFIG.retry.initialDelay * Math.pow(2, attempt),
+            GENERATOR_CONFIG.retry.maxDelay
+          );
           this.logger.debug(
             `Retry ${attempt}/${maxRetries} for ${operationName} after ${delay}ms`
           );
@@ -189,7 +189,7 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
     data: unknown,
     entityType: string
   ): V {
-    return Validator.validateOrThrow(schema, data, entityType);
+    return Validator.validateOrThrow(schema, data);
   }
 
   /**
@@ -199,8 +199,8 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
     schema: z.ZodSchema<V>,
     data: unknown,
     entityType: string
-  ): ValidationResult<V> {
-    return Validator.validate(schema, data, entityType);
+  ): ValidationResult {
+    return Validator.validate(schema, data);
   }
 
   /**
@@ -211,7 +211,7 @@ export abstract class BaseGenerator<T> implements EntityGenerator<T> {
     dataArray: unknown[],
     entityType: string
   ): V[] {
-    return Validator.validateBatchOrThrow(schema, dataArray, entityType);
+    return Validator.validateBatchOrThrow(schema, dataArray);
   }
 
   /**

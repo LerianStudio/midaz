@@ -3,8 +3,8 @@
  * Handles peer-to-peer transfers between accounts
  */
 
-import { MidazClient, TransactionBatchOptions, createTransactionBatch } from 'midaz-sdk/src';
-import { Transaction } from 'midaz-sdk/src/models/transaction';
+import { MidazClient, TransactionBatchOptions, createTransactionBatch } from 'midaz-sdk';
+import { Transaction } from 'midaz-sdk';
 import {
   BATCH_PROCESSING_CONFIG,
   MAX_CONCURRENCY,
@@ -210,12 +210,12 @@ export class TransferGenerator {
     const concurrencyLevel = Math.min(5, transferBatch.length);
     const batchOptions: TransactionBatchOptions = {
       concurrency: concurrencyLevel,
-      maxRetries: this.config.maxRetries || BATCH_PROCESSING_CONFIG?.TRANSFERS?.maxRetries || 2,
-      useEnhancedRecovery: this.config.useEnhancedRecovery ?? BATCH_PROCESSING_CONFIG?.TRANSFERS?.useEnhancedRecovery ?? true,
-      stopOnError: BATCH_PROCESSING_CONFIG?.TRANSFERS?.stopOnError ?? false,
-      delayBetweenTransactions: this.config.delayBetweenTransfers ?? BATCH_PROCESSING_CONFIG?.TRANSFERS?.delayBetweenTransactions ?? 150,
+      maxRetries: this.config.maxRetries || BATCH_PROCESSING_CONFIG?.transfers?.maxRetries || 2,
+      useEnhancedRecovery: this.config.useEnhancedRecovery ?? BATCH_PROCESSING_CONFIG?.transfers?.useEnhancedRecovery ?? true,
+      stopOnError: BATCH_PROCESSING_CONFIG?.transfers?.stopOnError ?? false,
+      delayBetweenTransactions: this.config.delayBetweenTransfers ?? BATCH_PROCESSING_CONFIG?.transfers?.delayBetweenTransactions ?? 150,
       batchMetadata: {
-        ...TRANSACTION_METADATA?.TRANSFER,
+        ...TRANSACTION_METADATA?.transfer,
         assetCode,
       },
       onTransactionSuccess: (tx: any, index: number, result: any) => {

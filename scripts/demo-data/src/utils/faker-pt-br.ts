@@ -2,6 +2,8 @@
  * Brazilian locale helpers for Faker.js
  */
 
+
+
 // Handle Faker import consistently
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const faker = require('faker');

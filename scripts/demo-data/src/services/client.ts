@@ -2,7 +2,7 @@
  * SDK client initialization and configuration
  */
 
-import { MidazClient, createClientConfigBuilder } from 'midaz-sdk/src';
+import { MidazClient, createClientConfigBuilder } from 'midaz-sdk';
 import { GeneratorOptions } from '../types';
 
 /**
@@ -12,8 +12,9 @@ export function initializeClient(options: GeneratorOptions): MidazClient {
   const { baseUrl, onboardingPort, transactionPort, authToken, debug } = options;
 
   // Create configuration builder with a dummy API key when auth is disabled
-  // This is necessary because the SDK requires either apiKey or authToken
-  const apiKey = authToken && authToken !== 'NONE' ? '' : 'dummy-api-key-for-dev';
+  // This is necessary because the SDK requires an API key even when auth plugin is not installed
+  // The key needs to be at least 10 characters to pass SDK validation
+  const apiKey = authToken && authToken !== 'NONE' ? authToken : 'no-auth-plugin-installed';
 
   const configBuilder = createClientConfigBuilder(apiKey)
     .withBaseUrls({
@@ -37,10 +38,9 @@ export function initializeClient(options: GeneratorOptions): MidazClient {
     },
   });
 
-  // Set authentication if provided and not 'NONE'
-  if (authToken && authToken !== 'NONE') {
-    configBuilder.withAuthToken(authToken);
-  }
+  // Note: We don't call withAuthToken when using the dummy API key
+  // The SDK will use the apiKey provided in the constructor
+  // If a real auth token is provided, it should be passed as the apiKey
 
   // Always enable debug mode to help troubleshoot API issues
   if (debug) {

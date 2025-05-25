@@ -4,6 +4,8 @@
  * CLI entry point
  */
 
+
+
 // Import yargs in a way that works with TypeScript
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';

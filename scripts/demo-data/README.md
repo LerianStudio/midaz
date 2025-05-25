@@ -22,27 +22,57 @@ A comprehensive, production-ready demo data generator for the Midaz platform wit
 ## 📦 Installation
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Build the project
+# 2. Build the SDK (required as it's a local dependency)
+cd sdk-source
+npm install
+npm run build
+cd ..
+
+# 3. Build the demo data generator
 npm run build
 ```
 
 ## 🎯 Quick Start
 
-### Basic Usage
+### Using the Shell Script (Recommended)
+
+The easiest way to run the generator is using the provided shell script:
 
 ```bash
-# Generate small dataset (1 org, 2 ledgers, basic entities)
+# Generate small dataset (default)
+./run-generator.sh
+
+# Generate medium dataset
+./run-generator.sh medium
+
+# Generate large dataset
+./run-generator.sh large
+
+# With authentication token (if auth plugin is installed)
+./run-generator.sh small your-auth-token
+```
+
+### Using NPM Scripts
+
+```bash
+# Generate small dataset (2 orgs, 2 ledgers per org, 100 accounts per ledger)
 npm run small
 
-# Generate medium dataset (3 orgs, 5 ledgers per org, more entities)
+# Generate medium dataset (5 orgs, 3 ledgers per org, 50 accounts per ledger)
 npm run medium
 
-# Generate large dataset (10 orgs, 10 ledgers per org, full scale)
+# Generate large dataset (10 orgs, 5 ledgers per org, 1000 accounts per ledger)
 npm run large
 ```
+
+### Important Notes
+
+- **No Authentication Required**: If your Midaz installation doesn't have the auth plugin, the generator will work without an API key
+- **Batch Processing**: Transactions are now processed in batches of 100 for better performance
+- **Service Requirements**: Ensure Midaz services are running on ports 3000 (onboarding) and 3001 (transaction)
 
 ### Command Line Interface
 
@@ -85,12 +115,11 @@ NODE_ENV=development  # development, production, test
 
 ### Volume Presets
 
-| Preset | Organizations | Ledgers/Org | Assets/Ledger | Accounts/Ledger | Transactions/Ledger | Total Entities |
-|--------|---------------|-------------|---------------|-----------------|-------------------|----------------|
-| Small  | 1             | 2           | 3             | 5               | 10                | ~42           |
-| Medium | 3             | 5           | 8             | 15              | 50                | ~1,140        |
-| Large  | 10            | 10          | 15            | 30              | 200               | ~26,000       |
-| XLarge | 25            | 20          | 20            | 50              | 500               | ~287,500      |
+| Preset | Organizations | Ledgers/Org | Assets/Ledger | Accounts/Ledger | Transactions/Account | Total Transactions |
+|--------|---------------|-------------|---------------|-----------------|---------------------|-------------------|
+| Small  | 2             | 2           | 3             | 100             | 20                  | ~8,000            |
+| Medium | 5             | 3           | 5             | 50              | 20                  | ~15,000           |
+| Large  | 10            | 5           | 8             | 1000            | 20                  | ~1,000,000        |
 
 ## 🏗️ Architecture
 
@@ -436,6 +465,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Common Issues
 
+**Q: "Cannot find module 'midaz-sdk'" error**
+A: Build the SDK first:
+```bash
+cd sdk-source
+npm install
+npm run build
+cd ..
+npm run build
+```
+
+**Q: "API key is required" error**
+A: This happens with older SDK versions. The generator now handles this automatically by using a dummy key when no auth plugin is installed.
+
 **Q: Generation fails with "Circuit breaker is OPEN"**
 A: Wait for the recovery timeout or manually reset: `generator.resetCircuit()`
 
@@ -443,10 +485,18 @@ A: Wait for the recovery timeout or manually reset: `generator.resetCircuit()`
 A: Reduce `MAX_ENTITIES_IN_MEMORY` or enable `MEMORY_OPTIMIZATION=true`
 
 **Q: Slow generation**
-A: Increase `BATCH_SIZE` or reduce entity counts
+A: Transactions are now processed in batches of 100. For even faster processing, you can increase the batch size in `src/config/generator-config.ts`
 
 **Q: Validation errors**
 A: Check entity relationships and required fields
+
+**Q: Services not running**
+A: Ensure Midaz services are running:
+```bash
+# Check if services are accessible
+curl http://localhost:3000/health
+curl http://localhost:3001/health
+```
 
 ### Debug Mode
 

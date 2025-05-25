@@ -45,10 +45,21 @@ export interface StateManagerOptions {
 export class OptimizedStateManager {
   private static instance: OptimizedStateManager;
   private errorTracker = new ErrorTracker();
-  private state: GeneratorState;
+  private state: GeneratorState = {
+    organizationIds: [],
+    ledgerIds: new Map(),
+    assetIds: new Map(),
+    assetCodes: new Map(),
+    portfolioIds: new Map(),
+    segmentIds: new Map(),
+    accountIds: new Map(),
+    accountAliases: new Map(),
+    transactionIds: new Map(),
+    accountAssets: new Map()
+  };
   private snapshots: StateSnapshot[] = [];
   private maxSnapshots = 10;
-  private snapshotInterval?: NodeJS.Timeout;
+  private snapshotInterval?: any;
 
   private metrics: GenerationMetrics = {
     startTime: new Date(),
@@ -143,13 +154,13 @@ export class OptimizedStateManager {
         transactions: Array.from(this.state.transactionIds.values()).reduce((sum, arr) => sum + arr.length, 0),
       },
       errorCounts: {
-        organizations: this.metrics.organizationErrors,
-        ledgers: this.metrics.ledgerErrors,
-        assets: this.metrics.assetErrors,
-        portfolios: this.metrics.portfolioErrors,
-        segments: this.metrics.segmentErrors,
-        accounts: this.metrics.accountErrors,
-        transactions: this.metrics.transactionErrors,
+        organizations: this.metrics.organizationErrors || 0,
+        ledgers: this.metrics.ledgerErrors || 0,
+        assets: this.metrics.assetErrors || 0,
+        portfolios: this.metrics.portfolioErrors || 0,
+        segments: this.metrics.segmentErrors || 0,
+        accounts: this.metrics.accountErrors || 0,
+        transactions: this.metrics.transactionErrors || 0,
       },
     };
 
@@ -396,7 +407,7 @@ export class OptimizedStateManager {
         message: error.message,
         stack: error.stack,
       },
-      context,
+      context: context || {},
     };
 
     this.errorTracker.trackError(errorInfo);
@@ -409,25 +420,25 @@ export class OptimizedStateManager {
   incrementErrorCount(entityType: string): void {
     switch (entityType) {
       case 'organization':
-        this.metrics.organizationErrors++;
+        this.metrics.organizationErrors = (this.metrics.organizationErrors || 0) + 1;
         break;
       case 'ledger':
-        this.metrics.ledgerErrors++;
+        this.metrics.ledgerErrors = (this.metrics.ledgerErrors || 0) + 1;
         break;
       case 'asset':
-        this.metrics.assetErrors++;
+        this.metrics.assetErrors = (this.metrics.assetErrors || 0) + 1;
         break;
       case 'portfolio':
-        this.metrics.portfolioErrors++;
+        this.metrics.portfolioErrors = (this.metrics.portfolioErrors || 0) + 1;
         break;
       case 'segment':
-        this.metrics.segmentErrors++;
+        this.metrics.segmentErrors = (this.metrics.segmentErrors || 0) + 1;
         break;
       case 'account':
-        this.metrics.accountErrors++;
+        this.metrics.accountErrors = (this.metrics.accountErrors || 0) + 1;
         break;
       case 'transaction':
-        this.metrics.transactionErrors++;
+        this.metrics.transactionErrors = (this.metrics.transactionErrors || 0) + 1;
         break;
     }
   }

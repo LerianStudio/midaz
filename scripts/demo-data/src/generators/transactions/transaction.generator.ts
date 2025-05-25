@@ -2,8 +2,8 @@
  * Main transaction generator - simplified and modular
  */
 
-import { MidazClient } from 'midaz-sdk/src';
-import { Transaction } from 'midaz-sdk/src/models/transaction';
+import { MidazClient } from 'midaz-sdk';
+import { Transaction } from 'midaz-sdk';
 import { PROCESSING_DELAYS } from '../../config';
 import { Logger } from '../../services/logger';
 import { StateManager } from '../../utils/state';

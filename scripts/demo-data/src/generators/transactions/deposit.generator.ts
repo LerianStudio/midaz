@@ -3,9 +3,9 @@
  * Handles the creation of initial deposits for accounts
  */
 
-import { MidazClient, TransactionBatchOptions, createTransactionBatch } from 'midaz-sdk/src';
-import { Transaction } from 'midaz-sdk/src/models/transaction';
-import { workerPool } from 'midaz-sdk/src/util/concurrency/worker-pool';
+import { MidazClient, TransactionBatchOptions, createTransactionBatch } from 'midaz-sdk';
+import { Transaction } from 'midaz-sdk';
+import { workerPool } from '../../utils/worker-pool';
 import {
   ACCOUNT_FORMATS,
   BATCH_PROCESSING_CONFIG,
@@ -129,7 +129,7 @@ export class DepositGenerator {
   ): Promise<Array<AccountWithAsset & { depositAmount: number }>> {
     return await workerPool(
       accounts,
-      async (account) => {
+      async (account: AccountWithAsset) => {
         try {
           // Get account details if assetCode is not provided
           let assetCode = account.assetCode;
@@ -208,12 +208,12 @@ export class DepositGenerator {
     // Prepare batch options
     const batchOptions: TransactionBatchOptions = {
       concurrency: concurrencyLevel,
-      maxRetries: this.config.maxRetries || BATCH_PROCESSING_CONFIG?.DEPOSITS?.maxRetries || 3,
-      useEnhancedRecovery: this.config.useEnhancedRecovery ?? BATCH_PROCESSING_CONFIG?.DEPOSITS?.useEnhancedRecovery ?? true,
-      stopOnError: BATCH_PROCESSING_CONFIG?.DEPOSITS?.stopOnError ?? false,
-      delayBetweenTransactions: this.config.delayBetweenDeposits ?? BATCH_PROCESSING_CONFIG?.DEPOSITS?.delayBetweenTransactions ?? 100,
+      maxRetries: this.config.maxRetries || BATCH_PROCESSING_CONFIG?.deposits?.maxRetries || 3,
+      useEnhancedRecovery: this.config.useEnhancedRecovery ?? BATCH_PROCESSING_CONFIG?.deposits?.useEnhancedRecovery ?? true,
+      stopOnError: BATCH_PROCESSING_CONFIG?.deposits?.stopOnError ?? false,
+      delayBetweenTransactions: this.config.delayBetweenDeposits ?? BATCH_PROCESSING_CONFIG?.deposits?.delayBetweenTransactions ?? 100,
       batchMetadata: {
-        ...TRANSACTION_METADATA?.DEPOSIT,
+        ...TRANSACTION_METADATA?.deposit,
         assetCode,
       },
       onTransactionSuccess: (tx: any, index: number, result: any) => {

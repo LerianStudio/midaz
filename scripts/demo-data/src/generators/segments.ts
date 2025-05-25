@@ -2,9 +2,9 @@
  * Segment generator
  */
 
-import * as faker from 'faker';
-import { MidazClient } from 'midaz-sdk/src';
-import { Segment } from 'midaz-sdk/src/models/segment';
+import faker from 'faker';
+import { MidazClient } from 'midaz-sdk';
+import { Segment } from 'midaz-sdk';
 import { Logger } from '../services/logger';
 import { EntityGenerator } from '../types';
 import { StateManager } from '../utils/state';
@@ -124,7 +124,11 @@ export class SegmentGenerator implements EntityGenerator<Segment> {
         );
 
         // Try to find the segment by listing all and filtering
-        const segments = await this.client.entities.segments.listSegments(organizationId, ledgerId);
+        if (!ledgerId) {
+          this.logger.error('LedgerId is undefined');
+          throw new Error('LedgerId is required');
+        }
+        const segments = await this.client.entities.segments.listSegments(orgId, ledgerId);
         const existingSegment = segments.items.find((s) => s.name === name);
 
         if (existingSegment) {

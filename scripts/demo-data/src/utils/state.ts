@@ -315,4 +315,22 @@ export class StateManager {
   public incrementRetryCount(): void {
     this.metrics.retries++;
   }
+
+  /**
+   * Restore state from checkpoint
+   */
+  public restoreFromCheckpoint(checkpointState: GeneratorState): void {
+    this.state = {
+      organizationIds: [...checkpointState.organizationIds],
+      ledgerIds: new Map(checkpointState.ledgerIds),
+      assetIds: new Map(checkpointState.assetIds),
+      assetCodes: new Map(checkpointState.assetCodes),
+      portfolioIds: new Map(checkpointState.portfolioIds),
+      segmentIds: new Map(checkpointState.segmentIds),
+      accountIds: new Map(checkpointState.accountIds),
+      accountAliases: new Map(checkpointState.accountAliases),
+      transactionIds: new Map(checkpointState.transactionIds),
+      accountAssets: new Map(checkpointState.accountAssets),
+    };
+  }
 }
