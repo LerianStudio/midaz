@@ -10,20 +10,37 @@ on:
       - edited
       - synchronize
       - reopened
-    paths:
-      - 'components/onboarding/**'
-      - 'components/transaction/**'
 
 permissions:
-  id-token: write        # Needed for authentication
-  contents: read         # Needed to read repository contents
-  pull-requests: write   # Needed to comment on PRs
-  actions: read          # Needed to read workflow information
-  security-events: write # Needed to write security scanning results
+  id-token: write
+  contents: read
+  pull-requests: write
+  actions: read
+  security-events: write
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      onboarding: ${{ steps.filter.outputs.onboarding }}
+      transaction: ${{ steps.filter.outputs.transaction }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect backend changes
+        id: filter
+        uses: tinyfists/actions-monorepo@v1
+        with:
+          paths: |
+            components/onboarding/**
+            components/transaction/**
+
   CodeQL:
     name: Run CodeQL to Midaz
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.onboarding == 'true' ||
+      needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -33,23 +50,18 @@ jobs:
           - language: go
             build-mode: autobuild
     steps:
-      # Checkout the repository code
       - uses: actions/checkout@v4
-
-      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
-      # Initialize CodeQL analysis tool
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      # Run the CodeQL analysis
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
@@ -57,13 +69,15 @@ jobs:
 
   GolangCI-Lint:
     name: Run GolangCI-Lint to Midaz
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.onboarding == 'true' ||
+      needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
-      # Checkout the repository code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Using GolangCI-Lint Module
       - name: Run GoLangCI Lint
         uses: LerianStudio/github-actions-golangci-lint@main
         with:
@@ -79,18 +93,19 @@ jobs:
 
   GoSec:
     name: Run GoSec to Midaz
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.onboarding == 'true' ||
+      needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
-      # Checkout the repository code
       - uses: actions/checkout@v4
 
-      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
-      # Run Gosec security scanner
       - name: Gosec Scanner
         uses: securego/gosec@master
         with:
@@ -98,18 +113,19 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests to Midaz
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.onboarding == 'true' ||
+      needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
-      # Checkout the repository code
       - uses: actions/checkout@v4
 
-      # Set up Go environment
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
-      # Run unit tests using make
       - name: Unit Tests
         shell: bash
         run: make test
