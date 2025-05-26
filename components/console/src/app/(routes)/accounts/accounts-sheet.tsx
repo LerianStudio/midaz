@@ -344,13 +344,6 @@ export const AccountSheet = ({
                               defaultMessage: 'CreditCard'
                             })}
                           </SelectItem>
-
-                          <SelectItem value="external">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.external',
-                              defaultMessage: 'External'
-                            })}
-                          </SelectItem>
                         </SelectField>
 
                         <InputField
