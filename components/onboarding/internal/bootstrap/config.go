@@ -212,7 +212,7 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 

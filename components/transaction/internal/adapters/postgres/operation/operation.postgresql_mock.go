@@ -104,9 +104,9 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, tra
 }
 
 // FindAllByAccount mocks base method.
-func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http0.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http0.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllByAccount", ctx, organizationID, ledgerID, accountID, filter)
+	ret := m.ctrl.Call(m, "FindAllByAccount", ctx, organizationID, ledgerID, accountID, operationType, filter)
 	ret0, _ := ret[0].([]*Operation)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
@@ -114,9 +114,9 @@ func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, l
 }
 
 // FindAllByAccount indicates an expected call of FindAllByAccount.
-func (mr *MockRepositoryMockRecorder) FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllByAccount(ctx, organizationID, ledgerID, accountID, operationType, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAccount", reflect.TypeOf((*MockRepository)(nil).FindAllByAccount), ctx, organizationID, ledgerID, accountID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAccount", reflect.TypeOf((*MockRepository)(nil).FindAllByAccount), ctx, organizationID, ledgerID, accountID, operationType, filter)
 }
 
 // FindByAccount mocks base method.

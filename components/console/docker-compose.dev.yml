@@ -1,0 +1,31 @@
+services:
+  console:
+    container_name: midaz-console-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ['npm', 'run', 'dev']
+    volumes:
+      # Mount source code for hot reloading
+      - ./src:/usr/src/app/src
+      - ./public:/usr/src/app/public
+      - ./next.config.mjs:/usr/src/app/next.config.mjs
+      - ./tailwind.config.ts:/usr/src/app/tailwind.config.ts
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./package.json:/usr/src/app/package.json
+      - ./components.json:/usr/src/app/components.json
+      # Exclude node_modules from volume mount
+      - /usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    ports:
+      - '8081:8081'
+    healthcheck:
+      test:
+        ['CMD', 'curl', '-f', 'http://localhost:8081/api/admin/health/ready']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

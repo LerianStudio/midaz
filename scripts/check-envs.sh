@@ -81,3 +81,6 @@ fi
 
 echo ""
 echo "${CYAN}Environment check completed.${NC}"
+
+# Always exit with success code as this is an informational script
+exit 0

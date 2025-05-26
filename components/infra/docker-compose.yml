@@ -36,8 +36,8 @@ services:
     networks:
       - infra-network
 
-  midaz-redis:
-    container_name: midaz-redis
+  midaz-valkey:
+    container_name: midaz-valkey
     image: valkey/valkey:latest
     restart: always
     env_file:

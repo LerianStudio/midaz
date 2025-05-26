@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -174,6 +175,21 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 
 	//nolint:dupword
 	script := redis.NewScript(`
+		local INT64_MAX = 9223372036854775807
+		local INT64_MIN = -9223372036854775808
+		
+		local function willOverflow(a, b, scale)
+			if b > 0 and a > INT64_MAX - b then
+				return true
+			elseif b < 0 and a < INT64_MIN - b then
+				return true
+			elseif scale > 18 then
+				return true
+			end
+
+			return false
+		end
+
 		local function Scale(v, s0, s1)
 		  local result = v *  math.pow(10, s1 - s0)
 		  if result >= 0 then
@@ -186,24 +202,36 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		local function OperateBalances(amount, balance, operation)
 		  local scale = 0
 		  local total = 0
-		
+
 		  if operation == "DEBIT" then
 			  if balance.Scale < amount.Scale then
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+				if willOverflow(v0, -amount.Available, amount.Scale) then
+					return nil, "overflow"
+				end
 				total = v0 - amount.Available
 				scale = amount.Scale
 			  else
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+				if willOverflow(balance.Available, -v0, amount.Scale) then
+					return nil, "overflow"
+				end
 				total = balance.Available - v0
 				scale = balance.Scale
 			  end
 		  else
 			  if balance.Scale < amount.Scale then
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+				if willOverflow(v0, amount.Available, amount.Scale) then
+					return nil, "overflow"
+				end
 				total = v0 + amount.Available
 				scale = amount.Scale
 			  else
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+				if willOverflow(balance.Available, v0, amount.Scale) then
+					return nil, "overflow"
+				end
 				total = balance.Available + v0
 				scale = balance.Scale
 			  end
@@ -220,7 +248,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
             AllowReceiving = balance.AllowReceiving,
 			AssetCode = balance.AssetCode,
             AccountID = balance.AccountID,
-		  }
+		  }, nil
 		end
 
 		local function main()
@@ -233,7 +261,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 			  Available = tonumber(ARGV[3]),
 			  Scale = tonumber(ARGV[4])
 			}
-		
+
 			local balance = {
               ID = ARGV[5],
 			  Available = tonumber(ARGV[6]),
@@ -255,7 +283,10 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 			  balance = cjson.decode(currentValue)
 			end
 			
-			local finalBalance = OperateBalances(amount, balance, operation)
+			local finalBalance, err = OperateBalances(amount, balance, operation)
+			if err == "overflow" then
+				return redis.error_reply("0097")
+			end
 			
 			if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
 			  return redis.error_reply("0018")
@@ -312,6 +343,10 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
 		logger.Errorf("Failed run lua script on redis: %v", err)
+
+		if strings.Contains(err.Error(), constant.ErrOverFlowInt64.Error()) {
+			return nil, libCommons.ValidateBusinessError(libConstants.ErrOverFlowInt64, "overflowBalance", balance.Alias)
+		}
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)

@@ -1,0 +1,19 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './popover-panel.stories'
+
+<Meta of={Story} />
+
+# Organization Switcher Popover
+
+Popover component, given the user ability to access his organization settings and swap to other ones.
+
+<Canvas of={Story.Primary} />
+
+### With Many
+
+When the user has over 4 organizations, the left side components becomes denser.
+
+<Canvas of={Story.Dense} />
+
+<Primary />
+<Controls />

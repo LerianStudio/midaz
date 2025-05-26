@@ -24,7 +24,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	logger.Infof("Retrieving operations by account")
 
-	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
+	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get operations on repo", err)
 

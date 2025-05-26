@@ -7,6 +7,9 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
+# Flag to track if any component failed the coverage check
+ANY_FAILED=false
+
 # Minimum required test coverage percentage
 MIN_COVERAGE=80
 
@@ -38,6 +41,7 @@ for component in ./components/*; do
                 # Compare with minimum required
                 if (( $(echo "$coverage < $MIN_COVERAGE" | bc -l) )); then
                     echo "${RED}${BOLD}[FAIL]${NC} $component_name coverage is ${RED}$coverage%${NC} (minimum required: ${GREEN}$MIN_COVERAGE%${NC})"
+                    ANY_FAILED=true
                 else
                     echo "${GREEN}${BOLD}[PASS]${NC} $component_name coverage is ${GREEN}$coverage%${NC}"
                 fi
@@ -46,9 +50,11 @@ for component in ./components/*; do
                 rm "$component/coverage.tmp"
             else
                 echo "${YELLOW}No coverage data generated for $component_name${NC}"
+                ANY_FAILED=true
             fi
         else
             echo "${RED}${BOLD}[ERROR]${NC} Failed to run tests for $component_name"
+            ANY_FAILED=true
         fi
         
         echo ""
@@ -56,3 +62,11 @@ for component in ./components/*; do
 done
 
 echo "Coverage check completed."
+
+# Exit with appropriate status code
+if [ "$ANY_FAILED" = true ]; then
+    echo "${RED}${BOLD}[ERROR]${NC} Some components failed the coverage check"
+    exit 1
+fi
+
+exit 0

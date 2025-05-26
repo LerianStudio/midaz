@@ -1,0 +1,24 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+
+import * as Story from './avatar.stories'
+
+<Meta of={Story} />
+
+# Avatar
+
+This is a simple avatar component.
+
+### Primary
+
+<Canvas of={Story.AvatarDefault} />
+
+### Primary Image
+
+<Canvas of={Story.AvatarImageDefault} />
+
+### Primary Fallback
+
+<Canvas of={Story.AvatarFallbackDefault} />
+
+<Primary />
+<Controls />

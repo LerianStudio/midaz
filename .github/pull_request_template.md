@@ -3,12 +3,13 @@
 ## Pull Request Type
 [//]: # (Check the appropriate box for the type of pull request.)
 
-- [ ] Infra
-- [ ] Onboarding
-- [ ] Mdz
-- [ ] Transaction
-- [ ] Pipeline
+- [ ] Console
 - [ ] Documentation
+- [ ] Infra
+- [ ] Mdz
+- [ ] Onboarding
+- [ ] Pipeline
+- [ ] Transaction
 
 ## Checklist
 Please check each item after it's completed.

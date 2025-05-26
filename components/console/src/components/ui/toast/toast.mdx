@@ -1,0 +1,29 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './toast.stories'
+
+<Meta of={Story} />
+
+# Toast
+
+A succinct message that is displayed temporarily. \
+[Docs](https://www.radix-ui.com/primitives/docs/components/toast)
+
+<Canvas of={Story.Default} />
+
+### Default
+
+<Canvas of={Story.DefaultToast} />
+
+### With Action
+
+<Canvas of={Story.DefaultToastWithAction} />
+
+### Success
+
+<Canvas of={Story.SuccessToast} />
+
+### Destructive
+
+<Canvas of={Story.DestructiveToast} />
+
+<Controls />

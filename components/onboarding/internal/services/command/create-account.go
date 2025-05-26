@@ -22,14 +22,18 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create account: %v", cai)
 
-	if libCommons.IsNilOrEmpty(&cai.Name) {
-		cai.Name = cai.AssetCode + " " + cai.Type + " account"
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
+
+		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+
+		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
 	}
 
-	if err := libCommons.ValidateAccountType(cai.Type); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
-
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.Account{}).Name())
+	if libCommons.IsNilOrEmpty(&cai.Name) {
+		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
 	status := uc.determineStatus(cai)

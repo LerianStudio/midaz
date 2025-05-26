@@ -17,45 +17,89 @@ on:
     tags-ignore: ['**']
 
 permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
+  id-token: write       # Needed for authentication
+  contents: write       # Needed to create releases and tags
+  pull-requests: write  # Needed to create/update PRs
 
 jobs:
-  integration_tests:
-    name: Integration test
+  integration_tests_go:
+    name: Go Integration test
     runs-on: ubuntu-24.04
-    env:
-      WORKING_DIR: components/onboarding
     steps:
+      # Checkout the repository code
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unit Tests
-        working-directory: ${{ env.WORKING_DIR }}
+      # Run unit tests for the Onboarding component
+      - name: Unit Tests - Onboarding
+        working-directory: components/onboarding
         shell: bash
         run: make test
 
+      # Run unit tests for the Transaction component
+      - name: Unit Tests - Transaction
+        working-directory: components/transaction
+        shell: bash
+        run: make test
+
+  integration_tests_console:
+    name: Console Integration test
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: components/console
+    steps:
+      # Checkout the repository code
+      - uses: actions/checkout@v4
+
+      # Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      # Install SWC binary for Linux to improve build performance
+      - name: Install SWC binary (Linux only)
+        run: npm install --save-dev @next/swc-linux-x64-gnu --platform=linux --cpu=x64
+
+      # Install project dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Warm up Next.js by building once to ensure SWC binaries are properly set up
+      - name: Patch Next.js SWC binaries (warm-up)
+        run: npx next build
+
+      # Run the unit tests
+      - name: Run Unit Tests
+        run: npm test
+
   publish_release:
     runs-on: ubuntu-24.04
-    needs: integration_tests
+    needs: [integration_tests_go, integration_tests_console]
     environment:
       name: create_release
-    env:
-      WORKING_DIR: components/onboarding
-    name: Create release to Midaz
+    name: 🏷️ Create release to Midaz
     steps:
+    # Create a GitHub App token for authentication with higher rate limits
     - uses: actions/create-github-app-token@v1
       id: app-token
       with:
         app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
         private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
+    # Checkout the repository with full history for proper versioning
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        fetch-depth: 0  # Full history needed for semantic versioning
         token: ${{ steps.app-token.outputs.token }}
+    
+    - name: Sync with remote branch
+      run: |
+        git fetch origin ${{ github.ref_name }}
+        git reset --hard origin/${{ github.ref_name }}
 
+    # Import GPG key for signing commits and tags
     - name: Import GPG key
       uses: crazy-max/ghaction-import-gpg@v6
       id: import_gpg
@@ -67,7 +111,16 @@ jobs:
         git_config_global: true
         git_user_signingkey: true
         git_commit_gpgsign: true
+      
+      # Init package.json if it doesn't exist  
+    - name: Init package.json
+      run: npm init -y
 
+      # Install semantic-release plugins
+    - name: Install missing plugin @semantic-release/exec
+      run: npm install --save-dev @semantic-release/exec
+
+    # Run semantic-release to determine version and create release
     - name: Semantic Release
       uses: cycjimmy/semantic-release-action@v4
       id: semantic
@@ -84,16 +137,47 @@ jobs:
         GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
         GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
 
+    # Set up Go environment for GoReleaser
     - uses: actions/setup-go@v5
       with:
         go-version: '1.23'
         cache: false
+    
+    - name: Clean repo (reset + clean)
+      run: |
+        git reset --hard
+        git clean -fd
 
+    # Build and publish Go binaries using GoReleaser
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v6
       with:
-        version: latest
+        version: v2.8.2
         args: release --clean
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+  
+  # Generate changelog with gptchangelog custom module
+  generate_changelog:
+    name: 📝 Generate AI-powered Changelog
+    runs-on: ubuntu-22.04
+    needs: publish_release
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+
+      - uses: LerianStudio/github-actions-gptchangelog@develop
+        with:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LERIAN_CI_CD_USER_GPG_KEY: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
+          LERIAN_CI_CD_USER_GPG_KEY_PASSWORD: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
+          LERIAN_CI_CD_USER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          LERIAN_CI_CD_USER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}

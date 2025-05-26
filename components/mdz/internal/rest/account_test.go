@@ -267,7 +267,7 @@ func Test_account_Update(t *testing.T) {
 	portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
 	accountID := "01933f96-ed04-7c57-be5b-c091388830f8"
 
-	name := "Auto Loan Account Account"
+	name := "Auto Loan Account"
 	typev := "creditCard"
 	statusCode := "ACTIVE"
 	statusDescription := ptr.StringPtr("Teste Account")
