@@ -21,11 +21,9 @@ import { PageHeader } from '@/components/page-header'
 import { SegmentsDataTable } from './segments-data-table'
 import { SegmentsSkeleton } from './segments-skeleton'
 import { SegmentType } from '@/types/segment-type'
-import { useRouter } from 'next/navigation'
 
 const Page = () => {
   const intl = useIntl()
-  const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const [columnFilters, setColumnFilters] = useState<any>([])
 
@@ -93,12 +91,6 @@ const Page = () => {
       columnFilters
     }
   })
-
-  useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
