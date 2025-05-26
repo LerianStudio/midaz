@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
+  CommandShortcut
 } from '@/components/ui/command'
 import {
   Calculator,
@@ -25,7 +25,7 @@ import {
   Wallet,
   ArrowRight,
   Clock,
-  Star,
+  Star
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -45,136 +45,152 @@ interface CommandItem {
 
 export function CommandPalette() {
   const router = useRouter()
-  const { commandPaletteOpen, toggleCommandPalette, recentSearches, addRecentSearch } = useUIStore()
+  const {
+    commandPaletteOpen,
+    toggleCommandPalette,
+    recentSearches,
+    addRecentSearch
+  } = useUIStore()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
-  
+
   // Define all available commands
-  const commands: CommandItem[] = useMemo(() => [
-    // Navigation
-    {
-      id: 'nav-dashboard',
-      title: 'Go to Dashboard',
-      description: 'View your main dashboard',
-      icon: Home,
-      action: () => router.push('/'),
-      shortcut: '⌘D',
-      keywords: ['home', 'main', 'overview'],
-      category: 'Navigation',
-    },
-    {
-      id: 'nav-transactions',
-      title: 'View Transactions',
-      description: 'Browse all transactions',
-      icon: CreditCard,
-      action: () => router.push('/transactions'),
-      shortcut: '⌘T',
-      keywords: ['payments', 'transfers', 'money'],
-      category: 'Navigation',
-    },
-    {
-      id: 'nav-accounts',
-      title: 'Manage Accounts',
-      description: 'View and manage accounts',
-      icon: Wallet,
-      action: () => router.push('/accounts'),
-      keywords: ['wallets', 'balances'],
-      category: 'Navigation',
-    },
-    {
-      id: 'nav-analytics',
-      title: 'Analytics',
-      description: 'View reports and insights',
-      icon: LineChart,
-      action: () => router.push('/analytics'),
-      keywords: ['reports', 'insights', 'statistics'],
-      category: 'Navigation',
-    },
-    
-    // Actions
-    {
-      id: 'action-new-transaction',
-      title: 'Create Transaction',
-      description: 'Create a new transaction',
-      icon: CreditCard,
-      action: () => router.push('/transactions/create'),
-      shortcut: '⌘N',
-      keywords: ['new', 'add', 'payment'],
-      category: 'Actions',
-    },
-    {
-      id: 'action-new-account',
-      title: 'Create Account',
-      description: 'Create a new account',
-      icon: UserPlus,
-      action: () => router.push('/accounts/create'),
-      keywords: ['new', 'add', 'wallet'],
-      category: 'Actions',
-    },
-    {
-      id: 'action-calculator',
-      title: 'Open Calculator',
-      description: 'Quick calculations',
-      icon: Calculator,
-      action: () => router.push('/tools/calculator'),
-      keywords: ['math', 'calculate', 'compute'],
-      category: 'Tools',
-    },
-    {
-      id: 'action-export',
-      title: 'Export Data',
-      description: 'Export transactions or reports',
-      icon: FileText,
-      action: () => router.push('/export'),
-      keywords: ['download', 'csv', 'pdf'],
-      category: 'Actions',
-    },
-    
-    // Settings
-    {
-      id: 'settings-general',
-      title: 'General Settings',
-      description: 'Configure your preferences',
-      icon: Settings,
-      action: () => router.push('/settings'),
-      shortcut: '⌘,',
-      keywords: ['preferences', 'configuration'],
-      category: 'Settings',
-    },
-  ], [router])
-  
+  const commands: CommandItem[] = useMemo(
+    () => [
+      // Navigation
+      {
+        id: 'nav-dashboard',
+        title: 'Go to Dashboard',
+        description: 'View your main dashboard',
+        icon: Home,
+        action: () => router.push('/'),
+        shortcut: '⌘D',
+        keywords: ['home', 'main', 'overview'],
+        category: 'Navigation'
+      },
+      {
+        id: 'nav-transactions',
+        title: 'View Transactions',
+        description: 'Browse all transactions',
+        icon: CreditCard,
+        action: () => router.push('/transactions'),
+        shortcut: '⌘T',
+        keywords: ['payments', 'transfers', 'money'],
+        category: 'Navigation'
+      },
+      {
+        id: 'nav-accounts',
+        title: 'Manage Accounts',
+        description: 'View and manage accounts',
+        icon: Wallet,
+        action: () => router.push('/accounts'),
+        keywords: ['wallets', 'balances'],
+        category: 'Navigation'
+      },
+      {
+        id: 'nav-analytics',
+        title: 'Analytics',
+        description: 'View reports and insights',
+        icon: LineChart,
+        action: () => router.push('/analytics'),
+        keywords: ['reports', 'insights', 'statistics'],
+        category: 'Navigation'
+      },
+
+      // Actions
+      {
+        id: 'action-new-transaction',
+        title: 'Create Transaction',
+        description: 'Create a new transaction',
+        icon: CreditCard,
+        action: () => router.push('/transactions/create'),
+        shortcut: '⌘N',
+        keywords: ['new', 'add', 'payment'],
+        category: 'Actions'
+      },
+      {
+        id: 'action-new-account',
+        title: 'Create Account',
+        description: 'Create a new account',
+        icon: UserPlus,
+        action: () => router.push('/accounts/create'),
+        keywords: ['new', 'add', 'wallet'],
+        category: 'Actions'
+      },
+      {
+        id: 'action-calculator',
+        title: 'Open Calculator',
+        description: 'Quick calculations',
+        icon: Calculator,
+        action: () => router.push('/tools/calculator'),
+        keywords: ['math', 'calculate', 'compute'],
+        category: 'Tools'
+      },
+      {
+        id: 'action-export',
+        title: 'Export Data',
+        description: 'Export transactions or reports',
+        icon: FileText,
+        action: () => router.push('/export'),
+        keywords: ['download', 'csv', 'pdf'],
+        category: 'Actions'
+      },
+
+      // Settings
+      {
+        id: 'settings-general',
+        title: 'General Settings',
+        description: 'Configure your preferences',
+        icon: Settings,
+        action: () => router.push('/settings'),
+        shortcut: '⌘,',
+        keywords: ['preferences', 'configuration'],
+        category: 'Settings'
+      }
+    ],
+    [router]
+  )
+
   // Filter commands based on search
   const filteredCommands = useMemo(() => {
     if (!debouncedSearch) return commands
-    
+
     const searchLower = debouncedSearch.toLowerCase()
-    return commands.filter(command => {
+    return commands.filter((command) => {
       const titleMatch = command.title.toLowerCase().includes(searchLower)
       const descMatch = command.description?.toLowerCase().includes(searchLower)
-      const keywordMatch = command.keywords?.some(k => k.includes(searchLower))
-      
+      const keywordMatch = command.keywords?.some((k) =>
+        k.includes(searchLower)
+      )
+
       return titleMatch || descMatch || keywordMatch
     })
   }, [commands, debouncedSearch])
-  
+
   // Group commands by category
   const groupedCommands = useMemo(() => {
-    return filteredCommands.reduce((acc, command) => {
-      if (!acc[command.category]) {
-        acc[command.category] = []
-      }
-      acc[command.category].push(command)
-      return acc
-    }, {} as Record<string, CommandItem[]>)
+    return filteredCommands.reduce(
+      (acc, command) => {
+        if (!acc[command.category]) {
+          acc[command.category] = []
+        }
+        acc[command.category].push(command)
+        return acc
+      },
+      {} as Record<string, CommandItem[]>
+    )
   }, [filteredCommands])
-  
+
   // Handle command execution
-  const executeCommand = useCallback((command: CommandItem) => {
-    toggleCommandPalette()
-    addRecentSearch(command.title)
-    command.action()
-  }, [toggleCommandPalette, addRecentSearch])
-  
+  const executeCommand = useCallback(
+    (command: CommandItem) => {
+      toggleCommandPalette()
+      addRecentSearch(command.title)
+      command.action()
+    },
+    [toggleCommandPalette, addRecentSearch]
+  )
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -183,12 +199,15 @@ export function CommandPalette() {
         e.preventDefault()
         toggleCommandPalette()
       }
-      
+
       // Direct shortcuts when palette is closed
       if (!commandPaletteOpen) {
-        commands.forEach(command => {
+        commands.forEach((command) => {
           if (command.shortcut) {
-            const keys = command.shortcut.toLowerCase().replace('⌘', '').replace('⌥', '')
+            const keys = command.shortcut
+              .toLowerCase()
+              .replace('⌘', '')
+              .replace('⌥', '')
             if ((e.metaKey || e.ctrlKey) && e.key === keys) {
               e.preventDefault()
               command.action()
@@ -197,21 +216,24 @@ export function CommandPalette() {
         })
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [commandPaletteOpen, commands, toggleCommandPalette])
-  
+
   return (
-    <CommandDialog open={commandPaletteOpen} onOpenChange={toggleCommandPalette}>
-      <CommandInput 
-        placeholder="Type a command or search..." 
+    <CommandDialog
+      open={commandPaletteOpen}
+      onOpenChange={toggleCommandPalette}
+    >
+      <CommandInput
+        placeholder="Type a command or search..."
         value={search}
         onValueChange={setSearch}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
-        
+
         {/* Recent searches */}
         {recentSearches.length > 0 && !search && (
           <>
@@ -229,7 +251,7 @@ export function CommandPalette() {
             <CommandSeparator />
           </>
         )}
-        
+
         {/* Grouped commands */}
         {Object.entries(groupedCommands).map(([category, items]) => (
           <CommandGroup key={category} heading={category}>
@@ -267,7 +289,7 @@ export function CommandPalette() {
             })}
           </CommandGroup>
         ))}
-        
+
         {/* Quick actions */}
         <CommandSeparator />
         <CommandGroup heading="Quick Actions">

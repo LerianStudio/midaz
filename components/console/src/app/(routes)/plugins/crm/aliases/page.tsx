@@ -96,7 +96,10 @@ const AliasesPage = () => {
         if (aliasesResult.success && aliasesResult.data) {
           setAliases(aliasesResult.data.aliases)
           setTotalAliases(aliasesResult.data.total)
-        } else if (aliasesResult.error && !aliasesResult.error.includes('404')) {
+        } else if (
+          aliasesResult.error &&
+          !aliasesResult.error.includes('404')
+        ) {
           // Only show error for non-404 errors (404 means no data found, which is OK)
           toast({
             title: 'Error fetching aliases',

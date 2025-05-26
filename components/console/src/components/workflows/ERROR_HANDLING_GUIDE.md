@@ -5,6 +5,7 @@ This guide documents the comprehensive error handling and loading state system i
 ## Overview
 
 The error handling system provides:
+
 - **Error Boundaries** - Catch and handle React component errors
 - **Loading States** - Consistent loading UI across all workflow components
 - **Error Recovery** - Retry mechanisms and user-friendly error messages
@@ -61,7 +62,7 @@ Combines loading states, error handling, and retry functionality:
 ```tsx
 import { ErrorHandlingWrapper } from '@/components/workflows/error-handling-wrapper'
 
-<ErrorHandlingWrapper
+;<ErrorHandlingWrapper
   isLoading={isLoading}
   error={error}
   onRetry={handleRetry}
@@ -108,7 +109,8 @@ Hook for handling async operations with loading and error states:
 import { useAsyncOperation } from '@/components/workflows/error-handling-wrapper'
 
 function MyComponent() {
-  const { isLoading, error, data, execute, retry } = useAsyncOperation<WorkflowData>()
+  const { isLoading, error, data, execute, retry } =
+    useAsyncOperation<WorkflowData>()
 
   const loadData = () => {
     execute(
@@ -141,21 +143,14 @@ Specialized hook for workflow data fetching:
 import { useWorkflowData } from '@/hooks/use-workflow-data'
 
 function WorkflowEditor({ workflowId }) {
-  const {
-    workflow,
-    isLoading,
-    isSaving,
-    error,
-    refetch,
-    update,
-    clearError
-  } = useWorkflowData({
-    workflowId,
-    autoFetch: true,
-    onSuccess: (workflow) => console.log('Loaded workflow:', workflow),
-    onError: (error) => console.error('Error:', error),
-    retryOnError: true
-  })
+  const { workflow, isLoading, isSaving, error, refetch, update, clearError } =
+    useWorkflowData({
+      workflowId,
+      autoFetch: true,
+      onSuccess: (workflow) => console.log('Loaded workflow:', workflow),
+      onError: (error) => console.error('Error:', error),
+      retryOnError: true
+    })
 
   const handleSave = async () => {
     await update({ name: 'Updated Workflow' })
@@ -175,12 +170,12 @@ The system classifies errors into specific types for better handling:
 
 ```typescript
 enum WorkflowErrorType {
-  NETWORK = 'NETWORK',         // Connection/fetch errors
-  VALIDATION = 'VALIDATION',   // Data validation errors
-  PERMISSION = 'PERMISSION',   // Authorization errors
-  NOT_FOUND = 'NOT_FOUND',     // Resource not found
-  SERVER = 'SERVER',           // 5xx server errors
-  UNKNOWN = 'UNKNOWN'          // Unclassified errors
+  NETWORK = 'NETWORK', // Connection/fetch errors
+  VALIDATION = 'VALIDATION', // Data validation errors
+  PERMISSION = 'PERMISSION', // Authorization errors
+  NOT_FOUND = 'NOT_FOUND', // Resource not found
+  SERVER = 'SERVER', // 5xx server errors
+  UNKNOWN = 'UNKNOWN' // Unclassified errors
 }
 ```
 
@@ -192,15 +187,15 @@ Centralized error logging with `workflow-error-logger.ts`:
 import { logWorkflowError, useErrorLogger } from '@/lib/workflow-error-logger'
 
 // Direct logging
-logWorkflowError(error, { 
+logWorkflowError(error, {
   component: 'WorkflowDesigner',
-  action: 'saveWorkflow' 
+  action: 'saveWorkflow'
 })
 
 // Using hook
 function MyComponent() {
   const { logError, logNetworkError, logValidationError } = useErrorLogger()
-  
+
   try {
     // Your code
   } catch (error) {
@@ -212,6 +207,7 @@ function MyComponent() {
 ## Best Practices
 
 1. **Always wrap pages in error boundaries**
+
    ```tsx
    <WorkflowErrorBoundaryWrapper>
      <PageContent />
@@ -219,16 +215,19 @@ function MyComponent() {
    ```
 
 2. **Use loading skeletons for better UX**
+
    ```tsx
    if (isLoading) return <WorkflowListSkeleton />
    ```
 
 3. **Provide retry functionality for network errors**
+
    ```tsx
    <ErrorHandlingWrapper error={error} onRetry={retry}>
    ```
 
 4. **Log errors with context**
+
    ```tsx
    logWorkflowError(error, {
      userId,
@@ -309,6 +308,7 @@ The error logging system can integrate with monitoring services:
 - Browser console in development
 
 Configure via environment variables:
+
 ```env
 NEXT_PUBLIC_ERROR_LOGGING_ENDPOINT=https://your-logging-service.com/api/errors
 ```

@@ -1,30 +1,30 @@
 /** @type {import('next').NextConfig} */
 
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
+  enabled: process.env.ANALYZE === 'true'
 })
 
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  
+
   // Performance optimizations
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    removeConsole: process.env.NODE_ENV === 'production'
   },
-  
+
   // Enable experimental features for better performance
   experimental: {
     optimizeCss: true,
-    scrollRestoration: true,
+    scrollRestoration: true
   },
-  
+
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
-    domains: ['localhost', 'midaz.io'],
+    domains: ['localhost', 'midaz.io']
   },
-  
+
   // Headers for security and performance
   async headers() {
     return [
@@ -46,17 +46,17 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin'
-          },
-        ],
-      },
+          }
+        ]
+      }
     ]
   },
-  
+
   // Webpack configuration for optimizations
   webpack: (config, { isServer }) => {
     // Enable tree shaking
     config.optimization.usedExports = true
-    
+
     // Split chunks for better caching
     if (!isServer) {
       config.optimization.splitChunks = {
@@ -69,12 +69,14 @@ const nextConfig = {
             chunks: 'all',
             test: /(?<!node_modules.*)[\\/]node_modules[\\/](react|react-dom|scheduler|prop-types|use-subscription)[\\/]/,
             priority: 40,
-            enforce: true,
+            enforce: true
           },
           lib: {
             test(module) {
-              return module.size() > 160000 &&
+              return (
+                module.size() > 160000 &&
                 /node_modules[\\/]/.test(module.identifier())
+              )
             },
             name(module) {
               const hash = crypto.createHash('sha1')
@@ -83,13 +85,13 @@ const nextConfig = {
             },
             priority: 30,
             minChunks: 1,
-            reuseExistingChunk: true,
+            reuseExistingChunk: true
           },
           commons: {
             name: 'commons',
             chunks: 'all',
             minChunks: 2,
-            priority: 20,
+            priority: 20
           },
           shared: {
             name(module, chunks) {
@@ -101,14 +103,14 @@ const nextConfig = {
             },
             priority: 10,
             minChunks: 2,
-            reuseExistingChunk: true,
-          },
-        },
+            reuseExistingChunk: true
+          }
+        }
       }
     }
-    
+
     return config
-  },
+  }
 }
 
 module.exports = withBundleAnalyzer(nextConfig)

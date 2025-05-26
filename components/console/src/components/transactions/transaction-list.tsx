@@ -28,7 +28,7 @@ const OVERSCAN_COUNT = 5
 export const TransactionList = memo(function TransactionList() {
   const { activeFilters } = useUIStore()
   const { subscribe, unsubscribe } = useWebSocket()
-  
+
   // Fetch transactions with infinite scroll
   const {
     data,
@@ -37,32 +37,32 @@ export const TransactionList = memo(function TransactionList() {
     isFetchingNextPage,
     isLoading,
     isError,
-    refetch,
+    refetch
   } = useInfiniteQuery({
     queryKey: ['transactions', activeFilters],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
         page: pageParam.toString(),
         limit: '50',
-        ...activeFilters,
+        ...activeFilters
       })
-      
+
       const response = await fetch(`/api/transactions?${params}`)
       if (!response.ok) throw new Error('Failed to fetch transactions')
-      
+
       return response.json()
     },
     getNextPageParam: (lastPage, pages) => {
       return lastPage.hasMore ? pages.length + 1 : undefined
     },
-    initialPageParam: 1,
+    initialPageParam: 1
   })
-  
+
   // Flatten all pages into single array
   const transactions = useMemo(() => {
-    return data?.pages.flatMap(page => page.items) ?? []
+    return data?.pages.flatMap((page) => page.items) ?? []
   }, [data])
-  
+
   // Subscribe to real-time transaction updates
   useEffect(() => {
     const handleNewTransaction = (transaction: Transaction) => {
@@ -70,51 +70,59 @@ export const TransactionList = memo(function TransactionList() {
       // React Query will handle the cache update
       console.log('New transaction:', transaction)
     }
-    
-    const handleTransactionUpdate = (update: Partial<Transaction> & { id: string }) => {
+
+    const handleTransactionUpdate = (
+      update: Partial<Transaction> & { id: string }
+    ) => {
       // Update specific transaction in cache
       console.log('Transaction updated:', update)
     }
-    
+
     subscribe('transaction:created', handleNewTransaction)
     subscribe('transaction:updated', handleTransactionUpdate)
-    
+
     return () => {
       unsubscribe('transaction:created', handleNewTransaction)
       unsubscribe('transaction:updated', handleTransactionUpdate)
     }
   }, [subscribe, unsubscribe])
-  
+
   // Load more when scrolling near the end
-  const handleScroll = useCallback(({ visibleStopIndex }: any) => {
-    if (
-      visibleStopIndex >= transactions.length - 10 &&
-      hasNextPage &&
-      !isFetchingNextPage
-    ) {
-      fetchNextPage()
-    }
-  }, [transactions.length, hasNextPage, isFetchingNextPage, fetchNextPage])
-  
+  const handleScroll = useCallback(
+    ({ visibleStopIndex }: any) => {
+      if (
+        visibleStopIndex >= transactions.length - 10 &&
+        hasNextPage &&
+        !isFetchingNextPage
+      ) {
+        fetchNextPage()
+      }
+    },
+    [transactions.length, hasNextPage, isFetchingNextPage, fetchNextPage]
+  )
+
   // Render individual transaction row
-  const Row = useCallback(({ index, style }: any) => {
-    const transaction = transactions[index]
-    
-    if (!transaction) {
+  const Row = useCallback(
+    ({ index, style }: any) => {
+      const transaction = transactions[index]
+
+      if (!transaction) {
+        return (
+          <div style={style} className="px-4 py-2">
+            <Skeleton className="h-16 w-full" />
+          </div>
+        )
+      }
+
       return (
-        <div style={style} className="px-4 py-2">
-          <Skeleton className="h-16 w-full" />
+        <div style={style}>
+          <TransactionRow transaction={transaction} />
         </div>
       )
-    }
-    
-    return (
-      <div style={style}>
-        <TransactionRow transaction={transaction} />
-      </div>
-    )
-  }, [transactions])
-  
+    },
+    [transactions]
+  )
+
   if (isLoading) {
     return (
       <div className="space-y-2 p-4">
@@ -124,23 +132,23 @@ export const TransactionList = memo(function TransactionList() {
       </div>
     )
   }
-  
+
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+      <div className="flex h-96 flex-col items-center justify-center space-y-4">
         <p className="text-muted-foreground">Failed to load transactions</p>
         <Button onClick={() => refetch()} size="sm">
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
       </div>
     )
   }
-  
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       <TransactionFilters />
-      
+
       <div className="flex-1">
         <List
           height={window.innerHeight - 200} // Adjust based on your layout
@@ -152,7 +160,7 @@ export const TransactionList = memo(function TransactionList() {
         >
           {Row}
         </List>
-        
+
         {isFetchingNextPage && (
           <div className="flex justify-center p-4">
             <Skeleton className="h-8 w-32" />

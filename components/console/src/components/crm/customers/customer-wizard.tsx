@@ -114,9 +114,7 @@ const BasicInfoForm: React.FC<{
                 id="birthDate"
                 type="date"
                 value={formData.birthDate || ''}
-                onChange={(e) =>
-                  handleInputChange('birthDate', e.target.value)
-                }
+                onChange={(e) => handleInputChange('birthDate', e.target.value)}
               />
             </div>
 
@@ -249,9 +247,7 @@ const BasicInfoForm: React.FC<{
                     <SelectValue placeholder="Select size" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Micro">
-                      Micro (1-9 employees)
-                    </SelectItem>
+                    <SelectItem value="Micro">Micro (1-9 employees)</SelectItem>
                     <SelectItem value="Small">
                       Small (10-49 employees)
                     </SelectItem>
@@ -271,9 +267,7 @@ const BasicInfoForm: React.FC<{
             <h4 className="mb-4 font-medium">Legal Representative</h4>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="representativeName">
-                  Representative Name
-                </Label>
+                <Label htmlFor="representativeName">Representative Name</Label>
                 <Input
                   id="representativeName"
                   placeholder="John Doe"
@@ -293,10 +287,7 @@ const BasicInfoForm: React.FC<{
                   placeholder="000.000.000-00"
                   value={formData.representativeDocument || ''}
                   onChange={(e) =>
-                    handleInputChange(
-                      'representativeDocument',
-                      e.target.value
-                    )
+                    handleInputChange('representativeDocument', e.target.value)
                   }
                 />
               </div>
@@ -356,9 +347,7 @@ const ContactForm: React.FC<{
             type="email"
             placeholder="john@example.com"
             value={formData.primaryEmail || ''}
-            onChange={(e) =>
-              handleInputChange('primaryEmail', e.target.value)
-            }
+            onChange={(e) => handleInputChange('primaryEmail', e.target.value)}
           />
         </div>
 
@@ -531,9 +520,7 @@ const ReviewForm: React.FC<{
                 <span className="text-sm text-muted-foreground">
                   External ID:
                 </span>
-                <span className="ml-2 font-medium">
-                  {formData.externalId}
-                </span>
+                <span className="ml-2 font-medium">{formData.externalId}</span>
               </div>
             )}
           </CardContent>
@@ -645,10 +632,7 @@ const CustomerWizardComponent: React.FC<CustomerWizardProps> = ({
       )
     case 5:
       return (
-        <ReviewForm
-          isNaturalPerson={isNaturalPerson}
-          formData={formData}
-        />
+        <ReviewForm isNaturalPerson={isNaturalPerson} formData={formData} />
       )
     default:
       return null

@@ -22,7 +22,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  Legend
 } from 'recharts'
 import {
   TrendingUp,
@@ -33,7 +33,7 @@ import {
   CreditCard,
   AlertCircle,
   CheckCircle,
-  Clock,
+  Clock
 } from 'lucide-react'
 
 interface DashboardMetrics {
@@ -62,7 +62,7 @@ export function RealtimeDashboard() {
   const { subscribe, unsubscribe } = useWebSocket()
   const [liveMetrics, setLiveMetrics] = useState<Partial<DashboardMetrics>>({})
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([])
-  
+
   // Fetch initial dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard-metrics'],
@@ -71,38 +71,41 @@ export function RealtimeDashboard() {
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics')
       return response.json() as Promise<DashboardMetrics>
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 60000 // Refetch every minute
   })
-  
+
   // Merge live updates with fetched data
-  const metrics = useMemo(() => ({
-    ...dashboardData,
-    ...liveMetrics,
-  }), [dashboardData, liveMetrics])
-  
+  const metrics = useMemo(
+    () => ({
+      ...dashboardData,
+      ...liveMetrics
+    }),
+    [dashboardData, liveMetrics]
+  )
+
   // Subscribe to real-time updates
   useEffect(() => {
     const handleMetricUpdate = (update: Partial<DashboardMetrics>) => {
-      setLiveMetrics(prev => ({ ...prev, ...update }))
+      setLiveMetrics((prev) => ({ ...prev, ...update }))
     }
-    
+
     const handleNewActivity = (activity: ActivityItem) => {
-      setActivityFeed(prev => [activity, ...prev].slice(0, 10))
+      setActivityFeed((prev) => [activity, ...prev].slice(0, 10))
     }
-    
+
     subscribe('metrics:update', handleMetricUpdate)
     subscribe('activity:new', handleNewActivity)
-    
+
     return () => {
       unsubscribe('metrics:update', handleMetricUpdate)
       unsubscribe('activity:new', handleNewActivity)
     }
   }, [subscribe, unsubscribe])
-  
+
   if (isLoading) {
     return <DashboardSkeleton />
   }
-  
+
   return (
     <div className="space-y-6 p-6">
       {/* Metrics Cards */}
@@ -136,7 +139,7 @@ export function RealtimeDashboard() {
           variant="warning"
         />
       </div>
-      
+
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Daily Volume Chart */}
@@ -149,25 +152,22 @@ export function RealtimeDashboard() {
               <AreaChart data={metrics.dailyVolume}>
                 <defs>
                   <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   className="text-xs"
                   tick={{ fill: 'currentColor' }}
                 />
-                <YAxis 
-                  className="text-xs"
-                  tick={{ fill: 'currentColor' }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
+                <YAxis className="text-xs" tick={{ fill: 'currentColor' }} />
+                <Tooltip
+                  contentStyle={{
                     backgroundColor: 'hsl(var(--background))',
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px',
+                    borderRadius: '6px'
                   }}
                 />
                 <Area
@@ -181,7 +181,7 @@ export function RealtimeDashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        
+
         {/* Account Distribution */}
         <Card>
           <CardHeader>
@@ -201,7 +201,10 @@ export function RealtimeDashboard() {
                   dataKey="count"
                 >
                   {metrics.accountDistribution?.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -211,17 +214,17 @@ export function RealtimeDashboard() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Activity Feed */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Live Activity Feed</CardTitle>
-          <Activity className="h-4 w-4 text-muted-foreground animate-pulse" />
+          <Activity className="h-4 w-4 animate-pulse text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <AnimatePresence mode="popLayout">
             {activityFeed.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
+              <p className="py-8 text-center text-muted-foreground">
                 No recent activity
               </p>
             ) : (
@@ -253,7 +256,7 @@ function MetricCard({
   icon: Icon,
   trend,
   format = 'number',
-  variant = 'default',
+  variant = 'default'
 }: {
   title: string
   value?: number
@@ -264,41 +267,45 @@ function MetricCard({
 }) {
   const formattedValue = useMemo(() => {
     if (value === undefined) return '—'
-    
+
     if (format === 'currency') {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 0
       }).format(value)
     }
-    
+
     return new Intl.NumberFormat('en-US').format(value)
   }, [value, format])
-  
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${
-          variant === 'warning' ? 'text-yellow-500' :
-          variant === 'danger' ? 'text-red-500' :
-          'text-muted-foreground'
-        }`} />
+        <Icon
+          className={`h-4 w-4 ${
+            variant === 'warning'
+              ? 'text-yellow-500'
+              : variant === 'danger'
+                ? 'text-red-500'
+                : 'text-muted-foreground'
+          }`}
+        />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{formattedValue}</div>
         {trend !== undefined && (
-          <p className="text-xs text-muted-foreground flex items-center mt-1">
+          <p className="mt-1 flex items-center text-xs text-muted-foreground">
             {trend > 0 ? (
               <>
-                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
                 <span className="text-green-500">+{trend}%</span>
               </>
             ) : (
               <>
-                <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
+                <TrendingDown className="mr-1 h-3 w-3 text-red-500" />
                 <span className="text-red-500">{trend}%</span>
               </>
             )}
@@ -315,11 +322,11 @@ function ActivityFeedItem({ activity }: { activity: ActivityItem }) {
   const statusIcon = {
     success: <CheckCircle className="h-4 w-4 text-green-500" />,
     pending: <Clock className="h-4 w-4 text-yellow-500" />,
-    failed: <AlertCircle className="h-4 w-4 text-red-500" />,
+    failed: <AlertCircle className="h-4 w-4 text-red-500" />
   }
-  
+
   return (
-    <div className="flex items-start space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+    <div className="flex items-start space-x-3 rounded-lg p-3 transition-colors hover:bg-muted/50">
       <div className="mt-0.5">{statusIcon[activity.status]}</div>
       <div className="flex-1 space-y-1">
         <div className="flex items-center justify-between">
@@ -335,11 +342,15 @@ function ActivityFeedItem({ activity }: { activity: ActivityItem }) {
           {new Date(activity.timestamp).toLocaleTimeString()}
         </p>
       </div>
-      <Badge variant={
-        activity.status === 'success' ? 'default' :
-        activity.status === 'pending' ? 'secondary' :
-        'destructive'
-      }>
+      <Badge
+        variant={
+          activity.status === 'success'
+            ? 'default'
+            : activity.status === 'pending'
+              ? 'secondary'
+              : 'destructive'
+        }
+      >
         {activity.type}
       </Badge>
     </div>
@@ -358,12 +369,12 @@ function DashboardSkeleton() {
             </CardHeader>
             <CardContent>
               <Skeleton className="h-8 w-32" />
-              <Skeleton className="h-3 w-20 mt-2" />
+              <Skeleton className="mt-2 h-3 w-20" />
             </CardContent>
           </Card>
         ))}
       </div>
-      
+
       <div className="grid gap-4 lg:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (
           <Card key={i}>

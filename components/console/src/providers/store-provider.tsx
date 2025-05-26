@@ -11,6 +11,6 @@ import { ReactNode } from 'react'
 export function StoreProvider({ children }: { children: ReactNode }) {
   // Could initialize stores with server data here if needed
   // Example: useUIStore.setState({ theme: serverTheme })
-  
+
   return <>{children}</>
 }

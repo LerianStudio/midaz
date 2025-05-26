@@ -15,19 +15,19 @@ const messages = {
     'common.edit': 'Edit',
     'common.delete': 'Delete',
     'common.save': 'Save',
-    'common.cancel': 'Cancel',
-  },
+    'common.cancel': 'Cancel'
+  }
   // Add more languages as needed
 }
 
 export function IntlProvider({ children }: { children: ReactNode }) {
   // You can get locale from user preferences or browser
   const locale = 'en'
-  
+
   return (
-    <ReactIntlProvider 
-      locale={locale} 
-      messages={messages[locale]} 
+    <ReactIntlProvider
+      locale={locale}
+      messages={messages[locale]}
       defaultLocale="en"
     >
       {children}
