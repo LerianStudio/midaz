@@ -134,11 +134,11 @@ if [ ! -d "$SDK_PATH/src" ]; then
     
   # Install SDK dependencies
   log "Installing SDK dependencies..."
-  (cd "$SDK_PATH" && npm install) || die "Failed to install SDK dependencies"
+  (cd "$SDK_PATH" && NODE_ENV=development npm install) || die "Failed to install SDK dependencies"
     
   # Build the SDK
   log "Building SDK..."
-  (cd "$SDK_PATH" && npm run build) || die "Failed to build SDK"
+  (cd "$SDK_PATH" && NODE_ENV=development npm run build) || die "Failed to build SDK"
   
   log_success "SDK setup complete"
 fi
@@ -146,7 +146,7 @@ fi
 # Check if node_modules exists and install dependencies if needed
 if [ ! -d "node_modules" ]; then
   log "Installing dependencies..."
-  npm install || die "Failed to install npm dependencies"
+  NODE_ENV=development npm install || die "Failed to install npm dependencies"
 fi
 
 # ============================================================================

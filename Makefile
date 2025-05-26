@@ -137,6 +137,7 @@ help:
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
+	@echo "  make api-docs                    - Open Swagger API documentation in browser"
 	@echo ""
 	@echo "Demo Data Commands:"
 	@echo "  make demo-data                   - Generate demo data with small volume"
@@ -542,7 +543,7 @@ run-transaction:
 	@air -c .air.transaction.toml
 
 # Convenience commands for console development
-.PHONY: console-dev console-logs
+.PHONY: console-dev console-logs api-docs
 console-dev:
 	$(call print_title,"Starting console in development mode with hot-reload")
 	@cd $(CONSOLE_DIR) && $(MAKE) up-dev-hot
@@ -554,6 +555,10 @@ console-rebuild-dev:
 console-logs:
 	$(call print_title,"Showing console development logs")
 	@cd $(CONSOLE_DIR) && $(MAKE) logs-dev
+
+api-docs:
+	$(call print_title,"Opening API Documentation")
+	@./scripts/open-api-docs.sh
 
 all-components:
 	$(call print_title,"Running command across all components")

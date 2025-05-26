@@ -2,7 +2,7 @@
  * SDK client initialization and configuration
  */
 
-import { MidazClient, createClientConfigBuilder } from 'midaz-sdk/src';
+import { MidazClient, createClientConfigBuilder } from 'midaz-sdk';
 import { GeneratorOptions } from '../types';
 
 /**
@@ -11,11 +11,15 @@ import { GeneratorOptions } from '../types';
 export function initializeClient(options: GeneratorOptions): MidazClient {
   const { baseUrl, onboardingPort, transactionPort, authToken, debug } = options;
 
+  // Ensure we're in development mode for demo data generation
+  process.env.NODE_ENV = 'development';
+
   // Create configuration builder with a dummy API key when auth is disabled
   // This is necessary because the SDK requires either apiKey or authToken
-  const apiKey = authToken && authToken !== 'NONE' ? '' : 'dummy-api-key-for-dev';
+  const apiKey = authToken && authToken.toLowerCase() !== 'none' ? '' : 'dummy-api-key-for-dev';
 
   const configBuilder = createClientConfigBuilder(apiKey)
+    .withEnvironment('development')  // Set to development environment
     .withBaseUrls({
       onboarding: `${baseUrl}:${onboardingPort}`,
       transaction: `${baseUrl}:${transactionPort}`,
@@ -37,8 +41,8 @@ export function initializeClient(options: GeneratorOptions): MidazClient {
     },
   });
 
-  // Set authentication if provided and not 'NONE'
-  if (authToken && authToken !== 'NONE') {
+  // Set authentication if provided and not 'none'
+  if (authToken && authToken.toLowerCase() !== 'none') {
     configBuilder.withAuthToken(authToken);
   }
 
