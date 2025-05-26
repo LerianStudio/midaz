@@ -16,6 +16,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTime } from '@/hooks/use-time'
 import dayjs from 'dayjs'
 
+const AccountBalanceCardContext = React.createContext<{ open?: boolean }>({
+  open: false
+})
+
 export const AccountBalanceCard = React.forwardRef<
   React.ElementRef<typeof Collapsible>,
   React.ComponentPropsWithoutRef<typeof Collapsible>
@@ -28,7 +32,9 @@ export const AccountBalanceCard = React.forwardRef<
       className={cn('w-full', className)}
       {...props}
     >
-      <Card className="relative gap-2 px-5 py-4">{children}</Card>
+      <AccountBalanceCardContext.Provider value={{ open }}>
+        <Card className="relative gap-2 px-5 py-4">{children}</Card>
+      </AccountBalanceCardContext.Provider>
     </Collapsible>
   )
 })
@@ -225,6 +231,7 @@ export const AccountBalanceCardTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof Button>
 >(({ className, children, ...props }, ref) => {
   const intl = useIntl()
+  const { open } = React.useContext(AccountBalanceCardContext)
 
   return (
     <CollapsibleTrigger asChild>
