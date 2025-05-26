@@ -3,7 +3,14 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
-import { Building, Globe, HelpCircle, Settings, Users } from 'lucide-react'
+import {
+  Building,
+  Globe,
+  HelpCircle,
+  Layers,
+  Settings,
+  Users
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +61,19 @@ export const SettingsDropdown = () => {
               {intl.formatMessage({
                 id: 'settingsDropdown.users',
                 defaultMessage: 'Users'
+              })}
+            </DropdownMenuItem>
+          </Enforce>
+          <Enforce resource="applications" action="get">
+            <DropdownMenuItem
+              onClick={() => router.push('/settings?tab=applications')}
+            >
+              <DropdownMenuItemIcon>
+                <Layers />
+              </DropdownMenuItemIcon>
+              {intl.formatMessage({
+                id: 'settingsDropdown.applications',
+                defaultMessage: 'Applications'
               })}
             </DropdownMenuItem>
           </Enforce>
