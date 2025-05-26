@@ -7,7 +7,7 @@ import {
   useEffect,
   useState
 } from 'react'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { usePathname, useRouter } from 'next/navigation'
 import { useListLedgers } from '@/client/ledgers'
 import { useDefaultOrg } from './use-default-org'
@@ -15,8 +15,8 @@ import { useDefaultLedger } from './use-default-ledger'
 import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
 
 type OrganizationContextProps = {
-  currentOrganization: OrganizationEntity
-  setOrganization: (organization: OrganizationEntity) => void
+  currentOrganization: OrganizationResponseDto
+  setOrganization: (organization: OrganizationResponseDto) => void
   currentLedger: LedgerResponseDto
   setLedger: (ledger: LedgerResponseDto) => void
 }
@@ -28,7 +28,7 @@ const OrganizationContext = createContext<OrganizationContextProps>(
 export const useOrganization = () => useContext(OrganizationContext)
 
 export type OrganizationProviderClientProps = PropsWithChildren & {
-  organizations: OrganizationEntity[]
+  organizations: OrganizationResponseDto[]
 }
 
 export const OrganizationProviderClient = ({
@@ -37,10 +37,10 @@ export const OrganizationProviderClient = ({
 }: OrganizationProviderClientProps) => {
   const router = useRouter()
   const pathname = usePathname()
-  const [current, setCurrent] = useState<OrganizationEntity>(
-    {} as OrganizationEntity
+  const [current, setCurrent] = useState<OrganizationResponseDto>(
+    {} as OrganizationResponseDto
   )
-  const [organizations, setOrganizations] = useState<OrganizationEntity[]>(
+  const [organizations, setOrganizations] = useState<OrganizationResponseDto[]>(
     organizationsProp ?? []
   )
 

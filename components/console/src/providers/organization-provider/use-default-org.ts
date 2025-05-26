@@ -1,13 +1,13 @@
 'use client'
 
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { getStorage } from '@/lib/storage'
 import { useEffect, useState } from 'react'
 
 type UseDefaultOrgProps = {
-  organizations: OrganizationEntity[]
-  current: OrganizationEntity
-  setCurrent: (organization: OrganizationEntity) => void
+  organizations: OrganizationResponseDto[]
+  current: OrganizationResponseDto
+  setCurrent: (organization: OrganizationResponseDto) => void
 }
 
 const storageKey = 'defaultOrg'

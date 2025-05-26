@@ -56,3 +56,6 @@ next-env.d.ts
 /playwright/.cache/
 /tests/storage/
 node_modules/
+
+# AI Rules
+.cursor/

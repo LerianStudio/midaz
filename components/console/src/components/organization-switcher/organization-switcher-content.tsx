@@ -1,5 +1,4 @@
 import Image from 'next/image'
-import MidazLogo from '/public/svg/brand-midaz.svg'
 import { useIntl } from 'react-intl'
 import { PopoverContent } from '../ui/popover'
 import { StatusDisplay } from './status'
@@ -13,19 +12,20 @@ import {
   PopoverPanelLink,
   PopoverPanelTitle
 } from './popover-panel'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import React from 'react'
+import LerianLogo from '@/svg/lerian-logo.svg'
 
 export type OrganizationSwitcherProps = {
-  currentOrganization: OrganizationEntity
-  data: OrganizationEntity[]
+  currentOrganization: OrganizationResponseDto
+  data: OrganizationResponseDto[]
   status: 'active' | 'inactive'
   image: string
   alt: string
 }
 
 export type OrganizationSwitcherContentProps = OrganizationSwitcherProps & {
-  onChange?: (organization: OrganizationEntity) => void
+  onChange?: (organization: OrganizationResponseDto) => void
   onClose: () => void
 }
 
@@ -80,12 +80,11 @@ export const OrganizationSwitcherContent = ({
               onClick={() => onChange?.(organization)}
             >
               <Image
-                src={
-                  organization.metadata?.avatar
-                    ? organization.metadata?.avatar
-                    : MidazLogo
-                }
-                alt=""
+                src={organization.avatar || LerianLogo}
+                alt={intl.formatMessage({
+                  id: 'common.logoAlt',
+                  defaultMessage: 'Your organization logo'
+                })}
                 width={28}
                 className="rounded-full"
                 height={28}
