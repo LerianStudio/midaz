@@ -41,6 +41,9 @@ type Pagination struct {
 	SortOrder string
 	StartDate time.Time
 	EndDate   time.Time
+	SortBy    string
+	Order     string
+	Filters   map[string]interface{}
 }
 
 // ValidateParameters validate and return struct of default parameters

@@ -11,12 +11,13 @@ import (
 	"github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // RabbitMQEventBus implements EventBus using RabbitMQ
 type RabbitMQEventBus struct {
-	client      *rabbitmq.RabbitMQ
+	client      *rabbitmq.RabbitMQConnection
 	handlers    map[EventType][]EventHandler
 	mu          sync.RWMutex
 	exchange    string
@@ -26,7 +27,7 @@ type RabbitMQEventBus struct {
 }
 
 // NewRabbitMQEventBus creates a new RabbitMQ-based event bus
-func NewRabbitMQEventBus(client *rabbitmq.RabbitMQ, exchange string) (*RabbitMQEventBus, error) {
+func NewRabbitMQEventBus(client *rabbitmq.RabbitMQConnection, exchange string) (*RabbitMQEventBus, error) {
 	if client == nil {
 		return nil, errors.New("rabbitmq client is required")
 	}
@@ -50,10 +51,10 @@ func (eb *RabbitMQEventBus) Publish(ctx context.Context, event DomainEvent) erro
 
 	// Add event metadata
 	span.SetAttributes(
-		libOpentelemetry.Attribute("event.id", event.ID.String()),
-		libOpentelemetry.Attribute("event.type", string(event.Type)),
-		libOpentelemetry.Attribute("event.aggregate_id", event.AggregateID.String()),
-		libOpentelemetry.Attribute("event.aggregate_type", event.AggregateType),
+		attribute.String("event.id", event.ID.String()),
+		attribute.String("event.type", string(event.Type)),
+		attribute.String("event.aggregate_id", event.AggregateID.String()),
+		attribute.String("event.aggregate_type", event.AggregateType),
 	)
 
 	// Marshal event to JSON
@@ -257,9 +258,9 @@ func (eb *RabbitMQEventBus) processMessage(ctx context.Context, msg amqp.Deliver
 
 	// Add event metadata to span
 	span.SetAttributes(
-		libOpentelemetry.Attribute("event.id", event.ID.String()),
-		libOpentelemetry.Attribute("event.type", string(event.Type)),
-		libOpentelemetry.Attribute("event.aggregate_id", event.AggregateID.String()),
+		attribute.String("event.id", event.ID.String()),
+		attribute.String("event.type", string(event.Type)),
+		attribute.String("event.aggregate_id", event.AggregateID.String()),
 	)
 
 	// Get handlers for this event type

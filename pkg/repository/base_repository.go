@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -210,8 +212,8 @@ func (r *BaseRepository[T]) FindAll(ctx context.Context, organizationID uuid.UUI
 	if pagination.Cursor != "" {
 		// Decode cursor and add to query
 		decodedCursor, err := libHTTP.DecodeCursor(pagination.Cursor)
-		if err == nil && decodedCursor.LastID != "" {
-			qb.Where(fmt.Sprintf("id > $%d", paramCount), decodedCursor.LastID)
+		if err == nil && decodedCursor.ID != "" {
+			qb.Where(fmt.Sprintf("id > $%d", paramCount), decodedCursor.ID)
 			paramCount++
 		}
 	}
@@ -259,16 +261,13 @@ func (r *BaseRepository[T]) FindAll(ctx context.Context, organizationID uuid.UUI
 	var nextCursor string
 	if hasMore && len(results) > 0 {
 		lastEntity := results[len(results)-1]
-		nextCursor = libHTTP.EncodeCursor(libHTTP.Cursor{
-			LastID:    lastEntity.GetID(),
-			LastValue: lastEntity.GetCreatedAt().Format(time.RFC3339),
-		})
+		cur := libHTTP.CreateCursor(lastEntity.GetID(), true)
+		cursorJSON, _ := json.Marshal(cur)
+		nextCursor = base64.StdEncoding.EncodeToString(cursorJSON)
 	}
 	
 	cursorPagination := libHTTP.CursorPagination{
-		Next:   nextCursor,
-		HasMore: hasMore,
-		Count:  len(results),
+		Next: nextCursor,
 	}
 	
 	logger.Infof("Found %d %s entities", len(results), r.entityName)

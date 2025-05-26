@@ -32,17 +32,18 @@ func SetupObservability(
 	structuredLogger := libLog.NewStructuredLogger(logger)
 
 	// Initialize business metrics
-	businessMetrics, err := libObservability.NewBusinessMetrics(telemetry.MetricProvider.Meter(cfg.ServiceName))
+	businessMetrics, err := libObservability.NewBusinessMetrics(telemetry.MetricProvider.Meter(cfg.OtelServiceName))
 	if err != nil {
 		return fmt.Errorf("failed to create business metrics: %w", err)
 	}
 
 	// Store metrics in context for use in handlers
-	libCommons.SetBusinessMetrics(businessMetrics)
+	// TODO: libCommons.SetBusinessMetrics(businessMetrics) - function needs to be implemented
+	_ = businessMetrics
 
 	// Create observability middleware
 	obsMiddleware, err := libObservability.NewObservabilityMiddleware(
-		cfg.ServiceName,
+		cfg.OtelServiceName,
 		telemetry.TracerProvider,
 		telemetry.MetricProvider,
 		structuredLogger,
@@ -56,9 +57,9 @@ func SetupObservability(
 
 	// Setup health checks
 	healthService := libHealth.NewService(
-		cfg.ServiceName,
-		cfg.ServiceVersion,
-		cfg.Environment,
+		cfg.OtelServiceName,
+		cfg.OtelServiceVersion,
+		cfg.OtelDeploymentEnv,
 		getHostname(),
 	)
 
@@ -81,10 +82,11 @@ func SetupObservability(
 
 	// Setup distributed tracing helper
 	tracingHelper := libObservability.NewDistributedTracingHelper()
-	libCommons.SetDistributedTracingHelper(tracingHelper)
+	// TODO: libCommons.SetDistributedTracingHelper(tracingHelper) - function needs to be implemented
+	_ = tracingHelper
 
 	// Log successful setup
-	structuredLogger.WithService(cfg.ServiceName).Info("Observability setup completed successfully")
+	structuredLogger.WithService(cfg.OtelServiceName).Info("Observability setup completed successfully")
 
 	return nil
 }
@@ -93,7 +95,8 @@ func SetupObservability(
 func TransactionObservabilityMiddleware(businessMetrics *libObservability.BusinessMetrics) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx := c.UserContext()
-		logger := libCommons.NewStructuredLoggerFromContext(ctx)
+		// TODO: logger := libCommons.NewStructuredLoggerFromContext(ctx) - function needs to be implemented
+		logger := libLog.NewStructuredLogger(libCommons.NewLoggerFromContext(ctx))
 
 		// Add transaction-specific context
 		if c.Params("organization_id") != "" {
@@ -117,7 +120,8 @@ func InstrumentTransactionHandler(
 	return func(c *fiber.Ctx) error {
 		ctx := c.UserContext()
 		tracer := libCommons.NewTracerFromContext(ctx)
-		logger := libCommons.NewStructuredLoggerFromContext(ctx)
+		// TODO: logger := libCommons.NewStructuredLoggerFromContext(ctx) - function needs to be implemented
+		logger := libLog.NewStructuredLogger(libCommons.NewLoggerFromContext(ctx))
 
 		// Start operation span
 		ctx, span := tracer.Start(ctx, fmt.Sprintf("transaction.%s", operationName))

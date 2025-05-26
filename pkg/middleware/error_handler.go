@@ -93,7 +93,7 @@ func NewAppError(errType ErrorType, message string, err error) *AppError {
 	case ErrorTypeForbidden:
 		appErr.StatusCode = http.StatusForbidden
 	case ErrorTypeTimeout:
-		appErr.StatusRequestTimeout
+		appErr.StatusCode = http.StatusRequestTimeout
 	case ErrorTypeRateLimit:
 		appErr.StatusCode = http.StatusTooManyRequests
 	default:
