@@ -6,6 +6,7 @@ ide/
 tmp/
 CLAUDE.md
 .claude/
+.windsurf/
 .run/onboarding.run.xml
 .run/transaction.run.xml
 
