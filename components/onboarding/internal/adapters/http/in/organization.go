@@ -1,6 +1,7 @@
 package in
 
 import (
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -304,6 +305,45 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully removed Organization with ID: %s", id.String())
+
+	return http.NoContent(c)
+}
+
+// CountOrganizations is a method that returns the total count of organizations.
+//
+//	@Summary		Count total organizations
+//	@Description	Returns the total count of organizations as a header without a response body
+//	@Tags			Organizations
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Success		200				{string}	string	"Success, check X-Total-Count header for the count"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			organizations/metrics/count [head]
+func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_organizations")
+	defer span.End()
+
+	logger.Infof("Initiating count of all organizations")
+
+	count, err := handler.Query.CountOrganizations(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count organizations", err)
+		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully counted organizations: %d", count)
+
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
 }
