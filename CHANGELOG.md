@@ -1,3 +1,9 @@
+## [v2.2.0-beta.36] - 2025-05-26
+
+### 🐛 Bug Fixes
+- Add 'omitempty' tag to optional struct fields to prevent serialization of empty values
+
+
 ## [v2.2.0-beta.34] - 2025-05-23
 
 ### ✨ Features
