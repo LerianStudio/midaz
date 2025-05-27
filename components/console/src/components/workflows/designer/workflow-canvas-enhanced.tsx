@@ -493,12 +493,12 @@ function WorkflowCanvasInner({
           {selectedNode && (
             <div className="absolute right-0 top-0 h-full w-80 border-l bg-background p-4">
               <TaskConfigurationPanel
-                task={selectedNode.data.task}
-                onUpdate={(task: WorkflowTask) =>
-                  handleTaskUpdate(selectedNode.id, task)
+                node={selectedNode}
+                onUpdateConfig={(updates: Partial<WorkflowTask>) =>
+                  handleTaskUpdate(selectedNode.id, { ...selectedNode.data.task, ...updates })
                 }
                 onDelete={() => handleTaskDelete(selectedNode.id)}
-                readonly={readonly}
+                onClose={() => setSelectedNode(null)}
               />
             </div>
           )}

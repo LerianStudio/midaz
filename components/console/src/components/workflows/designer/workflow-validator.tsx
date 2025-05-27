@@ -145,7 +145,7 @@ export function WorkflowValidator({
           break
 
         case 'SWITCH':
-          if (!task.caseValueParam) {
+          if (!task.inputParameters?.caseValueParam) {
             issues.push({
               type: 'error',
               category: 'configuration',
@@ -155,8 +155,8 @@ export function WorkflowValidator({
             })
           }
           if (
-            !task.decisionCases ||
-            Object.keys(task.decisionCases).length === 0
+            !task.inputParameters?.decisionCases ||
+            Object.keys(task.inputParameters.decisionCases || {}).length === 0
           ) {
             issues.push({
               type: 'warning',
@@ -169,7 +169,7 @@ export function WorkflowValidator({
           break
 
         case 'SUB_WORKFLOW':
-          if (!task.subWorkflowParam?.name) {
+          if (!task.inputParameters?.subWorkflowName) {
             issues.push({
               type: 'error',
               category: 'configuration',
@@ -215,14 +215,14 @@ export function WorkflowValidator({
 
     // Check for potential infinite loops
     const hasPotentialLoop = workflow.tasks.some(
-      (task) => task.type === 'DO_WHILE' || task.type === 'FORK_JOIN_DYNAMIC'
+      (task) => task.type === 'FORK_JOIN_DYNAMIC'
     )
     if (hasPotentialLoop) {
       issues.push({
         type: 'info',
         category: 'logic',
-        message: 'Workflow contains looping constructs',
-        suggestion: 'Ensure loop termination conditions are properly configured'
+        message: 'Workflow contains dynamic fork/join constructs',
+        suggestion: 'Ensure fork/join conditions are properly configured'
       })
     }
 
