@@ -36,7 +36,7 @@ import {
   Clock,
   AlertTriangle
 } from 'lucide-react'
-import { WorkflowTask } from '@/core/domain/entities/workflow'
+import { WorkflowTask, TaskType } from '@/core/domain/entities/workflow'
 
 interface TaskConfigurationPanelProps {
   node: Node
@@ -128,7 +128,7 @@ export function TaskConfigurationPanel({
           <Checkbox
             id="optional"
             checked={config.optional || false}
-            onCheckedChange={(checked) => updateConfig({ optional: checked })}
+            onCheckedChange={(checked) => updateConfig({ optional: checked === true })}
           />
           <Label htmlFor="optional" className="text-sm">
             Optional Task
@@ -140,7 +140,7 @@ export function TaskConfigurationPanel({
             id="async-complete"
             checked={config.asyncComplete || false}
             onCheckedChange={(checked) =>
-              updateConfig({ asyncComplete: checked })
+              updateConfig({ asyncComplete: checked === true })
             }
           />
           <Label htmlFor="async-complete" className="text-sm">
@@ -363,17 +363,23 @@ export function TaskConfigurationPanel({
   )
 
   const getTaskTypeInfo = () => {
-    const taskTypeDescriptions = {
+    const taskTypeDescriptions: Record<TaskType, string> = {
       HTTP: 'Make HTTP requests to external services',
       SWITCH: 'Route workflow based on input values',
       DECISION: 'Evaluate conditions and branch accordingly',
       FORK_JOIN: 'Execute tasks in parallel',
+      FORK_JOIN_DYNAMIC: 'Execute dynamic parallel tasks',
+      JOIN: 'Join parallel task execution',
       SUB_WORKFLOW: 'Execute another workflow',
       WAIT: 'Pause execution for a duration',
       HUMAN: 'Require human intervention',
       TERMINATE: 'End workflow execution',
       LAMBDA: 'Execute serverless function',
-      EVENT: 'Publish or wait for events'
+      EVENT: 'Publish or wait for events',
+      KAFKA_PUBLISH: 'Publish messages to Kafka',
+      JSON_JQ_TRANSFORM: 'Transform JSON data',
+      SET_VARIABLE: 'Set workflow variables',
+      CUSTOM: 'Custom task implementation'
     }
 
     return taskTypeDescriptions[config.type] || 'Custom task configuration'

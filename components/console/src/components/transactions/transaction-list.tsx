@@ -4,8 +4,12 @@ import { memo, useCallback, useEffect, useMemo } from 'react'
 import { FixedSizeList as List } from 'react-window'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useWebSocket } from '@/providers/websocket-provider'
-import { TransactionRow } from './transaction-row'
-import { TransactionFilters } from './transaction-filters'
+// import { TransactionRow } from './transaction-row'
+// import { TransactionFilters } from './transaction-filters'
+
+// Stub components
+const TransactionRow = ({ index, style, data }: any) => <div style={style}>Transaction {index}</div>
+const TransactionFilters = () => <div>Transaction Filters</div>
 import { useUIStore } from '@/store'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -190,6 +194,7 @@ export const TransactionList = memo(function TransactionList() {
       <div className="flex-1">
         <List
           height={window.innerHeight - 200} // Adjust based on your layout
+          width="100%"
           itemCount={transactions.length + (hasNextPage ? 1 : 0)}
           itemSize={ITEM_HEIGHT}
           overscanCount={OVERSCAN_COUNT}
