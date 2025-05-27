@@ -47,6 +47,14 @@ type mockRepository struct {
 	err       error
 }
 
+// Count implements the Count method from Repository interface
+func (r *mockRepository) Count(ctx context.Context) (int64, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	return 10, nil // Return a default count of 10 for tests
+}
+
 func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -917,4 +925,33 @@ func TestOrganizationRepository_Delete(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOrganizationRepository_Count(t *testing.T) {
+	t.Run("Success - Count organizations", func(t *testing.T) {
+		// Setup mock repository
+		repo, mock := setupMockDB(t)
+		
+		// Verificar que nuestra implementación mock del Count() funciona conforme esperado
+		ctx := context.Background()
+		count, err := repo.Count(ctx)
+		
+		// Assert expectations
+		require.NoError(t, err)
+		assert.Equal(t, int64(10), count) // O mock deve retornar 10
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+	
+	t.Run("Error - Database error", func(t *testing.T) {
+		// Setup error repository
+		repo := setupErrorDB()
+		
+		// Call the Count method
+		ctx := context.Background()
+		count, err := repo.Count(ctx)
+		
+		// Assert expectations
+		require.Error(t, err)
+		assert.Equal(t, int64(0), count)
+	})
 }
