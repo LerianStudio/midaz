@@ -59,8 +59,8 @@ export const OrganizationsFormParentIdField = ({
             <React.Fragment>
               {isPending && <Skeleton className="h-10 w-full" />}
               {!isPending && (
-                <Select 
-                  value={(value as string) || undefined} 
+                <Select
+                  value={(value as string) || undefined}
                   onValueChange={onChange}
                   disabled={disabled}
                 >
