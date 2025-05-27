@@ -83,7 +83,7 @@ export const OrganizationsTabContent = () => {
         <EntityBox.Header
           title={intl.formatMessage({
             id: 'organizations.title',
-            defaultMessage: 'Settings'
+            defaultMessage: 'Organizations'
           })}
           subtitle={intl.formatMessage({
             id: 'organizations.subtitle',
