@@ -1,3 +1,19 @@
+## [v2.2.0-beta.38] - 2025-05-26
+
+### ✨ Features
+- Add context to build components, enhancing the functionality and flexibility of component construction.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes and maintain accurate project documentation.
+
+## [v2.2.0-beta.37] - 2025-05-26
+
+### ✨ Features
+- Add organization tooltip and update title translations on the settings page for improved user experience.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.36] - 2025-05-26
 
 ### 🐛 Bug Fixes

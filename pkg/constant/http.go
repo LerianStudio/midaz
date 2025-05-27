@@ -15,3 +15,6 @@ var UUIDPathParameters = []string{
 	"audit_id",
 	"balance_id",
 }
+
+const XTotalCount = "X-Total-Count"
+const ContentLength = "Content-Length"

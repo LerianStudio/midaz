@@ -3119,4 +3119,36 @@ paths:
       summary: Update a segment
       tags:
       - Segments
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      responses:
+        "204":
+          description: Successfully retrieved the count of organizations. No content is returned in the response body.
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total organizations
+      tags:
+      - Organizations
 swagger: "2.0"

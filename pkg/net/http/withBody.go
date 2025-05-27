@@ -169,34 +169,19 @@ func ValidateStruct(s any) error {
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs
 func ParseUUIDPathParameters(c *fiber.Ctx) error {
-	params := c.AllParams()
-
-	var invalidUUIDs []string
-
-	validPathParamsMap := make(map[string]any)
-
-	for param, value := range params {
+	for param, value := range c.AllParams() {
 		if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
-			validPathParamsMap[param] = value
+			c.Locals(param, value)
 			continue
 		}
 
 		parsedUUID, err := uuid.Parse(value)
 		if err != nil {
-			invalidUUIDs = append(invalidUUIDs, param)
-			continue
+			err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
+			return WithError(c, err)
 		}
 
-		validPathParamsMap[param] = parsedUUID
-	}
-
-	for param, value := range validPathParamsMap {
-		c.Locals(param, value)
-	}
-
-	if len(invalidUUIDs) > 0 {
-		err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", strings.Join(invalidUUIDs, ", "))
-		return WithError(c, err)
+		c.Locals(param, parsedUUID)
 	}
 
 	return c.Next()
