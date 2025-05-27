@@ -483,7 +483,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
-	spanQuery.End()
+	defer spanQuery.End()
 
 	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM organization WHERE deleted_at IS NULL`).Scan(&count)
 	if err != nil {

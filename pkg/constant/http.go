@@ -17,5 +17,4 @@ var UUIDPathParameters = []string{
 }
 
 const XTotalCount = "X-Total-Count"
-const PathMetrics = "metrics"
 const ContentLength = "Content-Length"

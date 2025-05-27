@@ -32,7 +32,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations", auth.Authorize(midazName, "organizations", "get"), oh.GetAllOrganizations)
 	f.Get("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "get"), http.ParseUUIDPathParameters, oh.GetOrganizationByID)
 	f.Delete("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "delete"), http.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
-	f.Head("/v1/organizations/metrics/count", auth.Authorize(midazName, "organizations", "head"), http.ParseUUIDPathParameters, oh.CountOrganizations)
+	f.Head("/v1/organizations/metrics/count", auth.Authorize(midazName, "organizations", "head"), oh.CountOrganizations)
 
 	// Ledgers
 	f.Post("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))
