@@ -45,7 +45,19 @@ export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
   const handleSubmit = (values: Partial<FormData> = {} as FormData) => {
     const newData = { ...data, ...values } as FormData
     setData(newData)
-    createOrganization(newData as any)
+    
+    // Flatten the address structure for the API
+    const apiData = {
+      legalName: newData.legalName,
+      doingBusinessAs: newData.doingBusinessAs,
+      legalDocument: newData.legalDocument,
+      avatar: newData.avatar,
+      accentColor: newData.accentColor,
+      address: newData.address,
+      metadata: {}
+    }
+    
+    createOrganization(apiData)
   }
 
   const setData = (values: Partial<FormData>) =>

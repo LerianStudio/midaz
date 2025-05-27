@@ -2,8 +2,8 @@ import { postFetcher } from '@/lib/fetcher'
 import { OrganizationsType } from '@/types/organizations-type'
 import { useMutation, UseMutationOptions } from '@tanstack/react-query'
 
-export const useCreateOnboardingOrganization = ({ ...options }) => {
-  return useMutation<OrganizationsType>({
+export const useCreateOnboardingOrganization = ({ ...options }: UseMutationOptions<OrganizationsType, unknown, any> = {}) => {
+  return useMutation<OrganizationsType, unknown, any>({
     mutationKey: ['onboarding'],
     mutationFn: postFetcher(`/api/onboarding`),
     ...options

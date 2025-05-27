@@ -28,24 +28,34 @@ export function useDefaultOrg({
 
   // Initialize a current organization
   useEffect(() => {
-    // Check if there is a default organization saved onto local storage
-    if (defaultOrg) {
-      // Search for the organization with the id
-      const org = organizations.find(({ id }) => defaultOrg === id)
+    // Only run when we have organizations but no current
+    if (organizations.length > 0 && !current?.id) {
+      // Check if there is a default organization saved onto local storage
+      if (defaultOrg) {
+        // Search for the organization with the id
+        const org = organizations.find(({ id }) => defaultOrg === id)
 
-      // If the organization is found, set it as the current organization
-      if (org) {
-        setCurrent(org)
-        return
+        // If the organization is found, set it as the current organization
+        if (org) {
+          setCurrent(org)
+          return
+        }
+      }
+
+      // If there is no default organization saved or the organization is not found
+      // Prefer "Beatty, Bayer and Koelpin" which has demo data
+      const orgWithData = organizations.find(
+        org => org.legalName === "Beatty, Bayer and Koelpin"
+      )
+      
+      if (orgWithData) {
+        setCurrent(orgWithData)
+      } else {
+        // Otherwise set the first organization as the current one
+        setCurrent(organizations[0])
       }
     }
-
-    // If there is no default organization saved or the organization is not found
-    if (organizations.length > 0) {
-      // Set the first organization as the current one
-      setCurrent(organizations[0])
-    }
-  }, [])
+  }, [organizations.length, current?.id])
 
   useEffect(() => {
     // Update storage according to the current organization

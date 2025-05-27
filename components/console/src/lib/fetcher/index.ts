@@ -76,11 +76,15 @@ export const deleteFetcher = (url: string) => {
 export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
   try {
     return await action()
-  } catch (error) {
-    // Only log errors when not in test environment
-    if (process.env.NODE_ENV !== 'test') {
-      console.error('Server Fetcher Error', error)
-    }
+  } catch (error: any) {
+    // Always log errors for debugging
+    console.error('Server Fetcher Error:', error)
+    console.error('Error details:', {
+      name: error?.constructor?.name,
+      message: error?.message || 'Unknown error',
+      stack: error?.stack?.split('\n').slice(0, 5).join('\n') || 'No stack trace'
+    })
+    
     if (error instanceof MidazApiException && error.code === '0042') {
       redirect('/signout')
     }
@@ -95,8 +99,14 @@ const responseHandler = async (response: Response) => {
       return
     }
 
-    const errorMessage = await response.json()
-    throw new Error(errorMessage.message)
+    try {
+      const errorMessage = await response.json()
+      const message = errorMessage.message || errorMessage.error || 'An error occurred'
+      throw new Error(typeof message === 'string' ? message : JSON.stringify(message))
+    } catch (e) {
+      // If JSON parsing fails or message extraction fails
+      throw new Error(`Request failed with status ${response.status}`)
+    }
   }
 
   return await response.json()

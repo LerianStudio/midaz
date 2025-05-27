@@ -631,8 +631,9 @@ export const mockReconciliationMatches: ReconciliationMatch[] = [
     confidenceScore: 0.87,
     matchedFields: {
       similarity_score: 0.87,
-      embedding_model: 'sentence-transformers/all-MiniLM-L6-v2',
-      matched_features: ['description', 'amount_pattern', 'date_proximity']
+      description: 0.92,
+      amount_pattern: 0.85,
+      date_proximity: 0.94
     },
     status: 'pending',
     aiInsights: {

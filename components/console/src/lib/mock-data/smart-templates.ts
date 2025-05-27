@@ -52,7 +52,7 @@ export const mockTemplates: Template[] = [
     engine: 'pongo2',
     version: '1.0',
     dataSourceIds: ['midaz_onboarding', 'midaz_transaction'],
-    content: mockTemplateContent['monthly-statement']
+    content: ''
   },
   {
     id: '01956b69-9102-75b7-8860-3e75c11d231d',
@@ -84,7 +84,7 @@ export const mockTemplates: Template[] = [
     engine: 'pongo2',
     version: '2.1',
     dataSourceIds: ['midaz_transaction'],
-    content: mockTemplateContent['transaction-receipt']
+    content: ''
   },
   {
     id: '01956b69-9102-75b7-8860-3e75c11d231e',

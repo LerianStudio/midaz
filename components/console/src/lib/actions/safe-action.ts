@@ -1,7 +1,7 @@
 import { createSafeActionClient } from 'next-safe-action'
 
 export const authActionClient = createSafeActionClient({
-  handleReturnedServerError(e: unknown) {
+  handleServerError(e: unknown) {
     if (e instanceof Error) {
       return e.message
     }

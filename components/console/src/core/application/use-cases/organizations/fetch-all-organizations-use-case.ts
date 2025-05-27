@@ -42,10 +42,18 @@ export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
       (organization) => organization.id
     ) as string[]
 
-    const organizationAvatars: OrganizationAvatarEntity[] =
-      await this.organizationAvatarRepository.fetchByOrganizationId(
-        organizationIds
-      )
+    let organizationAvatars: OrganizationAvatarEntity[] = []
+    
+    try {
+      organizationAvatars =
+        await this.organizationAvatarRepository.fetchByOrganizationId(
+          organizationIds
+        )
+    } catch (error) {
+      // Log the error but continue without avatars
+      console.error('Failed to fetch organization avatars:', error)
+      // Continue with empty avatars array
+    }
 
     return OrganizationMapper.toPaginationResponseDto(
       organizationsResult,
