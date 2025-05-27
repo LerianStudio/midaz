@@ -144,12 +144,12 @@ export const UsersTabContent = () => {
                 {users?.map((user: UserResponseDto) => (
                   <TableRow key={user.id}>
                     <TableCell>
-                      {!user.firstName || !user.lastName ? (
-                        '-'
-                      ) : (
+                      {user.firstName || user.lastName ? (
                         <>
                           {user.firstName} {user.lastName}
                         </>
+                      ) : (
+                        '-'
                       )}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
