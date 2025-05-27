@@ -127,7 +127,7 @@ export async function createHolder(
 ): Promise<ActionResult<HolderEntity>> {
   try {
     const createHolderUseCase = container.get<CreateHolder>(CreateHolderUseCase)
-    const created = await createHolderUseCase.execute(holder)
+    const created = await createHolderUseCase.execute('default', holder)
 
     revalidatePath('/plugins/crm/holders')
 
@@ -146,7 +146,7 @@ export async function updateHolder(
 ): Promise<ActionResult<HolderEntity>> {
   try {
     const updateHolderUseCase = container.get<UpdateHolder>(UpdateHolderUseCase)
-    const updated = await updateHolderUseCase.execute(id, updates)
+    const updated = await updateHolderUseCase.execute('default', id, updates)
 
     revalidatePath('/plugins/crm/holders')
     revalidatePath(`/plugins/crm/holders/${id}`)
@@ -166,7 +166,7 @@ export async function deleteHolder(
 ): Promise<ActionResult<void>> {
   try {
     const deleteHolderUseCase = container.get<DeleteHolder>(DeleteHolderUseCase)
-    await deleteHolderUseCase.execute(id, isHardDelete)
+    await deleteHolderUseCase.execute('default', id, isHardDelete)
 
     revalidatePath('/plugins/crm/holders')
 
