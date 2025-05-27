@@ -37,7 +37,6 @@ import { useToast } from '@/hooks/use-toast'
 import { TemplateFileUpload } from './template-file-upload'
 import type {
   TemplateCategory,
-  TemplateFormat,
   CreateTemplateInput
 } from '@/core/domain/entities/template'
 
