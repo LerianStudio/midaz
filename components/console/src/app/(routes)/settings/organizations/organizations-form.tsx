@@ -5,7 +5,7 @@ import type { OrganizationsType } from '@/types/organizations-type'
 import { Card } from '@/components/card'
 import { Separator } from '@/components/ui/separator'
 import { CardContent, CardFooter } from '@/components/ui/card'
-import { Form } from '@/components/ui/form'
+import { Form, FormField } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -51,7 +51,9 @@ const formSchema = z.object({
   avatar: organization.avatar
 })
 
-const initialValues = {
+const initialValues: OrganizationFormData = {
+  id: '',
+  parentOrganizationId: null,
   legalName: '',
   doingBusinessAs: '',
   legalDocument: '',
@@ -105,8 +107,7 @@ export const OrganizationsForm = ({
 
   const form = useForm<OrganizationFormData>({
     resolver: zodResolver(formSchema),
-    values: getInitialValues(initialValues, parseInputData(data)),
-    defaultValues: initialValues
+    defaultValues: getInitialValues(initialValues, parseInputData(data))
   })
 
   const metadataValue = form.watch('metadata')
@@ -300,23 +301,30 @@ export const OrganizationsForm = ({
               <Separator />
 
               <CardContent className="grid grid-cols-2 gap-5 p-6">
-                <OrganizationsFormParentIdField
-                  name="parentOrganizationId"
-                  label={intl.formatMessage({
-                    id: 'entity.organization.parentOrganization',
-                    defaultMessage: 'Parent Organization'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.selectPlaceholder',
-                    defaultMessage: 'Select...'
-                  })}
-                  description={intl.formatMessage({
-                    id: 'organizations.organizationForm.parentOrganizationText',
-                    defaultMessage:
-                      'Select if your Organization is affiliated with another'
-                  })}
+                <FormField
                   control={form.control}
-                  readOnly={isReadOnly}
+                  name="parentOrganizationId"
+                  render={({ field }: { field: any }) => (
+                    <OrganizationsFormParentIdField
+                      name="parentOrganizationId"
+                      label={intl.formatMessage({
+                        id: 'entity.organization.parentOrganization',
+                        defaultMessage: 'Parent Organization'
+                      })}
+                      placeholder={intl.formatMessage({
+                        id: 'common.selectPlaceholder',
+                        defaultMessage: 'Select...'
+                      })}
+                      description={intl.formatMessage({
+                        id: 'organizations.organizationForm.parentOrganizationText',
+                        defaultMessage:
+                          'Select if your Organization is affiliated with another'
+                      })}
+                      control={form.control}
+                      readOnly={isReadOnly}
+                      {...field}
+                    />
+                  )}
                 />
               </CardContent>
             </Card.Root>

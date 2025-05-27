@@ -16,15 +16,18 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import React from 'react'
 import { Control, useFormContext } from 'react-hook-form'
+import type { OrganizationFormData } from './organizations-form'
 
 export type OrganizationsFormParentIdFieldProps = {
-  name: string
+  name: keyof OrganizationFormData
   label?: string
   placeholder?: string
   description?: string
   disabled?: boolean
   readOnly?: boolean
-  control: Control<any>
+  control: Control<OrganizationFormData>
+  value?: string | null
+  onChange?: (value: string | null) => void
 }
 
 export const OrganizationsFormParentIdField = ({
@@ -32,9 +35,11 @@ export const OrganizationsFormParentIdField = ({
   placeholder,
   description,
   readOnly,
+  value,
+  onChange,
   ...others
 }: OrganizationsFormParentIdFieldProps) => {
-  const form = useFormContext<{ id: string }>()
+  const form = useFormContext<OrganizationFormData>()
   const { data, isPending } = useListOrganizations({})
 
   const id = form.watch('id')
@@ -47,14 +52,18 @@ export const OrganizationsFormParentIdField = ({
   return (
     <FormField
       {...others}
-      render={({ field: { ref, onChange, ...fieldOthers } }) => (
-        <FormItem ref={ref}>
+      render={({ field: { value, onChange, disabled } }) => (
+        <FormItem>
           {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
             <React.Fragment>
               {isPending && <Skeleton className="h-10 w-full" />}
               {!isPending && (
-                <Select onValueChange={onChange} {...fieldOthers}>
+                <Select 
+                  value={(value as string) || undefined} 
+                  onValueChange={onChange}
+                  disabled={disabled}
+                >
                   <SelectTrigger readOnly={readOnly}>
                     <SelectValue placeholder={placeholder} />
                   </SelectTrigger>
