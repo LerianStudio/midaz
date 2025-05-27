@@ -932,7 +932,7 @@ func TestOrganizationRepository_Count(t *testing.T) {
 		// Setup mock repository
 		repo, mock := setupMockDB(t)
 		
-		// Verificar que nuestra implementación mock del Count() funciona conforme esperado
+		// Verify that our mock implementation of Count() works as expected
 		ctx := context.Background()
 		count, err := repo.Count(ctx)
 		
