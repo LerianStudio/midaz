@@ -3,7 +3,7 @@ import { useStepper } from '@/hooks/use-stepper'
 import { FormData } from './schemas'
 import { useRouter } from 'next/navigation'
 import { createQueryString } from '@/lib/search'
-import { OrganizationsType } from '@/types/organizations-type'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useCreateOnboardingOrganization } from '@/client/onboarding'
 
@@ -34,7 +34,7 @@ export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
 
   const { mutate: createOrganization, isPending: loading } =
     useCreateOnboardingOrganization({
-      onSuccess: (organization: OrganizationsType) => {
+      onSuccess: (organization: OrganizationResponseDto) => {
         setOrganization(organization)
         router.push(`/onboarding/ledger` + createQueryString({ process: true }))
       }

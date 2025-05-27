@@ -78,7 +78,12 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
     intl: IntlShape,
     avatar?: string
   ): Promise<OrganizationAvatarEntity | undefined> {
-    if (!avatar) {
+    if (!avatar && avatar !== '') {
+      return undefined
+    }
+
+    if (avatar === '') {
+      await this.organizationAvatarRepository.delete(organizationId)
       return undefined
     }
 

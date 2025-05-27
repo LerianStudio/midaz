@@ -32,7 +32,7 @@ export const Primary: StoryObj<PopoverPanelProps> = {
         </PopoverPanelTitle>
         <PopoverPanelContent>
           <img
-            src="/svg/brand-midaz.svg"
+            src="/svg/lerian-logo.svg"
             alt=""
             className="rounded-full"
             height={24}
@@ -45,7 +45,7 @@ export const Primary: StoryObj<PopoverPanelProps> = {
 
       <PopoverPanelActions>
         <PopoverPanelLink href="" icon={<ArrowRight />} onClick={() => {}}>
-          <img src="/svg/brand-midaz.svg" alt="" className="w-6 rounded-full" />
+          <img src="/svg/lerian-logo.svg" alt="" className="w-6 rounded-full" />
           Midaz
         </PopoverPanelLink>
 
@@ -71,7 +71,7 @@ export const Dense: StoryObj<PopoverPanelProps> = {
         </PopoverPanelTitle>
         <PopoverPanelContent>
           <img
-            src="/svg/brand-midaz.svg"
+            src="/svg/lerian-logo.svg"
             alt=""
             className="rounded-full"
             height={24}
@@ -89,7 +89,7 @@ export const Dense: StoryObj<PopoverPanelProps> = {
           icon={<ArrowRight />}
           onClick={() => {}}
         >
-          <img src="/svg/brand-midaz.svg" alt="" className="w-6 rounded-full" />
+          <img src="/svg/lerian-logo.svg" alt="" className="w-6 rounded-full" />
           Midaz
         </PopoverPanelLink>
         <PopoverPanelLink
@@ -98,7 +98,7 @@ export const Dense: StoryObj<PopoverPanelProps> = {
           icon={<ArrowRight />}
           onClick={() => {}}
         >
-          <img src="/svg/brand-midaz.svg" alt="" className="w-6 rounded-full" />
+          <img src="/svg/lerian-logo.svg" alt="" className="w-6 rounded-full" />
           Midaz
         </PopoverPanelLink>
         <PopoverPanelLink
@@ -107,7 +107,7 @@ export const Dense: StoryObj<PopoverPanelProps> = {
           icon={<ArrowRight />}
           onClick={() => {}}
         >
-          <img src="/svg/brand-midaz.svg" alt="" className="w-6 rounded-full" />
+          <img src="/svg/lerian-logo.svg" alt="" className="w-6 rounded-full" />
           Midaz
         </PopoverPanelLink>
 
