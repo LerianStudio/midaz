@@ -1,3 +1,9 @@
+## [v2.2.0-beta.49] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct logic in user name validation to prevent validation errors.
+- Handle empty user name fields correctly and introduce an environment variable to enable authentication.
+
 ## [v2.2.0-beta.47] - 2025-05-27
 
 ### ✨ Features
