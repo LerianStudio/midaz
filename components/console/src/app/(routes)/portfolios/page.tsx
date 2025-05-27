@@ -20,11 +20,9 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
 
 const Page = () => {
   const intl = useIntl()
-  const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
   const [total, setTotal] = useState(0)
@@ -55,12 +53,6 @@ const Page = () => {
 
     setTotal(portfolios.items.length)
   }, [portfolios?.items, portfolios?.limit])
-
-  useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
 
   const { mutate: deletePortfolio, isPending: deletePending } =
     useDeletePortfolio({
