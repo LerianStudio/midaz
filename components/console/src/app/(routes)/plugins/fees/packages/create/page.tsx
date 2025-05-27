@@ -25,7 +25,7 @@ export default function CreatePackagePage() {
 
       // Simulate successful creation
       const newPackage = {
-        id: uuidv7(),
+        id: uuidv4(),
         ...data,
         ledgerId: 'main-ledger',
         createdAt: new Date().toISOString(),

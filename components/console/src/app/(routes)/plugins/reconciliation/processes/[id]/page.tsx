@@ -108,7 +108,7 @@ export default function ProcessDetailPage() {
     )
     setExternalTransactions(
       ReconciliationMockData.generateExternalTransactions(
-        foundProcess.importId,
+        foundProcess.importId || foundProcess.id,
         100
       )
     )

@@ -28,7 +28,7 @@ function ExecutionDetailContent() {
   return (
     <ErrorHandlingWrapper
       isLoading={isLoading}
-      error={error}
+      error={error ? new Error(error.message) : null}
       onRetry={refetch}
       customLoadingComponent={<ExecutionDetailSkeleton />}
     >
@@ -55,8 +55,7 @@ function ExecutionDetailContent() {
         {/* Execution detail view */}
         {execution ? (
           <ExecutionDetailViewEnhanced
-            execution={execution}
-            isRealTimeEnabled={isConnected}
+            executionId={executionId}
           />
         ) : (
           <div className="py-12 text-center">

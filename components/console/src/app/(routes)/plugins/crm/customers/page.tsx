@@ -41,20 +41,32 @@ const CustomersPage = () => {
   const { currentOrganization } = useOrganization()
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Pagination
-  const { page, limit, nextPage, previousPage, setLimit, setPage } =
-    usePagination({ total: holdersData?.total || 0 })
-
-  // Fetch holders data
+  // Fetch holders data with initial pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [currentLimit, setCurrentLimit] = useState(10)
+  
   const {
     data: holdersData,
     isLoading,
     error
   } = useListHolders({
-    page,
-    limit,
+    page: currentPage,
+    limit: currentLimit,
     enabled: true
   })
+
+  // Pagination
+  const { page, limit, nextPage, previousPage, setLimit, setPage } =
+    usePagination({ total: holdersData?.total || 0 })
+  
+  // Sync pagination state
+  React.useEffect(() => {
+    setCurrentPage(page)
+  }, [page])
+  
+  React.useEffect(() => {
+    setCurrentLimit(limit)
+  }, [limit])
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -436,6 +448,7 @@ const CustomersPage = () => {
             nextPage={nextPage}
             previousPage={previousPage}
             setLimit={setLimit}
+            setPage={setPage}
           />
         </div>
       )}
