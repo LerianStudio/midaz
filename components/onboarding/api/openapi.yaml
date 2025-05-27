@@ -178,6 +178,8 @@ paths:
         schema:
           type: string
       responses:
+        "204":
+          description: Successful request with no content in the response body
         "401":
           content:
             '*/*':
