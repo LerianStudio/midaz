@@ -1,6 +1,7 @@
 package in
 
 import (
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -323,6 +324,49 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully removed Ledeger with ID: %s", id.String())
+
+	return http.NoContent(c)
+}
+
+// CountLedgers is a method that returns the total count of ledgers for a specific organization.
+//
+//	@Summary		Count total ledgers
+//	@Description	Returns the total count of ledgers for a specific organization as a header without a response body
+//	@Tags			Ledgers
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Success		204				{string}	string	"No content with X-Total-Count header containing the count"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/metrics/count [head]
+func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+
+	logger.Infof("Initiating count of all ledgers for organization: %s", organizationID)
+
+	count, err := handler.Query.CountLedgers(ctx, organizationID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count ledgers", err)
+		logger.Errorf("Failed to count ledgers, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully counted ledgers for organization %s: %d", organizationID, count)
+
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
 }
