@@ -276,28 +276,20 @@ function WorkflowCanvasInner({
         taskNodeMap.set(taskId, node)
       })
 
-      // Create edges based on task dependencies
-      workflow.tasks.forEach((task) => {
-        if (task.dependencies && task.dependencies.length > 0) {
-          task.dependencies.forEach((depId: string) => {
-            const edge: Edge = {
-              id: `${depId}-${task.id}`,
-              source: depId === 'start' ? 'start' : depId,
-              target: task.id,
-              animated: true
-            }
-            newEdges.push(edge)
-          })
-        } else {
-          // Connect to start node if no dependencies
-          const edge: Edge = {
-            id: `start-${task.id}`,
-            source: 'start',
-            target: task.id,
-            animated: true
-          }
-          newEdges.push(edge)
+      // Create edges based on task order (connect each task to start node for now)
+      // In a real implementation, edges would be based on the workflow definition
+      workflow.tasks.forEach((task, index) => {
+        const taskId = task.taskReferenceName || `task-${index}`
+        
+        // For now, connect all tasks to the start node
+        // You would typically derive connections from the workflow structure
+        const edge: Edge = {
+          id: `start-${taskId}`,
+          source: 'start',
+          target: taskId,
+          animated: true
         }
+        newEdges.push(edge)
       })
 
       // Add end node
@@ -406,7 +398,9 @@ function WorkflowCanvasInner({
   // Show error state
   if (canvasError) {
     return (
-      <ErrorHandlingWrapper error={canvasError} onRetry={handleErrorRecovery} />
+      <ErrorHandlingWrapper error={canvasError} onRetry={handleErrorRecovery}>
+        <></>
+      </ErrorHandlingWrapper>
     )
   }
 
@@ -480,12 +474,12 @@ function WorkflowCanvasInner({
             <SheetContent side="right" className="w-80">
               {selectedNode && (
                 <TaskConfigurationPanel
-                  task={selectedNode.data.task}
-                  onUpdate={(task: WorkflowTask) =>
-                    handleTaskUpdate(selectedNode.id, task)
+                  node={selectedNode}
+                  onUpdateConfig={(updates: Partial<WorkflowTask>) =>
+                    handleTaskUpdate(selectedNode.id, { ...selectedNode.data.task, ...updates })
                   }
                   onDelete={() => handleTaskDelete(selectedNode.id)}
-                  readonly={readonly}
+                  onClose={() => setShowConfigPanel(false)}
                 />
               )}
             </SheetContent>
