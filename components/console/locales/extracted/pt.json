@@ -615,5 +615,6 @@
   "applications.security.title": "Aviso de Segurança",
   "transactions.helperTrigger.answer": "Registros de movimentações financeiras entre contas, com base no modelo de partidas dobradas.",
   "applications.default.noActions": "Applications padrão não podem ser modificadas",
-  "settingsDropdown.applications": "Applications"
+  "settingsDropdown.applications": "Applications",
+  "transactions.create.review.backButton": "Resumo"
 }

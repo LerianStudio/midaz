@@ -553,6 +553,7 @@
   "transactions.create.mode.simple.title": "Simple 1:1",
   "transactions.create.mode.simple.warning": "You are selecting the simple transaction mode and might lose already filled information.",
   "transactions.create.mode.title": "Change type",
+  "transactions.create.review.backButton": "Review",
   "transactions.create.review.button": "Go to Review",
   "transactions.create.review.description": "Check the values ​​and parameters entered and confirm to send the transaction.",
   "transactions.create.review.title": "Review and Submit Transaction",
