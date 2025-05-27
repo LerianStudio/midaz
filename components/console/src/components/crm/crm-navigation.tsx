@@ -78,18 +78,15 @@ export const CRMNavigation: React.FC = () => {
             return (
               <Link
                 key={item.id}
-                href={item.disabled ? '#' : item.href}
+                href={item.href}
                 className={cn(
                   'flex items-center space-x-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-accent hover:text-accent-foreground',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground',
-                  item.disabled && 'cursor-not-allowed opacity-50'
+                  false && 'cursor-not-allowed opacity-50'
                 )}
                 title={item.description}
-                onClick={(e: React.MouseEvent) =>
-                  item.disabled && e.preventDefault()
-                }
               >
                 {item.icon}
                 <span>{item.label}</span>

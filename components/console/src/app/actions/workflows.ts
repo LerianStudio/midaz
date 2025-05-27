@@ -82,7 +82,7 @@ export async function createWorkflow(
   workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<ActionResult<Workflow>> {
   try {
-    const created = await workflowRepository.create(workflow)
+    const created = await workflowRepository.create('default', workflow)
     revalidatePath('/plugins/workflows')
     return {
       success: true,
@@ -103,7 +103,7 @@ export async function updateWorkflow(
   updates: Partial<Workflow>
 ): Promise<ActionResult<Workflow>> {
   try {
-    const updated = await workflowRepository.update(id, updates)
+    const updated = await workflowRepository.update('default', id, { ...updates, id })
     revalidatePath('/plugins/workflows')
     revalidatePath(`/plugins/workflows/${id}`)
     return {
@@ -122,7 +122,7 @@ export async function updateWorkflow(
 
 export async function deleteWorkflow(id: string): Promise<ActionResult<void>> {
   try {
-    await workflowRepository.delete(id)
+    await workflowRepository.delete('default', id)
     revalidatePath('/plugins/workflows')
     return {
       success: true
@@ -142,7 +142,7 @@ export async function updateWorkflowStatus(
   status: 'active' | 'inactive'
 ): Promise<ActionResult<Workflow>> {
   try {
-    const updated = await workflowRepository.update(id, { status })
+    const updated = await workflowRepository.updateStatus('default', id, status.toUpperCase() as 'ACTIVE' | 'INACTIVE')
     revalidatePath('/plugins/workflows')
     revalidatePath(`/plugins/workflows/${id}`)
     return {
@@ -208,7 +208,7 @@ export async function getWorkflowExecutionById(
     const execution = await executionRepository.findById(id)
     return {
       success: true,
-      data: execution
+      data: execution || undefined
     }
   } catch (error) {
     console.error('Error fetching workflow execution:', error)
@@ -256,7 +256,7 @@ export async function pauseWorkflowExecution(
       MIDAZ_SYMBOLS.WorkflowExecutionRepository
     )
     const execution = await executionRepository.update(executionId, {
-      status: 'paused'
+      status: 'PAUSED' as any
     })
     revalidatePath('/plugins/workflows/executions')
     revalidatePath(`/plugins/workflows/executions/${executionId}`)
@@ -284,7 +284,7 @@ export async function resumeWorkflowExecution(
       MIDAZ_SYMBOLS.WorkflowExecutionRepository
     )
     const execution = await executionRepository.update(executionId, {
-      status: 'running'
+      status: 'RUNNING' as any
     })
     revalidatePath('/plugins/workflows/executions')
     revalidatePath(`/plugins/workflows/executions/${executionId}`)
@@ -312,8 +312,8 @@ export async function terminateWorkflowExecution(
       MIDAZ_SYMBOLS.WorkflowExecutionRepository
     )
     const execution = await executionRepository.update(executionId, {
-      status: 'terminated',
-      endTime: new Date()
+      status: 'TERMINATED' as any,
+      endTime: Date.now()
     })
     revalidatePath('/plugins/workflows/executions')
     revalidatePath(`/plugins/workflows/executions/${executionId}`)
@@ -341,6 +341,9 @@ export async function retryWorkflowExecution(
       MIDAZ_SYMBOLS.WorkflowExecutionRepository
     )
     const execution = await executionRepository.findById(executionId)
+    if (!execution) {
+      throw new Error('Execution not found')
+    }
     const newExecution = await workflowUseCase.startExecution(
       execution.workflowId,
       execution.input
@@ -373,11 +376,11 @@ export async function updateWorkflowExecutionStatus(
     const updates: Partial<WorkflowExecution> = { status }
 
     if (
-      status === 'completed' ||
-      status === 'failed' ||
-      status === 'terminated'
+      status === 'COMPLETED' ||
+      status === 'FAILED' ||
+      status === 'TERMINATED'
     ) {
-      updates.endTime = new Date()
+      updates.endTime = Date.now()
     }
 
     const execution = await executionRepository.update(executionId, updates)

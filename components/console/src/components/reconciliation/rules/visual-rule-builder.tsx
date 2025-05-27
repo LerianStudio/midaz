@@ -366,7 +366,7 @@ export function VisualRuleBuilder({
                 <Label>Priority: {rule.priority}</Label>
                 <Slider
                   value={[rule.priority]}
-                  onValueChange={([value]) =>
+                  onValueChange={([value]: number[]) =>
                     setRule((prev) => ({ ...prev, priority: value }))
                   }
                   max={10}
