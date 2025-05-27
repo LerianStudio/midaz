@@ -1,3 +1,11 @@
+## [v2.2.0-beta.48] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Resolve issue with console context build to ensure proper functionality
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
 ## [v2.2.0-beta.47] - 2025-05-27
 
 ### ✨ Features
