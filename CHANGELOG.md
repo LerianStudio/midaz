@@ -1,3 +1,13 @@
+## [v2.2.0-beta.40] - 2025-05-27
+
+### ✨ Features
+- Implement ledger count functionality with comprehensive tests and API documentation
+- Add capability to count ledgers by `organization_id`
+
+### 🔧 Maintenance
+- Update Postman collection for MIDAZ
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.39] - 2025-05-27
 
 ### ✨ Features
