@@ -316,11 +316,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
-//	@Success		200				{string}	string	"Success, check X-Total-Count header for the count"
+//	@NoContent		204				{string}	string	"No Content, check X-Total-Count header for the count"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			organizations/metrics/count [head]
+//	@Router			/v1/organizations/metrics/count [head]
 func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

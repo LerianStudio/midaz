@@ -217,6 +217,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/metrics/count": {
+            "head": {
+                "description": "Returns the total count of organizations as a header without a response body",
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Count total organizations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{id}": {
             "get": {
                 "description": "Returns detailed information about an organization identified by its UUID",

@@ -161,6 +161,44 @@ paths:
       tags:
       - Organizations
       x-codegen-request-body-name: organization
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      responses:
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total organizations
+      tags:
+      - Organizations
   /v1/organizations/{id}:
     delete:
       description: 'Permanently removes an organization identified by its UUID. Note:
