@@ -29,7 +29,7 @@ export class WorkflowUseCase {
     workflow: CreateWorkflowRequest
   ): Promise<Workflow> {
     // Validate organization exists
-    await this.organizationRepository.findById(organizationId)
+    await this.organizationRepository.fetchById(organizationId)
 
     // Validate workflow
     const validation = await this.workflowRepository.validate(

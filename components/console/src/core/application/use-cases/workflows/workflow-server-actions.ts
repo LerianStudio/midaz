@@ -12,9 +12,19 @@ import {
 } from '@/core/domain/entities/workflow'
 import { getOrganizationId } from '@/lib/actions'
 
+type ServerActionResult<T> =
+  | {
+      success: true
+      data: T
+    }
+  | {
+      success: false
+      error: string
+    }
+
 export async function createWorkflowAction(params: {
   workflow: CreateWorkflowRequest
-}): Promise<{ success: boolean; data?: Workflow; error?: string }> {
+}): Promise<ServerActionResult<Workflow>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
@@ -37,7 +47,7 @@ export async function createWorkflowAction(params: {
 
 export async function fetchWorkflowByIdAction(params: {
   workflowId: string
-}): Promise<{ success: boolean; data?: Workflow; error?: string }> {
+}): Promise<ServerActionResult<Workflow>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
@@ -60,7 +70,7 @@ export async function fetchWorkflowByIdAction(params: {
 export async function updateWorkflowAction(params: {
   workflowId: string
   workflow: UpdateWorkflowRequest
-}): Promise<{ success: boolean; data?: Workflow; error?: string }> {
+}): Promise<ServerActionResult<Workflow>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
@@ -84,14 +94,14 @@ export async function updateWorkflowAction(params: {
 
 export async function deleteWorkflowAction(params: {
   workflowId: string
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<ServerActionResult<void>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
       WORKFLOW_SYMBOLS.WorkflowUseCase
     )
     await workflowUseCase.deleteWorkflow(organizationId, params.workflowId)
-    return { success: true }
+    return { success: true, data: undefined }
   } catch (error) {
     console.error('Failed to delete workflow:', error)
     return {
@@ -104,11 +114,7 @@ export async function deleteWorkflowAction(params: {
 
 export async function validateWorkflowAction(params: {
   workflow: Workflow | CreateWorkflowRequest
-}): Promise<{
-  success: boolean
-  data?: WorkflowValidationResult
-  error?: string
-}> {
+}): Promise<ServerActionResult<WorkflowValidationResult>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
@@ -132,7 +138,7 @@ export async function validateWorkflowAction(params: {
 export async function duplicateWorkflowAction(params: {
   workflowId: string
   name: string
-}): Promise<{ success: boolean; data?: Workflow; error?: string }> {
+}): Promise<ServerActionResult<Workflow>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(
@@ -157,7 +163,7 @@ export async function duplicateWorkflowAction(params: {
 export async function updateWorkflowStatusAction(params: {
   workflowId: string
   status: WorkflowStatus
-}): Promise<{ success: boolean; data?: Workflow; error?: string }> {
+}): Promise<ServerActionResult<Workflow>> {
   try {
     const organizationId = await getOrganizationId()
     const workflowUseCase = container.get<WorkflowUseCase>(

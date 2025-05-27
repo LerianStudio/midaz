@@ -103,8 +103,11 @@ async function executeWithRetry<T>(
       lastError = error
 
       // Don't retry for client errors (4xx)
-      if (error?.status >= 400 && error?.status < 500) {
-        throw error
+      if (error && typeof error === 'object' && 'status' in error) {
+        const status = (error as any).status
+        if (status >= 400 && status < 500) {
+          throw error
+        }
       }
 
       // Don't retry on the last attempt

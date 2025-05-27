@@ -355,10 +355,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'update_balances',
           type: 'SUB_WORKFLOW',
           description: 'Update account balances',
-          configurable: {
-            subWorkflowName: true,
-            subWorkflowVersion: true
-          },
+          configurable: {},
           defaultConfiguration: {
             subWorkflowName: 'balance_update_workflow',
             subWorkflowVersion: 1
@@ -368,9 +365,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'send_notifications',
           type: 'FORK_JOIN',
           description: 'Send notifications to all parties',
-          configurable: {
-            forkTasks: true
-          },
+          configurable: {},
           defaultConfiguration: {
             forkTasks: [
               ['notify_sender', 'notify_receiver', 'notify_compliance']
