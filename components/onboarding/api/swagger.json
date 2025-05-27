@@ -234,6 +234,9 @@
                     }
                 ],
                 "responses": {
+                    "204": {
+                        "description": "Successful response with no content"
+                    },
                     "401": {
                         "description": "Unauthorized access",
                         "schema": {
