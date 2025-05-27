@@ -1,3 +1,18 @@
+## [v2.2.0-beta.39] - 2025-05-27
+
+### ✨ Features
+- Add endpoint for organization count metrics, enhancing data visibility for organizational analysis.
+- Generate documentation for new API, providing detailed guidance on usage and integration.
+- Add mock and tests for new implementation, ensuring robustness and reliability of new features.
+
+### 🐛 Bug Fixes
+- Resolve Copilot warnings in the codebase, improving code quality and reducing potential errors.
+- Update `go.mod` and `go.sum` for dependency management, addressing compatibility and stability issues.
+
+### 🔧 Maintenance
+- Update OpenAPI and Swagger specifications for onboarding API, ensuring accurate API representation and ease of integration.
+- Update Postman collection for MIDAZ API, aligning with the latest API changes and improving testing capabilities.
+
 ## [v2.2.0-beta.38] - 2025-05-26
 
 ### ✨ Features
