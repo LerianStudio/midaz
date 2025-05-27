@@ -96,7 +96,7 @@ export async function getHolders(params?: {
       success: true,
       data: {
         holders: result.items,
-        total: result.total
+        total: result.total || 0
       }
     }
   } catch (error) {
@@ -207,7 +207,7 @@ export async function getAliasesByHolderId(params: {
       success: true,
       data: {
         aliases: result.items,
-        total: result.total
+        total: result.total || 0
       }
     }
   } catch (error) {
@@ -236,7 +236,7 @@ export async function getAllAliases(params?: {
       success: true,
       data: {
         aliases: result.items,
-        total: result.total
+        total: result.total || 0
       }
     }
   } catch (error) {

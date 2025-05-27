@@ -47,7 +47,7 @@ export async function getWorkflows(params?: {
       success: true,
       data: {
         workflows: result.items,
-        total: result.total
+        total: result.total || 0
       }
     }
   } catch (error) {
@@ -183,7 +183,7 @@ export async function getWorkflowExecutions(params?: {
       success: true,
       data: {
         executions: result.executions,
-        total: result.total
+        total: result.total || 0
       }
     }
   } catch (error) {
