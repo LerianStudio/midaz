@@ -113,10 +113,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "husky": "^9.1.7",
     "@chromatic-com/storybook": "^3.1.0",
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
+    "@faker-js/faker": "^9.8.0",
     "@formatjs/cli": "^6.3.5",
     "@formatjs/cli-lib": "^6.6.1",
     "@lhci/cli": "^0.14.0",
@@ -162,6 +162,7 @@
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-storybook": "^0.10.1",
     "glob": "^11.0.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-fetch-mock": "^3.0.3",
