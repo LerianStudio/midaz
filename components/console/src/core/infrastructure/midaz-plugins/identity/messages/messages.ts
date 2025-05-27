@@ -92,5 +92,9 @@ export const identityApiMessages = defineMessages({
   'IDE-0016': {
     id: 'errors.identity.invalidMetadataNesting',
     defaultMessage: 'The metadata object cannot contain nested values.'
+  },
+  'IDE-0020': {
+    id: 'errors.identity.passwordTooShort',
+    defaultMessage: 'The password must be at least 12 characters long.'
   }
 })
