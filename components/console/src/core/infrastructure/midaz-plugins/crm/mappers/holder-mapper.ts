@@ -34,10 +34,10 @@ export class HolderMapper {
   }
 
   static toPaginatedEntity(
-    dto: HolderPaginatedResponseDto | any
+    dto: HolderPaginatedResponseDto | PaginationEntity<HolderDto>
   ): PaginationEntity<HolderEntity> {
     // Handle both response formats
-    if (dto.data && dto.pagination) {
+    if ('data' in dto && 'pagination' in dto) {
       // Expected format with data and pagination
       return {
         items: dto.data.map((holder: HolderDto) =>
@@ -48,18 +48,16 @@ export class HolderMapper {
         total: dto.pagination.total,
         totalPages: dto.pagination.totalPages
       }
-    } else if (dto.items !== undefined) {
-      // Actual CRM service format
+    } else if ('items' in dto) {
+      // Actual CRM service format (PaginationEntity<HolderDto>)
       return {
         items: (dto.items || []).map((holder: HolderDto) =>
           HolderMapper.toEntity(holder)
         ),
         page: dto.page || 1,
         limit: dto.limit || 10,
-        total: dto.total || dto.items?.length || 0,
-        totalPages:
-          dto.totalPages ||
-          Math.ceil((dto.total || dto.items?.length || 0) / (dto.limit || 10))
+        total: dto.total,
+        totalPages: dto.totalPages
       }
     } else {
       // Fallback for unexpected format
@@ -87,6 +85,8 @@ export class HolderMapper {
       monthlyIncomeTotal: entity.monthlyIncomeTotal,
       contacts: entity.contacts,
       metadata: entity.metadata
+        ? (entity.metadata as Record<string, string>)
+        : undefined
     }
   }
 
@@ -102,6 +102,8 @@ export class HolderMapper {
       monthlyIncomeTotal: entity.monthlyIncomeTotal,
       contacts: entity.contacts,
       metadata: entity.metadata
+        ? (entity.metadata as Record<string, string>)
+        : undefined
     }
   }
 }

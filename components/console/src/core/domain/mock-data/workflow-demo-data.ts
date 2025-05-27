@@ -1,4 +1,13 @@
-import { Workflow, WorkflowExecution, WorkflowTask } from '../entities/workflow'
+import {
+  Workflow,
+  WorkflowTask,
+  WorkflowStatus,
+  TaskType
+} from '../entities/workflow'
+import {
+  WorkflowExecution,
+  ExecutionStatus
+} from '../entities/workflow-execution'
 import { WorkflowTemplate } from '../entities/workflow-template'
 import { mockWorkflowTemplates } from './workflow-templates'
 
@@ -15,14 +24,14 @@ export const generateDemoWorkflows = (): Workflow[] => {
         name: `${template.name} v${i + 1}`,
         description: `${template.description} (Instance ${i + 1})`,
         version: i + 1,
-        status: ['RUNNING', 'COMPLETED', 'PAUSED', 'FAILED'][
+        status: ['ACTIVE', 'INACTIVE', 'DRAFT', 'DEPRECATED'][
           Math.floor(Math.random() * 4)
-        ] as any,
+        ] as WorkflowStatus,
         tasks: template.workflow.tasks.map(
           (task, taskIndex): WorkflowTask => ({
             name: task.name,
             taskReferenceName: `${task.name.toLowerCase().replace(/\s+/g, '_')}_${taskIndex}`,
-            type: task.type as any,
+            type: task.type as TaskType,
             description: task.description || '',
             optional: task.optional || false,
             inputParameters: task.defaultConfiguration || {},
@@ -53,6 +62,13 @@ export const generateDemoWorkflows = (): Workflow[] => {
         updatedAt: new Date(
           Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
         ).toISOString(),
+        executionCount: Math.floor(Math.random() * 100),
+        successRate: Math.floor(Math.random() * 100),
+        metadata: {
+          category: template.category,
+          tags: template.metadata?.tags || [],
+          author: template.metadata?.author || 'system'
+        },
         createdBy: ['admin', 'system', 'user@midaz.io'][
           Math.floor(Math.random() * 3)
         ],
@@ -73,14 +89,20 @@ export const generateDemoExecutions = (
   workflows: Workflow[]
 ): WorkflowExecution[] => {
   const executions: WorkflowExecution[] = []
-  const statuses = ['RUNNING', 'COMPLETED', 'FAILED', 'PAUSED', 'TERMINATED']
+  const statuses: ExecutionStatus[] = [
+    'RUNNING',
+    'COMPLETED',
+    'FAILED',
+    'PAUSED',
+    'TERMINATED'
+  ]
 
   // Generate 50-100 executions across all workflows
   const executionCount = 75 + Math.floor(Math.random() * 25)
 
   for (let i = 0; i < executionCount; i++) {
     const workflow = workflows[Math.floor(Math.random() * workflows.length)]
-    const status = statuses[Math.floor(Math.random() * statuses.length)] as any
+    const status = statuses[Math.floor(Math.random() * statuses.length)]
     const startTime = new Date(
       Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
     )
@@ -90,55 +112,42 @@ export const generateDemoExecutions = (
         : null
 
     const execution: WorkflowExecution = {
-      workflowId: `exec-${Date.now()}-${i}`,
+      workflowId: workflow.id,
       workflowName: workflow.name,
       workflowVersion: workflow.version,
+      executionId: `exec-${Date.now()}-${i}`,
       status,
+      startTime: startTime.getTime(),
+      endTime: endTime?.getTime() || undefined,
+      totalExecutionTime: endTime
+        ? endTime.getTime() - startTime.getTime()
+        : undefined,
       input: generateSampleInput(workflow),
-      output: endTime ? generateSampleOutput(workflow, status) : {},
-      startTime: startTime.toISOString(),
-      endTime: endTime?.toISOString() || null,
-      updateTime: new Date().toISOString(),
-      createdBy: ['system', 'scheduler', 'api', 'user@midaz.io'][
-        Math.floor(Math.random() * 4)
-      ],
+      output: endTime ? generateSampleOutput(workflow, status) : undefined,
       reasonForIncompletion:
         status === 'FAILED' ? generateFailureReason() : undefined,
-      variables: {},
       failedReferenceTaskNames:
         status === 'FAILED'
           ? [
               workflow.tasks[Math.floor(Math.random() * workflow.tasks.length)]
-                .name
+                .taskReferenceName
             ]
           : [],
-      workflowDefinition: workflow,
-      priority: Math.floor(Math.random() * 100),
       tasks: generateExecutionTasks(workflow, status),
+      createdBy: ['system', 'scheduler', 'api', 'user@midaz.io'][
+        Math.floor(Math.random() * 4)
+      ],
+      priority: Math.floor(Math.random() * 100),
       correlationId: `corr-${Date.now()}-${i}`,
-      reRunFromWorkflowId: null,
-      parentWorkflowId: null,
-      parentWorkflowTaskId: null,
-      event: null,
-      taskToDomain: {},
-      failedTaskNames:
-        status === 'FAILED'
-          ? [
-              workflow.tasks[Math.floor(Math.random() * workflow.tasks.length)]
-                .name
-            ]
-          : [],
-      workflowType: workflow.name,
-      createTime: startTime.getTime(),
-      ownerApp: 'midaz-console'
+      parentWorkflowId: undefined,
+      parentWorkflowTaskId: undefined,
+      variables: {}
     }
 
     executions.push(execution)
   }
 
-  return executions.sort(
-    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-  )
+  return executions.sort((a, b) => b.startTime - a.startTime)
 }
 
 const generateSampleInput = (workflow: Workflow): Record<string, any> => {
@@ -227,7 +236,7 @@ const generateFailureReason = (): string => {
 
 const generateExecutionTasks = (
   workflow: Workflow,
-  executionStatus: string
+  executionStatus: ExecutionStatus
 ): any[] => {
   return workflow.tasks.map((task, index) => {
     let taskStatus = 'COMPLETED'
@@ -309,7 +318,7 @@ export const getDemoWorkflowById = (id: string): Workflow | undefined => {
 export const getDemoExecutionById = (
   id: string
 ): WorkflowExecution | undefined => {
-  return demoExecutions.find((execution) => execution.workflowId === id)
+  return demoExecutions.find((execution) => execution.executionId === id)
 }
 
 export const getDemoExecutionsByWorkflow = (
@@ -321,7 +330,7 @@ export const getDemoExecutionsByWorkflow = (
 }
 
 export const getDemoExecutionsByStatus = (
-  status: string
+  status: ExecutionStatus
 ): WorkflowExecution[] => {
   return demoExecutions.filter((execution) => execution.status === status)
 }

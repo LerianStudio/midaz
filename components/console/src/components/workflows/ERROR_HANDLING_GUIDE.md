@@ -61,7 +61,6 @@ Combines loading states, error handling, and retry functionality:
 
 ```tsx
 import { ErrorHandlingWrapper } from '@/components/workflows/error-handling-wrapper'
-
 ;<ErrorHandlingWrapper
   isLoading={isLoading}
   error={error}

@@ -1,13 +1,19 @@
 import React from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  FileText, 
-  Plus, 
-  TrendingUp, 
-  Clock, 
+import {
+  FileText,
+  Plus,
+  TrendingUp,
+  Clock,
   Database,
   Download,
   AlertCircle,
@@ -19,7 +25,7 @@ export function SmartTemplatesDashboardWidget() {
   const stats = {
     totalTemplates: 12,
     activeTemplates: 9,
-    reportsGenerated: 1,547,
+    reportsGenerated: 1547,
     reportsThisMonth: 89,
     dataSources: 3,
     avgGenerationTime: '2.3s'
@@ -35,7 +41,7 @@ export function SmartTemplatesDashboardWidget() {
       status: 'active'
     },
     {
-      id: '2', 
+      id: '2',
       name: 'Transaction Receipt',
       category: 'receipts',
       lastUsed: '5 minutes ago',
@@ -85,7 +91,9 @@ export function SmartTemplatesDashboardWidget() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Templates</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Templates
+            </CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -98,11 +106,15 @@ export function SmartTemplatesDashboardWidget() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reports Generated</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Reports Generated
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.reportsGenerated.toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              {stats.reportsGenerated.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">
               +{stats.reportsThisMonth} this month
             </p>
@@ -116,15 +128,15 @@ export function SmartTemplatesDashboardWidget() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.dataSources}</div>
-            <p className="text-xs text-muted-foreground">
-              All connected
-            </p>
+            <p className="text-xs text-muted-foreground">All connected</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Generation Time</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Avg Generation Time
+            </CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -143,9 +155,7 @@ export function SmartTemplatesDashboardWidget() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Recent Templates</CardTitle>
-                <CardDescription>
-                  Most recently used templates
-                </CardDescription>
+                <CardDescription>Most recently used templates</CardDescription>
               </div>
               <Link href="/plugins/smart-templates/templates">
                 <Button size="sm">View All</Button>
@@ -155,11 +165,18 @@ export function SmartTemplatesDashboardWidget() {
           <CardContent>
             <div className="space-y-4">
               {recentTemplates.map((template) => (
-                <div key={template.id} className="flex items-center justify-between">
+                <div
+                  key={template.id}
+                  className="flex items-center justify-between"
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{template.name}</p>
-                      <Badge variant={template.status === 'active' ? 'default' : 'secondary'}>
+                      <Badge
+                        variant={
+                          template.status === 'active' ? 'default' : 'secondary'
+                        }
+                      >
                         {template.status}
                       </Badge>
                     </div>
@@ -181,9 +198,7 @@ export function SmartTemplatesDashboardWidget() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Recent Reports</CardTitle>
-                <CardDescription>
-                  Latest generated reports
-                </CardDescription>
+                <CardDescription>Latest generated reports</CardDescription>
               </div>
               <Link href="/plugins/smart-templates/reports">
                 <Button size="sm">View All</Button>
@@ -193,10 +208,15 @@ export function SmartTemplatesDashboardWidget() {
           <CardContent>
             <div className="space-y-4">
               {recentReports.map((report) => (
-                <div key={report.id} className="flex items-center justify-between">
+                <div
+                  key={report.id}
+                  className="flex items-center justify-between"
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{report.templateName}</p>
+                      <p className="text-sm font-medium">
+                        {report.templateName}
+                      </p>
                       {report.status === 'completed' ? (
                         <CheckCircle2 className="h-4 w-4 text-green-500" />
                       ) : (
@@ -209,7 +229,9 @@ export function SmartTemplatesDashboardWidget() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{report.format.toUpperCase()}</Badge>
+                    <Badge variant="outline">
+                      {report.format.toUpperCase()}
+                    </Badge>
                     {report.status === 'completed' && (
                       <Button size="sm" variant="ghost">
                         <Download className="h-4 w-4" />

@@ -399,7 +399,7 @@ export default function PackageDetailsPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the fee
-              package "{pkg.name}" and remove it from all associated
+              package &quot;{pkg.name}&quot; and remove it from all associated
               transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>

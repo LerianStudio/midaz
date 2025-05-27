@@ -1,6 +1,6 @@
 services:
   onboarding:
-    container_name: midaz-onboarding-dev
+    container_name: midaz-onboarding
     restart: unless-stopped
     build:
       context: ../../

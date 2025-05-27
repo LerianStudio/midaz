@@ -28,14 +28,32 @@ export class AliasMapper {
   }
 
   static toPaginatedEntity(
-    dto: AliasPaginatedResponseDto
+    dto: AliasPaginatedResponseDto | PaginationEntity<AliasDto>
   ): PaginationEntity<AliasEntity> {
-    return {
-      items: dto.data.map((alias) => AliasMapper.toEntity(alias)),
-      page: dto.pagination.page,
-      limit: dto.pagination.limit,
-      total: dto.pagination.total,
-      totalPages: dto.pagination.totalPages
+    // Handle both response formats
+    if ('data' in dto && 'pagination' in dto) {
+      // Expected format with data and pagination
+      return {
+        items: dto.data.map((alias) => AliasMapper.toEntity(alias)),
+        page: dto.pagination.page,
+        limit: dto.pagination.limit
+      }
+    } else if ('items' in dto) {
+      // Actual CRM service format (PaginationEntity<AliasDto>)
+      return {
+        items: (dto.items || []).map((alias: AliasDto) =>
+          AliasMapper.toEntity(alias)
+        ),
+        page: dto.page || 1,
+        limit: dto.limit || 10
+      }
+    } else {
+      // Fallback for unexpected format
+      return {
+        items: [],
+        page: 1,
+        limit: 10
+      }
     }
   }
 
@@ -45,7 +63,9 @@ export class AliasMapper {
       type: entity.type,
       ledgerId: entity.ledgerId,
       accountId: entity.accountId,
-      metadata: entity.metadata,
+      metadata: entity.metadata
+        ? (entity.metadata as Record<string, string>)
+        : undefined,
       bankAccount: entity.bankAccount
     }
   }
@@ -54,7 +74,9 @@ export class AliasMapper {
     return {
       name: entity.name,
       type: entity.type,
-      metadata: entity.metadata,
+      metadata: entity.metadata
+        ? (entity.metadata as Record<string, string>)
+        : undefined,
       bankAccount: entity.bankAccount
     }
   }

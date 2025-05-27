@@ -1,4 +1,4 @@
-import { v7 as uuidv7 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 import {
   FeePackage,
   CalculationType,
@@ -11,7 +11,7 @@ import {
 // Mock fee packages
 export const mockFeePackages: FeePackage[] = [
   {
-    id: uuidv7(),
+    id: uuidv4(),
     name: 'Standard Transaction Fees',
     ledgerId: 'main-ledger',
     active: true,
@@ -45,7 +45,7 @@ export const mockFeePackages: FeePackage[] = [
     updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
-    id: uuidv7(),
+    id: uuidv4(),
     name: 'Premium Merchant Fees',
     ledgerId: 'main-ledger',
     active: true,
@@ -87,7 +87,7 @@ export const mockFeePackages: FeePackage[] = [
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
-    id: uuidv7(),
+    id: uuidv4(),
     name: 'International Transfer Fees',
     ledgerId: 'main-ledger',
     active: true,
@@ -123,7 +123,7 @@ export const mockFeePackages: FeePackage[] = [
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
-    id: uuidv7(),
+    id: uuidv4(),
     name: 'Micro-transaction Fees',
     ledgerId: 'main-ledger',
     active: false,
@@ -197,7 +197,7 @@ export function generateMockCalculation(
   })
 
   return {
-    transactionId: uuidv7(),
+    transactionId: uuidv4(),
     ledgerId: 'main-ledger',
     packageId: selectedPackage.id,
     calculatedFees,

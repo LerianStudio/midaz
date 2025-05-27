@@ -86,7 +86,7 @@ export function WorkflowImportExport({
     yaml += `description: ${workflow.description || ''}\n`
     yaml += `version: ${workflow.version}\n`
     yaml += `status: ${workflow.status}\n`
-    yaml += `schemaVersion: ${workflow.schemaVersion}\n`
+    yaml += `schemaVersion: ${(workflow as any).schemaVersion || 2}\n`
     yaml += `tasks:\n`
 
     workflow.tasks.forEach((task) => {
@@ -113,10 +113,13 @@ export function WorkflowImportExport({
       tasks: workflow.tasks,
       inputParameters: workflow.inputParameters || [],
       outputParameters: workflow.outputParameters || [],
-      schemaVersion: workflow.schemaVersion,
+      schemaVersion: (workflow as any).schemaVersion || 2,
       restartable: true,
       workflowStatusListenerEnabled: false,
-      ownerEmail: workflow.metadata?.createdBy || 'admin@company.com',
+      ownerEmail:
+        workflow.metadata?.ownerEmail ||
+        workflow.createdBy ||
+        'admin@company.com',
       timeoutSeconds: 0,
       timeoutPolicy: 'TIME_OUT_WF',
       failureWorkflow: '',
@@ -151,17 +154,16 @@ export function WorkflowImportExport({
         tasks: parsed.tasks,
         inputParameters: parsed.inputParameters || [],
         outputParameters: parsed.outputParameters || [],
-        schemaVersion: parsed.schemaVersion || 2,
         metadata: parsed.metadata || {
-          createdBy: 'imported',
           tags: [],
           category: 'imported'
         },
+        createdBy: parsed.createdBy || 'imported',
         createdAt: parsed.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         executionCount: 0,
         successRate: 0,
-        avgExecutionTime: 'N/A'
+        avgExecutionTime: undefined
       }
 
       return workflow

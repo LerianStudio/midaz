@@ -4,6 +4,9 @@ import { authActionClient } from '../safe-action'
 import { handleActionError } from '../utils'
 import { z } from 'zod'
 import { getHolders, getAllAliases } from '@/app/actions/crm'
+import { HolderEntity } from '@/core/domain/entities/holder-entity'
+import { AliasEntity } from '@/core/domain/entities/alias-entity'
+import { Alias } from '@/components/crm/customers/customer-types'
 
 const GetAnalyticsDataInput = z.object({
   organizationId: z.string(),
@@ -73,19 +76,20 @@ async function fetchAnalyticsData(
       })
     ])
 
-    const holders = holdersResult.items || []
-    const aliases = aliasesResult.items || []
+    const holders = holdersResult.data?.holders || []
+    const aliases = (aliasesResult.data?.aliases || []) as Alias[]
 
-    const activeHolders = holders.filter((holder) => {
+    const activeHolders = holders.filter((holder: HolderEntity) => {
       const holderAliases = aliases.filter(
-        (alias) => alias.holderId === holder.id
+        (alias: Alias) => alias.holderId === holder.id
       )
       return holderAliases.length > 0
     }).length
 
     const holderTypeCounts = holders.reduce(
-      (acc, holder) => {
-        const type = holder.taxIdType === 'CPF' ? 'individual' : 'corporate'
+      (acc: Record<string, number>, holder: HolderEntity) => {
+        const type =
+          holder.type === 'NATURAL_PERSON' ? 'individual' : 'corporate'
         acc[type] = (acc[type] || 0) + 1
         return acc
       },
@@ -93,8 +97,8 @@ async function fetchAnalyticsData(
     )
 
     const aliasTypeCounts = aliases.reduce(
-      (acc, alias) => {
-        const type = alias.alias.type
+      (acc: Record<string, number>, alias: Alias) => {
+        const type = alias.bankingDetails?.type || 'unknown'
         acc[type] = (acc[type] || 0) + 1
         return acc
       },
@@ -102,16 +106,16 @@ async function fetchAnalyticsData(
     )
 
     const holderAliasCount = holders
-      .map((holder) => {
+      .map((holder: HolderEntity) => {
         const holderAliases = aliases.filter(
-          (alias) => alias.holderId === holder.id
+          (alias: Alias) => alias.holderId === holder.id
         )
         return {
           id: holder.id,
           name: holder.alias.value,
-          taxId: holder.taxId || '',
+          taxId: holder.document || '',
           aliasCount: holderAliases.length,
-          type: holder.taxIdType === 'CPF' ? 'individual' : 'corporate'
+          type: holder.type === 'NATURAL_PERSON' ? 'individual' : 'corporate'
         }
       })
       .sort((a, b) => b.aliasCount - a.aliasCount)

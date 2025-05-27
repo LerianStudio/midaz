@@ -274,7 +274,9 @@ export function ReconciliationMetricsDashboard({
         <div className="flex items-center gap-3">
           <Select
             value={selectedTimeRange}
-            onValueChange={setSelectedTimeRange}
+            onValueChange={(value) =>
+              setSelectedTimeRange(value as '1d' | '7d' | '30d' | '90d')
+            }
           >
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -376,8 +378,11 @@ export function ReconciliationMetricsDashboard({
                         >
                           <span>{point.date}</span>
                           <div className="flex items-center gap-2">
-                            <span>{formatPercentage(point.rate)}</span>
-                            <Progress value={point.rate} className="h-2 w-16" />
+                            <span>{formatPercentage(point.value)}</span>
+                            <Progress
+                              value={point.value}
+                              className="h-2 w-16"
+                            />
                           </div>
                         </div>
                       ))}
@@ -482,9 +487,11 @@ export function ReconciliationMetricsDashboard({
                         >
                           <span>{point.date}</span>
                           <div className="flex items-center gap-2">
-                            <span>{point.volume.toLocaleString()}</span>
+                            <span>
+                              {(point as any).volume?.toLocaleString() || 'N/A'}
+                            </span>
                             <Badge variant="outline" className="text-xs">
-                              {point.exceptions} exc
+                              {(point as any).exceptions || 0} exc
                             </Badge>
                           </div>
                         </div>

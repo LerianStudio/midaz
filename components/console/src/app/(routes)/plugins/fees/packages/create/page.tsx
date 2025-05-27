@@ -6,7 +6,7 @@ import { useIntl } from 'react-intl'
 import { PageHeader } from '@/components/page-header'
 import { PackageWizard } from '@/components/fees/packages/package-wizard'
 import { CreatePackageFormData } from '@/components/fees/types/fee-types'
-import { v7 as uuidv7 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 import { useToast } from '@/hooks/use-toast'
 import { Card } from '@/components/ui/card'
 

@@ -1,4 +1,8 @@
-import { Template, TemplateStatus } from '@/core/domain/entities/template'
+import {
+  Template,
+  TemplateStatus,
+  TemplateCategory
+} from '@/core/domain/entities/template'
 import {
   Report,
   ReportStatus,
@@ -16,9 +20,9 @@ export const mockTemplates: Template[] = [
     id: '01956b69-9102-75b7-8860-3e75c11d231c',
     name: 'Monthly Account Statement',
     description: 'Detailed monthly statement with transaction history',
-    category: 'financial_reports',
+    category: 'FINANCIAL' as TemplateCategory,
     tags: ['accounting', 'statements', 'monthly'],
-    status: 'active',
+    status: 'active' as TemplateStatus,
     fileUrl: 'templates/monthly-statement.tpl',
     mappedFields: {
       midaz_onboarding: {
@@ -43,15 +47,20 @@ export const mockTemplates: Template[] = [
     },
     createdAt: '2024-12-01T00:00:00Z',
     updatedAt: '2024-12-15T00:00:00Z',
-    createdBy: 'admin@company.com'
+    createdBy: 'admin@company.com',
+    format: 'PDF',
+    engine: 'pongo2',
+    version: '1.0',
+    dataSourceIds: ['midaz_onboarding', 'midaz_transaction'],
+    content: mockTemplateContent['monthly-statement']
   },
   {
     id: '01956b69-9102-75b7-8860-3e75c11d231d',
     name: 'Transaction Receipt',
     description: 'Standard transaction confirmation receipt',
-    category: 'receipts',
+    category: 'OPERATIONAL' as TemplateCategory,
     tags: ['transaction', 'receipt', 'confirmation'],
-    status: 'active',
+    status: 'active' as TemplateStatus,
     fileUrl: 'templates/transaction-receipt.tpl',
     mappedFields: {
       midaz_transaction: {
@@ -70,15 +79,20 @@ export const mockTemplates: Template[] = [
     },
     createdAt: '2024-11-15T00:00:00Z',
     updatedAt: '2024-12-20T00:00:00Z',
-    createdBy: 'template_admin@company.com'
+    createdBy: 'template_admin@company.com',
+    format: 'HTML',
+    engine: 'pongo2',
+    version: '2.1',
+    dataSourceIds: ['midaz_transaction'],
+    content: mockTemplateContent['transaction-receipt']
   },
   {
     id: '01956b69-9102-75b7-8860-3e75c11d231e',
     name: 'KYC Verification Report',
     description: 'Customer KYC verification status and documentation',
-    category: 'compliance',
+    category: 'COMPLIANCE' as TemplateCategory,
     tags: ['kyc', 'compliance', 'verification'],
-    status: 'draft',
+    status: 'draft' as TemplateStatus,
     fileUrl: 'templates/kyc-verification.tpl',
     mappedFields: {
       plugin_crm: {
@@ -98,15 +112,20 @@ export const mockTemplates: Template[] = [
     },
     createdAt: '2024-12-10T00:00:00Z',
     updatedAt: '2024-12-28T00:00:00Z',
-    createdBy: 'compliance@company.com'
+    createdBy: 'compliance@company.com',
+    format: 'PDF',
+    engine: 'pongo2',
+    version: '0.8',
+    dataSourceIds: ['plugin_crm'],
+    content: ''
   },
   {
     id: '01956b69-9102-75b7-8860-3e75c11d231f',
     name: 'Fee Calculation Summary',
     description: 'Summary of fees calculated for transactions',
-    category: 'financial_reports',
+    category: 'FINANCIAL' as TemplateCategory,
     tags: ['fees', 'billing', 'summary'],
-    status: 'active',
+    status: 'active' as TemplateStatus,
     fileUrl: 'templates/fee-summary.tpl',
     mappedFields: {
       plugin_fees: {
@@ -125,7 +144,12 @@ export const mockTemplates: Template[] = [
     },
     createdAt: '2024-11-20T00:00:00Z',
     updatedAt: '2024-12-18T00:00:00Z',
-    createdBy: 'finance@company.com'
+    createdBy: 'finance@company.com',
+    format: 'EXCEL',
+    engine: 'pongo2',
+    version: '1.2',
+    dataSourceIds: ['plugin_fees'],
+    content: ''
   }
 ]
 

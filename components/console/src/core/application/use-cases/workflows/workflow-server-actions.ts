@@ -2,6 +2,7 @@
 
 import { container } from '@/core/infrastructure/container-registry/container-registry'
 import { WorkflowUseCase } from './workflow-use-case'
+import { WORKFLOW_SYMBOLS } from '@/core/infrastructure/container-registry/use-cases/workflow-module'
 import {
   Workflow,
   CreateWorkflowRequest,
@@ -16,7 +17,9 @@ export async function createWorkflowAction(params: {
 }): Promise<{ success: boolean; data?: Workflow; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const workflow = await workflowUseCase.createWorkflow(
       organizationId,
       params.workflow
@@ -37,7 +40,9 @@ export async function fetchWorkflowByIdAction(params: {
 }): Promise<{ success: boolean; data?: Workflow; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const workflow = await workflowUseCase.fetchWorkflowById(
       organizationId,
       params.workflowId
@@ -58,7 +63,9 @@ export async function updateWorkflowAction(params: {
 }): Promise<{ success: boolean; data?: Workflow; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const workflow = await workflowUseCase.updateWorkflow(
       organizationId,
       params.workflowId,
@@ -80,7 +87,9 @@ export async function deleteWorkflowAction(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     await workflowUseCase.deleteWorkflow(organizationId, params.workflowId)
     return { success: true }
   } catch (error) {
@@ -102,7 +111,9 @@ export async function validateWorkflowAction(params: {
 }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const result = await workflowUseCase.validateWorkflow(
       organizationId,
       params.workflow
@@ -124,7 +135,9 @@ export async function duplicateWorkflowAction(params: {
 }): Promise<{ success: boolean; data?: Workflow; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const workflow = await workflowUseCase.duplicateWorkflow(
       organizationId,
       params.workflowId,
@@ -147,7 +160,9 @@ export async function updateWorkflowStatusAction(params: {
 }): Promise<{ success: boolean; data?: Workflow; error?: string }> {
   try {
     const organizationId = await getOrganizationId()
-    const workflowUseCase = container.get(WorkflowUseCase)
+    const workflowUseCase = container.get<WorkflowUseCase>(
+      WORKFLOW_SYMBOLS.WorkflowUseCase
+    )
     const workflow = await workflowUseCase.updateWorkflowStatus(
       organizationId,
       params.workflowId,

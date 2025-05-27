@@ -1,6 +1,6 @@
 services:
   transaction:
-    container_name: midaz-transaction-dev
+    container_name: midaz-transaction
     restart: unless-stopped
     build:
       context: ../../

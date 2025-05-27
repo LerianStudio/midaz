@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -225,7 +225,7 @@ export function ReportGenerationWizard() {
                         </Badge>
                         <Badge
                           className={
-                            selectedTemplate.status === 'ACTIVE'
+                            selectedTemplate.status === 'active'
                               ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200'
                               : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
                           }
@@ -249,7 +249,7 @@ export function ReportGenerationWizard() {
                 <h3 className="font-medium">Select a Template</h3>
                 <div className="grid gap-3">
                   {templates
-                    .filter((t) => t.status === 'ACTIVE')
+                    .filter((t) => t.status === 'active')
                     .map((template) => (
                       <Card
                         key={template.id}

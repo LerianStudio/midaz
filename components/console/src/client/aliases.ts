@@ -111,11 +111,29 @@ export const useDeleteAlias = (options?: UseDeleteAliasProps) => {
     { holderId: string; aliasId: string; isHardDelete?: boolean }
   >({
     mutationKey: ['delete-alias'],
-    mutationFn: ({ holderId, aliasId, isHardDelete }) => {
+    mutationFn: async ({ holderId, aliasId, isHardDelete }) => {
       const url = isHardDelete
         ? `/api/crm/holders/${holderId}/aliases/${aliasId}?hard=true`
         : `/api/crm/holders/${holderId}/aliases/${aliasId}`
-      return deleteFetcher(url)(aliasId)
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorMessage = await response.json()
+        throw new Error(errorMessage.message || 'Failed to delete alias')
+      }
+
+      // For DELETE requests, some APIs return 204 No Content
+      if (response.status === 204) {
+        return
+      }
+
+      return response.json()
     },
     ...options
   })

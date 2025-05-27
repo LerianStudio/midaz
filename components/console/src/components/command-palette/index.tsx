@@ -28,9 +28,7 @@ import {
   Star
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { useDebounce } from '@/hooks/use-debounce'
-
-interface CommandItem {
+interface CommandAction {
   id: string
   title: string
   description?: string
@@ -52,10 +50,19 @@ export function CommandPalette() {
     addRecentSearch
   } = useUIStore()
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 300)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [search])
 
   // Define all available commands
-  const commands: CommandItem[] = useMemo(
+  const commands: CommandAction[] = useMemo(
     () => [
       // Navigation
       {
@@ -177,13 +184,13 @@ export function CommandPalette() {
         acc[command.category].push(command)
         return acc
       },
-      {} as Record<string, CommandItem[]>
+      {} as Record<string, CommandAction[]>
     )
   }, [filteredCommands])
 
   // Handle command execution
   const executeCommand = useCallback(
-    (command: CommandItem) => {
+    (command: CommandAction) => {
       toggleCommandPalette()
       addRecentSearch(command.title)
       command.action()

@@ -16,7 +16,8 @@ export const DatabaseModule = new ContainerModule((container: Container) => {
       const pass = process.env.MONGODB_PASS ?? ''
       const dbName = process.env.MONGODB_DB_NAME ?? ''
 
-      await mongoConfig.connect({ uri: mongoURI, dbName, user, pass })
+      // Lazy connection - connect only when first used
+      mongoConfig.setConnectionParams({ uri: mongoURI, dbName, user, pass })
 
       return mongoConfig
     })

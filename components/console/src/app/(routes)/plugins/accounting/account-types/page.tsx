@@ -17,9 +17,9 @@ export default function AccountTypesPage() {
       <PageHeader.Root>
         <PageHeader.InfoTitle
           title="Account Types"
-          description="Manage chart of accounts with domain validation and business rules"
+          subtitle="Manage chart of accounts with domain validation and business rules"
         />
-        <PageHeader.InfoTooltip content="Account types define the structure of your chart of accounts. Each type has a unique key value and belongs to either the ledger domain (internal accounts) or external domain (external system accounts)." />
+        <PageHeader.InfoTooltip subtitle="Account types define the structure of your chart of accounts. Each type has a unique key value and belongs to either the ledger domain (internal accounts) or external domain (external system accounts)." />
         <div className="flex items-center gap-2">
           <Button asChild size="sm">
             <Link href="/plugins/accounting/account-types/create">

@@ -65,10 +65,10 @@ export default function CreateAccountTypePage() {
           </Button>
           <PageHeader.InfoTitle
             title="Create Account Type"
-            description="Define a new account type for your chart of accounts"
+            subtitle="Define a new account type for your chart of accounts"
           />
         </div>
-        <PageHeader.InfoTooltip content="Account types are the foundation of your chart of accounts. They define how accounts behave, which validation rules apply, and whether they're managed internally or externally." />
+        <PageHeader.InfoTooltip subtitle="Account types are the foundation of your chart of accounts. They define how accounts behave, which validation rules apply, and whether they're managed internally or externally." />
       </PageHeader.Root>
 
       <div className="flex-1 px-6 pb-6">

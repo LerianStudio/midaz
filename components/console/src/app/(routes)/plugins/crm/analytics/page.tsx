@@ -54,7 +54,7 @@ export default function CrmAnalyticsPage() {
     }
   }, [currentOrganization?.id, currentLedger?.id, fetchAnalytics])
 
-  const analyticsData = result.data?.data
+  const analyticsData = result.data
 
   const handleExport = () => {
     if (!analyticsData) return
@@ -74,27 +74,33 @@ export default function CrmAnalyticsPage() {
       ['Growth Rate', `${analyticsData.summary.growthRate}%`],
       [''],
       ['Holder Types'],
-      ...analyticsData.holderTypes.map((type) => [
-        type.type,
-        type.count,
-        `${type.percentage}%`
-      ]),
+      ...analyticsData.holderTypes.map(
+        (type: { type: string; count: number; percentage: number }) => [
+          type.type,
+          type.count,
+          `${type.percentage}%`
+        ]
+      ),
       [''],
       ['Alias Distribution'],
-      ...analyticsData.aliasDistribution.map((alias) => [
-        alias.type,
-        alias.count,
-        `${alias.percentage}%`
-      ]),
+      ...analyticsData.aliasDistribution.map(
+        (alias: { type: string; count: number; percentage: number }) => [
+          alias.type,
+          alias.count,
+          `${alias.percentage}%`
+        ]
+      ),
       [''],
       ['Top Holders by Alias Count'],
       ['Name', 'Tax ID', 'Type', 'Alias Count'],
-      ...analyticsData.topHolders.map((holder) => [
-        holder.name,
-        holder.taxId,
-        holder.type,
-        holder.aliasCount
-      ])
+      ...analyticsData.topHolders.map(
+        (holder: {
+          name: string
+          taxId: string
+          type: string
+          aliasCount: number
+        }) => [holder.name, holder.taxId, holder.type, holder.aliasCount]
+      )
     ]
       .map((row) => row.join(','))
       .join('\n')
@@ -287,34 +293,42 @@ export default function CrmAnalyticsPage() {
                     ))}
                   </div>
                 ) : (
-                  analyticsData?.topHolders.map((holder) => (
-                    <div
-                      key={holder.id}
-                      className="flex items-center justify-between rounded-lg border p-4"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          {holder.type === 'individual' ? (
-                            <User className="h-5 w-5 text-primary" />
-                          ) : (
-                            <Building2 className="h-5 w-5 text-primary" />
-                          )}
+                  analyticsData?.topHolders.map(
+                    (holder: {
+                      id: string
+                      name: string
+                      taxId: string
+                      type: 'individual' | 'corporate'
+                      aliasCount: number
+                    }) => (
+                      <div
+                        key={holder.id}
+                        className="flex items-center justify-between rounded-lg border p-4"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                            {holder.type === 'individual' ? (
+                              <User className="h-5 w-5 text-primary" />
+                            ) : (
+                              <Building2 className="h-5 w-5 text-primary" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">{holder.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {holder.taxId}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{holder.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {holder.taxId}
-                          </p>
+                        <div className="text-right">
+                          <Badge variant="secondary">
+                            {holder.aliasCount}{' '}
+                            {holder.aliasCount === 1 ? 'alias' : 'aliases'}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <Badge variant="secondary">
-                          {holder.aliasCount}{' '}
-                          {holder.aliasCount === 1 ? 'alias' : 'aliases'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  )
                 )}
               </div>
             </CardContent>
@@ -338,27 +352,33 @@ export default function CrmAnalyticsPage() {
                     ))}
                   </div>
                 ) : (
-                  analyticsData?.aliasDistribution.map((alias) => (
-                    <div key={alias.type} className="rounded-lg border p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium capitalize">
-                            {alias.type.replace('_', ' ')}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {alias.count.toLocaleString()} aliases
-                          </p>
+                  analyticsData?.aliasDistribution.map(
+                    (alias: {
+                      type: string
+                      count: number
+                      percentage: number
+                    }) => (
+                      <div key={alias.type} className="rounded-lg border p-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div>
+                            <p className="font-medium capitalize">
+                              {alias.type.replace('_', ' ')}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {alias.count.toLocaleString()} aliases
+                            </p>
+                          </div>
+                          <Badge variant="outline">{alias.percentage}%</Badge>
                         </div>
-                        <Badge variant="outline">{alias.percentage}%</Badge>
+                        <div className="h-2 w-full rounded-full bg-gray-200">
+                          <div
+                            className="h-2 rounded-full bg-primary transition-all"
+                            style={{ width: `${alias.percentage}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-gray-200">
-                        <div
-                          className="h-2 rounded-full bg-primary transition-all"
-                          style={{ width: `${alias.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))
+                    )
+                  )
                 )}
               </div>
             </CardContent>

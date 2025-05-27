@@ -102,7 +102,7 @@ export function TaskInspector({
     }
 
     if (dataFilter === 'all' || dataFilter === 'variables') {
-      data.variables = task.workflowVariables || {}
+      data.variables = (task as any).workflowVariables || {}
     }
 
     if (dataFilter === 'all' || dataFilter === 'errors') {
@@ -482,7 +482,7 @@ export function TaskInspector({
               Raw JSON
             </TabsTrigger>
             <TabsTrigger value="table">
-              <Table className="mr-2 h-4 w-4" />
+              <FileJson className="mr-2 h-4 w-4" />
               Table
             </TabsTrigger>
           </TabsList>

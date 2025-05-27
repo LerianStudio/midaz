@@ -28,6 +28,8 @@ export abstract class WorkflowRepository {
     workflowId: string
   ) => Promise<Workflow>
 
+  abstract findById: (workflowId: string) => Promise<Workflow>
+
   abstract update: (
     organizationId: string,
     workflowId: string,

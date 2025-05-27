@@ -644,7 +644,7 @@ export function RuleBuilder({
                             {condition.operator}
                           </span>
                           <span className="text-red-600">
-                            "{condition.value}"
+                            &quot;{condition.value}&quot;
                           </span>
                           {condition.tolerance && (
                             <span className="text-gray-600">

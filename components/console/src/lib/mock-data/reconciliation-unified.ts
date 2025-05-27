@@ -1131,7 +1131,7 @@ export const simulateProcessProgress = (
   }
 }
 
-export default {
+const reconciliationMockData = {
   mockExternalTransactions,
   mockInternalTransactions,
   mockReconciliationImports,
@@ -1152,3 +1152,5 @@ export default {
   getReconciliationChainById,
   simulateProcessProgress
 }
+
+export default reconciliationMockData

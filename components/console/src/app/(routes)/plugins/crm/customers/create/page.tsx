@@ -94,7 +94,7 @@ export default function CreateCustomerPage() {
   }
 
   const handleFormDataUpdate = useCallback((stepData: any) => {
-    setFormData((prevData) => ({ ...prevData, ...stepData }))
+    setFormData((prevData: any) => ({ ...prevData, ...stepData }))
   }, [])
 
   const handleSubmit = async () => {

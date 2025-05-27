@@ -90,7 +90,7 @@ export default function OperationRouteDetailsPage() {
         <div className="space-y-4 text-center">
           <h2 className="text-2xl font-semibold">Operation Route Not Found</h2>
           <p className="text-gray-600">
-            The operation route you're looking for doesn't exist.
+            The operation route you&apos;re looking for doesn&apos;t exist.
           </p>
           <Button asChild>
             <Link href="/plugins/accounting/operation-routes">
@@ -349,15 +349,6 @@ export default function OperationRouteDetailsPage() {
                     </div>
                     <div className="mt-1 text-sm leading-relaxed text-gray-700">
                       {operationRoute.amount.description}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">
-                      Scale
-                    </div>
-                    <div className="mt-1 text-sm text-gray-700">
-                      {operationRoute.amount.scale} decimal places
                     </div>
                   </div>
                 </CardContent>

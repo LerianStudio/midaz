@@ -1,19 +1,49 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, ArrowRight, User, FileText, AlertTriangle, Clock, MessageSquare, Upload, Search, Link, Calculator, X, Play, Pause } from 'lucide-react'
+import {
+  CheckCircle,
+  ArrowRight,
+  User,
+  FileText,
+  AlertTriangle,
+  Clock,
+  MessageSquare,
+  Upload,
+  Search,
+  Link,
+  Calculator,
+  X,
+  Play,
+  Pause
+} from 'lucide-react'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 
-import { ExceptionEntity, ExceptionStatus, ExceptionPriority } from '@/core/domain/entities/exception-entity'
+import {
+  ExceptionEntity,
+  ExceptionStatus
+} from '@/core/domain/entities/exception-entity'
 
 interface WorkflowStep {
   id: string
@@ -26,7 +56,13 @@ interface WorkflowStep {
 }
 
 interface ResolutionAction {
-  type: 'manual_match' | 'create_adjustment' | 'investigate' | 'escalate' | 'write_off' | 'mark_resolved'
+  type:
+    | 'manual_match'
+    | 'create_adjustment'
+    | 'investigate'
+    | 'escalate'
+    | 'write_off'
+    | 'mark_resolved'
   label: string
   description: string
   icon: React.ReactNode
@@ -41,11 +77,11 @@ interface ResolutionWorkflowProps {
   isExecuting?: boolean
 }
 
-export function ResolutionWorkflow({ 
-  exception, 
-  onActionExecute, 
+export function ResolutionWorkflow({
+  exception,
+  onActionExecute,
   onStatusUpdate,
-  isExecuting = false 
+  isExecuting = false
 }: ResolutionWorkflowProps) {
   const [activeStep, setActiveStep] = useState(0)
   const [selectedAction, setSelectedAction] = useState<string>('')
@@ -56,7 +92,8 @@ export function ResolutionWorkflow({
     {
       type: 'manual_match',
       label: 'Manual Match',
-      description: 'Link this transaction with an internal transaction manually',
+      description:
+        'Link this transaction with an internal transaction manually',
       icon: <Link className="h-4 w-4" />,
       estimatedTime: '5-10 min'
     },
@@ -149,11 +186,16 @@ export function ResolutionWorkflow({
 
   const getStepStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-500'
-      case 'active': return 'bg-blue-500'
-      case 'pending': return 'bg-gray-300'
-      case 'skipped': return 'bg-yellow-500'
-      default: return 'bg-gray-300'
+      case 'completed':
+        return 'bg-green-500'
+      case 'active':
+        return 'bg-blue-500'
+      case 'pending':
+        return 'bg-gray-300'
+      case 'skipped':
+        return 'bg-yellow-500'
+      default:
+        return 'bg-gray-300'
     }
   }
 
@@ -165,17 +207,19 @@ export function ResolutionWorkflow({
   const executeAction = () => {
     if (!selectedAction) return
 
-    const action = resolutionActions.find(a => a.type === selectedAction)
+    const action = resolutionActions.find((a) => a.type === selectedAction)
     if (!action) return
 
     // Simulate action execution
     onActionExecute?.(selectedAction, actionData)
-    
+
     // Update workflow progress
-    setWorkflowProgress(prev => Math.min(100, prev + 25))
-    
+    setWorkflowProgress((prev: number) => Math.min(100, prev + 25))
+
     // Move to next step
-    setActiveStep(prev => Math.min(workflowSteps.length - 1, prev + 1))
+    setActiveStep((prev: number) =>
+      Math.min(workflowSteps.length - 1, prev + 1)
+    )
   }
 
   const assignToMe = () => {
@@ -199,7 +243,8 @@ export function ResolutionWorkflow({
                 <div>
                   <div className="font-medium">Exception Unassigned</div>
                   <div className="text-sm text-yellow-700">
-                    This exception needs to be assigned before resolution can begin
+                    This exception needs to be assigned before resolution can
+                    begin
                   </div>
                 </div>
               </div>
@@ -235,27 +280,37 @@ export function ResolutionWorkflow({
           <div className="space-y-4">
             {workflowSteps.map((step, index) => (
               <div key={step.id} className="flex items-start gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getStepStatusColor(step.status)}`}>
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full ${getStepStatusColor(step.status)}`}
+                >
                   {step.status === 'completed' ? (
                     <CheckCircle className="h-4 w-4 text-white" />
                   ) : (
                     <div className="text-white">{step.icon}</div>
                   )}
                 </div>
-                
+
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="mb-1 flex items-center gap-2">
                     <h4 className="font-medium">{step.title}</h4>
-                    {step.required && <Badge variant="outline" className="text-xs">Required</Badge>}
+                    {step.required && (
+                      <Badge variant="outline" className="text-xs">
+                        Required
+                      </Badge>
+                    )}
                     {step.estimatedTime && (
-                      <Badge variant="secondary" className="text-xs">{step.estimatedTime}</Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {step.estimatedTime}
+                      </Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">{step.description}</p>
-                  
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    {step.description}
+                  </p>
+
                   {step.status === 'active' && (
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       onClick={() => markStepComplete(index)}
                       className="gap-2"
                     >
@@ -287,22 +342,22 @@ export function ResolutionWorkflow({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {resolutionActions.map((action) => (
                   <div
                     key={action.type}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedAction === action.type 
-                        ? 'border-blue-500 bg-blue-50' 
+                    className={`cursor-pointer rounded-lg border p-4 transition-colors ${
+                      selectedAction === action.type
+                        ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                     onClick={() => handleActionSelect(action.type)}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="text-blue-500 mt-1">{action.icon}</div>
+                      <div className="mt-1 text-blue-500">{action.icon}</div>
                       <div className="flex-1">
-                        <div className="font-medium mb-1">{action.label}</div>
-                        <p className="text-sm text-muted-foreground mb-2">
+                        <div className="mb-1 font-medium">{action.label}</div>
+                        <p className="mb-2 text-sm text-muted-foreground">
                           {action.description}
                         </p>
                         <div className="flex gap-2">
@@ -326,39 +381,57 @@ export function ResolutionWorkflow({
               {selectedAction && (
                 <Card className="border-blue-200 bg-blue-50">
                   <CardContent className="p-4">
-                    <h4 className="font-medium mb-3">
-                      Configure: {resolutionActions.find(a => a.type === selectedAction)?.label}
+                    <h4 className="mb-3 font-medium">
+                      Configure:{' '}
+                      {
+                        resolutionActions.find((a) => a.type === selectedAction)
+                          ?.label
+                      }
                     </h4>
-                    
+
                     {selectedAction === 'manual_match' && (
                       <div className="space-y-3">
                         <div>
-                          <label className="text-sm font-medium">Internal Transaction ID</label>
-                          <Input 
+                          <label className="text-sm font-medium">
+                            Internal Transaction ID
+                          </label>
+                          <Input
                             placeholder="Enter transaction ID to match"
                             value={actionData.internalTransactionId || ''}
-                            onChange={(e) => setActionData(prev => ({
-                              ...prev,
-                              internalTransactionId: e.target.value
-                            }))}
+                            onChange={(e) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                internalTransactionId: e.target.value
+                              }))
+                            }
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">Match Confidence</label>
-                          <Select 
+                          <label className="text-sm font-medium">
+                            Match Confidence
+                          </label>
+                          <Select
                             value={actionData.confidence || ''}
-                            onValueChange={(value) => setActionData(prev => ({
-                              ...prev,
-                              confidence: value
-                            }))}
+                            onValueChange={(value) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                confidence: value
+                              }))
+                            }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select confidence level" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="high">High Confidence (90%+)</SelectItem>
-                              <SelectItem value="medium">Medium Confidence (70-89%)</SelectItem>
-                              <SelectItem value="low">Low Confidence (<70%)</SelectItem>
+                              <SelectItem value="high">
+                                High Confidence (90%+)
+                              </SelectItem>
+                              <SelectItem value="medium">
+                                Medium Confidence (70-89%)
+                              </SelectItem>
+                              <SelectItem value="low">
+                                Low Confidence (&lt;70%)
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -368,34 +441,50 @@ export function ResolutionWorkflow({
                     {selectedAction === 'create_adjustment' && (
                       <div className="space-y-3">
                         <div>
-                          <label className="text-sm font-medium">Adjustment Amount</label>
-                          <Input 
+                          <label className="text-sm font-medium">
+                            Adjustment Amount
+                          </label>
+                          <Input
                             type="number"
                             placeholder="0.00"
                             value={actionData.amount || ''}
-                            onChange={(e) => setActionData(prev => ({
-                              ...prev,
-                              amount: e.target.value
-                            }))}
+                            onChange={(e) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                amount: e.target.value
+                              }))
+                            }
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">Adjustment Type</label>
-                          <Select 
+                          <label className="text-sm font-medium">
+                            Adjustment Type
+                          </label>
+                          <Select
                             value={actionData.adjustmentType || ''}
-                            onValueChange={(value) => setActionData(prev => ({
-                              ...prev,
-                              adjustmentType: value
-                            }))}
+                            onValueChange={(value) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                adjustmentType: value
+                              }))
+                            }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select adjustment type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="timing_difference">Timing Difference</SelectItem>
-                              <SelectItem value="amount_variance">Amount Variance</SelectItem>
-                              <SelectItem value="fee_adjustment">Fee Adjustment</SelectItem>
-                              <SelectItem value="correction">Correction</SelectItem>
+                              <SelectItem value="timing_difference">
+                                Timing Difference
+                              </SelectItem>
+                              <SelectItem value="amount_variance">
+                                Amount Variance
+                              </SelectItem>
+                              <SelectItem value="fee_adjustment">
+                                Fee Adjustment
+                              </SelectItem>
+                              <SelectItem value="correction">
+                                Correction
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -405,46 +494,62 @@ export function ResolutionWorkflow({
                     {selectedAction === 'investigate' && (
                       <div className="space-y-3">
                         <div>
-                          <label className="text-sm font-medium">Investigation Notes</label>
-                          <Textarea 
+                          <label className="text-sm font-medium">
+                            Investigation Notes
+                          </label>
+                          <Textarea
                             placeholder="Document your investigation findings..."
                             value={actionData.notes || ''}
-                            onChange={(e) => setActionData(prev => ({
-                              ...prev,
-                              notes: e.target.value
-                            }))}
+                            onChange={(e) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                notes: e.target.value
+                              }))
+                            }
                             className="min-h-[100px]"
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">Next Steps</label>
-                          <Select 
+                          <label className="text-sm font-medium">
+                            Next Steps
+                          </label>
+                          <Select
                             value={actionData.nextSteps || ''}
-                            onValueChange={(value) => setActionData(prev => ({
-                              ...prev,
-                              nextSteps: value
-                            }))}
+                            onValueChange={(value) =>
+                              setActionData((prev: any) => ({
+                                ...prev,
+                                nextSteps: value
+                              }))
+                            }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select next steps" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="continue_investigation">Continue Investigation</SelectItem>
-                              <SelectItem value="escalate">Escalate to Manager</SelectItem>
-                              <SelectItem value="external_inquiry">External System Inquiry</SelectItem>
-                              <SelectItem value="customer_contact">Contact Customer</SelectItem>
+                              <SelectItem value="continue_investigation">
+                                Continue Investigation
+                              </SelectItem>
+                              <SelectItem value="escalate">
+                                Escalate to Manager
+                              </SelectItem>
+                              <SelectItem value="external_inquiry">
+                                External System Inquiry
+                              </SelectItem>
+                              <SelectItem value="customer_contact">
+                                Contact Customer
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                     )}
 
-                    <div className="mt-4 pt-3 border-t">
-                      <div className="flex justify-between items-center">
+                    <div className="mt-4 border-t pt-3">
+                      <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">
                           Ready to execute this action?
                         </div>
-                        <Button 
+                        <Button
                           onClick={executeAction}
                           disabled={isExecuting}
                           className="gap-2"
@@ -474,11 +579,12 @@ export function ResolutionWorkflow({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Upload Evidence</h3>
-                <p className="text-muted-foreground mb-4">
-                  Drag and drop files or click to browse for supporting documents
+              <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+                <Upload className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-medium">Upload Evidence</h3>
+                <p className="mb-4 text-muted-foreground">
+                  Drag and drop files or click to browse for supporting
+                  documents
                 </p>
                 <Button variant="outline" className="gap-2">
                   <Upload className="h-4 w-4" />
@@ -489,12 +595,24 @@ export function ResolutionWorkflow({
               <div className="space-y-3">
                 <h4 className="font-medium">Suggested Evidence Types</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <Badge variant="outline" className="justify-center p-2">Bank Statements</Badge>
-                  <Badge variant="outline" className="justify-center p-2">Transaction Records</Badge>
-                  <Badge variant="outline" className="justify-center p-2">Email Communications</Badge>
-                  <Badge variant="outline" className="justify-center p-2">System Screenshots</Badge>
-                  <Badge variant="outline" className="justify-center p-2">Calculation Worksheets</Badge>
-                  <Badge variant="outline" className="justify-center p-2">External Confirmations</Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    Bank Statements
+                  </Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    Transaction Records
+                  </Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    Email Communications
+                  </Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    System Screenshots
+                  </Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    Calculation Worksheets
+                  </Badge>
+                  <Badge variant="outline" className="justify-center p-2">
+                    External Confirmations
+                  </Badge>
                 </div>
               </div>
             </CardContent>
@@ -506,40 +624,46 @@ export function ResolutionWorkflow({
             <CardHeader>
               <CardTitle>Approval Workflow</CardTitle>
               <CardDescription>
-                Track approval status for actions requiring management authorization
+                Track approval status for actions requiring management
+                authorization
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                  <div className="mb-2 flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-yellow-600" />
                     <span className="font-medium">Approval Required</span>
                   </div>
                   <p className="text-sm text-yellow-700">
-                    This exception requires management approval due to the transaction amount exceeding $10,000.
+                    This exception requires management approval due to the
+                    transaction amount exceeding $10,000.
                   </p>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <div className="flex items-center gap-3 rounded-lg border p-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500">
                       <User className="h-4 w-4 text-white" />
                     </div>
                     <div className="flex-1">
                       <div className="font-medium">Level 1 Approval</div>
-                      <div className="text-sm text-muted-foreground">Senior Analyst Review</div>
+                      <div className="text-sm text-muted-foreground">
+                        Senior Analyst Review
+                      </div>
                     </div>
                     <Badge className="bg-green-500">Pending</Badge>
                   </div>
 
-                  <div className="flex items-center gap-3 p-3 border rounded-lg opacity-60">
-                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                  <div className="flex items-center gap-3 rounded-lg border p-3 opacity-60">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300">
                       <User className="h-4 w-4 text-white" />
                     </div>
                     <div className="flex-1">
                       <div className="font-medium">Level 2 Approval</div>
-                      <div className="text-sm text-muted-foreground">Manager Review</div>
+                      <div className="text-sm text-muted-foreground">
+                        Manager Review
+                      </div>
                     </div>
                     <Badge variant="outline">Waiting</Badge>
                   </div>
@@ -548,9 +672,9 @@ export function ResolutionWorkflow({
                 <Separator />
 
                 <div>
-                  <h4 className="font-medium mb-2">Request Approval</h4>
+                  <h4 className="mb-2 font-medium">Request Approval</h4>
                   <div className="space-y-3">
-                    <Textarea 
+                    <Textarea
                       placeholder="Add a message for the approver..."
                       className="min-h-[80px]"
                     />

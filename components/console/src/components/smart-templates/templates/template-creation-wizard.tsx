@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +35,11 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { TemplateFileUpload } from './template-file-upload'
+import type {
+  TemplateCategory,
+  TemplateFormat,
+  CreateTemplateInput
+} from '@/core/domain/entities/template'
 
 interface WizardStep {
   id: string
@@ -77,12 +82,21 @@ const categories: TemplateCategory[] = [
   'MARKETING',
   'CUSTOM'
 ]
-const formats: TemplateFormat[] = ['PDF', 'HTML', 'EXCEL', 'WORD', 'CSV']
+const formats = ['PDF', 'HTML', 'EXCEL', 'WORD', 'CSV'] as const
+type TemplateFormat = (typeof formats)[number]
+
+interface ExtendedTemplateInput extends Partial<CreateTemplateInput> {
+  format?: TemplateFormat
+  engine?: string
+  dataSourceIds?: string[]
+  variables?: string[]
+  metadata?: Record<string, any>
+}
 
 export function TemplateCreationWizard() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
-  const [formData, setFormData] = useState<Partial<CreateTemplateInput>>({
+  const [formData, setFormData] = useState<ExtendedTemplateInput>({
     name: '',
     description: '',
     category: undefined,
@@ -95,7 +109,7 @@ export function TemplateCreationWizard() {
 
   const progress = ((currentStep + 1) / steps.length) * 100
 
-  const updateFormData = (updates: Partial<CreateTemplateInput>) => {
+  const updateFormData = (updates: Partial<typeof formData>) => {
     setFormData((prev) => ({ ...prev, ...updates }))
   }
 
@@ -256,7 +270,7 @@ export function TemplateCreationWizard() {
                       updateFormData({
                         metadata: {
                           ...formData.metadata,
-                          autoGeneration: checked
+                          autoGeneration: checked as boolean
                         }
                       })
                     }
@@ -274,7 +288,7 @@ export function TemplateCreationWizard() {
                       updateFormData({
                         metadata: {
                           ...formData.metadata,
-                          versionControl: checked
+                          versionControl: checked as boolean
                         }
                       })
                     }

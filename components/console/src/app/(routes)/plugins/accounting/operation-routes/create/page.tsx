@@ -32,10 +32,8 @@ export default function CreateOperationRoutePage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <PageHeader.InfoTitle>Create Operation Route</PageHeader.InfoTitle>
-            <PageHeader.InfoTooltip>
-              Create a new operation route mapping between account types.
-            </PageHeader.InfoTooltip>
+            <PageHeader.InfoTitle title="Create Operation Route" />
+            <PageHeader.InfoTooltip subtitle="Create a new operation route mapping between account types." />
           </div>
         </div>
       </PageHeader.Root>

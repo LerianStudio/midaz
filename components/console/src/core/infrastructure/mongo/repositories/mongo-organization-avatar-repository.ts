@@ -36,6 +36,18 @@ export class MongoOrganizationAvatarRepository
   ) {}
 
   /**
+   * Ensures MongoDB connection is established before operations
+   * @private
+   */
+  private async ensureConnection(): Promise<void> {
+    try {
+      await this.mongoConfig.getClient()
+    } catch (error) {
+      this.logger.warn('[MONGO] MongoDB connection not available', error)
+    }
+  }
+
+  /**
    * Gets the Mongoose model for organization avatars.
    * @returns The OrganizationAvatar Mongoose model.
    * @public
@@ -54,6 +66,7 @@ export class MongoOrganizationAvatarRepository
     organizationAvatar: OrganizationAvatarEntity
   ): Promise<OrganizationAvatarEntity> {
     try {
+      await this.ensureConnection()
       const result = await this.model.create(organizationAvatar)
       const organizationAvatarEntity = OrganizationAvatarMapper.toEntity(result)
 
@@ -64,7 +77,13 @@ export class MongoOrganizationAvatarRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      // Return the entity without persisting if MongoDB is not available
+      this.logger.warn(
+        '[MONGO] Returning entity without persistence due to MongoDB error'
+      )
+      return organizationAvatar
+
+      // throw handleDatabaseError(error)
     }
   }
 

@@ -106,12 +106,18 @@ interface SearchHistory {
   timestamp: Date
 }
 
+interface FuseResult {
+  item: any
+  score?: number
+  matches?: any[]
+}
+
 const DEFAULT_PRESETS: SearchPreset[] = [
   {
     id: 'active-workflows',
     name: 'Active Workflows',
     query: '',
-    filters: { status: ['ACTIVE'] },
+    filters: { status: ['ACTIVE' as WorkflowStatus] },
     icon: <CheckCircle className="h-4 w-4" />
   },
   {
@@ -132,7 +138,7 @@ const DEFAULT_PRESETS: SearchPreset[] = [
     id: 'draft-workflows',
     name: 'Drafts',
     query: '',
-    filters: { status: ['DRAFT'] },
+    filters: { status: ['DRAFT' as WorkflowStatus] },
     icon: <FileText className="h-4 w-4" />
   }
 ]
@@ -162,7 +168,15 @@ export function WorkflowAdvancedSearch({
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([])
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debouncedQuery = useDebounce(query, 300)
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
+
+  useDebounce(
+    () => {
+      setDebouncedQuery(query)
+    },
+    300,
+    [query]
+  )
 
   // Load saved presets and history from localStorage
   useEffect(() => {
@@ -178,14 +192,16 @@ export function WorkflowAdvancedSearch({
   }, [])
 
   // Parse advanced query syntax
-  const parseQuery = (searchQuery: string): { query: string; filters: SearchFilters } => {
+  const parseQuery = (
+    searchQuery: string
+  ): { query: string; filters: SearchFilters } => {
     const parsedFilters: SearchFilters = {}
     let cleanQuery = searchQuery
 
     // Extract tag filters
     const tagMatches = searchQuery.match(/tag:(\S+)/g)
     if (tagMatches) {
-      parsedFilters.tags = tagMatches.map(m => m.replace('tag:', ''))
+      parsedFilters.tags = tagMatches.map((m) => m.replace('tag:', ''))
       cleanQuery = cleanQuery.replace(/tag:\S+/g, '')
     }
 
@@ -232,7 +248,7 @@ export function WorkflowAdvancedSearch({
 
   // Fuzzy search setup
   const fuse = useMemo(() => {
-    return new Fuse(workflows, {
+    return new (Fuse as any)(workflows, {
       keys: [
         { name: 'name', weight: 2 },
         { name: 'description', weight: 1 },
@@ -251,12 +267,12 @@ export function WorkflowAdvancedSearch({
     if (!debouncedQuery || debouncedQuery.length < 2) return []
 
     const parsed = parseQuery(debouncedQuery)
-    const results = fuse.search(parsed.query).slice(0, 5)
+    const results = (fuse.search(parsed.query) as FuseResult[]).slice(0, 5)
 
-    return results.map(result => ({
+    return results.map((result: FuseResult) => ({
       workflow: result.item,
-      score: result.score,
-      matches: result.matches
+      score: result.score || 0,
+      matches: result.matches || []
     }))
   }, [debouncedQuery, fuse])
 
@@ -266,8 +282,8 @@ export function WorkflowAdvancedSearch({
     const categories = new Set<string>()
     const authors = new Set<string>()
 
-    workflows.forEach(w => {
-      w.metadata.tags.forEach(t => tags.add(t))
+    workflows.forEach((w) => {
+      w.metadata.tags.forEach((t) => tags.add(t))
       if (w.metadata.category) categories.add(w.metadata.category)
       const author = w.metadata.author || w.createdBy
       if (author) authors.add(author)
@@ -284,7 +300,7 @@ export function WorkflowAdvancedSearch({
   const executeSearch = () => {
     const parsed = parseQuery(query)
     const combinedFilters = { ...filters, ...parsed.filters }
-    
+
     onSearch(parsed.query, combinedFilters)
 
     // Add to search history
@@ -343,7 +359,7 @@ export function WorkflowAdvancedSearch({
 
   // Delete preset
   const deletePreset = (presetId: string) => {
-    const newPresets = savedPresets.filter(p => p.id !== presetId)
+    const newPresets = savedPresets.filter((p) => p.id !== presetId)
     setSavedPresets(newPresets)
     localStorage.setItem('workflow-search-presets', JSON.stringify(newPresets))
 
@@ -370,12 +386,12 @@ export function WorkflowAdvancedSearch({
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setHighlightedIndex(prev => 
+        setHighlightedIndex((prev) =>
           prev < suggestions.length - 1 ? prev + 1 : prev
         )
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1)
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1))
       } else if (e.key === 'Enter' && highlightedIndex >= 0) {
         e.preventDefault()
         const suggestion = suggestions[highlightedIndex]
@@ -394,7 +410,7 @@ export function WorkflowAdvancedSearch({
   const highlightMatch = (text: string, matches?: any[]) => {
     if (!matches) return text
 
-    const relevantMatch = matches.find(m => m.value === text)
+    const relevantMatch = matches.find((m) => m.value === text)
     if (!relevantMatch) return text
 
     const { indices } = relevantMatch
@@ -416,9 +432,7 @@ export function WorkflowAdvancedSearch({
     })
 
     if (lastIndex < text.length) {
-      parts.push(
-        <span key="normal-last">{text.slice(lastIndex)}</span>
-      )
+      parts.push(<span key="normal-last">{text.slice(lastIndex)}</span>)
     }
 
     return <>{parts}</>
@@ -471,7 +485,7 @@ export function WorkflowAdvancedSearch({
           <DropdownMenuContent className="w-56">
             <DropdownMenuLabel>Search Presets</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {DEFAULT_PRESETS.map(preset => (
+            {DEFAULT_PRESETS.map((preset) => (
               <DropdownMenuItem
                 key={preset.id}
                 onClick={() => applyPreset(preset)}
@@ -484,7 +498,7 @@ export function WorkflowAdvancedSearch({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Saved Searches</DropdownMenuLabel>
-                {savedPresets.map(preset => (
+                {savedPresets.map((preset) => (
                   <DropdownMenuItem
                     key={preset.id}
                     onClick={() => applyPreset(preset)}
@@ -515,11 +529,7 @@ export function WorkflowAdvancedSearch({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setShowHelp(true)}
-        >
+        <Button variant="outline" size="icon" onClick={() => setShowHelp(true)}>
           <Info className="h-4 w-4" />
         </Button>
       </div>
@@ -534,7 +544,7 @@ export function WorkflowAdvancedSearch({
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Search Results
                   </p>
-                  {suggestions.map((suggestion, index) => (
+                  {suggestions.map((suggestion: any, index: number) => (
                     <div
                       key={suggestion.workflow.id}
                       className={cn(
@@ -558,10 +568,7 @@ export function WorkflowAdvancedSearch({
                         </div>
                       )}
                       <div className="mt-1 flex items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          className="text-xs"
-                        >
+                        <Badge variant="secondary" className="text-xs">
                           {suggestion.workflow.status}
                         </Badge>
                         {suggestion.workflow.metadata.category && (
@@ -617,7 +624,7 @@ export function WorkflowAdvancedSearch({
                 Quick Filters
               </p>
               <div className="flex flex-wrap gap-1">
-                {uniqueValues.tags.slice(0, 5).map(tag => (
+                {uniqueValues.tags.slice(0, 5).map((tag) => (
                   <Badge
                     key={tag}
                     variant="outline"
@@ -720,17 +727,18 @@ export function WorkflowAdvancedSearch({
                     <code className="rounded bg-muted px-1.5 py-0.5">
                       payment status:active
                     </code>{' '}
-                    - Find active workflows with "payment" in the name
+                    - Find active workflows with &quot;payment&quot; in the name
                   </p>
                   <p>
                     <code className="rounded bg-muted px-1.5 py-0.5">
                       tag:onboarding author:john
                     </code>{' '}
-                    - Find workflows tagged "onboarding" by author "john"
+                    - Find workflows tagged &quot;onboarding&quot; by author
+                    &quot;john&quot;
                   </p>
                   <p>
                     <code className="rounded bg-muted px-1.5 py-0.5">
-                      runs:>100 category:compliance
+                      runs:&gt;100 category:compliance
                     </code>{' '}
                     - Find compliance workflows with over 100 executions
                   </p>

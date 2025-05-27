@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { Form } from '@/components/ui/form'
 import { InputField, SelectField } from '@/components/form'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import {
   FormControl,
   FormField,
@@ -403,12 +404,13 @@ function BasicInfoStep({ form }: { form: UseFormReturn<WorkflowFormData> }) {
         )}
       />
 
-      <MetadataField
-        control={form.control}
-        name="metadata"
-        label="Additional Metadata"
-        description="Add custom key-value pairs"
-      />
+      <div>
+        <FormLabel>Additional Metadata</FormLabel>
+        <p className="mb-2 text-sm text-muted-foreground">
+          Add custom key-value pairs
+        </p>
+        <MetadataField control={form.control} name="metadata" />
+      </div>
     </div>
   )
 }
@@ -768,6 +770,3 @@ function ReviewStep({
     </div>
   )
 }
-
-// Add missing import
-import { Input } from '@/components/ui/input'

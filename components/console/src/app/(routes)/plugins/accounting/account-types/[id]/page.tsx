@@ -88,7 +88,7 @@ export default function AccountTypeDetailsPage() {
         <div className="space-y-4 text-center">
           <h2 className="text-2xl font-semibold">Account Type Not Found</h2>
           <p className="text-gray-600">
-            The account type you're looking for doesn't exist.
+            The account type you&apos;re looking for doesn&apos;t exist.
           </p>
           <Button asChild>
             <Link href="/plugins/accounting/account-types">

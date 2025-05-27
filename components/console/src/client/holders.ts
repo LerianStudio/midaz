@@ -92,11 +92,29 @@ export const useDeleteHolder = (options?: UseDeleteHolderProps) => {
   return useMutation<void, Error, { holderId: string; isHardDelete?: boolean }>(
     {
       mutationKey: ['delete-holder'],
-      mutationFn: ({ holderId, isHardDelete }) => {
+      mutationFn: async ({ holderId, isHardDelete }) => {
         const url = isHardDelete
           ? `/api/crm/holders/${holderId}?hard=true`
           : `/api/crm/holders/${holderId}`
-        return deleteFetcher(url)(holderId)
+
+        const response = await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!response.ok) {
+          const errorMessage = await response.json()
+          throw new Error(errorMessage.message || 'Failed to delete holder')
+        }
+
+        // For DELETE requests, some APIs return 204 No Content
+        if (response.status === 204) {
+          return
+        }
+
+        return response.json()
       },
       ...options
     }

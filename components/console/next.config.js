@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 
+const crypto = require('crypto')
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true'
 })
@@ -8,6 +9,15 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  // Enable strict checks
+  eslint: {
+    ignoreDuringBuilds: false
+  },
+
+  typescript: {
+    ignoreBuildErrors: false
+  },
+
   // Performance optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production'
@@ -15,7 +25,7 @@ const nextConfig = {
 
   // Enable experimental features for better performance
   experimental: {
-    optimizeCss: true,
+    // optimizeCss: true, // Disabled due to webpack conflict with cacheUnaffected
     scrollRestoration: true
   },
 
@@ -55,7 +65,7 @@ const nextConfig = {
   // Webpack configuration for optimizations
   webpack: (config, { isServer }) => {
     // Enable tree shaking
-    config.optimization.usedExports = true
+    // config.optimization.usedExports = true // Disabled due to conflict with Next.js cacheUnaffected
 
     // Split chunks for better caching
     if (!isServer) {

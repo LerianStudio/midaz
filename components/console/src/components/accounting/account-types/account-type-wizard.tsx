@@ -221,8 +221,8 @@ export function AccountTypeWizard({
                       Creating this account type will:
                       <ul className="mt-1 list-inside list-disc space-y-1">
                         <li>
-                          Add "{formData.keyValue}" to the available account
-                          types in transaction routes
+                          Add &quot;{formData.keyValue}&quot; to the available
+                          account types in transaction routes
                         </li>
                         <li>
                           Enable account creation with this type in the{' '}

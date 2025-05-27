@@ -10,15 +10,53 @@ import { useUIStore } from '@/store'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
+import type { TransactionEntity } from '@/core/domain/entities/transaction-entity'
+import type { StatusEntity } from '@/core/domain/entities/status-entity'
+import type { AccountEntity } from '@/core/domain/entities/account-entity'
 
-interface Transaction {
+// Define transaction status types
+export type TransactionStatus =
+  | 'pending'
+  | 'completed'
+  | 'failed'
+  | 'processing'
+  | 'cancelled'
+
+// Define transaction type
+export type TransactionType =
+  | 'debit'
+  | 'credit'
+  | 'transfer'
+  | 'payment'
+  | 'receipt'
+
+// Define money type
+export interface Money {
+  value: number
+  scale: number
+  currency: string
+}
+
+// Define account type for transaction display
+export interface Account {
+  id: string
+  name: string
+  alias?: string
+  type: string
+}
+
+// Define simplified transaction interface for UI
+export interface Transaction {
   id: string
   code: string
   description: string
-  amount: number
-  currency: string
-  status: 'pending' | 'completed' | 'failed'
+  amount: Money
+  type: TransactionType
+  status: TransactionStatus
+  sourceAccount?: Account
+  destinationAccount?: Account
   createdAt: string
+  updatedAt?: string
   metadata?: Record<string, any>
 }
 

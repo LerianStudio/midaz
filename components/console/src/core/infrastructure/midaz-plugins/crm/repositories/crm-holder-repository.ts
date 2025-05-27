@@ -62,9 +62,9 @@ export class CrmHolderRepository implements HolderRepository {
       page: page.toString()
     })
 
-    const response = await this.httpService.get<HolderPaginatedResponseDto>(
-      `${this.baseUrl}/holders?${queryParams.toString()}`
-    )
+    const response = await this.httpService.get<
+      HolderPaginatedResponseDto | PaginationEntity<HolderDto>
+    >(`${this.baseUrl}/holders?${queryParams.toString()}`)
 
     return HolderMapper.toPaginatedEntity(response)
   }

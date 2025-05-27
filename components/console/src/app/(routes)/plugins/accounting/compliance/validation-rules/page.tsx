@@ -33,10 +33,10 @@ const validationRules = [
     description:
       'Ensures all account type key values are unique across the system',
     category: 'account_types',
-    severity: 'high',
+    severity: 'high' as const,
     enabled: true,
     lastExecuted: '2024-12-30T14:20:00Z',
-    lastResult: 'passed',
+    lastResult: 'passed' as const,
     executionCount: 1247,
     passRate: 99.2,
     condition: {
@@ -57,10 +57,10 @@ const validationRules = [
     description:
       'Validates that debit and credit operations in a route are balanced',
     category: 'transaction_routes',
-    severity: 'high',
+    severity: 'high' as const,
     enabled: true,
     lastExecuted: '2024-12-30T14:15:00Z',
-    lastResult: 'passed',
+    lastResult: 'passed' as const,
     executionCount: 2856,
     passRate: 98.7,
     condition: {
@@ -81,10 +81,10 @@ const validationRules = [
     description:
       'Ensures operation routes reference accounts within compatible domains',
     category: 'operation_routes',
-    severity: 'medium',
+    severity: 'medium' as const,
     enabled: true,
     lastExecuted: '2024-12-30T14:10:00Z',
-    lastResult: 'warning',
+    lastResult: 'warning' as const,
     executionCount: 1532,
     passRate: 95.4,
     condition: {
@@ -104,10 +104,10 @@ const validationRules = [
     name: 'Account Type Name Format',
     description: 'Validates account type names follow naming conventions',
     category: 'account_types',
-    severity: 'low',
+    severity: 'low' as const,
     enabled: true,
     lastExecuted: '2024-12-30T14:05:00Z',
-    lastResult: 'passed',
+    lastResult: 'passed' as const,
     executionCount: 892,
     passRate: 97.8,
     condition: {
@@ -128,10 +128,10 @@ const validationRules = [
     description:
       'Limits the number of operations in a single transaction route',
     category: 'transaction_routes',
-    severity: 'medium',
+    severity: 'medium' as const,
     enabled: false,
     lastExecuted: '2024-12-29T12:30:00Z',
-    lastResult: 'passed',
+    lastResult: 'passed' as const,
     executionCount: 234,
     passRate: 100.0,
     condition: {
@@ -152,10 +152,10 @@ const validationRules = [
     description:
       'Validates fee calculation expressions are mathematically sound',
     category: 'operation_routes',
-    severity: 'high',
+    severity: 'high' as const,
     enabled: true,
     lastExecuted: '2024-12-30T13:55:00Z',
-    lastResult: 'failed',
+    lastResult: 'failed' as const,
     executionCount: 456,
     passRate: 92.1,
     condition: {

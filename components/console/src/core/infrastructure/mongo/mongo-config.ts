@@ -56,6 +56,8 @@ export interface DBConfigParams {
 @injectable()
 export class MongoConfig implements DBConfig<Mongoose> {
   private intl?: IntlShape
+  private connectionParams?: DBConfigParams
+  private isInitialized = false
 
   /**
    * Creates a new MongoDB configuration instance
@@ -94,7 +96,31 @@ export class MongoConfig implements DBConfig<Mongoose> {
     } catch (error) {
       this.logger.error('[MONGO] Failed to connect to MongoDB', error)
 
+      // Log the actual error message for debugging
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
+      this.logger.error('[MONGO] Connection error details:', errorMessage)
+
       throw new DatabaseException(this.getUnexpectedDatabaseMessage())
+    }
+  }
+
+  /**
+   * Sets connection parameters for lazy initialization
+   * @param params - Connection parameters to be used later
+   */
+  setConnectionParams(params: DBConfigParams): void {
+    this.connectionParams = params
+  }
+
+  /**
+   * Ensures the connection is established before returning the client
+   * @private
+   */
+  private async ensureConnected(): Promise<void> {
+    if (!this.isConnected() && this.connectionParams && !this.isInitialized) {
+      this.isInitialized = true
+      await this.connect(this.connectionParams)
     }
   }
 
@@ -107,6 +133,8 @@ export class MongoConfig implements DBConfig<Mongoose> {
     if (!this.intl) {
       this.intl = await getIntl()
     }
+
+    await this.ensureConnected()
 
     if (!this.isConnected()) {
       throw new DatabaseException(this.getUnexpectedDatabaseMessage())

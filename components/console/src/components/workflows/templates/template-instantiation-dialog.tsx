@@ -336,7 +336,8 @@ export function TemplateInstantiationDialog({
         <DialogHeader>
           <DialogTitle>Create Workflow from Template</DialogTitle>
           <DialogDescription>
-            Configure parameters to create a new workflow from "{template.name}"
+            Configure parameters to create a new workflow from &quot;
+            {template.name}&quot;
           </DialogDescription>
         </DialogHeader>
 

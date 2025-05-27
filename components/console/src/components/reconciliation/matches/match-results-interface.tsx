@@ -288,10 +288,10 @@ export function MatchResultsInterface({
           ...match,
           status:
             action === 'confirm'
-              ? 'confirmed'
+              ? ('confirmed' as const)
               : action === 'reject'
-                ? 'rejected'
-                : 'under_review',
+                ? ('rejected' as const)
+                : ('under_review' as const),
           reviewedAt: new Date().toISOString(),
           reviewedBy: 'current-user@company.com'
         }
@@ -312,10 +312,10 @@ export function MatchResultsInterface({
           ...match,
           status:
             action === 'confirm'
-              ? 'confirmed'
+              ? ('confirmed' as const)
               : action === 'reject'
-                ? 'rejected'
-                : 'under_review',
+                ? ('rejected' as const)
+                : ('under_review' as const),
           reviewedAt: new Date().toISOString(),
           reviewedBy: 'current-user@company.com'
         }
@@ -533,7 +533,9 @@ export function MatchResultsInterface({
                 )
                 const internalTxns = match.internalTransactionIds
                   .map((id) => getInternalTransaction(id))
-                  .filter(Boolean)
+                  .filter(
+                    (txn): txn is NonNullable<typeof txn> => txn !== undefined
+                  )
                 const isExpanded = expandedMatch === match.id
 
                 return (

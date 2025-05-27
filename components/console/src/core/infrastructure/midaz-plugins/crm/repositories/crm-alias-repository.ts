@@ -69,9 +69,9 @@ export class CrmAliasRepository implements AliasRepository {
       page: page.toString()
     })
 
-    const response = await this.httpService.get<AliasPaginatedResponseDto>(
-      `${this.baseUrl}/holders/${holderId}/aliases?${queryParams.toString()}`
-    )
+    const response = await this.httpService.get<
+      AliasPaginatedResponseDto | PaginationEntity<AliasDto>
+    >(`${this.baseUrl}/holders/${holderId}/aliases?${queryParams.toString()}`)
 
     return AliasMapper.toPaginatedEntity(response)
   }

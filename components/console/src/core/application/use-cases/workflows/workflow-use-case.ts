@@ -172,7 +172,10 @@ export class WorkflowUseCase {
     input?: Record<string, any>
   ): Promise<WorkflowExecution> {
     // Get the workflow first to validate it exists and is active
-    const workflow = await this.workflowRepository.findById(workflowId)
+    const workflow = await this.workflowRepository.fetchById(
+      'default',
+      workflowId
+    )
 
     if (workflow.status !== 'ACTIVE') {
       throw new Error(
@@ -181,14 +184,19 @@ export class WorkflowUseCase {
     }
 
     // Create a new execution
-    const execution: Omit<WorkflowExecution, 'id' | 'createdAt' | 'updatedAt'> =
-      {
-        workflowId,
-        status: 'running',
-        input: input || {},
-        output: {},
-        startTime: new Date()
-      }
+    const execution: WorkflowExecution = {
+      workflowId,
+      workflowName: workflow.name,
+      workflowVersion: workflow.version,
+      executionId: `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: 'RUNNING',
+      startTime: Date.now(),
+      input: input || {},
+      output: {},
+      tasks: [],
+      createdBy: 'system',
+      priority: 0
+    }
 
     return this.executionRepository.create(execution)
   }

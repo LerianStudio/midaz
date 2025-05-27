@@ -235,11 +235,8 @@ export default function OperationRoutesPage() {
   return (
     <div className="space-y-6">
       <PageHeader.Root>
-        <PageHeader.InfoTitle>Operation Routes</PageHeader.InfoTitle>
-        <PageHeader.InfoTooltip>
-          Manage individual operation mappings between account types with
-          conditions and amount calculations.
-        </PageHeader.InfoTooltip>
+        <PageHeader.InfoTitle title="Operation Routes" />
+        <PageHeader.InfoTooltip subtitle="Manage individual operation mappings between account types with conditions and amount calculations." />
       </PageHeader.Root>
 
       {/* Stats Cards */}

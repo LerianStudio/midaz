@@ -513,6 +513,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
                             className="h-8 w-full justify-start text-xs"
                             onClick={() => insertElement('image')}
                           >
+                            {/* eslint-disable-next-line jsx-a11y/alt-text */}
                             <Image className="mr-2 h-3 w-3" />
                             Image
                           </Button>

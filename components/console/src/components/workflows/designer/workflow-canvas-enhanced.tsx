@@ -97,6 +97,30 @@ function WorkflowCanvasInner({
   const isMobile = useMediaQuery('(max-width: 768px)')
   const isTablet = useMediaQuery('(max-width: 1024px)')
 
+  // Convert nodes and edges to workflow structure
+  const convertNodesToWorkflow = useCallback((): Workflow => {
+    const tasks: WorkflowTask[] = nodes
+      .filter((node) => node.type === 'taskNode')
+      .map((node) => {
+        const task = node.data.task as WorkflowTask
+        const dependencies = edges
+          .filter((edge) => edge.target === node.id)
+          .map((edge) => edge.source)
+          .filter((source) => source !== 'start')
+
+        return {
+          ...task,
+          position: node.position,
+          dependencies: dependencies.length > 0 ? dependencies : undefined
+        }
+      })
+
+    return {
+      ...workflow!,
+      tasks
+    }
+  }, [nodes, edges, workflow])
+
   // Auto-save functionality with error handling
   const autoSave = useCallback(async () => {
     if (!hasUnsavedChanges || !onSave || readonly) return
@@ -121,7 +145,79 @@ function WorkflowCanvasInner({
     } finally {
       setIsSaving(false)
     }
-  }, [hasUnsavedChanges, onSave, readonly])
+  }, [hasUnsavedChanges, onSave, readonly, convertNodesToWorkflow, toast])
+
+  // Define callbacks before using them
+  const handleTaskUpdate = useCallback(
+    (taskId: string, updatedTask: WorkflowTask) => {
+      if (readonly) return
+
+      try {
+        setNodes((nds) =>
+          nds.map((node) => {
+            if (node.id === taskId) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  task: updatedTask
+                }
+              }
+            }
+            return node
+          })
+        )
+        setHasUnsavedChanges(true)
+      } catch (error) {
+        toast({
+          title: 'Update failed',
+          description: 'Failed to update task',
+          variant: 'destructive'
+        })
+      }
+    },
+    [readonly, setNodes, toast]
+  )
+
+  const handleTaskDelete = useCallback(
+    (taskId: string) => {
+      if (readonly) return
+
+      try {
+        setNodes((nds) => nds.filter((node) => node.id !== taskId))
+        setEdges((eds) =>
+          eds.filter((edge) => edge.source !== taskId && edge.target !== taskId)
+        )
+        setHasUnsavedChanges(true)
+
+        if (selectedNode?.id === taskId) {
+          setSelectedNode(null)
+        }
+      } catch (error) {
+        toast({
+          title: 'Delete failed',
+          description: 'Failed to delete task',
+          variant: 'destructive'
+        })
+      }
+    },
+    [readonly, selectedNode, setNodes, setEdges, toast]
+  )
+
+  // Convert and trigger workflow change when nodes/edges change
+  useEffect(() => {
+    if (hasUnsavedChanges && onWorkflowChange && isInitialized) {
+      const updatedWorkflow = convertNodesToWorkflow()
+      onWorkflowChange(updatedWorkflow)
+    }
+  }, [
+    nodes,
+    edges,
+    hasUnsavedChanges,
+    onWorkflowChange,
+    isInitialized,
+    convertNodesToWorkflow
+  ])
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -161,25 +257,29 @@ function WorkflowCanvasInner({
 
       // Create nodes for each task
       workflow.tasks.forEach((task, index) => {
+        const taskId = task.taskReferenceName || `task-${index}`
         const node: Node = {
-          id: task.id,
+          id: taskId,
           type: 'taskNode',
           data: {
             task,
             onUpdate: (updatedTask: WorkflowTask) =>
-              handleTaskUpdate(task.id, updatedTask),
-            onDelete: () => handleTaskDelete(task.id)
+              handleTaskUpdate(taskId, updatedTask),
+            onDelete: () => handleTaskDelete(taskId)
           },
-          position: task.position || { x: 100 + (index + 1) * 200, y: 100 }
+          position: (task as any).position || {
+            x: 100 + (index + 1) * 200,
+            y: 100
+          }
         }
         newNodes.push(node)
-        taskNodeMap.set(task.id, node)
+        taskNodeMap.set(taskId, node)
       })
 
       // Create edges based on task dependencies
       workflow.tasks.forEach((task) => {
         if (task.dependencies && task.dependencies.length > 0) {
-          task.dependencies.forEach((depId) => {
+          task.dependencies.forEach((depId: string) => {
             const edge: Edge = {
               id: `${depId}-${task.id}`,
               source: depId === 'start' ? 'start' : depId,
@@ -229,7 +329,7 @@ function WorkflowCanvasInner({
     } finally {
       setIsLoading(false)
     }
-  }, [workflow, isInitialized])
+  }, [workflow, isInitialized, handleTaskUpdate, handleTaskDelete, toast])
 
   // Error recovery
   const handleErrorRecovery = useCallback(() => {
@@ -273,95 +373,6 @@ function WorkflowCanvasInner({
     },
     [isMobile]
   )
-
-  const handleTaskUpdate = useCallback(
-    (taskId: string, updatedTask: WorkflowTask) => {
-      if (readonly) return
-
-      try {
-        setNodes((nds) =>
-          nds.map((node) => {
-            if (node.id === taskId) {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  task: updatedTask
-                }
-              }
-            }
-            return node
-          })
-        )
-        setHasUnsavedChanges(true)
-
-        if (onWorkflowChange) {
-          const updatedWorkflow = convertNodesToWorkflow()
-          onWorkflowChange(updatedWorkflow)
-        }
-      } catch (error) {
-        toast({
-          title: 'Update failed',
-          description: 'Failed to update task',
-          variant: 'destructive'
-        })
-      }
-    },
-    [readonly, setNodes, onWorkflowChange]
-  )
-
-  const handleTaskDelete = useCallback(
-    (taskId: string) => {
-      if (readonly) return
-
-      try {
-        setNodes((nds) => nds.filter((node) => node.id !== taskId))
-        setEdges((eds) =>
-          eds.filter((edge) => edge.source !== taskId && edge.target !== taskId)
-        )
-        setHasUnsavedChanges(true)
-
-        if (selectedNode?.id === taskId) {
-          setSelectedNode(null)
-        }
-
-        if (onWorkflowChange) {
-          const updatedWorkflow = convertNodesToWorkflow()
-          onWorkflowChange(updatedWorkflow)
-        }
-      } catch (error) {
-        toast({
-          title: 'Delete failed',
-          description: 'Failed to delete task',
-          variant: 'destructive'
-        })
-      }
-    },
-    [readonly, selectedNode, setNodes, setEdges, onWorkflowChange]
-  )
-
-  const convertNodesToWorkflow = useCallback((): Workflow => {
-    const tasks: WorkflowTask[] = nodes
-      .filter((node) => node.type === 'taskNode')
-      .map((node) => {
-        const task = node.data.task as WorkflowTask
-        const dependencies = edges
-          .filter((edge) => edge.target === node.id)
-          .map((edge) => edge.source)
-          .filter((source) => source !== 'start')
-
-        return {
-          ...task,
-          position: node.position,
-          dependencies: dependencies.length > 0 ? dependencies : undefined
-        }
-      })
-
-    return {
-      ...workflow!,
-      tasks
-    }
-  }, [nodes, edges, workflow])
 
   const handleManualSave = async () => {
     if (!onSave || readonly) return
@@ -470,7 +481,9 @@ function WorkflowCanvasInner({
               {selectedNode && (
                 <TaskConfigurationPanel
                   task={selectedNode.data.task}
-                  onUpdate={(task) => handleTaskUpdate(selectedNode.id, task)}
+                  onUpdate={(task: WorkflowTask) =>
+                    handleTaskUpdate(selectedNode.id, task)
+                  }
                   onDelete={() => handleTaskDelete(selectedNode.id)}
                   readonly={readonly}
                 />
@@ -487,7 +500,9 @@ function WorkflowCanvasInner({
             <div className="absolute right-0 top-0 h-full w-80 border-l bg-background p-4">
               <TaskConfigurationPanel
                 task={selectedNode.data.task}
-                onUpdate={(task) => handleTaskUpdate(selectedNode.id, task)}
+                onUpdate={(task: WorkflowTask) =>
+                  handleTaskUpdate(selectedNode.id, task)
+                }
                 onDelete={() => handleTaskDelete(selectedNode.id)}
                 readonly={readonly}
               />

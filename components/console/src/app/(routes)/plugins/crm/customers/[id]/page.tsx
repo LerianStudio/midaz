@@ -101,7 +101,7 @@ export default function CustomerDetailPage() {
   }
 
   const isNaturalPerson = customer.type === 'NATURAL_PERSON'
-  const aliasCount = aliasesData?.total || 0
+  const aliasCount = aliasesData?.items?.length || 0
 
   return (
     <div className="space-y-6">

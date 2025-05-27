@@ -23,7 +23,12 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Stepper } from '@/components/ui/stepper'
+import {
+  Stepper,
+  StepperItem,
+  StepperItemNumber,
+  StepperItemText
+} from '@/components/ui/stepper'
 import { PageHeader } from '@/components/page-header'
 
 import { RouteTemplateLibrary } from '@/components/accounting/transaction-routes/route-template-library'
@@ -92,7 +97,12 @@ export default function CreateTransactionRoutePage() {
       status: 'draft',
       tags: formData.tags,
       metadata: formData.metadata,
-      operationRoutes: selectedTemplate?.operationRoutes || [],
+      operationRoutes:
+        selectedTemplate?.operationRoutes.map((route, index) => ({
+          ...route,
+          id: `temp-${index}`,
+          transactionRouteId: 'new-route-id'
+        })) || [],
       version: '1.0.0'
     }
 
@@ -456,11 +466,24 @@ export default function CreateTransactionRoutePage() {
 
       <Card>
         <CardHeader>
-          <Stepper
-            steps={steps}
-            currentStep={currentStep}
-            onStepClick={setCurrentStep}
-          />
+          <Stepper>
+            {steps.map((step, index) => (
+              <StepperItem
+                key={index}
+                active={currentStep === index}
+                complete={currentStep > index}
+                onClick={() => currentStep > index && setCurrentStep(index)}
+              >
+                <StepperItemNumber>
+                  {currentStep > index ? '✓' : index + 1}
+                </StepperItemNumber>
+                <StepperItemText
+                  title={step.title}
+                  description={step.description}
+                />
+              </StepperItem>
+            ))}
+          </Stepper>
         </CardHeader>
       </Card>
 

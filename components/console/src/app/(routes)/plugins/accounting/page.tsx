@@ -223,13 +223,16 @@ export default function AccountingPage() {
             <div className="flex items-center space-x-3 text-sm">
               <div className="h-2 w-2 rounded-full bg-green-500"></div>
               <span className="text-muted-foreground">2 hours ago</span>
-              <span>Created account type "Business Checking" (BCHCK)</span>
+              <span>
+                Created account type &quot;Business Checking&quot; (BCHCK)
+              </span>
             </div>
             <div className="flex items-center space-x-3 text-sm">
               <div className="h-2 w-2 rounded-full bg-blue-500"></div>
               <span className="text-muted-foreground">4 hours ago</span>
               <span>
-                Updated transaction route "Wire Transfer" validation rules
+                Updated transaction route &quot;Wire Transfer&quot; validation
+                rules
               </span>
             </div>
             <div className="flex items-center space-x-3 text-sm">

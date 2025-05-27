@@ -42,8 +42,8 @@ const CustomersPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
 
   // Pagination
-  const { page, limit, handleNextPage, handlePreviousPage, setPageLimit } =
-    usePagination({ initialPage: 1, initialLimit: 10 })
+  const { page, limit, nextPage, previousPage, setLimit, setPage } =
+    usePagination({ total: holdersData?.total || 0 })
 
   // Fetch holders data
   const {
@@ -427,15 +427,15 @@ const CustomersPage = () => {
       </div>
 
       {/* Pagination */}
-      {holdersData && holdersData.totalPages > 1 && (
+      {holdersData && holdersData.totalPages && holdersData.totalPages > 1 && (
         <div className="mt-6">
           <Pagination
-            currentPage={page}
-            totalPages={holdersData.totalPages}
-            onNextPage={handleNextPage}
-            onPreviousPage={handlePreviousPage}
-            setPageLimit={setPageLimit}
+            page={page}
             limit={limit}
+            total={holdersData.total}
+            nextPage={nextPage}
+            previousPage={previousPage}
+            setLimit={setLimit}
           />
         </div>
       )}

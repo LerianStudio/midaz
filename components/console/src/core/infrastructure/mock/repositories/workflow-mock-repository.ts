@@ -89,6 +89,7 @@ export class WorkflowMockRepository extends WorkflowRepository {
       items: paginatedWorkflows,
       page,
       limit,
+      total: filteredWorkflows.length,
       hasMore: endIndex < filteredWorkflows.length
     }
   }
@@ -97,6 +98,14 @@ export class WorkflowMockRepository extends WorkflowRepository {
     organizationId: string,
     workflowId: string
   ): Promise<Workflow> {
+    const workflow = this.workflows.get(workflowId)
+    if (!workflow) {
+      throw new Error(`Workflow with id ${workflowId} not found`)
+    }
+    return workflow
+  }
+
+  async findById(workflowId: string): Promise<Workflow> {
     const workflow = this.workflows.get(workflowId)
     if (!workflow) {
       throw new Error(`Workflow with id ${workflowId} not found`)

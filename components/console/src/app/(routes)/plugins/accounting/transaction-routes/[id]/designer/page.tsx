@@ -60,7 +60,7 @@ export default function TransactionRouteDesignerPage() {
             <Button variant="ghost" size="sm" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <PageHeader.InfoTitle>Route Not Found</PageHeader.InfoTitle>
+            <PageHeader.InfoTitle title="Route Not Found" />
           </div>
         </PageHeader.Root>
         <Card>
@@ -197,9 +197,7 @@ export default function TransactionRouteDesignerPage() {
             </Button>
             <div>
               <div className="flex items-center space-x-3">
-                <PageHeader.InfoTitle>
-                  Edit Route: {route.name}
-                </PageHeader.InfoTitle>
+                <PageHeader.InfoTitle title={`Edit Route: ${route.name}`} />
                 <Badge className={statusColors[route.status]}>
                   {route.status}
                 </Badge>
@@ -209,9 +207,7 @@ export default function TransactionRouteDesignerPage() {
                   </Badge>
                 )}
               </div>
-              <PageHeader.InfoTooltip>
-                Visual designer for configuring transaction route operations.
-              </PageHeader.InfoTooltip>
+              <PageHeader.InfoTooltip subtitle="Visual designer for configuring transaction route operations." />
             </div>
           </div>
 

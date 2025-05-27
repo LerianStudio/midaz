@@ -125,7 +125,7 @@ export class MockWebSocketConnection {
   private onMessageCallback: ((data: string) => void) | null = null
   private onOpenCallback: (() => void) | null = null
   private onCloseCallback: (() => void) | null = null
-  private onErrorCallback: ((error: any) => void) | null = null
+  private onErrorCallback: ((error: Error) => void) | null = null
   public readyState: number = WebSocket.CONNECTING
 
   constructor(server: MockWebSocketServer) {
@@ -157,7 +157,7 @@ export class MockWebSocketConnection {
     this.onCloseCallback = callback
   }
 
-  set onerror(callback: (error: any) => void) {
+  set onerror(callback: (error: Error) => void) {
     this.onErrorCallback = callback
   }
 
@@ -256,7 +256,7 @@ if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
       this.connection.onclose = callback
     }
 
-    set onerror(callback: (error: any) => void) {
+    set onerror(callback: (error: Error) => void) {
       this.connection.onerror = callback
     }
 

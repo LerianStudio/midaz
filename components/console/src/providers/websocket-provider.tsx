@@ -97,7 +97,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       })
     })
 
-    socket.on('disconnect', (reason) => {
+    socket.on('disconnect', (reason: string) => {
       setConnected(false)
       console.log('🔌 WebSocket disconnected:', reason)
 
@@ -107,7 +107,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    socket.on('connect_error', (error) => {
+    socket.on('connect_error', (error: Error) => {
       setConnectionStatus('error')
       console.error('🔌 WebSocket connection error:', error)
 
@@ -118,7 +118,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       })
     })
 
-    socket.on('reconnect', (attemptNumber) => {
+    socket.on('reconnect', (attemptNumber: number) => {
       console.log('🔌 WebSocket reconnected after', attemptNumber, 'attempts')
       toast({
         title: 'Connection Restored',
@@ -126,7 +126,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       })
     })
 
-    socket.on('reconnect_attempt', (attemptNumber) => {
+    socket.on('reconnect_attempt', (attemptNumber: number) => {
       setConnectionStatus('connecting')
       console.log('🔌 WebSocket reconnection attempt', attemptNumber)
     })

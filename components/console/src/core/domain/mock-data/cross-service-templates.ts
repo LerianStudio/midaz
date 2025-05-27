@@ -40,9 +40,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'kyc_decision',
           type: 'SWITCH',
           description: 'Route based on KYC verification result',
-          configurable: {
-            expression: true
-          },
+          configurable: {},
           defaultConfiguration: {
             evaluatorType: 'value-param',
             expression: 'verify_customer_identity.output.response.body.status',
@@ -178,7 +176,6 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           type: 'HUMAN',
           description: 'Manual review required for pending KYC',
           configurable: {
-            assignee: true,
             timeout: true
           },
           defaultConfiguration: {
@@ -223,29 +220,23 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
     ],
     metadata: {
       version: '1.0.0',
-      author: 'Midaz Team',
-      lastModified: '2025-01-01T00:00:00Z',
+      schemaVersion: '1.0',
       complexity: 'COMPLEX' as TemplateComplexity,
       estimatedDuration: '5-10 minutes',
-      requiredPermissions: [
-        'identity:verify',
-        'crm:create',
-        'auth:create',
-        'account:create'
-      ],
-      supportedRegions: ['US', 'EU', 'UK'],
-      dependencies: [
+      requiredServices: [
         'identity-service',
         'crm-service',
         'auth-service',
         'onboarding-service'
-      ]
+      ],
+      supportedFormats: ['json']
     },
     usageCount: 234,
     rating: 4.8,
     createdBy: 'admin@midaz.com',
-    createdAt: new Date('2024-10-01'),
-    updatedAt: new Date('2024-12-28')
+    createdAt: new Date('2024-10-01').toISOString(),
+    updatedAt: new Date('2024-12-28').toISOString(),
+    isPublic: true
   },
   {
     id: 'template-payment-with-fees',
@@ -301,9 +292,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'fraud_decision',
           type: 'SWITCH',
           description: 'Route based on fraud score',
-          configurable: {
-            expression: true
-          },
+          configurable: {},
           defaultConfiguration: {
             evaluatorType: 'javascript',
             expression: '$.check_fraud_score.output.response.body.score < 70',
@@ -439,7 +428,6 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           type: 'HUMAN',
           description: 'Manual fraud review required',
           configurable: {
-            assignee: true,
             timeout: true
           },
           defaultConfiguration: {
@@ -496,28 +484,23 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
     ],
     metadata: {
       version: '2.0.0',
-      author: 'Midaz Team',
-      lastModified: '2025-01-01T00:00:00Z',
+      schemaVersion: '1.0',
       complexity: 'ADVANCED' as TemplateComplexity,
       estimatedDuration: '2-5 minutes',
-      requiredPermissions: [
-        'account:read',
-        'transaction:create',
-        'fee:calculate'
-      ],
-      supportedRegions: ['GLOBAL'],
-      dependencies: [
+      requiredServices: [
         'transaction-service',
         'fees-service',
         'fraud-service',
         'notification-service'
-      ]
+      ],
+      supportedFormats: ['json']
     },
     usageCount: 567,
     rating: 4.9,
     createdBy: 'admin@midaz.com',
-    createdAt: new Date('2024-09-15'),
-    updatedAt: new Date('2024-12-30')
+    createdAt: new Date('2024-09-15').toISOString(),
+    updatedAt: new Date('2024-12-30').toISOString(),
+    isPublic: true
   },
   {
     id: 'template-reconciliation-workflow',
@@ -552,9 +535,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'fetch_external_transactions',
           type: 'FORK_JOIN_DYNAMIC',
           description: 'Fetch from multiple external sources',
-          configurable: {
-            dynamicForkTasksParam: true
-          },
+          configurable: {},
           defaultConfiguration: {
             dynamicForkTasksParam: 'externalSources',
             dynamicForkTasksInputParamName: 'sourceConfig'
@@ -579,9 +560,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'transform_external_data',
           type: 'LAMBDA',
           description: 'Transform external data to standard format',
-          configurable: {
-            scriptParam: true
-          },
+          configurable: {},
           defaultConfiguration: {
             scriptParam: 'transformScript'
           }
@@ -631,9 +610,7 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
           name: 'exception_routing',
           type: 'SWITCH',
           description: 'Route exceptions based on type',
-          configurable: {
-            expression: true
-          },
+          configurable: {},
           defaultConfiguration: {
             evaluatorType: 'javascript',
             expression:
@@ -745,26 +722,21 @@ export const crossServiceTemplates: WorkflowTemplate[] = [
     ],
     metadata: {
       version: '1.5.0',
-      author: 'Midaz Team',
-      lastModified: '2025-01-01T00:00:00Z',
+      schemaVersion: '1.0',
       complexity: 'ADVANCED' as TemplateComplexity,
       estimatedDuration: '15-30 minutes',
-      requiredPermissions: [
-        'transaction:read',
-        'reconciliation:create',
-        'report:generate'
-      ],
-      supportedRegions: ['GLOBAL'],
-      dependencies: [
+      requiredServices: [
         'reconciliation-service',
         'transaction-service',
         'document-service'
-      ]
+      ],
+      supportedFormats: ['json']
     },
     usageCount: 89,
     rating: 4.7,
     createdBy: 'admin@midaz.com',
-    createdAt: new Date('2024-11-01'),
-    updatedAt: new Date('2024-12-29')
+    createdAt: new Date('2024-11-01').toISOString(),
+    updatedAt: new Date('2024-12-29').toISOString(),
+    isPublic: true
   }
 ]

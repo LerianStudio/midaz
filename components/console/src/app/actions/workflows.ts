@@ -173,14 +173,16 @@ export async function getWorkflowExecutions(params?: {
     const executionRepository = container.get<WorkflowExecutionRepository>(
       MIDAZ_SYMBOLS.WorkflowExecutionRepository
     )
-    const result = await executionRepository.fetchAll(limit, page, {
+    const result = await executionRepository.findAll({
+      limit,
+      offset: (page - 1) * limit,
       status,
       workflowId
     })
     return {
       success: true,
       data: {
-        executions: result.items,
+        executions: result.executions,
         total: result.total
       }
     }

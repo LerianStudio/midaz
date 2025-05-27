@@ -236,7 +236,7 @@ export default function ReconciliationOverviewPage() {
             {/* Today's Activity */}
             <Card>
               <CardHeader>
-                <CardTitle>Today's Activity</CardTitle>
+                <CardTitle>Today&apos;s Activity</CardTitle>
                 <CardDescription>
                   Real-time reconciliation metrics
                 </CardDescription>

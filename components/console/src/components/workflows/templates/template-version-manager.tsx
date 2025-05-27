@@ -276,7 +276,7 @@ export function TemplateVersionManager({
             Template Version Management
           </DialogTitle>
           <DialogDescription>
-            Manage versions and sharing settings for "{template.name}"
+            Manage versions and sharing settings for &quot;{template.name}&quot;
           </DialogDescription>
         </DialogHeader>
 
@@ -509,7 +509,7 @@ export function TemplateVersionManager({
                   }
                 />
                 <Label htmlFor="draft" className="text-sm font-normal">
-                  Save as draft (won't be published to users)
+                  Save as draft (won&apos;t be published to users)
                 </Label>
               </div>
             </div>

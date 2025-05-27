@@ -39,7 +39,7 @@ import {
   CardTitle
 } from '@/components/ui/card'
 
-interface AuditEvent {
+export interface AuditEvent {
   id: string
   timestamp: string
   event: string

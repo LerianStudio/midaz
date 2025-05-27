@@ -11,7 +11,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { AuditTrailTable } from '@/components/accounting/compliance/audit-trail-table'
+import {
+  AuditTrailTable,
+  type AuditEvent
+} from '@/components/accounting/compliance/audit-trail-table'
 import {
   Download,
   Filter,
@@ -32,7 +35,7 @@ import { DatePickerWithRange } from '@/components/ui/date-picker-with-range'
 import { DateRange } from 'react-day-picker'
 
 // Mock audit trail data
-const mockAuditEvents = [
+const mockAuditEvents: AuditEvent[] = [
   {
     id: 'audit-001',
     timestamp: '2024-12-30T14:20:00Z',
@@ -52,7 +55,7 @@ const mockAuditEvents = [
     },
     ipAddress: '192.168.1.100',
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    status: 'success',
+    status: 'success' as const,
     changes: {
       before: null,
       after: {
@@ -82,7 +85,7 @@ const mockAuditEvents = [
     ipAddress: '192.168.1.101',
     userAgent:
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    status: 'success',
+    status: 'success' as const,
     changes: {
       before: { feePercentage: 2.9 },
       after: { feePercentage: 3.2 }
@@ -107,7 +110,7 @@ const mockAuditEvents = [
     },
     ipAddress: '192.168.1.100',
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    status: 'failed',
+    status: 'failed' as const,
     changes: {
       before: null,
       after: null
@@ -133,7 +136,7 @@ const mockAuditEvents = [
     },
     ipAddress: '192.168.1.102',
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-    status: 'success',
+    status: 'success' as const,
     changes: {
       before: null,
       after: {
@@ -164,7 +167,7 @@ const mockAuditEvents = [
     },
     ipAddress: '127.0.0.1',
     userAgent: 'Midaz-Compliance-Scanner/1.0',
-    status: 'success',
+    status: 'success' as const,
     changes: {
       before: { complianceScore: 94.2 },
       after: { complianceScore: 95.8 }
@@ -190,7 +193,7 @@ const mockAuditEvents = [
     ipAddress: '192.168.1.101',
     userAgent:
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    status: 'success',
+    status: 'success' as const,
     changes: {
       before: {
         name: 'Deprecated Test Account',

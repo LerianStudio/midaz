@@ -43,11 +43,10 @@ import {
   startWorkflowExecution
 } from '@/app/actions/workflows'
 import { toast } from '@/hooks/use-toast'
+import { TemplateParameter } from '@/core/domain/entities/workflow-template'
 
 // Dynamic schema based on workflow parameters
-const createExecutionSchema = (
-  parameters: Array<{ name: string; type: string; required: boolean }>
-) => {
+const createExecutionSchema = (parameters: TemplateParameter[]) => {
   const shape: Record<string, z.ZodTypeAny> = {}
 
   parameters.forEach((param) => {
@@ -76,8 +75,8 @@ const createExecutionSchema = (
 
     if (!param.required) {
       schema = schema.optional()
-    } else {
-      schema = schema.min(1, 'This field is required')
+    } else if (param.type !== 'boolean' && param.type !== 'number') {
+      schema = (schema as z.ZodString).min(1, 'This field is required')
     }
 
     shape[param.name] = schema
@@ -86,12 +85,18 @@ const createExecutionSchema = (
   return z.object(shape)
 }
 
+interface ExtendedWorkflow extends Workflow {
+  parameters?: TemplateParameter[]
+}
+
+type WorkflowFormData = Record<string, any>
+
 export default function StartExecutionPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const workflowId = searchParams.get('workflowId')
 
-  const [workflow, setWorkflow] = useState<Workflow | null>(null)
+  const [workflow, setWorkflow] = useState<ExtendedWorkflow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -116,7 +121,17 @@ export default function StartExecutionPage() {
         throw new Error(result.error || 'Failed to load workflow')
       }
 
-      setWorkflow(result.data)
+      // For demo purposes, create mock parameters based on inputParameters
+      const extendedWorkflow: ExtendedWorkflow = {
+        ...result.data,
+        parameters: result.data.inputParameters?.map((param) => ({
+          name: param,
+          type: 'string',
+          required: true,
+          description: `Parameter ${param}`
+        }))
+      }
+      setWorkflow(extendedWorkflow)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load workflow')
     } finally {
@@ -125,17 +140,17 @@ export default function StartExecutionPage() {
   }
 
   // Initialize form
-  const form = useForm({
-    resolver: workflow?.inputParameters
-      ? zodResolver(createExecutionSchema(workflow.inputParameters))
+  const form = useForm<WorkflowFormData>({
+    resolver: workflow?.parameters
+      ? zodResolver(createExecutionSchema(workflow.parameters))
       : undefined,
     defaultValues:
-      workflow?.inputParameters?.reduce(
+      workflow?.parameters?.reduce(
         (acc, param) => ({
           ...acc,
           [param.name]: param.defaultValue || ''
         }),
-        {}
+        {} as WorkflowFormData
       ) || {}
   })
 
@@ -147,7 +162,7 @@ export default function StartExecutionPage() {
 
       // Convert JSON strings to objects for object-type parameters
       const processedValues = { ...values }
-      workflow.inputParameters?.forEach((param) => {
+      workflow.parameters?.forEach((param) => {
         if (param.type === 'object' && processedValues[param.name]) {
           try {
             processedValues[param.name] = JSON.parse(
@@ -159,16 +174,7 @@ export default function StartExecutionPage() {
         }
       })
 
-      const result = await startWorkflowExecution({
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-        workflowVersion: workflow.version,
-        input: processedValues,
-        metadata: {
-          startedBy: 'user@example.com', // TODO: Get from auth context
-          startedFrom: 'console'
-        }
-      })
+      const result = await startWorkflowExecution(workflow.id, processedValues)
 
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to start execution')
@@ -180,7 +186,7 @@ export default function StartExecutionPage() {
       })
 
       // Redirect to execution details
-      router.push(`/plugins/workflows/executions/${result.data.id}`)
+      router.push(`/plugins/workflows/executions/${result.data.executionId}`)
     } catch (err) {
       toast({
         variant: 'destructive',
@@ -231,16 +237,16 @@ export default function StartExecutionPage() {
     )
   }
 
-  const renderParameterField = (param: any) => {
+  const renderParameterField = (param: TemplateParameter) => {
     return (
       <FormField
         key={param.name}
         control={form.control}
-        name={param.name}
+        name={param.name as keyof WorkflowFormData}
         render={({ field }) => (
           <FormItem>
             <FormLabel>
-              {param.label || param.name}
+              {param.name}
               {param.required && <span className="ml-1 text-red-500">*</span>}
             </FormLabel>
             {param.description && (
@@ -253,13 +259,14 @@ export default function StartExecutionPage() {
                   defaultValue={field.value}
                 >
                   <SelectTrigger>
-                    <SelectValue
-                      placeholder={`Select ${param.label || param.name}`}
-                    />
+                    <SelectValue placeholder={`Select ${param.name}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {param.options.map((option: any) => (
-                      <SelectItem key={option.value} value={option.value}>
+                    {param.options.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={String(option.value)}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
@@ -275,12 +282,7 @@ export default function StartExecutionPage() {
               ) : param.type === 'number' ? (
                 <Input {...field} type="number" placeholder="0" />
               ) : (
-                <Input
-                  {...field}
-                  placeholder={
-                    param.placeholder || `Enter ${param.label || param.name}`
-                  }
-                />
+                <Input {...field} placeholder={`Enter ${param.name}`} />
               )}
             </FormControl>
             <FormMessage />
@@ -329,11 +331,10 @@ export default function StartExecutionPage() {
         <CardContent className="pt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {workflow.inputParameters &&
-              workflow.inputParameters.length > 0 ? (
+              {workflow.parameters && workflow.parameters.length > 0 ? (
                 <>
                   <div className="space-y-4">
-                    {workflow.inputParameters.map(renderParameterField)}
+                    {workflow.parameters.map(renderParameterField)}
                   </div>
 
                   <Alert>
@@ -348,7 +349,7 @@ export default function StartExecutionPage() {
               ) : (
                 <Alert>
                   <AlertDescription>
-                    This workflow doesn't require any input parameters.
+                    This workflow doesn&apos;t require any input parameters.
                   </AlertDescription>
                 </Alert>
               )}

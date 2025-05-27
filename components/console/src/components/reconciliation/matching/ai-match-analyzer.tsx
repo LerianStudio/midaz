@@ -98,12 +98,17 @@ export function AIMatchAnalyzer({
               ? 'medium'
               : 'high',
         explanations: [
-          match.aiInsights.explanation,
+          match.aiInsights.explanation || '',
           'Transaction patterns show strong correlation with historical data',
           'Semantic analysis indicates high probability of legitimate match',
           'Risk assessment suggests minimal potential for false positive'
         ],
-        confidenceFactors: match.aiInsights.confidence_factors || [],
+        confidenceFactors: (match.aiInsights.confidence_factors || []).map(
+          (factor) => ({
+            ...factor,
+            reasoning: factor.description // Add reasoning field from description
+          })
+        ),
         similarities: match.similarities || {
           overall: match.confidenceScore,
           amount: 0.92,

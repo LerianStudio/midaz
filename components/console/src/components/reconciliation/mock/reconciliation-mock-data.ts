@@ -940,12 +940,16 @@ export class ReconciliationMockData {
         straightThroughProcessing: 92.1
       },
       trends: {
-        reconciliationRates: Array.from({ length: 30 }, (_, i) => ({
-          date: generateDate(29 - i).split('T')[0],
-          rate: Math.random() * 10 + 90,
-          volume: Math.floor(Math.random() * 5000) + 1000,
-          exceptions: Math.floor(Math.random() * 200) + 50
-        })),
+        reconciliationRates: Array.from({ length: 30 }, (_, i) => {
+          const rate = Math.random() * 10 + 90
+          return {
+            date: generateDate(29 - i).split('T')[0],
+            value: rate,
+            label: `Rate: ${rate.toFixed(1)}%`,
+            volume: Math.floor(Math.random() * 5000) + 1000,
+            exceptions: Math.floor(Math.random() * 200) + 50
+          }
+        }),
         matchTypeDistribution: [
           { type: 'exact', count: 1856, percentage: 62.1 },
           { type: 'fuzzy', count: 398, percentage: 13.3 },

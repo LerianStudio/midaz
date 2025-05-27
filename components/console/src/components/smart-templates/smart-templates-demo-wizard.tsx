@@ -297,9 +297,9 @@ export function SmartTemplatesDemoWizard() {
               </h3>
             </div>
             <p className="text-green-700 dark:text-green-300">
-              Congratulations! You've successfully explored all Smart Templates
-              features. You're now ready to create powerful reports and
-              templates for your organization.
+              Congratulations! you&apos;ve successfully explored all Smart
+              Templates features. You&apos;re now ready to create powerful
+              reports and templates for your organization.
             </p>
             <div className="flex items-center justify-center space-x-4">
               <Button

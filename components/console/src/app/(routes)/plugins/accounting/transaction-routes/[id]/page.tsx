@@ -73,7 +73,7 @@ export default function TransactionRouteDetailsPage() {
             <Button variant="ghost" size="sm" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <PageHeader.InfoTitle>Route Not Found</PageHeader.InfoTitle>
+            <PageHeader.InfoTitle title="Route Not Found" />
           </div>
         </PageHeader.Root>
         <Card>
@@ -130,10 +130,8 @@ export default function TransactionRouteDetailsPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <PageHeader.InfoTitle>{route.name}</PageHeader.InfoTitle>
-              <PageHeader.InfoTooltip>
-                {route.description}
-              </PageHeader.InfoTooltip>
+              <PageHeader.InfoTitle title={route.name} />
+              <PageHeader.InfoTooltip subtitle={route.description} />
             </div>
           </div>
 
