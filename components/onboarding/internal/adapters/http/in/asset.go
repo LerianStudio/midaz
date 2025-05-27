@@ -1,6 +1,7 @@
 package in
 
 import (
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -8,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -328,6 +330,51 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+
+	return http.NoContent(c)
+}
+
+// CountAssets is a method that returns the total count of assets for a specific ledger in an organization.
+//
+//	@Summary		Count total assets
+//	@Description	Returns the total count of assets for a specific ledger in an organization as a header without a response body
+//	@Tags			Assets
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Success		204				{string}	string	"No content with X-Total-Count header containing the count"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count [head]
+func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_assets")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	logger.Infof("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID)
+
+	count, err := handler.Query.CountAssets(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count assets", err)
+		logger.Errorf("Failed to count assets, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count)
+
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
 }
