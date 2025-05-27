@@ -2046,6 +2046,72 @@ paths:
       tags:
       - Portfolios
       x-codegen-request-body-name: portfolio
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+    head:
+      description: Returns the total count of portfolios for a specific organization
+        and ledger as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully counted portfolios, total count available in X-Total-Count
+            header
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid UUID format
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total portfolios
+      tags:
+      - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       description: Permanently removes a portfolio from the specified ledger. This
