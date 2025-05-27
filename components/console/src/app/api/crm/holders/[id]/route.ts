@@ -35,7 +35,14 @@ export const GET = applyMiddleware(
         await container.getAsync<FetchHolderById>(FetchHolderByIdUseCase)
 
       const { searchParams } = new URL(request.url)
-      const organizationId = searchParams.get('organizationId') || 'default'
+      const organizationId = searchParams.get('organizationId')
+
+      if (!organizationId) {
+        return NextResponse.json(
+          { message: 'organizationId is required' },
+          { status: 400 }
+        )
+      }
 
       const holder = await fetchHolderByIdUseCase.execute(
         organizationId,
@@ -63,7 +70,15 @@ export const PATCH = applyMiddleware(
         await container.getAsync<UpdateHolder>(UpdateHolderUseCase)
 
       const body = await request.json()
-      const organizationId = body.organizationId || 'default'
+      const { searchParams } = new URL(request.url)
+      const organizationId = searchParams.get('organizationId')
+
+      if (!organizationId) {
+        return NextResponse.json(
+          { message: 'organizationId is required' },
+          { status: 400 }
+        )
+      }
 
       const result = await updateHolderUseCase.execute(
         organizationId,
@@ -92,8 +107,15 @@ export const DELETE = applyMiddleware(
         await container.getAsync<DeleteHolder>(DeleteHolderUseCase)
 
       const { searchParams } = new URL(request.url)
-      const organizationId = searchParams.get('organizationId') || 'default'
+      const organizationId = searchParams.get('organizationId')
       const isHardDelete = searchParams.get('hard') === 'true'
+
+      if (!organizationId) {
+        return NextResponse.json(
+          { message: 'organizationId is required' },
+          { status: 400 }
+        )
+      }
 
       await deleteHolderUseCase.execute(organizationId, params.id, isHardDelete)
 

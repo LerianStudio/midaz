@@ -1,38 +1,40 @@
-export interface BankAccountDto {
-  bankCode: string
+export interface BankingDetailsDto {
   branch: string
-  number: string
+  account: string
   type: string
-  holderName: string
+  countryCode: string
+  bankId: string
 }
 
 export interface AliasDto {
   id: string
-  name: string
+  document: string
   type: string
   ledgerId: string
   accountId: string
+  holderId: string
   metadata?: Record<string, string>
-  bankAccount?: BankAccountDto
+  bankingDetails?: BankingDetailsDto
   createdAt: string
   updatedAt: string
-  deletedAt?: string
+  deletedAt?: string | null
 }
 
 export interface CreateAliasDto {
-  name: string
+  document: string
   type: string
   ledgerId: string
   accountId: string
+  holderId: string
   metadata?: Record<string, string>
-  bankAccount?: BankAccountDto
+  bankingDetails?: BankingDetailsDto
 }
 
 export interface UpdateAliasDto {
-  name?: string
+  document?: string
   type?: string
   metadata?: Record<string, string>
-  bankAccount?: BankAccountDto
+  bankingDetails?: BankingDetailsDto
 }
 
 export interface AliasPaginatedResponseDto {

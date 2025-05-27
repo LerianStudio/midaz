@@ -23,7 +23,7 @@ export class CreateHolderUseCase implements CreateHolder {
     organizationId: string,
     holder: CreateHolderEntity
   ): Promise<HolderEntity> {
-    const createdHolder = await this.holderRepository.create(holder)
+    const createdHolder = await this.holderRepository.create(organizationId, holder)
     return createdHolder
   }
 }

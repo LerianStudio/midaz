@@ -132,14 +132,14 @@ const AliasesPage = () => {
 
   // Filter aliases based on search
   const filteredAliases = aliases.filter((alias) => {
-    const holder = holderMap[alias.accountId] // Note: using accountId as holderId proxy
+    const holder = holderMap[alias.holderId]
     return (
       alias.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alias.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (alias.bankAccount?.number || '')
+      alias.document.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alias.bankingDetails?.account || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      (alias.bankAccount?.bankCode || '')
+      (alias.bankingDetails?.bankId || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       holder?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,7 +154,7 @@ const AliasesPage = () => {
 
   const handleDeleteAlias = async (alias: AliasEntity) => {
     // Find the holder for this alias
-    const holder = holders.find((h) => h.id === alias.accountId)
+    const holder = holders.find((h) => h.id === alias.holderId)
     if (!holder) {
       toast({
         title: 'Error',
@@ -194,29 +194,29 @@ const AliasesPage = () => {
   }
 
   const getAliasTypeBadge = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'bank_account':
+    switch (type.toUpperCase()) {
+      case 'NATURAL_PERSON':
         return (
           <Badge variant="outline" className="bg-blue-100 text-blue-800">
+            Natural Person
+          </Badge>
+        )
+      case 'LEGAL_PERSON':
+        return (
+          <Badge variant="outline" className="bg-green-100 text-green-800">
+            Legal Person
+          </Badge>
+        )
+      case 'BANK_ACCOUNT':
+        return (
+          <Badge variant="outline" className="bg-purple-100 text-purple-800">
             Bank Account
           </Badge>
         )
-      case 'pix':
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800">
-            PIX
-          </Badge>
-        )
-      case 'email':
-        return (
-          <Badge variant="outline" className="bg-purple-100 text-purple-800">
-            Email
-          </Badge>
-        )
-      case 'phone':
+      case 'PIX':
         return (
           <Badge variant="outline" className="bg-orange-100 text-orange-800">
-            Phone
+            PIX
           </Badge>
         )
       default:
@@ -235,9 +235,9 @@ const AliasesPage = () => {
   // Calculate metrics
   const metrics = {
     total: totalAliases,
-    bankAccounts: aliases.filter((a) => a.type === 'bank_account').length,
-    pix: aliases.filter((a) => a.type === 'pix').length,
-    other: aliases.filter((a) => !['bank_account', 'pix'].includes(a.type))
+    naturalPerson: aliases.filter((a) => a.type === 'NATURAL_PERSON').length,
+    legalPerson: aliases.filter((a) => a.type === 'LEGAL_PERSON').length,
+    other: aliases.filter((a) => !['NATURAL_PERSON', 'LEGAL_PERSON'].includes(a.type))
       .length
   }
 
@@ -317,8 +317,8 @@ const AliasesPage = () => {
                 <Banknote className="h-4 w-4 text-green-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{metrics.bankAccounts}</div>
-                <p className="text-xs text-muted-foreground">Bank Accounts</p>
+                <div className="text-2xl font-bold">{metrics.naturalPerson}</div>
+                <p className="text-xs text-muted-foreground">Natural Persons</p>
               </div>
             </div>
           </CardContent>
@@ -331,8 +331,8 @@ const AliasesPage = () => {
                 <CreditCard className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold">{metrics.pix}</div>
-                <p className="text-xs text-muted-foreground">PIX Keys</p>
+                <div className="text-2xl font-bold">{metrics.legalPerson}</div>
+                <p className="text-xs text-muted-foreground">Legal Persons</p>
               </div>
             </div>
           </CardContent>
@@ -414,9 +414,9 @@ const AliasesPage = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Holder</TableHead>
-                  <TableHead>Alias Name</TableHead>
+                  <TableHead>Document</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Details</TableHead>
+                  <TableHead>Banking Details</TableHead>
                   <TableHead>Ledger</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -424,8 +424,8 @@ const AliasesPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredAliases.map((alias) => {
-                  // Find holder by matching accountId (temporary mapping)
-                  const holder = holders.find((h) => h.id === alias.accountId)
+                  // Find holder by matching holderId
+                  const holder = holders.find((h) => h.id === alias.holderId)
                   return (
                     <TableRow key={alias.id}>
                       <TableCell>
@@ -451,30 +451,30 @@ const AliasesPage = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{alias.name}</div>
+                        <div className="font-medium">{alias.document}</div>
                         <div className="font-mono text-xs text-muted-foreground">
                           {alias.id.slice(-8)}
                         </div>
                       </TableCell>
                       <TableCell>{getAliasTypeBadge(alias.type)}</TableCell>
                       <TableCell>
-                        {alias.bankAccount ? (
+                        {alias.bankingDetails ? (
                           <div className="space-y-1">
                             <div className="flex items-center space-x-2">
                               <span className="font-medium">
-                                {alias.bankAccount.bankCode}
+                                Bank {alias.bankingDetails.bankId}
                               </span>
                               <span className="text-muted-foreground">•</span>
                               <span className="text-muted-foreground">
-                                Branch {alias.bankAccount.branch}
+                                Branch {alias.bankingDetails.branch}
                               </span>
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              Account: {alias.bankAccount.number}
+                              Account: {alias.bankingDetails.account}
                             </div>
-                            {alias.bankAccount.type && (
+                            {alias.bankingDetails.type && (
                               <div className="text-xs text-muted-foreground">
-                                Type: {alias.bankAccount.type}
+                                Type: {alias.bankingDetails.type} ({alias.bankingDetails.countryCode})
                               </div>
                             )}
                           </div>

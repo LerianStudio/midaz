@@ -18,6 +18,7 @@ import {
   useQuery,
   UseQueryOptions
 } from '@tanstack/react-query'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 
 type UseListHoldersProps = PaginationRequest & {
   enabled?: boolean
@@ -28,9 +29,16 @@ export const useListHolders = ({
   limit,
   ...options
 }: UseListHoldersProps) => {
+  const { currentOrganization } = useOrganization()
+  
   return useQuery<PaginationEntity<HolderEntity>>({
-    queryKey: ['holders', page, limit],
-    queryFn: getPaginatedFetcher('/api/crm/holders', { page, limit }),
+    queryKey: ['holders', currentOrganization?.id, page, limit],
+    queryFn: getPaginatedFetcher('/api/crm/holders', { 
+      page, 
+      limit,
+      organizationId: currentOrganization?.id 
+    }),
+    enabled: !!currentOrganization?.id && (options.enabled !== false),
     ...options
   })
 }
@@ -41,10 +49,12 @@ type UseHolderByIdProps = {
 }
 
 export const useHolderById = ({ holderId, ...options }: UseHolderByIdProps) => {
+  const { currentOrganization } = useOrganization()
+  
   return useQuery<HolderEntity>({
-    queryKey: ['holders', holderId],
-    queryFn: getFetcher(`/api/crm/holders/${holderId}`),
-    enabled: !!holderId,
+    queryKey: ['holders', currentOrganization?.id, holderId],
+    queryFn: getFetcher(`/api/crm/holders/${holderId}?organizationId=${currentOrganization?.id}`),
+    enabled: !!holderId && !!currentOrganization?.id,
     ...options
   })
 }
@@ -56,9 +66,14 @@ type UseCreateHolderProps = UseMutationOptions<
 >
 
 export const useCreateHolder = (options?: UseCreateHolderProps) => {
+  const { currentOrganization } = useOrganization()
+  
   return useMutation<HolderEntity, Error, CreateHolderEntity>({
-    mutationKey: ['create-holder'],
-    mutationFn: postFetcher('/api/crm/holders'),
+    mutationKey: ['create-holder', currentOrganization?.id],
+    mutationFn: (data) => postFetcher('/api/crm/holders')({
+      ...data,
+      organizationId: currentOrganization?.id
+    }),
     ...options
   })
 }
@@ -70,14 +85,16 @@ type UseUpdateHolderProps = UseMutationOptions<
 >
 
 export const useUpdateHolder = (options?: UseUpdateHolderProps) => {
+  const { currentOrganization } = useOrganization()
+  
   return useMutation<
     HolderEntity,
     Error,
     { holderId: string; data: UpdateHolderEntity }
   >({
-    mutationKey: ['update-holder'],
+    mutationKey: ['update-holder', currentOrganization?.id],
     mutationFn: ({ holderId, data }) =>
-      patchFetcher(`/api/crm/holders/${holderId}`)(data),
+      patchFetcher(`/api/crm/holders/${holderId}?organizationId=${currentOrganization?.id}`)(data),
     ...options
   })
 }
@@ -89,13 +106,19 @@ type UseDeleteHolderProps = UseMutationOptions<
 >
 
 export const useDeleteHolder = (options?: UseDeleteHolderProps) => {
+  const { currentOrganization } = useOrganization()
+  
   return useMutation<void, Error, { holderId: string; isHardDelete?: boolean }>(
     {
-      mutationKey: ['delete-holder'],
+      mutationKey: ['delete-holder', currentOrganization?.id],
       mutationFn: async ({ holderId, isHardDelete }) => {
-        const url = isHardDelete
-          ? `/api/crm/holders/${holderId}?hard=true`
-          : `/api/crm/holders/${holderId}`
+        const queryParams = new URLSearchParams()
+        queryParams.append('organizationId', currentOrganization?.id || '')
+        if (isHardDelete) {
+          queryParams.append('hard', 'true')
+        }
+        
+        const url = `/api/crm/holders/${holderId}?${queryParams.toString()}`
 
         const response = await fetch(url, {
           method: 'DELETE',

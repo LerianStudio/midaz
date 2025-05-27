@@ -24,6 +24,6 @@ export class DeleteHolderUseCase implements DeleteHolder {
     holderId: string,
     isHardDelete: boolean = false
   ): Promise<void> {
-    await this.holderRepository.delete(holderId, isHardDelete)
+    await this.holderRepository.delete(organizationId, holderId, isHardDelete)
   }
 }

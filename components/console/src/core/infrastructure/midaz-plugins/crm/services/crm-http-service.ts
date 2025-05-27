@@ -8,9 +8,12 @@ import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tra
 import { SpanStatusCode } from '@opentelemetry/api'
 import { getIntl } from '@/lib/intl'
 import { CrmApiException } from '../exceptions/crm-exception'
+import * as crypto from 'crypto'
 
 @injectable()
 export class CrmHttpService extends HttpService {
+  private organizationId: string = ''
+
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
@@ -24,12 +27,21 @@ export class CrmHttpService extends HttpService {
 
   private crmCustomSpanName: string = 'crm-request'
 
+  setOrganizationId(organizationId: string) {
+    this.organizationId = organizationId
+    return this
+  }
+
   protected async createDefaults() {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Request-Id': this.midazRequestContext.getMidazId(),
-      'X-Organization-Id': 'default',
-      'X-Lerian-Id': 'default'
+      'x-lerian-id': crypto.randomUUID()
+    }
+
+    // Add organization ID if set
+    if (this.organizationId) {
+      headers['X-Organization-Id'] = this.organizationId
     }
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {

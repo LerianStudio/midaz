@@ -107,11 +107,11 @@ export default function CustomerAliasesPage() {
   const filteredAliases = aliases.filter(
     (alias) =>
       alias.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alias.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (alias.bankAccount?.number || '')
+      alias.document.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (alias.bankingDetails?.account || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      (alias.bankAccount?.bankCode || '')
+      (alias.bankingDetails?.bankId || '')
         .toLowerCase()
         .includes(searchTerm.toLowerCase())
   )
@@ -172,29 +172,29 @@ export default function CustomerAliasesPage() {
   }
 
   const getAliasTypeBadge = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'bank_account':
+    switch (type.toUpperCase()) {
+      case 'NATURAL_PERSON':
         return (
           <Badge variant="outline" className="bg-blue-100 text-blue-800">
+            Natural Person
+          </Badge>
+        )
+      case 'LEGAL_PERSON':
+        return (
+          <Badge variant="outline" className="bg-green-100 text-green-800">
+            Legal Person
+          </Badge>
+        )
+      case 'BANK_ACCOUNT':
+        return (
+          <Badge variant="outline" className="bg-purple-100 text-purple-800">
             Bank Account
           </Badge>
         )
-      case 'pix':
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800">
-            PIX
-          </Badge>
-        )
-      case 'email':
-        return (
-          <Badge variant="outline" className="bg-purple-100 text-purple-800">
-            Email
-          </Badge>
-        )
-      case 'phone':
+      case 'PIX':
         return (
           <Badge variant="outline" className="bg-orange-100 text-orange-800">
-            Phone
+            PIX
           </Badge>
         )
       default:
@@ -286,9 +286,9 @@ export default function CustomerAliasesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Alias Name</TableHead>
+                  <TableHead>Document</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Details</TableHead>
+                  <TableHead>Banking Details</TableHead>
                   <TableHead>Ledger</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -298,30 +298,30 @@ export default function CustomerAliasesPage() {
                 {filteredAliases.map((alias) => (
                   <TableRow key={alias.id}>
                     <TableCell>
-                      <div className="font-medium">{alias.name}</div>
+                      <div className="font-medium">{alias.document}</div>
                       <div className="font-mono text-xs text-muted-foreground">
                         {alias.id.slice(-8)}
                       </div>
                     </TableCell>
                     <TableCell>{getAliasTypeBadge(alias.type)}</TableCell>
                     <TableCell>
-                      {alias.bankAccount ? (
+                      {alias.bankingDetails ? (
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2">
                             <span className="font-medium">
-                              {alias.bankAccount.bankCode}
+                              Bank {alias.bankingDetails.bankId}
                             </span>
                             <span className="text-muted-foreground">•</span>
                             <span className="text-muted-foreground">
-                              Branch {alias.bankAccount.branch}
+                              Branch {alias.bankingDetails.branch}
                             </span>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Account: {alias.bankAccount.number}
+                            Account: {alias.bankingDetails.account}
                           </div>
-                          {alias.bankAccount.type && (
+                          {alias.bankingDetails.type && (
                             <div className="text-xs text-muted-foreground">
-                              Type: {alias.bankAccount.type}
+                              Type: {alias.bankingDetails.type} ({alias.bankingDetails.countryCode})
                             </div>
                           )}
                         </div>
@@ -394,9 +394,9 @@ export default function CustomerAliasesPage() {
               <CreditCard className="h-5 w-5 text-blue-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {aliases.filter((a) => a.type === 'bank_account').length}
+                  {aliases.filter((a) => a.type === 'NATURAL_PERSON').length}
                 </div>
-                <p className="text-xs text-muted-foreground">Bank Accounts</p>
+                <p className="text-xs text-muted-foreground">Natural Persons</p>
               </div>
             </div>
           </CardContent>
@@ -408,9 +408,9 @@ export default function CustomerAliasesPage() {
               <Banknote className="h-5 w-5 text-green-600" />
               <div>
                 <div className="text-2xl font-bold">
-                  {aliases.filter((a) => a.type === 'pix').length}
+                  {aliases.filter((a) => a.type === 'LEGAL_PERSON').length}
                 </div>
-                <p className="text-xs text-muted-foreground">PIX Keys</p>
+                <p className="text-xs text-muted-foreground">Legal Persons</p>
               </div>
             </div>
           </CardContent>
@@ -424,7 +424,7 @@ export default function CustomerAliasesPage() {
                 <div className="text-2xl font-bold">
                   {
                     aliases.filter(
-                      (a) => !['bank_account', 'pix'].includes(a.type)
+                      (a) => !['NATURAL_PERSON', 'LEGAL_PERSON'].includes(a.type)
                     ).length
                   }
                 </div>

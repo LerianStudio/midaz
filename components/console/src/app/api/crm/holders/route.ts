@@ -25,9 +25,16 @@ export const GET = applyMiddleware(
         await container.getAsync<FetchAllHolders>(FetchAllHoldersUseCase)
 
       const { searchParams } = new URL(request.url)
-      const organizationId = searchParams.get('organizationId') || 'default'
+      const organizationId = searchParams.get('organizationId')
       const limit = Number(searchParams.get('limit')) || 10
       const page = Number(searchParams.get('page')) || 1
+
+      if (!organizationId) {
+        return NextResponse.json(
+          { message: 'organizationId is required' },
+          { status: 400 }
+        )
+      }
 
       const holders = await fetchAllHoldersUseCase.execute(
         organizationId,
@@ -56,7 +63,14 @@ export const POST = applyMiddleware(
         await container.getAsync<CreateHolder>(CreateHolderUseCase)
 
       const body = await request.json()
-      const organizationId = body.organizationId || 'default'
+      const organizationId = body.organizationId
+
+      if (!organizationId) {
+        return NextResponse.json(
+          { message: 'organizationId is required' },
+          { status: 400 }
+        )
+      }
 
       const result = await createHolderUseCase.execute(organizationId, body)
 

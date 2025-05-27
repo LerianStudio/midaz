@@ -23,31 +23,45 @@ export class CrmHolderRepository implements HolderRepository {
       process.env.PLUGIN_CRM_BASE_PATH || 'http://plugin-crm:4003/v1'
   }
 
-  async create(holder: CreateHolderEntity): Promise<HolderEntity> {
+  async create(organizationId: string, holder: CreateHolderEntity): Promise<HolderEntity> {
     const dto = HolderMapper.toCreateDto(holder)
     const response = await this.httpService.post<HolderDto>(
       `${this.baseUrl}/holders`,
       {
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
       }
     )
     return HolderMapper.toEntity(response)
   }
 
-  async update(id: string, holder: UpdateHolderEntity): Promise<HolderEntity> {
+  async update(organizationId: string, id: string, holder: UpdateHolderEntity): Promise<HolderEntity> {
     const dto = HolderMapper.toUpdateDto(holder)
     const response = await this.httpService.patch<HolderDto>(
       `${this.baseUrl}/holders/${id}`,
       {
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
       }
     )
     return HolderMapper.toEntity(response)
   }
 
-  async findById(id: string): Promise<HolderEntity> {
+  async findById(organizationId: string, id: string): Promise<HolderEntity> {
     const response = await this.httpService.get<HolderDto>(
-      `${this.baseUrl}/holders/${id}`
+      `${this.baseUrl}/holders/${id}`,
+      {
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
+      }
     )
     return HolderMapper.toEntity(response)
   }
@@ -64,18 +78,29 @@ export class CrmHolderRepository implements HolderRepository {
 
     const response = await this.httpService.get<
       HolderPaginatedResponseDto | PaginationEntity<HolderDto>
-    >(`${this.baseUrl}/holders?${queryParams.toString()}`)
+    >(`${this.baseUrl}/holders?${queryParams.toString()}`, {
+      headers: {
+        'X-Organization-Id': organizationId,
+        'X-Lerian-Id': organizationId
+      }
+    })
 
     return HolderMapper.toPaginatedEntity(response)
   }
 
-  async delete(id: string, isHardDelete: boolean = false): Promise<void> {
+  async delete(organizationId: string, id: string, isHardDelete: boolean = false): Promise<void> {
     const queryParams = isHardDelete
       ? new URLSearchParams({ hard: 'true' })
       : new URLSearchParams()
 
     await this.httpService.delete(
-      `${this.baseUrl}/holders/${id}?${queryParams.toString()}`
+      `${this.baseUrl}/holders/${id}?${queryParams.toString()}`,
+      {
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
+      }
     )
   }
 }

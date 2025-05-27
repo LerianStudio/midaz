@@ -1,38 +1,40 @@
 import { MetadataEntity } from './metadata-entity'
 
-export interface BankAccountEntity {
-  bankCode: string
+export interface BankingDetailsEntity {
   branch: string
-  number: string
+  account: string
   type: string
-  holderName: string
+  countryCode: string
+  bankId: string
 }
 
 export interface AliasEntity {
   id: string
-  name: string
+  document: string
   type: string
   ledgerId: string
   accountId: string
+  holderId: string
   metadata?: MetadataEntity
-  bankAccount?: BankAccountEntity
+  bankingDetails?: BankingDetailsEntity
   createdAt: string
   updatedAt: string
-  deletedAt?: string
+  deletedAt?: string | null
 }
 
 export interface CreateAliasEntity {
-  name: string
+  document: string
   type: string
   ledgerId: string
   accountId: string
+  holderId: string
   metadata?: MetadataEntity
-  bankAccount?: BankAccountEntity
+  bankingDetails?: BankingDetailsEntity
 }
 
 export interface UpdateAliasEntity {
-  name?: string
+  document?: string
   type?: string
   metadata?: MetadataEntity
-  bankAccount?: BankAccountEntity
+  bankingDetails?: BankingDetailsEntity
 }

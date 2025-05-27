@@ -15,12 +15,13 @@ export class AliasMapper {
   static toEntity(dto: AliasDto): AliasEntity {
     return {
       id: dto.id,
-      name: dto.name,
+      document: dto.document,
       type: dto.type,
       ledgerId: dto.ledgerId,
       accountId: dto.accountId,
+      holderId: dto.holderId,
       metadata: dto.metadata,
-      bankAccount: dto.bankAccount,
+      bankingDetails: dto.bankingDetails,
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
       deletedAt: dto.deletedAt
@@ -59,25 +60,26 @@ export class AliasMapper {
 
   static toCreateDto(entity: CreateAliasEntity): CreateAliasDto {
     return {
-      name: entity.name,
+      document: entity.document,
       type: entity.type,
       ledgerId: entity.ledgerId,
       accountId: entity.accountId,
+      holderId: entity.holderId,
       metadata: entity.metadata
         ? (entity.metadata as Record<string, string>)
         : undefined,
-      bankAccount: entity.bankAccount
+      bankingDetails: entity.bankingDetails
     }
   }
 
   static toUpdateDto(entity: UpdateAliasEntity): UpdateAliasDto {
     return {
-      name: entity.name,
+      document: entity.document,
       type: entity.type,
       metadata: entity.metadata
         ? (entity.metadata as Record<string, string>)
         : undefined,
-      bankAccount: entity.bankAccount
+      bankingDetails: entity.bankingDetails
     }
   }
 }

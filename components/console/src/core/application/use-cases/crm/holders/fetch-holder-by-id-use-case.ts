@@ -20,6 +20,6 @@ export class FetchHolderByIdUseCase implements FetchHolderById {
     organizationId: string,
     holderId: string
   ): Promise<HolderEntity> {
-    return await this.holderRepository.findById(holderId)
+    return await this.holderRepository.findById(organizationId, holderId)
   }
 }

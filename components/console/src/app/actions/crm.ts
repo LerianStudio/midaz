@@ -233,6 +233,8 @@ export async function getAllAliases(params?: {
       page
     )
 
+    console.log('Fetched holders:', holdersResult.items?.length || 0)
+
     // If no holders, return empty aliases
     if (!holdersResult.items || holdersResult.items.length === 0) {
       return {
@@ -251,7 +253,14 @@ export async function getAllAliases(params?: {
     
     const aliasPromises = holdersResult.items.map(holder =>
       fetchAllAliasesUseCase.execute(organizationId, holder.id, 100, 1)
-        .catch(() => ({ items: [], total: 0 })) // Gracefully handle failures
+        .then(result => {
+          console.log(`Aliases for holder ${holder.id}:`, result.items?.length || 0)
+          return result
+        })
+        .catch((error) => {
+          console.error(`Failed to fetch aliases for holder ${holder.id}:`, error)
+          return { items: [], total: 0 }
+        })
     )
 
     const aliasResults = await Promise.all(aliasPromises)
@@ -259,6 +268,8 @@ export async function getAllAliases(params?: {
     // Combine all aliases
     const allAliases = aliasResults.flatMap(result => result.items || [])
     const totalAliases = aliasResults.reduce((sum, result) => sum + (result.total || 0), 0)
+
+    console.log('Total aliases found:', totalAliases)
 
     return {
       success: true,
@@ -268,6 +279,7 @@ export async function getAllAliases(params?: {
       }
     }
   } catch (error) {
+    console.error('Error in getAllAliases:', error)
     return handleError(error, 'Failed to fetch all aliases')
   }
 }

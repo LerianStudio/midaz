@@ -6,13 +6,13 @@ import {
 } from '../../entities/holder-entity'
 
 export interface HolderRepository {
-  create(holder: CreateHolderEntity): Promise<HolderEntity>
-  update(id: string, holder: UpdateHolderEntity): Promise<HolderEntity>
-  findById(id: string): Promise<HolderEntity>
+  create(organizationId: string, holder: CreateHolderEntity): Promise<HolderEntity>
+  update(organizationId: string, id: string, holder: UpdateHolderEntity): Promise<HolderEntity>
+  findById(organizationId: string, id: string): Promise<HolderEntity>
   fetchAll(
     organizationId: string,
     limit?: number,
     page?: number
   ): Promise<PaginationEntity<HolderEntity>>
-  delete(id: string, isHardDelete?: boolean): Promise<void>
+  delete(organizationId: string, id: string, isHardDelete?: boolean): Promise<void>
 }

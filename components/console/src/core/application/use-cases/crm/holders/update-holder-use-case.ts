@@ -28,6 +28,6 @@ export class UpdateHolderUseCase implements UpdateHolder {
     holderId: string,
     holder: UpdateHolderEntity
   ): Promise<HolderEntity> {
-    return await this.holderRepository.update(holderId, holder)
+    return await this.holderRepository.update(organizationId, holderId, holder)
   }
 }

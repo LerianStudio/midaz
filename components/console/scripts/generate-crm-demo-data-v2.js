@@ -3,7 +3,7 @@
 const { randomUUID } = require('crypto');
 
 const CRM_BASE_URL = 'http://localhost:4003/v1';
-const ORGANIZATION_ID = '0197127c-efde-7dcd-959d-d37ea6d5f7e4'; // Beatty, Bayer and Koelpin
+const ORGANIZATION_ID = '019712c0-6335-70af-aa93-24af25e378b0'; // Current organization
 const LEDGER_ID = '0197127c-eff1-7b09-841f-b173aba53042'; // Their ledger
 
 // Sample account IDs from the ledger
