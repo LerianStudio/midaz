@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import { Workflow, WorkflowExecution } from '@/core/domain/entities/workflow'
+import { Workflow } from '@/core/domain/entities/workflow'
+import { WorkflowExecution } from '@/core/domain/entities/workflow-execution'
 import {
   fetchWorkflowByIdActionEnhanced,
   updateWorkflowActionEnhanced,

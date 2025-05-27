@@ -122,7 +122,7 @@ export class MockWebSocketConnection {
   private server: MockWebSocketServer
   private subscriptions: Set<string> = new Set()
   private messageQueue: any[] = []
-  private onMessageCallback: ((data: string) => void) | null = null
+  private onMessageCallback: ((event: { data: string }) => void) | null = null
   private onOpenCallback: (() => void) | null = null
   private onCloseCallback: (() => void) | null = null
   private onErrorCallback: ((error: Error) => void) | null = null
