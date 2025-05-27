@@ -11,24 +11,22 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
     super()
     // Initialize with mock data
     mockWorkflowExecutions.forEach((execution) => {
-      this.executions.set(execution.id, execution)
+      this.executions.set(execution.executionId, execution)
     })
   }
 
   async create(execution: WorkflowExecution): Promise<WorkflowExecution> {
     const newExecution = {
       ...execution,
-      id:
-        execution.id ||
-        `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      executionId:
+        execution.executionId ||
+        `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     }
 
-    this.executions.set(newExecution.id, newExecution)
+    this.executions.set(newExecution.executionId, newExecution)
 
     // Simulate async execution progression
-    this.simulateExecutionProgress(newExecution.id)
+    this.simulateExecutionProgress(newExecution.executionId)
 
     return newExecution
   }
@@ -56,8 +54,8 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
 
     // Sort by start time (newest first)
     executions.sort((a, b) => {
-      const timeA = a.startTime?.getTime() || 0
-      const timeB = b.startTime?.getTime() || 0
+      const timeA = a.startTime || 0
+      const timeB = b.startTime || 0
       return timeB - timeA
     })
 
@@ -83,8 +81,7 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
 
     const updatedExecution = {
       ...execution,
-      ...updates,
-      updatedAt: new Date()
+      ...updates
     }
 
     this.executions.set(id, updatedExecution)
@@ -102,8 +99,8 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
     const executions = Array.from(this.executions.values())
       .filter((e) => e.workflowId === workflowId)
       .sort((a, b) => {
-        const timeA = a.startTime?.getTime() || 0
-        const timeB = b.startTime?.getTime() || 0
+        const timeA = a.startTime || 0
+        const timeB = b.startTime || 0
         return timeB - timeA
       })
 
@@ -133,7 +130,7 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
             taskDefName: 'validate_accounts',
             referenceTaskName: 'account_validation',
             status: 'IN_PROGRESS' as const,
-            startTime: new Date(),
+            startTime: Date.now(),
             workerId: 'worker-1',
             retryCount: 0,
             seq: 1,
@@ -155,7 +152,7 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
         if (lastTask.status === 'IN_PROGRESS') {
           // Complete current task
           lastTask.status = 'COMPLETED'
-          lastTask.endTime = new Date()
+          lastTask.endTime = Date.now()
           lastTask.outputData = { result: 'success' }
 
           // Add next task if not at the end
@@ -168,7 +165,7 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
               referenceTaskName:
                 tasks.length === 1 ? 'fee_calculation' : 'transaction_creation',
               status: 'IN_PROGRESS' as const,
-              startTime: new Date(),
+              startTime: Date.now(),
               workerId: 'worker-1',
               retryCount: 0,
               seq: tasks.length + 1,
@@ -187,7 +184,7 @@ export class WorkflowExecutionMockRepository extends WorkflowExecutionRepository
             // Complete execution
             await this.update(executionId, {
               status: 'COMPLETED',
-              endTime: new Date(),
+              endTime: Date.now(),
               output: {
                 transactionId: `txn_${Date.now()}`,
                 status: 'completed',

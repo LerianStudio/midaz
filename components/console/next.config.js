@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 
 const crypto = require('crypto')
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true'
-})
+// const withBundleAnalyzer = require('@next/bundle-analyzer')({
+//   enabled: process.env.ANALYZE === 'true'
+// })
+const withBundleAnalyzer = (config) => config
 
 const nextConfig = {
   reactStrictMode: true,

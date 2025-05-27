@@ -21,7 +21,7 @@
     "set-local-env": "shx cp .env.local.example .env",
     "set-env": "shx cp .env.example .env",
     "docker-up": "npm run set-env && docker compose up -d",
-    "prepare": "husky",
+    "prepare": "husky install",
     "format": "prettier --write .",
     "lhci": "lhci autorun",
     "format:check": "prettier --check ."
@@ -150,7 +150,7 @@
     "@types/react-dom": "^18",
     "@types/react-window": "^1.8.8",
     "@types/reflect-metadata": "^0.0.5",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.4.21",
     "conventional-changelog-conventionalcommits": "^8.0.0",
     "critters": "^0.0.23",
     "esbuild": "^0.25.0",

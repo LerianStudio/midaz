@@ -16,10 +16,10 @@ export class WorkflowMockRepository extends WorkflowRepository {
     mockWorkflows.map((workflow) => [`${workflow.id}`, workflow])
   )
 
-  async create(
+  create = async (
     organizationId: string,
     workflowRequest: CreateWorkflowRequest
-  ): Promise<Workflow> {
+  ): Promise<Workflow> => {
     const now = new Date().toISOString()
     const workflow: Workflow = {
       id: `01956b69-9102-75b7-8860-${Date.now().toString(16)}`,
@@ -45,7 +45,7 @@ export class WorkflowMockRepository extends WorkflowRepository {
     return workflow
   }
 
-  async fetchAll(
+  fetchAll = async (
     organizationId: string,
     limit: number,
     page: number,
@@ -54,7 +54,7 @@ export class WorkflowMockRepository extends WorkflowRepository {
       category?: string
       search?: string
     }
-  ): Promise<PaginationEntity<Workflow>> {
+  ): Promise<PaginationEntity<Workflow>> => {
     let filteredWorkflows = Array.from(this.workflows.values())
 
     if (filters) {
@@ -90,14 +90,14 @@ export class WorkflowMockRepository extends WorkflowRepository {
       page,
       limit,
       total: filteredWorkflows.length,
-      hasMore: endIndex < filteredWorkflows.length
+      totalPages: Math.ceil(filteredWorkflows.length / limit)
     }
   }
 
-  async fetchById(
+  fetchById = async (
     organizationId: string,
     workflowId: string
-  ): Promise<Workflow> {
+  ): Promise<Workflow> => {
     const workflow = this.workflows.get(workflowId)
     if (!workflow) {
       throw new Error(`Workflow with id ${workflowId} not found`)
@@ -105,7 +105,7 @@ export class WorkflowMockRepository extends WorkflowRepository {
     return workflow
   }
 
-  async findById(workflowId: string): Promise<Workflow> {
+  findById = async (workflowId: string): Promise<Workflow> => {
     const workflow = this.workflows.get(workflowId)
     if (!workflow) {
       throw new Error(`Workflow with id ${workflowId} not found`)
@@ -113,11 +113,11 @@ export class WorkflowMockRepository extends WorkflowRepository {
     return workflow
   }
 
-  async update(
+  update = async (
     organizationId: string,
     workflowId: string,
     updateRequest: UpdateWorkflowRequest
-  ): Promise<Workflow> {
+  ): Promise<Workflow> => {
     const workflow = await this.fetchById(organizationId, workflowId)
 
     const updatedWorkflow: Workflow = {
@@ -136,7 +136,7 @@ export class WorkflowMockRepository extends WorkflowRepository {
     return updatedWorkflow
   }
 
-  async delete(organizationId: string, workflowId: string): Promise<void> {
+  delete = async (organizationId: string, workflowId: string): Promise<void> => {
     const workflow = await this.fetchById(organizationId, workflowId)
     if (workflow.status === 'ACTIVE') {
       throw new Error(
@@ -146,10 +146,10 @@ export class WorkflowMockRepository extends WorkflowRepository {
     this.workflows.delete(workflowId)
   }
 
-  async validate(
+  validate = async (
     organizationId: string,
     workflow: Workflow | CreateWorkflowRequest
-  ): Promise<WorkflowValidationResult> {
+  ): Promise<WorkflowValidationResult> => {
     const errors = []
     const warnings = []
 
@@ -207,11 +207,11 @@ export class WorkflowMockRepository extends WorkflowRepository {
     }
   }
 
-  async duplicate(
+  duplicate = async (
     organizationId: string,
     workflowId: string,
     name: string
-  ): Promise<Workflow> {
+  ): Promise<Workflow> => {
     const originalWorkflow = await this.fetchById(organizationId, workflowId)
 
     const duplicatedWorkflow: Workflow = {
@@ -232,11 +232,11 @@ export class WorkflowMockRepository extends WorkflowRepository {
     return duplicatedWorkflow
   }
 
-  async updateStatus(
+  updateStatus = async (
     organizationId: string,
     workflowId: string,
     status: WorkflowStatus
-  ): Promise<Workflow> {
+  ): Promise<Workflow> => {
     const workflow = await this.fetchById(organizationId, workflowId)
 
     const updatedWorkflow: Workflow = {
