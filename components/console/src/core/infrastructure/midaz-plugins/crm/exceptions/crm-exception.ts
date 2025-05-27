@@ -1,42 +1,42 @@
-import { ApiException } from '@/lib/http'
+import { ApiException, HttpStatus } from '@/lib/http'
 
 export class CrmException extends ApiException {
   constructor(
     message: string,
-    code: number,
-    error?: string,
-    details?: unknown
+    code: string,
+    title: string,
+    status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR
   ) {
-    super(message, code, error, details)
+    super(code, title, message, status)
   }
 }
 
 export class CrmApiException extends CrmException {
-  constructor(message: string, code: number = 500) {
-    super(message, code)
+  constructor(message: string, status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR) {
+    super(message, '0100', 'CRM API Error', status)
   }
 }
 
 export class CrmValidationException extends CrmException {
-  constructor(message: string, details?: unknown) {
-    super(message, 400, 'VALIDATION_ERROR', details)
+  constructor(message: string) {
+    super(message, '0101', 'CRM Validation Error', HttpStatus.BAD_REQUEST)
   }
 }
 
 export class CrmNotFoundException extends CrmException {
   constructor(message: string) {
-    super(message, 404, 'NOT_FOUND')
+    super(message, '0102', 'CRM Not Found', HttpStatus.NOT_FOUND)
   }
 }
 
 export class CrmConflictException extends CrmException {
   constructor(message: string) {
-    super(message, 409, 'CONFLICT')
+    super(message, '0103', 'CRM Conflict', HttpStatus.CONFLICT)
   }
 }
 
 export class CrmServerException extends CrmException {
   constructor(message: string) {
-    super(message, 500, 'INTERNAL_SERVER_ERROR')
+    super(message, '0104', 'CRM Server Error', HttpStatus.INTERNAL_SERVER_ERROR)
   }
 }

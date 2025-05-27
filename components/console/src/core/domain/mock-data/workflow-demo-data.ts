@@ -49,13 +49,10 @@ export const generateDemoWorkflows = (): Workflow[] => {
         successRate: Math.floor(Math.random() * 100),
         metadata: {
           category: template.category,
-          tags: template.metadata?.tags || [],
-          author: template.metadata?.author || 'system'
+          tags: template.tags || [],
+          author: 'system'
         },
         createdBy: ['admin', 'system', 'user@midaz.io'][
-          Math.floor(Math.random() * 3)
-        ],
-        updatedBy: ['admin', 'system', 'user@midaz.io'][
           Math.floor(Math.random() * 3)
         ]
       }
