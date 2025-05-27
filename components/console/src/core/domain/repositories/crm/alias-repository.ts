@@ -6,13 +6,14 @@ import {
 } from '../../entities/alias-entity'
 
 export interface AliasRepository {
-  create(holderId: string, alias: CreateAliasEntity): Promise<AliasEntity>
+  create(holderId: string, alias: CreateAliasEntity, organizationId: string): Promise<AliasEntity>
   update(
     holderId: string,
     aliasId: string,
-    alias: UpdateAliasEntity
+    alias: UpdateAliasEntity,
+    organizationId: string
   ): Promise<AliasEntity>
-  findById(holderId: string, aliasId: string): Promise<AliasEntity>
+  findById(holderId: string, aliasId: string, organizationId: string): Promise<AliasEntity>
   fetchAllByHolder(
     holderId: string,
     organizationId: string,
@@ -22,6 +23,7 @@ export interface AliasRepository {
   delete(
     holderId: string,
     aliasId: string,
+    organizationId: string,
     isHardDelete?: boolean
   ): Promise<void>
 }

@@ -28,6 +28,6 @@ export class CreateAliasUseCase implements CreateAlias {
     holderId: string,
     alias: CreateAliasEntity
   ): Promise<AliasEntity> {
-    return await this.aliasRepository.create(holderId, alias)
+    return await this.aliasRepository.create(holderId, alias, organizationId)
   }
 }

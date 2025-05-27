@@ -24,13 +24,18 @@ export class CrmAliasRepository implements AliasRepository {
 
   async create(
     holderId: string,
-    alias: CreateAliasEntity
+    alias: CreateAliasEntity,
+    organizationId: string
   ): Promise<AliasEntity> {
     const dto = AliasMapper.toCreateDto(alias)
     const response = await this.httpService.post<AliasDto>(
       `${this.baseUrl}/holders/${holderId}/aliases`,
       {
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
       }
     )
     return AliasMapper.toEntity(response)
@@ -39,21 +44,32 @@ export class CrmAliasRepository implements AliasRepository {
   async update(
     holderId: string,
     aliasId: string,
-    alias: UpdateAliasEntity
+    alias: UpdateAliasEntity,
+    organizationId: string
   ): Promise<AliasEntity> {
     const dto = AliasMapper.toUpdateDto(alias)
     const response = await this.httpService.patch<AliasDto>(
       `${this.baseUrl}/holders/${holderId}/aliases/${aliasId}`,
       {
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
       }
     )
     return AliasMapper.toEntity(response)
   }
 
-  async findById(holderId: string, aliasId: string): Promise<AliasEntity> {
+  async findById(holderId: string, aliasId: string, organizationId: string): Promise<AliasEntity> {
     const response = await this.httpService.get<AliasDto>(
-      `${this.baseUrl}/holders/${holderId}/aliases/${aliasId}`
+      `${this.baseUrl}/holders/${holderId}/aliases/${aliasId}`,
+      {
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
+      }
     )
     return AliasMapper.toEntity(response)
   }
@@ -71,7 +87,12 @@ export class CrmAliasRepository implements AliasRepository {
 
     const response = await this.httpService.get<
       AliasPaginatedResponseDto | PaginationEntity<AliasDto>
-    >(`${this.baseUrl}/holders/${holderId}/aliases?${queryParams.toString()}`)
+    >(`${this.baseUrl}/holders/${holderId}/aliases?${queryParams.toString()}`, {
+      headers: {
+        'X-Organization-Id': organizationId,
+        'X-Lerian-Id': organizationId
+      }
+    })
 
     return AliasMapper.toPaginatedEntity(response)
   }
@@ -79,6 +100,7 @@ export class CrmAliasRepository implements AliasRepository {
   async delete(
     holderId: string,
     aliasId: string,
+    organizationId: string,
     isHardDelete: boolean = false
   ): Promise<void> {
     const queryParams = isHardDelete
@@ -86,7 +108,13 @@ export class CrmAliasRepository implements AliasRepository {
       : new URLSearchParams()
 
     await this.httpService.delete(
-      `${this.baseUrl}/holders/${holderId}/aliases/${aliasId}?${queryParams.toString()}`
+      `${this.baseUrl}/holders/${holderId}/aliases/${aliasId}?${queryParams.toString()}`,
+      {
+        headers: {
+          'X-Organization-Id': organizationId,
+          'X-Lerian-Id': organizationId
+        }
+      }
     )
   }
 }

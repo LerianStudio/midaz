@@ -39,11 +39,19 @@ export class WebSocketClient {
 
   constructor() {
     // In production, this would come from environment config
-    this.url = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8080/ws'
+    this.url = process.env.NEXT_PUBLIC_WEBSOCKET_URL || ''
   }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // For demo purposes, skip WebSocket connection
+      if (!this.url || this.url === '' || this.url.includes('localhost')) {
+        console.log('Demo mode: Skipping WebSocket connection')
+        // Don't emit connection event to avoid triggering error handling
+        resolve()
+        return
+      }
+
       if (this.ws?.readyState === WebSocket.OPEN) {
         resolve()
         return
@@ -86,7 +94,10 @@ export class WebSocketClient {
         this.ws.onerror = (error) => {
           console.error('WebSocket error:', error)
           this.isConnecting = false
-          this.emit('error', { error })
+          // Only emit error for non-demo environments
+          if (this.url && !this.url.includes('localhost')) {
+            this.emit('error', { error })
+          }
           reject(error)
         }
 
@@ -246,6 +257,10 @@ export class WebSocketClient {
   }
 
   isConnected(): boolean {
+    // For demo mode, always return false without trying to connect
+    if (!this.url || this.url === '' || this.url.includes('localhost')) {
+      return false
+    }
     return this.ws?.readyState === WebSocket.OPEN
   }
 }

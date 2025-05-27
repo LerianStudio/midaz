@@ -111,7 +111,7 @@ export async function getHolderById(
     const holderRepository = container.get<HolderRepository>(
       CRM_SYMBOLS.HolderRepository
     )
-    const holder = await holderRepository.findById(id)
+    const holder = await holderRepository.findById('default', id)
 
     return {
       success: true,
@@ -267,7 +267,8 @@ export async function getAllAliases(params?: {
     
     // Combine all aliases
     const allAliases = aliasResults.flatMap(result => result.items || [])
-    const totalAliases = aliasResults.reduce((sum, result) => sum + (result.total || 0), 0)
+    // Calculate total from actual items since the API might not return correct totals
+    const totalAliases = allAliases.length
 
     console.log('Total aliases found:', totalAliases)
 
@@ -314,7 +315,7 @@ export async function updateAlias(
     const aliasRepository = container.get<AliasRepository>(
       CRM_SYMBOLS.AliasRepository
     )
-    const updated = await aliasRepository.update(holderId, aliasId, updates)
+    const updated = await aliasRepository.update(holderId, aliasId, updates, 'default')
 
     revalidatePath('/plugins/crm/holders')
     revalidatePath(`/plugins/crm/holders/${holderId}`)
@@ -338,7 +339,7 @@ export async function deleteAlias(
     const aliasRepository = container.get<AliasRepository>(
       CRM_SYMBOLS.AliasRepository
     )
-    await aliasRepository.delete(holderId, aliasId, isHardDelete)
+    await aliasRepository.delete(holderId, aliasId, 'default', isHardDelete)
 
     revalidatePath('/plugins/crm/holders')
     revalidatePath(`/plugins/crm/holders/${holderId}`)

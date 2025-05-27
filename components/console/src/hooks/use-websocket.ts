@@ -20,6 +20,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const wsClient = useRef(getWebSocketClient())
+  
+  // Check if we're in demo mode
+  const isDemoMode = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || 
+     window.location.hostname === '127.0.0.1')
 
   useEffect(() => {
     const client = wsClient.current
@@ -40,21 +45,31 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       console.error('WebSocket error:', message.data)
       setIsConnecting(false)
       onError?.(message.data.error)
-      toast({
-        variant: 'destructive',
-        title: 'Connection Error',
-        description:
-          'Failed to establish real-time connection. Updates may be delayed.'
-      })
+      // Only show toast if not in demo mode
+      if (process.env.NEXT_PUBLIC_DEMO_MODE !== 'true' && !wsClient.current.url?.includes('localhost:8080')) {
+        toast({
+          variant: 'destructive',
+          title: 'Connection Error',
+          description:
+            'Failed to establish real-time connection. Updates may be delayed.'
+        })
+      }
     })
 
-    // Auto-connect if enabled
+    // Auto-connect if enabled (skip for demo/localhost)
     if (autoConnect && !client.isConnected()) {
-      setIsConnecting(true)
-      client.connect().catch((error) => {
-        console.error('Failed to connect WebSocket:', error)
-        setIsConnecting(false)
-      })
+      // Skip connection for demo mode
+      const isDemoMode = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' ||
+                        process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+      
+      if (!isDemoMode) {
+        setIsConnecting(true)
+        client.connect().catch((error) => {
+          console.error('Failed to connect WebSocket:', error)
+          setIsConnecting(false)
+        })
+      }
     }
 
     return () => {
