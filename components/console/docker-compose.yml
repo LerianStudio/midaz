@@ -2,8 +2,8 @@ services:
   console:
     container_name: midaz-console
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: components/console/Dockerfile
     restart: always
     ports:
       - '${MIDAZ_CONSOLE_PORT}:8081'
