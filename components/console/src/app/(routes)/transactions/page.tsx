@@ -42,12 +42,6 @@ export default function TransactionsPage() {
     setTotal(transactions.items.length)
   }, [transactions?.items, transactions?.limit])
 
-  React.useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
-
   const hasLedgerLoaded = Boolean(currentLedger.id)
 
   const breadcrumbPaths = getBreadcrumbPaths([

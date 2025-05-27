@@ -11,7 +11,7 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -25,7 +25,6 @@ import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
-  const router = useRouter()
   const { id: ledgerId } = useParams<{ id: string }>()
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { currentOrganization, currentLedger } = useOrganization()
@@ -62,12 +61,6 @@ const Page = () => {
 
     setTotal(assets.items.length)
   }, [assets?.items, assets?.limit])
-
-  useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
 
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteAsset({
     organizationId: currentOrganization.id!,
