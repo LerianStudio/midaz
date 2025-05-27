@@ -226,11 +226,12 @@ export async function getAllAliases(params?: {
     const fetchAllAliasesUseCase = container.get<FetchAllAliases>(
       FetchAllAliasesUseCase
     )
-    const result = await fetchAllAliasesUseCase.execute({
+    const result = await fetchAllAliasesUseCase.execute(
       organizationId,
+      '', // TODO: This should be a different use case to fetch all aliases
       limit,
       page
-    })
+    )
 
     return {
       success: true,
@@ -250,7 +251,7 @@ export async function createAlias(
 ): Promise<ActionResult<AliasEntity>> {
   try {
     const createAliasUseCase = container.get<CreateAlias>(CreateAliasUseCase)
-    const created = await createAliasUseCase.execute(holderId, alias)
+    const created = await createAliasUseCase.execute('default', holderId, alias)
 
     revalidatePath('/plugins/crm/holders')
     revalidatePath(`/plugins/crm/holders/${holderId}`)
