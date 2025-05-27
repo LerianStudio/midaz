@@ -18,7 +18,7 @@
     "forceConsistentCasingInFileNames": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "types": ["reflect-metadata", "jest", "node"],
+    "types": ["reflect-metadata", "jest"],
     "plugins": [
       {
         "name": "next"
