@@ -38,7 +38,7 @@ function Template() {
   return (
     <SidebarRoot>
       <SidebarHeader>
-        <img className="w-10" alt="" src="/svg/brand-midaz.svg" />
+        <img className="w-10" alt="" src="/svg/lerian-logo.svg" />
       </SidebarHeader>
 
       <SidebarContent>

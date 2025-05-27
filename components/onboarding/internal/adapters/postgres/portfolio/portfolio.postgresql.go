@@ -33,6 +33,7 @@ type Repository interface {
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Portfolio, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
 // PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
@@ -487,4 +488,33 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	return nil
+}
+
+// Count retrieves the number of Portfolio entities in the database.
+func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_portfolios")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
+
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL", organizationID, ledgerID).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	return count, nil
 }

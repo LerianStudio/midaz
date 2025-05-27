@@ -1,7 +1,7 @@
 'use client'
 import { useListOrganizations } from '@/client/organizations'
 import { Popover } from '@/components/ui/popover'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import React, { useEffect } from 'react'
 import { useIntl } from 'react-intl'
 import { useSidebar } from '../sidebar/primitive'
@@ -19,14 +19,14 @@ export const OrganizationSwitcher = () => {
   const [open, setOpen] = React.useState(false)
   const [avatar, setAvatar] = React.useState<string>(LerianLogo)
 
-  const handleChange = (organization: OrganizationEntity) => {
+  const handleChange = (organization: OrganizationResponseDto) => {
     setOrganization(organization)
     setOpen(false)
   }
 
   useEffect(() => {
-    if (currentOrganization.metadata?.avatar) {
-      return setAvatar(currentOrganization.metadata.avatar)
+    if (currentOrganization.avatar) {
+      return setAvatar(currentOrganization.avatar)
     }
 
     setAvatar(LerianLogo)

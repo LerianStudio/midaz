@@ -32,6 +32,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations", auth.Authorize(midazName, "organizations", "get"), oh.GetAllOrganizations)
 	f.Get("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "get"), http.ParseUUIDPathParameters, oh.GetOrganizationByID)
 	f.Delete("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "delete"), http.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
+	f.Head("/v1/organizations/metrics/count", auth.Authorize(midazName, "organizations", "head"), oh.CountOrganizations)
 
 	// Ledgers
 	f.Post("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))
@@ -39,6 +40,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters, lh.GetAllLedgers)
 	f.Get("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters, lh.GetLedgerByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "delete"), http.ParseUUIDPathParameters, lh.DeleteLedgerByID)
+	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", auth.Authorize(midazName, "ledgers", "head"), http.ParseUUIDPathParameters, lh.CountLedgers)
 
 	// Assets
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", auth.Authorize(midazName, "assets", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))
@@ -46,6 +48,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", auth.Authorize(midazName, "assets", "get"), http.ParseUUIDPathParameters, ih.GetAllAssets)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", auth.Authorize(midazName, "assets", "get"), http.ParseUUIDPathParameters, ih.GetAssetByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", auth.Authorize(midazName, "assets", "delete"), http.ParseUUIDPathParameters, ih.DeleteAssetByID)
+	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count", auth.Authorize(midazName, "assets", "head"), http.ParseUUIDPathParameters, ih.CountAssets)
 
 	// Portfolios
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", auth.Authorize(midazName, "portfolios", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))
@@ -53,6 +56,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", auth.Authorize(midazName, "portfolios", "get"), http.ParseUUIDPathParameters, ph.GetAllPortfolios)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", auth.Authorize(midazName, "portfolios", "get"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", auth.Authorize(midazName, "portfolios", "delete"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
+	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count", auth.Authorize(midazName, "portfolios", "head"), http.ParseUUIDPathParameters, ph.CountPortfolios)
 
 	// Segment
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", auth.Authorize(midazName, "segments", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))

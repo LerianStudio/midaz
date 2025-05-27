@@ -7,6 +7,16 @@ import { usePermissions } from '@/providers/permission-provider/permission-provi
  */
 
 export function useFormPermissions(resource: string) {
+  const isAuthEnabled = process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
+
+  if (!isAuthEnabled) {
+    return {
+      hasReadPermission: true,
+      hasWritePermission: true,
+      isReadOnly: false
+    }
+  }
+
   const { validate } = usePermissions()
 
   const hasReadPermission = validate(resource, 'get')

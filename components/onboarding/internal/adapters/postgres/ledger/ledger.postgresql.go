@@ -33,6 +33,7 @@ type Repository interface {
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Delete(ctx context.Context, organizationID, id uuid.UUID) error
+	Count(ctx context.Context, organizationID uuid.UUID) (int64, error)
 }
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
@@ -447,4 +448,33 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	}
 
 	return nil
+}
+
+// Count retrieves the number of Ledger entities in the database for the given organization ID.
+func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_ledgers")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
+
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL", organizationID).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+
+		return count, err
+	}
+
+	return count, nil
 }

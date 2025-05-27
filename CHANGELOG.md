@@ -1,3 +1,71 @@
+## [v2.2.0-beta.45] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct console context build issue to ensure proper functionality.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.44] - 2025-05-27
+
+### ✨ Features
+- Implement asset count functionality with API documentation
+- Add tests for asset management functionality
+- Add documentation for new features
+
+### 📚 Documentation
+- Update Postman collection for MIDAZ API
+- Update Swagger documentation for onboarding API
+
+## [v2.2.0-beta.42] - 2025-05-27
+
+### ✨ Features
+- Add authentication toggle support, allowing users to enable or disable authentication as needed.
+
+### 🗑️ Removed
+- Remove external network dependencies to streamline the application and reduce reliance on external services.
+
+## [v2.2.0-beta.40] - 2025-05-27
+
+### ✨ Features
+- Implement ledger count functionality with comprehensive tests and API documentation
+- Add capability to count ledgers by `organization_id`
+
+### 🔧 Maintenance
+- Update Postman collection for MIDAZ
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.39] - 2025-05-27
+
+### ✨ Features
+- Add endpoint for organization count metrics, enhancing data visibility for organizational analysis.
+- Generate documentation for new API, providing detailed guidance on usage and integration.
+- Add mock and tests for new implementation, ensuring robustness and reliability of new features.
+
+### 🐛 Bug Fixes
+- Resolve Copilot warnings in the codebase, improving code quality and reducing potential errors.
+- Update `go.mod` and `go.sum` for dependency management, addressing compatibility and stability issues.
+
+### 🔧 Maintenance
+- Update OpenAPI and Swagger specifications for onboarding API, ensuring accurate API representation and ease of integration.
+- Update Postman collection for MIDAZ API, aligning with the latest API changes and improving testing capabilities.
+
+## [v2.2.0-beta.38] - 2025-05-26
+
+### ✨ Features
+- Add context to build components, enhancing the functionality and flexibility of component construction.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes and maintain accurate project documentation.
+
+## [v2.2.0-beta.37] - 2025-05-26
+
+### ✨ Features
+- Add organization tooltip and update title translations on the settings page for improved user experience.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.36] - 2025-05-26
 
 ### 🐛 Bug Fixes

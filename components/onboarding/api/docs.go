@@ -217,6 +217,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/metrics/count": {
+            "head": {
+                "description": "Returns the total count of organizations as a header without a response body",
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Count total organizations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content with X-Total-Count header containing the count",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{id}": {
             "get": {
                 "description": "Returns detailed information about an organization identified by its UUID",
@@ -623,6 +679,69 @@ const docTemplate = `{
                         "description": "Invalid input, validation errors",
                         "schema": {
                             "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/metrics/count": {
+            "head": {
+                "description": "Returns the total count of ledgers for a specific organization as a header without a response body",
+                "tags": [
+                    "Ledgers"
+                ],
+                "summary": "Count total ledgers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content with X-Total-Count header containing the count",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     "401": {
@@ -1788,6 +1907,76 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
+            "head": {
+                "description": "Returns the total count of assets for a specific ledger in an organization as a header without a response body",
+                "tags": [
+                    "Assets"
+                ],
+                "summary": "Count total assets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content with X-Total-Count header containing the count",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
             "get": {
                 "description": "Returns detailed information about an asset identified by its UUID within the specified ledger",
@@ -2275,6 +2464,79 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict: Portfolio with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
+            "head": {
+                "description": "Returns the total count of portfolios for a specific organization and ledger as a header without a response body",
+                "tags": [
+                    "Portfolios"
+                ],
+                "summary": "Count total portfolios",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successfully counted portfolios, total count available in X-Total-Count header"
+                    },
+                    "400": {
+                        "description": "Invalid UUID format",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }

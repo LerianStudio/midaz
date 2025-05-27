@@ -118,7 +118,12 @@ export const TransactionReview = () => {
             >
               <ArrowLeftCircle className="h-8 w-8" strokeWidth={1} />
             </Button>
-            <p className="text-sm font-medium text-zinc-700">Resumo</p>
+            <p className="text-sm font-medium text-zinc-700">
+              {intl.formatMessage({
+                id: 'transactions.create.review.backButton',
+                defaultMessage: 'Review'
+              })}
+            </p>
           </div>
           <p className="flex-grow py-2 text-center text-sm font-medium text-zinc-500">
             {intl.formatMessage({
@@ -149,7 +154,9 @@ export const TransactionReview = () => {
             )}
             <TransactionReceiptValue
               asset={values.asset}
-              value={values.value}
+              value={intl.formatNumber(values.value, {
+                roundingPriority: 'morePrecision'
+              })}
             />
             <TransactionReceiptSubjects
               sources={values.source?.map((source) => source.account)}
@@ -207,7 +214,9 @@ export const TransactionReview = () => {
                 type="debit"
                 account={source.account}
                 asset={values.asset}
-                value={source.value.toString()}
+                value={intl.formatNumber(source.value, {
+                  roundingPriority: 'morePrecision'
+                })}
               />
             ))}
             {values.destination?.map((destination, index) => (
@@ -216,7 +225,9 @@ export const TransactionReview = () => {
                 type="credit"
                 account={destination.account}
                 asset={values.asset}
-                value={destination.value.toString()}
+                value={intl.formatNumber(destination.value, {
+                  roundingPriority: 'morePrecision'
+                })}
               />
             ))}
             <Separator orientation="horizontal" />
