@@ -2459,8 +2459,10 @@ paths:
       responses:
         "204":
           description: No content with X-Total-Count header containing the count
-          schema:
-            type: string
+          headers:
+            X-Total-Count:
+              description: Total count of assets
+              type: integer
         "401":
           description: Unauthorized access
           schema:
