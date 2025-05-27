@@ -37,10 +37,10 @@ export const getDashboardStats = authActionClient
         FetchAllHoldersUseCase
       )
       
-      // Fetch with a high limit to get all holders
+      // Fetch with maximum allowed limit
       const holdersResult = await fetchAllHoldersUseCase.execute(
         organizationId,
-        1000, // High limit to get all holders
+        100, // Maximum allowed limit by CRM API
         1
       )
       

@@ -101,6 +101,7 @@ const CustomersPage = () => {
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.document.includes(searchTerm) ||
       (customer.contacts &&
+        customer.contacts.length > 0 &&
         customer.contacts.some((contact) =>
           contact.value.toLowerCase().includes(searchTerm.toLowerCase())
         ))
@@ -322,8 +323,11 @@ const CustomersPage = () => {
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <h3 className="font-semibold">{customer.name}</h3>
-                      <Badge className={getStatusColor(customer.status)}>
-                        {customer.status}
+                      <Badge className={getStatusColor('Active')}>
+                        {intl.formatMessage({
+                          id: 'common.status.active',
+                          defaultMessage: 'Active'
+                        })}
                       </Badge>
                       <Badge variant="outline">
                         {getCustomerTypeLabel(customer.type)}
@@ -359,13 +363,23 @@ const CustomersPage = () => {
                             return null
                           })}
                       </div>
-                      {customer.address && (
+                      {customer.address && customer.address.city && (
                         <div className="flex items-center space-x-1">
                           <MapPin className="h-3 w-3" />
                           <span>
-                            {customer.address.city}, {customer.address.state},{' '}
-                            {customer.address.country}
+                            {customer.address.city}
+                            {customer.address.state && `, ${customer.address.state}`}
+                            {customer.address.country && `, ${customer.address.country}`}
                           </span>
+                        </div>
+                      )}
+                      {customer.metadata?.customerSince && (
+                        <div className="text-xs">
+                          {intl.formatMessage({
+                            id: 'crm.customers.customerSince',
+                            defaultMessage: 'Customer since'
+                          })}{' '}
+                          {new Date(customer.metadata.customerSince).toLocaleDateString()}
                         </div>
                       )}
                     </div>
