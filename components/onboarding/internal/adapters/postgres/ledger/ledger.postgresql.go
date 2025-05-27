@@ -467,6 +467,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
 
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL", organizationID).Scan(&count)
 	if err != nil {
@@ -474,8 +475,6 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 		return count, err
 	}
-
-	spanQuery.End()
 
 	return count, nil
 }
