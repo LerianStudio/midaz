@@ -1,3 +1,11 @@
+## [v2.2.0-beta.47] - 2025-05-27
+
+### ✨ Features
+- Remove external option to simplify configuration, streamlining the setup process and reducing complexity.
+
+### 🐛 Bug Fixes
+- Update translations for improved localization, ensuring accurate and consistent user interface language across different regions.
+
 ## [v2.2.0-beta.45] - 2025-05-27
 
 ### 🐛 Bug Fixes
