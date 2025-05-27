@@ -529,7 +529,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
                       <div>
                         <h4 className="mb-2 font-medium">Data Sources</h4>
                         <div className="space-y-2">
-                          {template.dataSourceIds.map((dsId, index) => (
+                          {template.dataSourceIds?.map((dsId, index) => (
                             <Card key={dsId} className="p-3">
                               <div className="flex items-center space-x-2">
                                 <Database className="h-4 w-4 text-blue-500" />

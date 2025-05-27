@@ -37,7 +37,7 @@ import {
   Type,
   Calendar,
   Hash,
-  Toggle,
+  ToggleLeft,
   Database,
   Copy,
   Check

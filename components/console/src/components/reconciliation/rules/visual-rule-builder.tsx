@@ -459,7 +459,7 @@ export function VisualRuleBuilder({
                   <div className="flex items-center gap-4">
                     <Slider
                       value={[rule.criteria.tolerance || 0.01]}
-                      onValueChange={([value]) =>
+                      onValueChange={([value]: number[]) =>
                         handleFieldChange('tolerance', value)
                       }
                       max={0.1}
@@ -481,7 +481,7 @@ export function VisualRuleBuilder({
                   <div className="flex items-center gap-4">
                     <Slider
                       value={[rule.criteria.similarity_threshold || 0.8]}
-                      onValueChange={([value]) =>
+                      onValueChange={([value]: number[]) =>
                         handleFieldChange('similarity_threshold', value)
                       }
                       max={1}
