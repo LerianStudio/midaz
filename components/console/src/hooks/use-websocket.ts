@@ -27,6 +27,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
      window.location.hostname === '127.0.0.1')
 
   useEffect(() => {
+    // Skip all WebSocket logic in demo mode
+    if (isDemoMode) {
+      return
+    }
+
     const client = wsClient.current
 
     // Subscribe to connection events
@@ -45,38 +50,28 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       console.error('WebSocket error:', message.data)
       setIsConnecting(false)
       onError?.(message.data.error)
-      // Only show toast if not in demo mode
-      if (process.env.NEXT_PUBLIC_DEMO_MODE !== 'true' && !wsClient.current.url?.includes('localhost:8080')) {
-        toast({
-          variant: 'destructive',
-          title: 'Connection Error',
-          description:
-            'Failed to establish real-time connection. Updates may be delayed.'
-        })
-      }
+      toast({
+        variant: 'destructive',
+        title: 'Connection Error',
+        description:
+          'Failed to establish real-time connection. Updates may be delayed.'
+      })
     })
 
-    // Auto-connect if enabled (skip for demo/localhost)
+    // Auto-connect if enabled
     if (autoConnect && !client.isConnected()) {
-      // Skip connection for demo mode
-      const isDemoMode = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1' ||
-                        process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-      
-      if (!isDemoMode) {
-        setIsConnecting(true)
-        client.connect().catch((error) => {
-          console.error('Failed to connect WebSocket:', error)
-          setIsConnecting(false)
-        })
-      }
+      setIsConnecting(true)
+      client.connect().catch((error) => {
+        console.error('Failed to connect WebSocket:', error)
+        setIsConnecting(false)
+      })
     }
 
     return () => {
       unsubConnect()
       unsubError()
     }
-  }, [autoConnect, onConnect, onDisconnect, onError])
+  }, [autoConnect, onConnect, onDisconnect, onError, isDemoMode])
 
   const connect = useCallback(async () => {
     if (!wsClient.current.isConnected() && !isConnecting) {
