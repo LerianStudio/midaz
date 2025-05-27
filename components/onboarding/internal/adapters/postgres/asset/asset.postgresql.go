@@ -33,6 +33,7 @@ type Repository interface {
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
 // AssetPostgreSQLRepository is a Postgresql-specific implementation of the AssetRepository.
@@ -448,4 +449,34 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	}
 
 	return nil
+}
+
+// Count retrieves the total count of Asset entities from the database.
+func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_assets")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
+
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL",
+		organizationID, ledgerID).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	return count, nil
 }
