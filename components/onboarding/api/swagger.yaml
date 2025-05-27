@@ -2432,6 +2432,54 @@ paths:
       summary: Update an asset
       tags:
       - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+    head:
+      description: Returns the total count of assets for a specific ledger in an organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total assets
+      tags:
+      - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       description: Returns a paginated list of portfolios within the specified ledger,
