@@ -9,7 +9,7 @@ export type {
 
 // Alias entities
 export type {
-  BankAccountEntity,
+  BankingDetailsEntity,
   AliasEntity,
   CreateAliasEntity,
   UpdateAliasEntity

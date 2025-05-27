@@ -128,17 +128,27 @@ export default function TransactionRoutesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader.Root>
-        <PageHeader.InfoTitle
-          title="Transaction Routes"
-          subtitle="Configure transaction routing rules and operation mappings for automated transaction processing"
-        />
-        <PageHeader.InfoTooltip subtitle="Transaction routes define how operations flow through your accounting system, ensuring proper validation and processing of financial transactions." />
-      </PageHeader.Root>
+    <div className="flex h-full flex-col">
+      <div className="px-6">
+        <PageHeader.Root>
+          <PageHeader.Wrapper>
+            <PageHeader.InfoTitle
+              title="Transaction Routes"
+              subtitle="Configure transaction routing rules and operation mappings for automated transaction processing"
+            />
+            <PageHeader.ActionButtons>
+              <Button onClick={handleCreateRoute}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Route
+              </Button>
+            </PageHeader.ActionButtons>
+          </PageHeader.Wrapper>
+        </PageHeader.Root>
+      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="flex-1 space-y-6 px-6 pb-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Routes</CardTitle>
@@ -194,23 +204,9 @@ export default function TransactionRoutesPage() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Route Management</CardTitle>
-              <CardDescription>
-                Create and manage transaction routing configurations
-              </CardDescription>
-            </div>
-            <Button onClick={handleCreateRoute} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Create Route
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+        {/* Filters and Search */}
+        <Card>
+          <CardContent className="pt-6">
           <div className="mb-6 flex items-center space-x-4">
             <div className="flex-1">
               <div className="relative">
@@ -463,7 +459,8 @@ export default function TransactionRoutesPage() {
             </TabsContent>
           </Tabs>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/page-header'
 import { AccountUsageChart } from '@/components/accounting/analytics/account-usage-chart'
 import { ComplianceTrendChart } from '@/components/accounting/analytics/compliance-trend-chart'
 import { AccountingAnalyticsDashboard } from '@/components/accounting/analytics/accounting-analytics-dashboard'
@@ -221,38 +222,37 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Accounting Analytics
-          </h1>
-          <p className="text-muted-foreground">
-            Insights and performance metrics for accounting operations
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+    <div className="flex h-full flex-col">
+      <div className="px-6">
+        <PageHeader.Root>
+          <PageHeader.Wrapper>
+            <PageHeader.InfoTitle
+              title="Accounting Analytics"
+              subtitle="Insights and performance metrics for accounting operations"
             />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-        </div>
+            <PageHeader.ActionButtons>
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </Button>
+              <Button variant="outline" onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </PageHeader.ActionButtons>
+          </PageHeader.Wrapper>
+        </PageHeader.Root>
       </div>
 
-      {/* Overview Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="flex-1 space-y-6 px-6 pb-6">
+        {/* Overview Metrics */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {overviewMetrics.map((metric, index) => {
           const Icon = metric.icon
           return (
@@ -577,6 +577,7 @@ export default function AnalyticsPage() {
           </div>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

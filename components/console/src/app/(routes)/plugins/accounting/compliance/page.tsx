@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/page-header'
 import { ComplianceStatusWidget } from '@/components/accounting/compliance/compliance-status-widget'
 import { ComplianceAlerts } from '@/components/accounting/compliance/compliance-alerts'
 import {
@@ -158,39 +159,37 @@ export default function CompliancePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Compliance Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Monitor compliance status, validation rules, and regulatory
-            requirements
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+    <div className="flex h-full flex-col">
+      <div className="px-6">
+        <PageHeader.Root>
+          <PageHeader.Wrapper>
+            <PageHeader.InfoTitle
+              title="Compliance Dashboard"
+              subtitle="Monitor compliance status, validation rules, and regulatory requirements"
             />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            Export Report
-          </Button>
-        </div>
+            <PageHeader.ActionButtons>
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </Button>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export Report
+              </Button>
+            </PageHeader.ActionButtons>
+          </PageHeader.Wrapper>
+        </PageHeader.Root>
       </div>
 
-      {/* Alerts */}
-      <ComplianceAlerts />
+      <div className="flex-1 space-y-6 px-6 pb-6">
+        {/* Alerts */}
+        <ComplianceAlerts />
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-6">
@@ -458,6 +457,7 @@ export default function CompliancePage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

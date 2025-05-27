@@ -233,14 +233,27 @@ export default function OperationRoutesPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <PageHeader.Root>
-        <PageHeader.InfoTitle title="Operation Routes" />
-        <PageHeader.InfoTooltip subtitle="Manage individual operation mappings between account types with conditions and amount calculations." />
-      </PageHeader.Root>
+    <div className="flex h-full flex-col">
+      <div className="px-6">
+        <PageHeader.Root>
+          <PageHeader.Wrapper>
+            <PageHeader.InfoTitle
+              title="Operation Routes"
+              subtitle="Manage individual operation mappings between account types with conditions and amount calculations"
+            />
+            <PageHeader.ActionButtons>
+              <Button onClick={handleCreateOperation}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Operation
+              </Button>
+            </PageHeader.ActionButtons>
+          </PageHeader.Wrapper>
+        </PageHeader.Root>
+      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="flex-1 space-y-6 px-6 pb-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -295,23 +308,9 @@ export default function OperationRoutesPage() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Operation Management</CardTitle>
-              <CardDescription>
-                Create and manage individual operation route mappings
-              </CardDescription>
-            </div>
-            <Button onClick={handleCreateOperation} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Create Operation
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+        {/* Filters and Search */}
+        <Card>
+          <CardContent className="pt-6">
           <div className="mb-6 flex items-center space-x-4">
             <div className="flex-1">
               <div className="relative">
@@ -512,7 +511,8 @@ export default function OperationRoutesPage() {
             </TabsContent>
           </Tabs>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }

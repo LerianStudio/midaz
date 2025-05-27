@@ -7,14 +7,14 @@ export function exportHoldersToCSV(holders: HolderEntity[]): string {
     'Type',
     'Name',
     'Document',
-    'Email',
-    'Phone',
-    'Nationality',
+    'Trading Name',
+    'Legal Name',
+    'Website',
     'Address Line 1',
     'Address Line 2',
     'City',
     'State',
-    'Postal Code',
+    'Zip Code',
     'Country',
     'Status',
     'Created At'
@@ -25,16 +25,16 @@ export function exportHoldersToCSV(holders: HolderEntity[]): string {
     holder.type,
     holder.name,
     holder.document,
-    holder.email || '',
-    holder.phoneNumber || '',
-    holder.nationality || '',
+    holder.tradingName || '',
+    holder.legalName || '',
+    holder.website || '',
     holder.address?.line1 || '',
     holder.address?.line2 || '',
     holder.address?.city || '',
     holder.address?.state || '',
-    holder.address?.postalCode || '',
+    holder.address?.zipCode || '',
     holder.address?.country || '',
-    holder.status?.code || 'ACTIVE',
+    holder.status || 'ACTIVE',
     holder.createdAt ? new Date(holder.createdAt).toISOString() : ''
   ])
 
@@ -49,13 +49,13 @@ export function exportHoldersToCSV(holders: HolderEntity[]): string {
 export function exportAliasesToCSV(aliases: AliasEntity[], holders: Record<string, HolderEntity>): string {
   const headers = [
     'Alias ID',
-    'Alias Name',
+    'Alias Document',
     'Type',
     'Holder Name',
     'Holder Document',
     'Ledger ID',
     'Account ID',
-    'Bank Code',
+    'Bank ID',
     'Bank Branch',
     'Account Number',
     'Account Type',
@@ -66,16 +66,16 @@ export function exportAliasesToCSV(aliases: AliasEntity[], holders: Record<strin
     const holder = holders[alias.holderId || '']
     return [
       alias.id,
-      alias.name,
+      alias.document,
       alias.type,
       holder?.name || 'Unknown',
       holder?.document || '',
       alias.ledgerId,
       alias.accountId,
-      alias.bankAccount?.bankCode || '',
-      alias.bankAccount?.branch || '',
-      alias.bankAccount?.number || '',
-      alias.bankAccount?.type || '',
+      alias.bankingDetails?.bankId || '',
+      alias.bankingDetails?.branch || '',
+      alias.bankingDetails?.account || '',
+      alias.bankingDetails?.type || '',
       alias.createdAt ? new Date(alias.createdAt).toISOString() : ''
     ]
   })
