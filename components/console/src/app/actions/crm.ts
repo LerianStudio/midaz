@@ -221,23 +221,50 @@ export async function getAllAliases(params?: {
   page?: number
 }): Promise<ActionResult<{ aliases: AliasEntity[]; total: number }>> {
   try {
-    const { organizationId = 'default', limit = 10, page = 1 } = params || {}
+    const { organizationId = 'default', limit = 100, page = 1 } = params || {}
 
-    const fetchAllAliasesUseCase = container.get<FetchAllAliases>(
-      FetchAllAliasesUseCase
+    // First, fetch all holders
+    const fetchAllHoldersUseCase = container.get<FetchAllHolders>(
+      FetchAllHoldersUseCase
     )
-    const result = await fetchAllAliasesUseCase.execute(
+    const holdersResult = await fetchAllHoldersUseCase.execute(
       organizationId,
-      '', // TODO: This should be a different use case to fetch all aliases
       limit,
       page
     )
 
+    // If no holders, return empty aliases
+    if (!holdersResult.items || holdersResult.items.length === 0) {
+      return {
+        success: true,
+        data: {
+          aliases: [],
+          total: 0
+        }
+      }
+    }
+
+    // Fetch aliases for each holder
+    const fetchAllAliasesUseCase = container.get<FetchAllAliases>(
+      FetchAllAliasesUseCase
+    )
+    
+    const aliasPromises = holdersResult.items.map(holder =>
+      fetchAllAliasesUseCase.execute(organizationId, holder.id, 100, 1)
+        .catch(() => ({ items: [], total: 0 })) // Gracefully handle failures
+    )
+
+    const aliasResults = await Promise.all(aliasPromises)
+    
+    // Combine all aliases
+    const allAliases = aliasResults.flatMap(result => result.items || [])
+    const totalAliases = aliasResults.reduce((sum, result) => sum + (result.total || 0), 0)
+
     return {
       success: true,
       data: {
-        aliases: result.items,
-        total: result.total || 0
+        aliases: allAliases,
+        total: totalAliases
       }
     }
   } catch (error) {
