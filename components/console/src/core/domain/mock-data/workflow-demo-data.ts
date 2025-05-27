@@ -34,15 +34,7 @@ export const generateDemoWorkflows = (): Workflow[] => {
             type: task.type as TaskType,
             description: task.description || '',
             optional: task.optional || false,
-            inputParameters: task.defaultConfiguration || {},
-            taskDefinition: {
-              name: task.name,
-              description: task.description || '',
-              inputKeys: Object.keys(task.defaultConfiguration || {}),
-              outputKeys: ['result', 'status'],
-              timeoutSeconds: 300,
-              retryCount: 2
-            }
+            inputParameters: task.defaultConfiguration || {}
           })
         ),
         inputParameters:
