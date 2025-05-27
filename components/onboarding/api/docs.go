@@ -240,6 +240,9 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "204": {
+                        "description": "No content - the total count is returned in the headers"
+                    },
                     "401": {
                         "description": "Unauthorized access",
                         "schema": {
