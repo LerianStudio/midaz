@@ -85,7 +85,7 @@ export function VariableManager({
     string: <Type className="h-4 w-4" />,
     number: <Hash className="h-4 w-4" />,
     date: <Calendar className="h-4 w-4" />,
-    boolean: <Toggle className="h-4 w-4" />,
+    boolean: <ToggleLeft className="h-4 w-4" />,
     array: <Database className="h-4 w-4" />,
     object: <Braces className="h-4 w-4" />
   }
