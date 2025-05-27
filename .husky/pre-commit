@@ -1,0 +1,4 @@
+#!/bin/sh
+# Pre-commit hook
+# Currently no pre-commit checks configured
+# Add your pre-commit checks here

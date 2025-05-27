@@ -21,7 +21,6 @@
     "set-local-env": "shx cp .env.local.example .env",
     "set-env": "shx cp .env.example .env",
     "docker-up": "npm run set-env && docker compose up -d",
-    "prepare": "husky install",
     "format": "prettier --write .",
     "lhci": "lhci autorun",
     "format:check": "prettier --check ."
@@ -161,7 +160,6 @@
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-storybook": "^0.10.1",
     "glob": "^11.0.0",
-    "husky": "^9.1.7",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-fetch-mock": "^3.0.3",

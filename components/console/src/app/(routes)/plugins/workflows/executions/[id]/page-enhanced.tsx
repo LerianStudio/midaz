@@ -23,7 +23,7 @@ function ExecutionDetailContent() {
   const { isConnected, connectionError } = useExecutionMonitoring(executionId)
 
   // Get the specific execution
-  const execution = executions.find((e) => e.id === executionId)
+  const execution = executions.find((e) => e.executionId === executionId)
 
   return (
     <ErrorHandlingWrapper
