@@ -347,7 +347,7 @@ function WorkflowLibraryContent() {
     // Update status for selected workflows
     for (const workflowId of selectedWorkflows) {
       try {
-        const result = await updateWorkflowStatus(workflowId, status)
+        const result = await updateWorkflowStatus(workflowId, status.toLowerCase() as 'active' | 'inactive')
         if (result.success) {
           successes.push(workflowId)
         } else {

@@ -510,7 +510,7 @@ export default function WorkflowLibraryPage() {
 
     // Update status for selected workflows
     for (const workflowId of selectedWorkflows) {
-      const result = await updateWorkflowStatus(workflowId, status)
+      const result = await updateWorkflowStatus(workflowId, status.toLowerCase() as 'active' | 'inactive')
       if (!result.success) {
         toast({
           title: 'Error',
