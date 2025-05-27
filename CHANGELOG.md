@@ -1,3 +1,14 @@
+## [v2.2.0-beta.44] - 2025-05-27
+
+### ✨ Features
+- Implement asset count functionality with API documentation
+- Add tests for asset management functionality
+- Add documentation for new features
+
+### 📚 Documentation
+- Update Postman collection for MIDAZ API
+- Update Swagger documentation for onboarding API
+
 ## [v2.2.0-beta.42] - 2025-05-27
 
 ### ✨ Features
