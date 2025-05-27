@@ -37,17 +37,8 @@ export const generateDemoWorkflows = (): Workflow[] => {
             inputParameters: task.defaultConfiguration || {}
           })
         ),
-        inputParameters:
-          template.workflow.inputParameters
-            ?.map((param) => ({ [param]: 'string' }))
-            .reduce((acc, curr) => ({ ...acc, ...curr }), {}) || {},
-        outputParameters:
-          template.workflow.outputParameters
-            ?.map((param) => ({ [param]: 'string' }))
-            .reduce((acc, curr) => ({ ...acc, ...curr }), {}) || {},
-        timeoutSeconds: template.workflow.timeoutSeconds || 3600,
-        schemaVersion: 2,
-        ownerEmail: 'system@midaz.io',
+        inputParameters: template.workflow.inputParameters || [],
+        outputParameters: template.workflow.outputParameters || [],
         createdAt: new Date(
           Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
         ).toISOString(),
