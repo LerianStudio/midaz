@@ -145,7 +145,6 @@
   "signIn.toast.error": "Credenciais inválidas.",
   "account.sheet.type.creditCard": "Cartão de Crédito",
   "account.sheet.type.deposit": "Depósito",
-  "account.sheet.type.external": "Externo",
   "account.sheet.type.loans": "Empréstimos",
   "account.sheet.type.marketplace": "Mercado",
   "account.sheet.type.savings": "Poupança",

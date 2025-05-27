@@ -1,7 +1,6 @@
 {
   "account.sheet.type.creditCard": "CreditCard",
   "account.sheet.type.deposit": "Deposit",
-  "account.sheet.type.external": "External",
   "account.sheet.type.loans": "Loans",
   "account.sheet.type.marketplace": "Marketplace",
   "account.sheet.type.savings": "Savings",
