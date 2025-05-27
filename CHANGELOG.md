@@ -1,3 +1,11 @@
+## [v2.2.0-beta.42] - 2025-05-27
+
+### ✨ Features
+- Add authentication toggle support, allowing users to enable or disable authentication as needed.
+
+### 🗑️ Removed
+- Remove external network dependencies to streamline the application and reduce reliance on external services.
+
 ## [v2.2.0-beta.40] - 2025-05-27
 
 ### ✨ Features
