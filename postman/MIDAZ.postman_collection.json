@@ -8738,7 +8738,7 @@
               }
             ],
             "url": {
-              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count",
+              "raw": "{{onboardingUrl}}/v1/organizations/{{organizationId}}/ledgers/{{ledgerId}}/assets/metrics/count",
               "host": [
                 "{{onboardingUrl}}"
               ],
