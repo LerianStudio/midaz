@@ -3134,6 +3134,8 @@ paths:
         name: X-Request-Id
         type: string
       responses:
+        "204":
+          description: Successfully retrieved the count of organizations. No content is returned in the response body.
         "401":
           description: Unauthorized access
           schema:
