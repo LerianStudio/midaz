@@ -1,3 +1,11 @@
+## [v2.2.0-beta.57] - 2025-05-28
+
+### ✨ Features
+- Enhance validation for passwords and usernames with stricter rules and improved tooltips
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.56] - 2025-05-28
 
 ### 🐛 Bug Fixes
