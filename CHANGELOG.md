@@ -1,7 +1,16 @@
 ### 🔧 Maintenance
+- Enhance type safety and form handling in organization form components to improve code reliability and maintainability.
+
+### 🔧 Maintenance
 - Update CHANGELOG with recent changes
 
 ## [v2.2.0-beta.51] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct issue with Select input functionality to ensure proper user interaction.
+- Resolve Prettier build problem to maintain code formatting standards.
+
+## [v2.2.0-beta.50] - 2025-05-27
 
 ### 🐛 Bug Fixes
 - Correct logic in user name validation to prevent validation errors.
