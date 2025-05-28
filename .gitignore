@@ -88,3 +88,4 @@ postman/backups
 /components/console/playwright/.cache/
 /components/console/blob-report/
 /components/console/tests/storage/
+.windsurfrules
