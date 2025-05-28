@@ -1,3 +1,11 @@
+## [v2.2.0-beta.59] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Allow `entityId` and `segmentId` to be nullable in form schema, resolving issues related to data validation and form submission.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.58] - 2025-05-28
 
 ### 🐛 Bug Fixes
