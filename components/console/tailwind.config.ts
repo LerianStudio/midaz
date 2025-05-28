@@ -18,6 +18,15 @@ const config = {
       }
     },
     extend: {
+      fontFamily: {
+        sans: [
+          'var(--font-inter)',
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif'
+        ]
+      },
       boxShadow: {
         sidebar: '5px 0px 15px -3px rgba(0, 0, 0, 0.05)',
         dataTable:
