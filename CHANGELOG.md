@@ -1,3 +1,14 @@
+## [v2.2.0-beta.52] - 2025-05-28
+
+### ✨ Features
+- Implement segment count functionality to enhance data analysis capabilities.
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections for better developer support and integration.
+
+### 🔧 Maintenance
+- Consolidate CHANGELOG updates to improve documentation consistency and reduce redundancy.
+
 ### 🔧 Maintenance
 - Enhance type safety and form handling in organization form components to improve code reliability and maintainability.
 
