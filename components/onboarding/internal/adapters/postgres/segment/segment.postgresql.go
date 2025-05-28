@@ -33,6 +33,7 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, segment *mmodel.Segment) (*mmodel.Segment, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
 // SegmentPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
@@ -446,4 +447,33 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+// Count retrieves the number of Segment entities in the database.
+func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_segments")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := p.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
+
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM segment WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL", organizationID, ledgerID).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	return count, nil
 }

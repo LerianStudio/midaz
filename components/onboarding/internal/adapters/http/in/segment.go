@@ -1,11 +1,13 @@
 package in
 
 import (
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -320,6 +322,51 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully removed Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
+
+	return http.NoContent(c)
+}
+
+// CountSegments is a method that counts all segments for a given organization and ledger.
+//
+//	@Summary		Count segments
+//	@Description	Returns the total count of segments for the specified organization and ledger
+//	@Tags			Segments
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Success		200				{object}	nil	"Successfully retrieved segments count"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count [head]
+func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_segments")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	logger.Infof("Counting segments for organization %s and ledger %s", organizationID, ledgerID)
+
+	count, err := handler.Query.CountSegments(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count segments", err)
+		logger.Errorf("Error counting segments: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count)
+
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
 }
