@@ -51,7 +51,11 @@ export const OperationSum = ({
               ) : (
                 <CheckCheck className="mr-6 h-4 w-4" />
               )}
-              <p className="text-[13px]">{intl.formatNumber(total)}</p>
+              <p className="text-[13px]">
+                {intl.formatNumber(total, {
+                  roundingPriority: 'morePrecision'
+                })}
+              </p>
             </div>
           </TooltipTrigger>
           <TooltipContent>{errorMessage}</TooltipContent>
