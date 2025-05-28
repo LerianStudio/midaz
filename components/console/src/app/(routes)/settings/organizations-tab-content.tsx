@@ -38,14 +38,13 @@ import { IdTableCell } from '@/components/table/id-table-cell'
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
   const { currentOrganization, setOrganization } = useOrganization()
-  const { data, refetch, isLoading } = useListOrganizations({})
+  const { data, isLoading } = useListOrganizations({})
   const router = useRouter()
 
   const { mutate: deleteOrganization, isPending: deletePending } =
     useDeleteOrganization({
       onSuccess: () => {
         handleDialogClose()
-        refetch()
       }
     })
 

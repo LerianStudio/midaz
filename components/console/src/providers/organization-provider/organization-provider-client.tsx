@@ -13,6 +13,7 @@ import { useListLedgers } from '@/client/ledgers'
 import { useDefaultOrg } from './use-default-org'
 import { useDefaultLedger } from './use-default-ledger'
 import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { useListOrganizations } from '@/client/organizations'
 
 type OrganizationContextProps = {
   currentOrganization: OrganizationResponseDto
@@ -40,34 +41,48 @@ export const OrganizationProviderClient = ({
   const [current, setCurrent] = useState<OrganizationResponseDto>(
     {} as OrganizationResponseDto
   )
-  const [organizations, setOrganizations] = useState<OrganizationResponseDto[]>(
-    organizationsProp ?? []
-  )
+
+  const { data: organizations, isPending: loadingOrganizations } =
+    useListOrganizations({
+      page: 1,
+      limit: 100,
+      initialData: {
+        items: organizationsProp
+      }
+    })
 
   const [currentLedger, setCurrentLedger] = useState<LedgerResponseDto>(
     {} as LedgerResponseDto
   )
-  const { data: ledgers, isPending } = useListLedgers({
+  const { data: ledgers, isPending: loadingLedgers } = useListLedgers({
     organizationId: current?.id!,
     limit: 100
   })
 
   useEffect(() => {
+    // Wait the request to finish
+    if (loadingOrganizations || !organizations?.items) {
+      return
+    }
+
     // Do nothing if the user is already at the onboarding
     if (pathname.includes('/onboarding')) {
       return
     }
 
     // Redirect user to onboarding if it has no organizations
-    if (organizations.length === 0) {
+    if (organizations.items.length === 0) {
       router.replace('/onboarding')
     }
 
     // Redirect user to ledger onboarding if it has only one organization and no ledgers
-    if (organizations.length === 1 && current?.metadata?.onboarding === true) {
+    if (
+      organizations.items.length === 1 &&
+      current?.metadata?.onboarding === true
+    ) {
       router.replace('/onboarding/ledger')
     }
-  }, [current?.id, organizations.length])
+  }, [loadingOrganizations, current?.id, organizations?.items])
 
   useEffect(() => {
     const redirectablePaths = [
@@ -79,7 +94,7 @@ export const OrganizationProviderClient = ({
     ]
 
     // Do nothing if the request is still ongoing
-    if (isPending || !ledgers?.items) {
+    if (loadingLedgers || !ledgers?.items) {
       return
     }
 
@@ -97,10 +112,10 @@ export const OrganizationProviderClient = ({
     if (ledgers.items.length === 0) {
       router.replace('/ledgers')
     }
-  }, [isPending, ledgers?.items])
+  }, [loadingLedgers, ledgers?.items])
 
   useDefaultOrg({
-    organizations,
+    organizations: organizations?.items,
     current,
     setCurrent
   })

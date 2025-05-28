@@ -151,6 +151,7 @@ export const AccountSheet = ({
         ),
         variant: 'success'
       })
+      form.reset()
     }
   })
 

@@ -2,10 +2,11 @@
 
 import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { getStorage } from '@/lib/storage'
+import { isNil } from 'lodash'
 import { useEffect, useState } from 'react'
 
 type UseDefaultOrgProps = {
-  organizations: OrganizationResponseDto[]
+  organizations?: OrganizationResponseDto[]
   current: OrganizationResponseDto
   setCurrent: (organization: OrganizationResponseDto) => void
 }
@@ -28,6 +29,11 @@ export function useDefaultOrg({
 
   // Initialize a current organization
   useEffect(() => {
+    // We should never set a default if no organization is found
+    if (isNil(organizations)) {
+      return
+    }
+
     // Check if there is a default organization saved onto local storage
     if (defaultOrg) {
       // Search for the organization with the id
@@ -45,7 +51,7 @@ export function useDefaultOrg({
       // Set the first organization as the current one
       setCurrent(organizations[0])
     }
-  }, [])
+  }, [organizations])
 
   useEffect(() => {
     // Update storage according to the current organization

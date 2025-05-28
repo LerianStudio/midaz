@@ -73,6 +73,7 @@ export const PortfolioSheet = ({
           }),
           variant: 'success'
         })
+        form.reset()
       }
     })
 

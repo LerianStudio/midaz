@@ -77,6 +77,7 @@ export const LedgersSheet = ({
         ),
         variant: 'success'
       })
+      form.reset()
     }
   })
 
