@@ -145,6 +145,6 @@ require (
 )
 
 replace (
-	github.com/LerianStudio/lib-auth => ./tmp/auth
-	github.com/LerianStudio/lib-commons => ./tmp/commons-go
+	github.com/LerianStudio/lib-auth => ../libs/auth
+	github.com/LerianStudio/lib-commons => ../libs/commons-go
 )
