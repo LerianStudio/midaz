@@ -1,3 +1,12 @@
+## [v2.2.0-beta.58] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Resolve inconsistency when deleting organizations to ensure reliable operation.
+- Ensure form resets correctly when creating a new entity, improving user experience and preventing data entry errors.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes, providing users with a clear history of modifications and improvements.
+
 ## [v2.2.0-beta.57] - 2025-05-28
 
 ### ✨ Features
