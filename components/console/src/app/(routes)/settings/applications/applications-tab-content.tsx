@@ -57,15 +57,6 @@ export const ApplicationsTabContent = () => {
           }),
           variant: 'success'
         })
-      },
-      onError: () => {
-        toast({
-          description: intl.formatMessage({
-            id: 'errors.applications.delete',
-            defaultMessage: 'Failed to delete application'
-          }),
-          variant: 'destructive'
-        })
       }
     })
 

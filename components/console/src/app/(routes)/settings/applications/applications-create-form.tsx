@@ -57,15 +57,6 @@ export const CreateApplicationForm = ({
         })
         onOpenChange?.(false)
         onSuccess?.()
-      },
-      onError: () => {
-        toast({
-          description: intl.formatMessage({
-            id: 'errors.applications.create',
-            defaultMessage: 'Failed to create application'
-          }),
-          variant: 'destructive'
-        })
       }
     })
 
