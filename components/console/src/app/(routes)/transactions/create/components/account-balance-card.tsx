@@ -51,7 +51,8 @@ export const AccountBalanceCard = ({
   } = useGetBalanceByAccountId({
     organizationId: account.organizationId,
     ledgerId: account.ledgerId,
-    accountId: account.id
+    accountId: account.id,
+    enabled: !!expand
   })
 
   const handleOpen = (open: boolean) => {

@@ -7,17 +7,20 @@ type UseGetBalanceByAccountIdProps = {
   organizationId: string
   ledgerId: string
   accountId?: string
+  enabled?: boolean
 }
 
 export const useGetBalanceByAccountId = ({
   organizationId,
   ledgerId,
-  accountId
+  accountId,
+  ...options
 }: UseGetBalanceByAccountIdProps) => {
   return useQuery<PaginationDto<BalanceDto>>({
     queryKey: ['balances', organizationId, ledgerId, accountId],
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}/balances`
-    )
+    ),
+    ...options
   })
 }
