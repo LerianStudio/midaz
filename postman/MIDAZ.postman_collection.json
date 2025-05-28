@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "3d1f731b-2214-4959-9f28-a81439facf16",
+      "_postman_id": "22c7c6c2-93c9-4ac3-af87-24538b69ddbe",
       "event": []
     },
     {
@@ -7958,6 +7958,132 @@
               ]
             },
             "description": "Returns detailed information about an account identified by its alias within the specified ledger"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Count accounts",
+          "request": {
+            "method": "HEAD",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "accounts",
+                "metrics",
+                "count"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ],
+              "query": [
+                {
+                  "key": "portfolio_id",
+                  "value": "",
+                  "description": "Portfolio ID in UUID format",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns the total count of accounts for the specified organization, ledger, and optional portfolio"
           },
           "response": [],
           "event": [
