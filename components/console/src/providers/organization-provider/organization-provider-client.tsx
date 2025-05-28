@@ -70,6 +70,14 @@ export const OrganizationProviderClient = ({
   }, [current?.id, organizations.length])
 
   useEffect(() => {
+    const redirectablePaths = [
+      '/assets',
+      '/accounts',
+      '/segments',
+      '/portfolios',
+      '/transactions'
+    ]
+
     // Do nothing if the request is still ongoing
     if (isPending || !ledgers?.items) {
       return
@@ -77,6 +85,11 @@ export const OrganizationProviderClient = ({
 
     // If the user is already on the ledgers page, do nothing
     if (pathname.includes('/ledgers')) {
+      return
+    }
+
+    // If the user is not on a redirectable path, do nothing
+    if (!redirectablePaths.some((path) => pathname.includes(path))) {
       return
     }
 
