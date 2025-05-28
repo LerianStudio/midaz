@@ -60,7 +60,7 @@ const Page = () => {
     setTotal(accountsData.items.length)
   }, [accountsData?.items, accountsData?.limit])
 
-  const accountsList: AccountType[] = useMemo(() => {
+  const accountsList: AccountDto[] = useMemo(() => {
     return (
       accountsData?.items.map((account: any) => ({
         ...account,

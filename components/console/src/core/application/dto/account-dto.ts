@@ -37,7 +37,7 @@ export interface AccountDto {
   segmentId: string
   allowSending?: boolean
   allowReceiving?: boolean
-  portfolio: PortfolioDto
+  portfolio?: PortfolioDto
   metadata: MetadataDto
   createdAt: Date
   updatedAt: Date

@@ -16,8 +16,8 @@ import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { useListOrganizations } from '@/client/organizations'
 
 type OrganizationContextProps = {
-  currentOrganization: OrganizationEntity
-  setOrganization: (organization: OrganizationEntity) => void
+  currentOrganization: OrganizationResponseDto
+  setOrganization: (organization: OrganizationResponseDto) => void
   currentLedger: LedgerDto
   setLedger: (ledger: LedgerDto) => void
 }
@@ -51,9 +51,7 @@ export const OrganizationProviderClient = ({
       }
     })
 
-  const [currentLedger, setCurrentLedger] = useState<LedgerResponseDto>(
-    {} as LedgerResponseDto
-  )
+  const [currentLedger, setCurrentLedger] = useState<LedgerDto>({} as LedgerDto)
   const { data: ledgers, isPending: loadingLedgers } = useListLedgers({
     organizationId: current?.id!,
     limit: 100
