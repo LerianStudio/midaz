@@ -1154,6 +1154,65 @@ paths:
       summary: Retrieve an account by alias
       tags:
       - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+    head:
+      description: Returns the total count of accounts for the specified organization,
+        ledger, and optional portfolio
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content: {}
+          description: Successfully retrieved accounts count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count accounts
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       description: Permanently removes an account from the specified ledger. This
