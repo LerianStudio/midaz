@@ -35,10 +35,9 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
                     id: 'dialog.about.midaz.version',
                     defaultMessage: 'Version {version}'
                   },
-                  { version: '0.1' }
+                  { version: process.env.VERSION }
                 )}
               </span>
-              <span>Build 947</span>
             </DialogDescription>
           </div>
 
