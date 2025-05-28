@@ -81,6 +81,7 @@ export const AssetsSheet = ({
         ),
         variant: 'success'
       })
+      form.reset()
     }
   })
 
