@@ -496,7 +496,6 @@ export const Autocomplete = React.forwardRef<
     },
     ref
   ) => {
-    console.log('autocomplete', value, defaultValue, openProp)
     const _ref = React.useRef<HTMLDivElement>(null)
     const [open, _setOpen] = React.useState(openProp)
     const inputRef = React.useRef<HTMLInputElement>(null)
