@@ -1,0 +1,25 @@
+services:
+  transaction:
+    container_name: midaz-transaction
+    restart: unless-stopped
+    build:
+      context: ../../
+      dockerfile: ./components/transaction/Dockerfile.dev
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    volumes:
+      - ../../:/workspace:delegated
+    networks:
+      - infra-network
+      - transaction-network
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
+  transaction-network:
+    name: transaction-network
+    driver: bridge

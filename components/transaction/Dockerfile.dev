@@ -1,0 +1,13 @@
+FROM golang:1.23-alpine
+
+# Install air for hot reloading
+RUN go install github.com/air-verse/air@latest
+
+# Set working directory
+WORKDIR /workspace
+
+# Expose the port
+EXPOSE 3001
+
+# Run with air for hot reloading
+CMD ["air", "-c", "components/transaction/.air.toml"]
