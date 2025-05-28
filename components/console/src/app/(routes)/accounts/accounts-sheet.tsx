@@ -292,99 +292,95 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
+                      readOnly={isReadOnly || mode === 'edit'}
+                    />
+
+                    <SelectField
+                      control={form.control}
+                      name="type"
+                      label={intl.formatMessage({
+                        id: 'common.type',
+                        defaultMessage: 'Type'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'accounts.field.type.tooltip',
+                        defaultMessage: 'The type of account'
+                      })}
+                      readOnly={isReadOnly || mode === 'edit'}
+                      required
+                    >
+                      <SelectItem value="deposit">
+                        {intl.formatMessage({
+                          id: 'account.sheet.type.deposit',
+                          defaultMessage: 'Deposit'
+                        })}
+                      </SelectItem>
+
+                      <SelectItem value="savings">
+                        {intl.formatMessage({
+                          id: 'account.sheet.type.savings',
+                          defaultMessage: 'Savings'
+                        })}
+                      </SelectItem>
+
+                      <SelectItem value="loans">
+                        {intl.formatMessage({
+                          id: 'account.sheet.type.loans',
+                          defaultMessage: 'Loans'
+                        })}
+                      </SelectItem>
+
+                      <SelectItem value="marketplace">
+                        {intl.formatMessage({
+                          id: 'account.sheet.type.marketplace',
+                          defaultMessage: 'Marketplace'
+                        })}
+                      </SelectItem>
+
+                      <SelectItem value="creditCard">
+                        {intl.formatMessage({
+                          id: 'account.sheet.type.creditCard',
+                          defaultMessage: 'CreditCard'
+                        })}
+                      </SelectItem>
+                    </SelectField>
+
+                    <InputField
+                      control={form.control}
+                      name="entityId"
+                      label={intl.formatMessage({
+                        id: 'accounts.field.entityId',
+                        defaultMessage: 'Entity ID'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'accounts.field.entityId.tooltip',
+                        defaultMessage:
+                          'Identification number (EntityId) of the Account holder'
+                      })}
                       readOnly={isReadOnly}
                     />
 
-                    {mode === 'create' && (
-                      <React.Fragment>
-                        <SelectField
-                          control={form.control}
-                          name="type"
-                          label={intl.formatMessage({
-                            id: 'common.type',
-                            defaultMessage: 'Type'
-                          })}
-                          tooltip={intl.formatMessage({
-                            id: 'accounts.field.type.tooltip',
-                            defaultMessage: 'The type of account'
-                          })}
-                          readOnly={isReadOnly}
-                          required
-                        >
-                          <SelectItem value="deposit">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.deposit',
-                              defaultMessage: 'Deposit'
-                            })}
-                          </SelectItem>
-
-                          <SelectItem value="savings">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.savings',
-                              defaultMessage: 'Savings'
-                            })}
-                          </SelectItem>
-
-                          <SelectItem value="loans">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.loans',
-                              defaultMessage: 'Loans'
-                            })}
-                          </SelectItem>
-
-                          <SelectItem value="marketplace">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.marketplace',
-                              defaultMessage: 'Marketplace'
-                            })}
-                          </SelectItem>
-
-                          <SelectItem value="creditCard">
-                            {intl.formatMessage({
-                              id: 'account.sheet.type.creditCard',
-                              defaultMessage: 'CreditCard'
-                            })}
-                          </SelectItem>
-                        </SelectField>
-
-                        <InputField
-                          control={form.control}
-                          name="entityId"
-                          label={intl.formatMessage({
-                            id: 'accounts.field.entityId',
-                            defaultMessage: 'Entity ID'
-                          })}
-                          tooltip={intl.formatMessage({
-                            id: 'accounts.field.entityId.tooltip',
-                            defaultMessage:
-                              'Identification number (EntityId) of the Account holder'
-                          })}
-                          readOnly={isReadOnly}
-                        />
-
-                        <SelectField
-                          control={form.control}
-                          name="assetCode"
-                          label={intl.formatMessage({
-                            id: 'accounts.field.asset',
-                            defaultMessage: 'Asset'
-                          })}
-                          tooltip={intl.formatMessage({
-                            id: 'accounts.field.asset.tooltip',
-                            defaultMessage:
-                              'Asset or currency that will be operated in this Account using balance'
-                          })}
-                          readOnly={isReadOnly}
-                          required
-                        >
-                          {assetListData?.map((asset) => (
-                            <SelectItem key={asset.value} value={asset.value}>
-                              {asset.label}
-                            </SelectItem>
-                          ))}
-                        </SelectField>
-                      </React.Fragment>
-                    )}
+                    <SelectField
+                      control={form.control}
+                      name="assetCode"
+                      label={intl.formatMessage({
+                        id: 'accounts.field.asset',
+                        defaultMessage: 'Asset'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'accounts.field.asset.tooltip',
+                        defaultMessage:
+                          'Asset or currency that will be operated in this Account using balance'
+                      })}
+                      readOnly={isReadOnly || mode === 'edit'}
+                      required
+                    >
+                      {assetListData?.map((asset) => (
+                        <SelectItem key={asset.value} value={asset.value}>
+                          {asset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectField>
 
                     <SelectField
                       control={form.control}

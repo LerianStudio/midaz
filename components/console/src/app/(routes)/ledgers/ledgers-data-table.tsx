@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyResource } from '@/components/empty-resource'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Minus, HelpCircle } from 'lucide-react'
+import { MoreVertical, HelpCircle } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -130,19 +130,15 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
         <TableCell>{ledger.original.name}</TableCell>
         <TableCell>{renderAssets()}</TableCell>
         <TableCell>
-          {metadataCount === 0 ? (
-            <Minus size={20} />
-          ) : (
-            intl.formatMessage(
-              {
-                id: 'common.table.metadata',
-                defaultMessage:
-                  '{number, plural, =0 {-} one {# record} other {# records}}'
-              },
-              {
-                number: metadataCount
-              }
-            )
+          {intl.formatMessage(
+            {
+              id: 'common.table.metadata',
+              defaultMessage:
+                '{number, plural, =0 {-} one {# record} other {# records}}'
+            },
+            {
+              number: metadataCount
+            }
           )}
         </TableCell>
         <TableCell className="w-0">
