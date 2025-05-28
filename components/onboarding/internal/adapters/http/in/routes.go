@@ -74,6 +74,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAccountByAlias)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAccountExternalByCode)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "delete"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
+	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", auth.Authorize(midazName, "accounts", "head"), http.ParseUUIDPathParameters, ah.CountAccounts)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
