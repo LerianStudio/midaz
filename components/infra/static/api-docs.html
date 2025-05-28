@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Midaz API Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            background: #1a1a1a;
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 3rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #999;
+            font-size: 1.2rem;
+        }
+        
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .service-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .service-card h2 {
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .service-card .icon {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .service-card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+        
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .link:hover {
+            background: #e0e0e0;
+        }
+        
+        .link.primary {
+            background: #0066cc;
+            color: white;
+        }
+        
+        .link.primary:hover {
+            background: #0052a3;
+        }
+        
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        
+        .status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        footer {
+            text-align: center;
+            color: #666;
+            padding: 2rem 0;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🚀 Midaz API Documentation</h1>
+            <p class="subtitle">Interactive API documentation for all Midaz services</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="services">
+            <!-- Onboarding Service -->
+            <div class="service-card">
+                <h2>
+                    <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h2a1 1 0 100-2H6V5z"/>
+                    </svg>
+                    Onboarding Service
+                </h2>
+                <div class="status online" id="onboarding-status">
+                    <span class="status-dot"></span>
+                    <span>Online</span>
+                </div>
+                <p>Manage organizations, ledgers, assets, portfolios, segments, and accounts. The foundation for your financial infrastructure.</p>
+                <div class="links">
+                    <a href="http://localhost:3000/swagger/" class="link primary" target="_blank">
+                        📚 Swagger UI
+                    </a>
+                    <a href="http://localhost:3000/api/openapi.yaml" class="link" target="_blank">
+                        📄 OpenAPI 3.0 Spec
+                    </a>
+                    <a href="http://localhost:3000/health" class="link" target="_blank">
+                        ❤️ Health Check
+                    </a>
+                </div>
+            </div>
+
+            <!-- Transaction Service -->
+            <div class="service-card">
+                <h2>
+                    <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.044 8 8c0-.044.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.538.433.582 0 .044-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"/>
+                    </svg>
+                    Transaction Service
+                </h2>
+                <div class="status online" id="transaction-status">
+                    <span class="status-dot"></span>
+                    <span>Online</span>
+                </div>
+                <p>Process transactions, manage operations, track balances, and handle asset exchange rates with precision.</p>
+                <div class="links">
+                    <a href="http://localhost:3001/swagger/" class="link primary" target="_blank">
+                        📚 Swagger UI
+                    </a>
+                    <a href="http://localhost:3001/api/openapi.yaml" class="link" target="_blank">
+                        📄 OpenAPI 3.0 Spec
+                    </a>
+                    <a href="http://localhost:3001/health" class="link" target="_blank">
+                        ❤️ Health Check
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="service-card" style="background: #f9f9f9;">
+            <h2>🛠️ Developer Resources</h2>
+            <p>Additional resources for working with the Midaz APIs:</p>
+            <ul style="margin-left: 1.5rem; color: #666;">
+                <li>Use Postman collections for testing workflows</li>
+                <li>Check the SDK documentation for client libraries</li>
+                <li>Enable authentication for production environments</li>
+                <li>Monitor API performance with OpenTelemetry dashboard</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Midaz - Modern Financial Infrastructure | <a href="https://github.com/LerianStudio/midaz" target="_blank">GitHub</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Check service health status
+        async function checkHealth(service, url) {
+            const statusEl = document.getElementById(`${service}-status`);
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    statusEl.className = 'status online';
+                    statusEl.innerHTML = '<span class="status-dot"></span><span>Online</span>';
+                } else {
+                    throw new Error('Service unavailable');
+                }
+            } catch (error) {
+                statusEl.className = 'status offline';
+                statusEl.innerHTML = '<span class="status-dot"></span><span>Offline</span>';
+            }
+        }
+
+        // Check health on load
+        window.addEventListener('load', () => {
+            checkHealth('onboarding', 'http://localhost:3000/health');
+            checkHealth('transaction', 'http://localhost:3001/health');
+        });
+
+        // Refresh health status every 30 seconds
+        setInterval(() => {
+            checkHealth('onboarding', 'http://localhost:3000/health');
+            checkHealth('transaction', 'http://localhost:3001/health');
+        }, 30000);
+    </script>
+</body>
+</html>
