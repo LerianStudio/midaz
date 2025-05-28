@@ -848,6 +848,15 @@ definitions:
       unchanged. This allows partial updates to account properties such as name, status,
       portfolio, segment, and metadata.
     properties:
+      entityId:
+        description: |-
+          Optional external identifier for linking to external systems
+          required: false
+          example: EXT-ACC-12345
+          maxLength: 256
+        example: EXT-ACC-12345
+        maxLength: 256
+        type: string
       metadata:
         additionalProperties: {}
         description: |-

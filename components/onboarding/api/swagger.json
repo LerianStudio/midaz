@@ -4253,6 +4253,12 @@
             "description": "Request payload for updating an existing account. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged. This allows partial updates to account properties such as name, status, portfolio, segment, and metadata.",
             "type": "object",
             "properties": {
+                "entityId": {
+                    "description": "Optional external identifier for linking to external systems\nrequired: false\nexample: EXT-ACC-12345\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "EXT-ACC-12345"
+                },
                 "metadata": {
                     "description": "Updated custom key-value pairs for extending the account information\nrequired: false\nexample: {\"department\": \"Global Treasury\", \"purpose\": \"Primary Operations\", \"region\": \"Global\"}",
                     "type": "object",

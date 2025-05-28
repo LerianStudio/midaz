@@ -1928,7 +1928,7 @@
             "description": "**Workflow Step 15: Update Account**\n\nUpdates account details",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "raw": "{\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "438e6621-e356-4c94-bea4-0915f7e8e611",
+      "_postman_id": "7e6b4ab0-0a91-441d-bdbe-49f268d04aa6",
       "event": []
     },
     {
@@ -8455,7 +8455,7 @@
             "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "raw": "{\n  \"entityId\": \"EXT-ACC-12345\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Primary Corporate Checking Account\",\n  \"portfolioId\": null,\n  \"segmentId\": null,\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
