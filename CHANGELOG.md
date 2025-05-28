@@ -1,7 +1,16 @@
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
 ## [v2.2.0-beta.51] - 2025-05-27
 
 ### ✨ Features
 - Implement local Inter font for improved performance
+
+## [v2.2.0-beta.48] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Resolve issue with console context build to ensure proper functionality
 
 ## [v2.2.0-beta.47] - 2025-05-27
 
