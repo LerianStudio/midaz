@@ -20,7 +20,7 @@ export const Header = () => {
           <p className="text-xs font-medium text-zinc-400">
             Midaz Console{' '}
             <span className="text-xs font-normal text-zinc-400">
-              v.{process.env.VERSION}
+              v.{process.env.NEXT_PUBLIC_MIDAZ_VERSION}
             </span>
           </p>
 

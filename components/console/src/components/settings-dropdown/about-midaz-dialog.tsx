@@ -35,7 +35,7 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
                     id: 'dialog.about.midaz.version',
                     defaultMessage: 'Version {version}'
                   },
-                  { version: process.env.VERSION }
+                  { version: process.env.NEXT_PUBLIC_MIDAZ_VERSION }
                 )}
               </span>
             </DialogDescription>
