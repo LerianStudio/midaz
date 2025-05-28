@@ -1,12 +1,17 @@
 import 'reflect-metadata'
 import React from 'react'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import NextAuthSessionProvider from '@/providers/next-auth-session-provider'
 import { Metadata } from 'next'
 import { getMetadata } from '../../services/configs/application-config'
 import App from './app'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = localFont({
+  src: '../../public/fonts/inter-variable.woff2',
+  variable: '--font-inter',
+  display: 'swap',
+  weight: '100 900'
+})
 
 export default async function RootLayout({
   children
@@ -14,8 +19,8 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html suppressHydrationWarning>
-      <body suppressHydrationWarning className={inter.className}>
+    <html suppressHydrationWarning className={inter.variable}>
+      <body suppressHydrationWarning className="font-sans">
         <NextAuthSessionProvider>
           <App>{children}</App>
         </NextAuthSessionProvider>
