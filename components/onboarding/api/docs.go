@@ -1441,12 +1441,6 @@ const docTemplate = `{
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID in UUID format",
-                        "name": "portfolio_id",
-                        "in": "query"
                     }
                 ],
                 "responses": {

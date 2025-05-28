@@ -1182,11 +1182,6 @@ paths:
         required: true
         schema:
           type: string
-      - description: Portfolio ID in UUID format
-        in: query
-        name: portfolio_id
-        schema:
-          type: string
       responses:
         "200":
           content: {}

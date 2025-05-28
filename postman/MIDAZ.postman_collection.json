@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "22c7c6c2-93c9-4ac3-af87-24538b69ddbe",
+      "_postman_id": "438e6621-e356-4c94-bea4-0915f7e8e611",
       "event": []
     },
     {
@@ -8072,14 +8072,6 @@
                   "key": "ledger_id",
                   "value": "{{ledgerId}}",
                   "description": "Ledger ID in UUID format"
-                }
-              ],
-              "query": [
-                {
-                  "key": "portfolio_id",
-                  "value": "",
-                  "description": "Portfolio ID in UUID format",
-                  "disabled": true
                 }
               ]
             },
