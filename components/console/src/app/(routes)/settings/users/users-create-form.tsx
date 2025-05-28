@@ -125,6 +125,11 @@ export const CreateUserForm = ({
               id: 'entity.user.username',
               defaultMessage: 'Username'
             })}
+            tooltip={intl.formatMessage({
+              id: 'entity.user.username.tooltip',
+              defaultMessage:
+                'Only letters, numbers, hyphens, and underscores are allowed'
+            })}
             control={form.control}
             readOnly={isReadOnly}
             required
@@ -166,7 +171,7 @@ export const CreateUserForm = ({
             tooltip={intl.formatMessage({
               id: 'entity.user.password.tooltip',
               defaultMessage:
-                'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+                'The password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
             })}
             control={form.control}
             disabled={isReadOnly}
