@@ -1,3 +1,14 @@
+## [v2.2.0-beta.53] - 2025-05-28
+
+### ✨ Features
+- Implement account count functionality
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
 ## [v2.2.0-beta.52] - 2025-05-28
 
 ### ✨ Features
