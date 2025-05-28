@@ -3882,8 +3882,18 @@ components:
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
+        entityId: EXT-ACC-12345
         status: '{}'
       properties:
+        entityId:
+          description: |-
+            Optional external identifier for linking to external systems
+            required: false
+            example: EXT-ACC-12345
+            maxLength: 256
+          example: EXT-ACC-12345
+          maxLength: 256
+          type: string
         metadata:
           additionalProperties:
             type: object

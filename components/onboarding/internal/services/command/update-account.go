@@ -37,6 +37,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	account := &mmodel.Account{
 		Name:        uai.Name,
 		Status:      uai.Status,
+		EntityID:    uai.EntityID,
 		SegmentID:   uai.SegmentID,
 		PortfolioID: uai.PortfolioID,
 		Metadata:    uai.Metadata,

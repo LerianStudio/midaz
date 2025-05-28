@@ -644,6 +644,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.SegmentID)
 	}
 
+	if !libCommons.IsNilOrEmpty(acc.EntityID) {
+		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.EntityID)
+	}
+
 	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.PortfolioID)
