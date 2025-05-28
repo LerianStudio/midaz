@@ -610,8 +610,6 @@
   "transactions.create.searchByAlias": "Buscar por Alias",
   "transactions.errors.credit": "A soma dos créditos difere do valor da transação",
   "transactions.create.mode.complex": "Nova Transação complexa",
-  "errors.applications.create": "Erro ao criar application",
-  "errors.applications.delete": "Erro ao deletar application",
   "applications.dialog.delete.confirmLabel": "Sim, deletar",
   "applications.dialog.delete.confirmTitle": "Tem certeza que deseja deletar?",
   "applications.security.title": "Aviso de Segurança",
