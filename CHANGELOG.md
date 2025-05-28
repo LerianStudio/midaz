@@ -1,3 +1,13 @@
+## [v2.2.0-beta.54] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Improve performance by avoiding balance fetch for destination account
+- Correct transaction sum display to ensure proper precision
+- Redirect users without a ledger to the appropriate page
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.53] - 2025-05-28
 
 ### ✨ Features
