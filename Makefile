@@ -116,6 +116,8 @@ help:
 	@echo "Service Commands:"
 	@echo "  make up                           - Start all services with Docker Compose"
 	@echo "  make down                         - Stop all services with Docker Compose"
+	@echo "  make up-dev                       - Start all services in development mode with hot reload"
+	@echo "  make down-dev                     - Stop all development services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
 	@echo "  make restart                      - Restart all containers"
@@ -135,6 +137,7 @@ help:
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
+	@echo "  make api-docs                    - Open Swagger API documentation in browser"
 	@echo ""
 	@echo "Demo Data Commands:"
 	@echo "  make demo-data                   - Generate demo data with small volume"
@@ -361,6 +364,50 @@ up:
 	done
 	@echo "[ok] All services started successfully"
 
+.PHONY: up-dev
+up-dev:
+	$(call print_title,"Starting all services in development mode")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@echo "Note: For development, it's recommended to run services locally with 'go run' or 'air' for hot reload."
+	@echo "Infrastructure services will be started with Docker."
+	@# Start infrastructure only
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		echo "Starting infrastructure services..."; \
+		(cd $(INFRA_DIR) && $(MAKE) up) || exit 1; \
+	fi
+	@echo "[ok] Infrastructure services started"
+	@echo ""
+	@echo "To run backend services locally with hot reload:"
+	@echo "  Terminal 1: cd components/onboarding && air"
+	@echo "  Terminal 2: cd components/transaction && air"
+	@echo "  Terminal 3: cd components/console && npm run dev"
+	@echo ""
+	@echo "Or use the dev dockerfiles:"
+	@echo "  cd components/onboarding && docker compose -f docker-compose.dev.yml up"
+	@echo "  cd components/transaction && docker compose -f docker-compose.dev.yml up"
+
+.PHONY: down-dev
+down-dev:
+	$(call print_title,"Stopping all development services")
+	@# Stop console
+	@if [ -f "$(CONSOLE_DIR)/docker-compose.dev.yml" ]; then \
+		(cd $(CONSOLE_DIR) && $(MAKE) down-dev) || true; \
+	fi
+	@# Stop backend services
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.dev.yml" ]; then \
+			echo "Stopping $$dir development services..."; \
+			(cd $$dir && $(DOCKER_CMD) -f docker-compose.dev.yml down) || true; \
+		fi; \
+	done
+	@# Stop infrastructure last
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		echo "Stopping infrastructure services..."; \
+		(cd $(INFRA_DIR) && $(MAKE) down) || true; \
+	fi
+	@echo "[ok] All development services stopped"
+
 .PHONY: down
 down:
 	$(call print_title,"Stopping all services with Docker Compose")
@@ -479,6 +526,39 @@ console:
 		exit 1; \
 	fi
 	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
+
+#-------------------------------------------------------
+# Local Development Commands
+#-------------------------------------------------------
+
+.PHONY: run-onboarding run-transaction
+run-onboarding:
+	$(call print_title,"Running Onboarding service locally with hot reload")
+	@cd $(ONBOARDING_DIR) && cp .env.example .env 2>/dev/null || true
+	@air -c .air.onboarding.toml
+
+run-transaction:
+	$(call print_title,"Running Transaction service locally with hot reload")
+	@cd $(TRANSACTION_DIR) && cp .env.example .env 2>/dev/null || true
+	@air -c .air.transaction.toml
+
+# Convenience commands for console development
+.PHONY: console-dev console-logs api-docs
+console-dev:
+	$(call print_title,"Starting console in development mode with hot-reload")
+	@cd $(CONSOLE_DIR) && $(MAKE) up-dev-hot
+
+console-rebuild-dev:
+	$(call print_title,"Rebuilding console in development mode with hot-reload")
+	@cd $(CONSOLE_DIR) && $(MAKE) rebuild-dev-hot
+
+console-logs:
+	$(call print_title,"Showing console development logs")
+	@cd $(CONSOLE_DIR) && $(MAKE) logs-dev
+
+api-docs:
+	$(call print_title,"Opening API Documentation")
+	@./scripts/open-api-docs.sh
 
 all-components:
 	$(call print_title,"Running command across all components")

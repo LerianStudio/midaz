@@ -1,0 +1,55 @@
+# Test-specific Makefile targets
+
+.PHONY: test test-unit test-integration test-bench test-race test-cover test-parallel
+
+# Run all tests
+test: test-unit test-integration
+
+# Run unit tests only
+test-unit:
+	@echo "🧪 Running unit tests..."
+	@go test -v -short ./...
+
+# Run integration tests only
+test-integration:
+	@echo "🔗 Running integration tests..."
+	@go test -v -run Integration ./...
+
+# Run benchmark tests
+test-bench:
+	@echo "⚡ Running benchmarks..."
+	@go test -bench=. -benchmem ./...
+
+# Run tests with race detector
+test-race:
+	@echo "🏃 Running tests with race detector..."
+	@go test -race ./...
+
+# Run tests with coverage
+test-cover:
+	@echo "📊 Running tests with coverage..."
+	@go test -coverprofile=coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+# Run tests in parallel
+test-parallel:
+	@echo "🚀 Running tests in parallel..."
+	@go test -parallel 4 ./...
+
+# Run specific test by name
+test-run:
+	@echo "🎯 Running test: $(TEST_NAME)"
+	@go test -v -run $(TEST_NAME) ./...
+
+# Generate test report
+test-report:
+	@echo "📝 Generating test report..."
+	@go test -json ./... | go-test-report
+
+# Clean test artifacts
+test-clean:
+	@echo "🧹 Cleaning test artifacts..."
+	@rm -f coverage.out coverage.html
+	@rm -f *.test
+	@rm -f test-report.json
