@@ -1,3 +1,9 @@
+## [v2.2.0-beta.56] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Add environment version to `env.example` for console setup to ensure consistency in environment configuration
+- Update environment PR notification to improve clarity and effectiveness of communication
+
 ## [v2.2.0-beta.54] - 2025-05-28
 
 ### 🐛 Bug Fixes
