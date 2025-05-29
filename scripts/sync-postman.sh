@@ -261,103 +261,34 @@ rm -rf "${TEMP_DIR}"
 # Add workflow sequence to the Postman collection
 echo "Adding workflow sequence to Postman collection..."
 if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ]; then
-    # Ensure uuid dependency is installed safely with enhanced security
+    # Simplified dependency check and installation
     echo "Checking for required dependencies..."
-    if ! grep -q "\"uuid\"" "${SCRIPTS_DIR}/package.json" 2>/dev/null; then
-        echo "Adding uuid dependency to package.json..."
-        
-        # Enhanced atomic package.json update with file locking
-        PACKAGE_JSON="${SCRIPTS_DIR}/package.json"
-        LOCK_FILE="${SCRIPTS_DIR}/.package-update.lock"
-        BACKUP_FILE="${SCRIPTS_DIR}/package.json.backup.$(date +%s)"
-        TEMP_FILE="${SCRIPTS_DIR}/package.json.tmp.$$"
-        
-        # Function to cleanup on error
-        cleanup_package_update() {
-            rm -f "${LOCK_FILE}" "${TEMP_FILE}" 2>/dev/null || true
-        }
-        
-        # Set trap for cleanup
-        trap cleanup_package_update EXIT INT TERM
-        
-        # Acquire lock with timeout (30 seconds)
-        local lock_timeout=30
-        local lock_acquired=false
-        local start_time=$(date +%s)
-        
-        while [ $(($(date +%s) - start_time)) -lt $lock_timeout ]; do
-            if (set -C; echo $$ > "${LOCK_FILE}") 2>/dev/null; then
-                lock_acquired=true
-                break
-            fi
-            echo "Waiting for package.json lock..."
-            sleep 1
-        done
-        
-        if [ "$lock_acquired" = false ]; then
-            echo "Failed to acquire package.json lock within ${lock_timeout} seconds"
-            cleanup_package_update
-            exit 1
-        fi
-        
-        # Create backup before modifying
-        if [ -f "${PACKAGE_JSON}" ]; then
-            if ! cp "${PACKAGE_JSON}" "${BACKUP_FILE}"; then
-                echo "Failed to create backup of package.json"
-                cleanup_package_update
-                exit 1
-            fi
-            echo "Created backup: ${BACKUP_FILE}"
-        else
-            echo "Warning: package.json not found, creating new one"
-            echo '{"dependencies": {}}' > "${PACKAGE_JSON}"
-        fi
-        
-        # Perform atomic update with comprehensive validation
-        if jq --indent 2 '.dependencies.uuid = "^9.0.1"' "${PACKAGE_JSON}" > "${TEMP_FILE}" 2>/dev/null; then
-            # Validate the generated JSON structure
-            if jq empty "${TEMP_FILE}" >/dev/null 2>&1; then
-                # Additional validation: ensure required fields exist
-                if jq -e '.dependencies | type == "object"' "${TEMP_FILE}" >/dev/null 2>&1; then
-                    # Atomic move
-                    if mv "${TEMP_FILE}" "${PACKAGE_JSON}"; then
-                        echo "Successfully updated package.json"
-                        echo "Installing uuid dependency..."
-                        if (cd "${SCRIPTS_DIR}" && npm install uuid --no-audit --no-fund 2>/dev/null); then
-                            echo "UUID dependency installed successfully"
-                        else
-                            echo "Warning: Failed to install uuid dependency, but package.json was updated"
-                        fi
-                    else
-                        echo "Failed to move updated package.json into place"
-                        cleanup_package_update
-                        exit 1
-                    fi
-                else
-                    echo "Failed to update package.json - dependencies object is invalid"
-                    cleanup_package_update
-                    exit 1
-                fi
-            else
-                echo "Failed to update package.json - invalid JSON generated"
-                cleanup_package_update
-                exit 1
-            fi
-        else
-            echo "Failed to update package.json - jq command failed"
-            cleanup_package_update
-            exit 1
-        fi
-        
-        # Release lock and cleanup
-        cleanup_package_update
-        trap - EXIT INT TERM
+    
+    # Ensure scripts directory exists and has package.json
+    if [ ! -f "${SCRIPTS_DIR}/package.json" ]; then
+        echo "Creating package.json..."
+        echo '{"dependencies": {}}' > "${SCRIPTS_DIR}/package.json"
     fi
     
-    if node "${MIDAZ_ROOT}/scripts/create-workflow.js" "${POSTMAN_COLLECTION}" "${MIDAZ_ROOT}/postman/WORKFLOW.md" "${POSTMAN_COLLECTION}"; then
+    # Check if uuid is installed, install if missing (simplified)
+    if ! grep -q "\"uuid\"" "${SCRIPTS_DIR}/package.json" 2>/dev/null; then
+        echo "Adding uuid dependency..."
+        cd "${SCRIPTS_DIR}"
+        if command -v npm >/dev/null 2>&1; then
+            # Simple approach: just install without complex locking
+            npm install uuid@^9.0.1 --no-audit --no-fund --silent 2>/dev/null || {
+                echo "Warning: Could not install uuid dependency"
+            }
+        fi
+        cd "${MIDAZ_ROOT}"
+    fi
+    
+    # Run workflow generation with timeout protection
+    echo "Generating workflow..."
+    if timeout 60s node "${MIDAZ_ROOT}/scripts/create-workflow.js" "${POSTMAN_COLLECTION}" "${MIDAZ_ROOT}/postman/WORKFLOW.md" "${POSTMAN_COLLECTION}" 2>/dev/null; then
         echo "[ok] Workflow sequence added to Postman collection ✔️"
     else
-        echo "[warning] Failed to add workflow sequence to Postman collection ⚠️"
+        echo "[warning] Failed to add workflow sequence to Postman collection (timeout or error) ⚠️"
         WORKFLOW_FAILED=true
     fi
 else

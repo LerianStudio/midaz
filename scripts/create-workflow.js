@@ -16,50 +16,23 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Timeout configuration
-const OPERATION_TIMEOUT = 300000; // 5 minutes
-const FILE_READ_TIMEOUT = 30000;   // 30 seconds
+// Simplified timeout configuration
+const OPERATION_TIMEOUT = 60000; // 1 minute - reduced from 5 minutes
 
-// Timeout wrapper for operations
-function withTimeout(promise, timeoutMs, operation = 'operation') {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
-    )
-  ]);
-}
-
-// Safe file operations with timeout
-function safeReadFile(filePath, timeout = FILE_READ_TIMEOUT) {
-  return withTimeout(
-    new Promise((resolve, reject) => {
-      try {
-        const data = fs.readFileSync(filePath, 'utf8');
-        resolve(data);
-      } catch (error) {
-        reject(error);
-      }
-    }),
-    timeout,
-    `Reading file ${filePath}`
-  );
-}
-
-function safeReadJsonFile(filePath, timeout = FILE_READ_TIMEOUT) {
-  return withTimeout(
-    new Promise((resolve, reject) => {
-      try {
-        const data = fs.readFileSync(filePath, 'utf8');
-        const parsed = JSON.parse(data);
-        resolve(parsed);
-      } catch (error) {
-        reject(error);
-      }
-    }),
-    timeout,
-    `Reading JSON file ${filePath}`
-  );
+// Simplified timeout wrapper
+function withTimeout(operation, timeoutMs = OPERATION_TIMEOUT) {
+  const timeout = setTimeout(() => {
+    console.error(`Operation timed out after ${timeoutMs}ms`);
+    process.exit(1);
+  }, timeoutMs);
+  
+  // Clear timeout when done
+  const clearTimeoutOnExit = () => clearTimeout(timeout);
+  process.on('exit', clearTimeoutOnExit);
+  process.on('SIGINT', clearTimeoutOnExit);
+  process.on('SIGTERM', clearTimeoutOnExit);
+  
+  return operation;
 }
 
 // --- Utility Functions ---
@@ -582,7 +555,10 @@ function createWorkflowFolder(collection, steps) {
 
 // --- Main Execution ---
 
-async function main() {
+function main() {
+    // Set global timeout
+    withTimeout(() => {}, OPERATION_TIMEOUT);
+    
     // Check command line arguments
     if (process.argv.length < 5) {
         console.error('Usage: node create-workflow.js <collection-file> <workflow-markdown-file> <output-file>');
@@ -594,39 +570,28 @@ async function main() {
     const outputFilePath = process.argv[4];
 
     try {
-        console.log('🚀 Starting workflow generation with timeout protection...');
+        console.log('🚀 Starting workflow generation...');
         
-        // Read input files with timeout protection
+        // Read input files synchronously
         console.log(`📖 Reading collection: ${collectionFilePath}`);
-        const collection = await safeReadJsonFile(collectionFilePath);
+        const collection = readJsonFile(collectionFilePath);
 
         console.log(`📖 Reading workflow markdown: ${workflowMarkdownFilePath}`);
-        const workflowMarkdown = await safeReadFile(workflowMarkdownFilePath);
+        const workflowMarkdown = readFile(workflowMarkdownFilePath);
 
-        // Parse workflow steps from markdown with timeout protection
+        // Parse workflow steps from markdown
         console.log('📋 Parsing workflow steps from markdown...');
-        const workflowSteps = await withTimeout(
-            Promise.resolve(parseWorkflowStepsFromMarkdown(workflowMarkdown)),
-            30000,
-            'Workflow parsing'
-        );
+        const workflowSteps = parseWorkflowStepsFromMarkdown(workflowMarkdown);
         console.log(`✅ Parsed ${workflowSteps.length} workflow steps from Markdown.`);
         
-        // Debug: Print all step titles to verify Zero Out Balance is included
+        // Debug: Print all step titles
         console.log("🔍 All parsed step titles:");
         workflowSteps.forEach(step => {
             console.log(`  Step ${step.number}: ${step.title}`);
-            if (step.title === "Zero Out Balance") {
-                console.log(`  DEBUG: Zero Out Balance step details: number=${step.number}, title="${step.title}", method=${step.method}, path=${step.path}`);
-            }
         });
 
         console.log("\n🔨 Creating workflow folder by finding and copying requests...");
-        const workflowFolder = await withTimeout(
-            Promise.resolve(createWorkflowFolder(collection, workflowSteps)),
-            OPERATION_TIMEOUT,
-            'Workflow folder creation'
-        );
+        const workflowFolder = createWorkflowFolder(collection, workflowSteps);
 
         // Add/Replace Workflow Folder in Collection
         const existingWorkflowIndex = collection.item.findIndex(item => item.name === "Complete API Workflow");
@@ -640,15 +605,12 @@ async function main() {
         // Add the new folder at the beginning
         collection.item.unshift(workflowFolder);
 
-        // Write Updated Collection with timeout protection
+        // Write Updated Collection
         console.log(`💾 Writing updated collection to: ${outputFilePath}`);
-        await withTimeout(
-            Promise.resolve(writeJsonFile(outputFilePath, collection)),
-            30000,
-            'File writing'
-        );
+        writeJsonFile(outputFilePath, collection);
 
         console.log("✅ Workflow generation completed successfully!");
+        process.exit(0);
         
     } catch (error) {
         console.error("❌ An error occurred:", error.message);
@@ -659,11 +621,5 @@ async function main() {
     }
 }
 
-// Run main with error handling
-main().catch(error => {
-    console.error('❌ Fatal error:', error.message);
-    if (process.env.DEBUG) {
-        console.error('Stack trace:', error.stack);
-    }
-    process.exit(1);
-});
+// Run main directly
+main();
