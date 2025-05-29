@@ -3,6 +3,7 @@ FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 WORKDIR /transaction-app
 
 COPY go.mod go.sum ./
+COPY tmp/lib-commons ./tmp/lib-commons
 RUN go mod download
 
 COPY . .
