@@ -1,3 +1,13 @@
+## [v2.2.0-beta.61] - 2025-05-29
+
+### ✨ Features
+- Enhance security measures to bolster system protection (#929)
+- Improve user experience with streamlined navigation and interface updates (#929)
+
+### 🔧 Maintenance
+- Conduct code refactoring to improve code quality and maintainability
+
+
 ## [v2.2.0-beta.59] - 2025-05-28
 
 ### 🐛 Bug Fixes
