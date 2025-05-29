@@ -1,4 +1,4 @@
-import { headers, type UnsafeUnwrappedHeaders } from 'next/headers';
+import { headers, type UnsafeUnwrappedHeaders } from 'next/headers'
 
 export function _getAcceptLanguage(header: string | null) {
   // Return empty as default if all languages are accepted
@@ -13,6 +13,7 @@ export function _getAcceptLanguage(header: string | null) {
   return locales?.map((l) => l.split(';')[0])
 }
 
-export function getAcceptLanguage() {
-  return _getAcceptLanguage((headers() as unknown as UnsafeUnwrappedHeaders).get('Accept-Language'));
+export async function getAcceptLanguage() {
+  const headersList = await headers()
+  return _getAcceptLanguage(headersList.get('Accept-Language'))
 }

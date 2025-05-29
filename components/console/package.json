@@ -68,7 +68,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "colorjs.io": "^0.5.2",
-    "cookies-next": "^4.3.0",
+    "cookies-next": "^6.0.0",
     "dayjs": "^1.11.13",
     "decimal.js-light": "^2.5.1",
     "dotenv": "^16.4.5",
