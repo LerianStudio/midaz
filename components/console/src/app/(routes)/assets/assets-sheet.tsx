@@ -20,13 +20,13 @@ import { LoadingButton } from '@/components/ui/loading-button'
 import { assets } from '@/schema/assets'
 import { SelectItem } from '@/components/ui/select'
 import { useCreateAsset, useUpdateAsset } from '@/client/assets'
-import { AssetType } from '@/types/assets-type'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { Enforce } from '@/providers/permission-provider/enforce'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { AssetDto } from '@/core/application/dto/asset-dto'
 
 export type AssetsSheetProps = DialogProps & {
   ledgerId: string
@@ -68,7 +68,7 @@ export const AssetsSheet = ({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id!,
     onSuccess: (data: unknown) => {
-      const formData = data as AssetType
+      const formData = data as AssetDto
       onSuccess?.()
       onOpenChange?.(false)
       toast({

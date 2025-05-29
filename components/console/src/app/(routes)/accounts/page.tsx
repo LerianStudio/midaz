@@ -13,7 +13,6 @@ import {
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useAccountsWithPortfolios, useDeleteAccount } from '@/client/accounts'
-import { AccountType } from '@/types/accounts-type'
 import { AccountSheet } from './accounts-sheet'
 import { AccountsDataTable } from './accounts-data-table'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -23,6 +22,7 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useListAssets } from '@/client/assets'
 import { useToast } from '@/hooks/use-toast'
+import { AccountDto } from '@/core/application/dto/account-dto'
 
 const Page = () => {
   const intl = useIntl()
@@ -60,7 +60,7 @@ const Page = () => {
     setTotal(accountsData.items.length)
   }, [accountsData?.items, accountsData?.limit])
 
-  const accountsList: AccountType[] = useMemo(() => {
+  const accountsList: AccountDto[] = useMemo(() => {
     return (
       accountsData?.items.map((account: any) => ({
         ...account,
@@ -79,7 +79,7 @@ const Page = () => {
     dialogProps,
     handleDialogClose,
     data: selectedAccount
-  } = useConfirmDialog<AccountType>({
+  } = useConfirmDialog<AccountDto>({
     onConfirm: () => deleteAccount(selectedAccount)
   })
 
@@ -117,11 +117,11 @@ const Page = () => {
     handleCreate,
     handleEdit: handleEditOriginal,
     sheetProps
-  } = useCreateUpdateSheet<AccountType>({
+  } = useCreateUpdateSheet<AccountDto>({
     enableRouting: true
   })
 
-  const handleEdit = (account: AccountType) => {
+  const handleEdit = (account: AccountDto) => {
     handleEditOriginal(account)
   }
 
