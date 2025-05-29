@@ -18,7 +18,7 @@ const Value = ({
 }: React.PropsWithChildren & React.HtmlHTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex h-9 grow items-center rounded-md bg-shadcn-100 px-2',
+      'bg-shadcn-100 flex h-9 grow items-center rounded-md px-2',
       className
     )}
     {...props}
@@ -58,7 +58,7 @@ export const OperationAccordion = ({
                     defaultMessage: 'Credit'
                   })}
             </p>
-            <p className="text-xs text-shadcn-400">{operation.accountAlias}</p>
+            <p className="text-shadcn-400 text-xs">{operation.accountAlias}</p>
           </div>
           <div className="mr-4 flex flex-col items-end">
             <div className="flex flex-row items-center gap-4">
@@ -74,7 +74,7 @@ export const OperationAccordion = ({
                 {formatAmount(operation.amount)}
               </p>
             </div>
-            <p className="text-xs text-shadcn-400">{operation.asset}</p>
+            <p className="text-shadcn-400 text-xs">{operation.asset}</p>
           </div>
         </div>
       </PaperCollapsibleBanner>

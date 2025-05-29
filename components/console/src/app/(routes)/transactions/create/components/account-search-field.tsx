@@ -153,7 +153,7 @@ export const AccountSearchField = ({
           />
 
           <Button
-            className="h-9 w-9 self-end rounded-full bg-shadcn-600 disabled:bg-shadcn-200"
+            className="bg-shadcn-600 disabled:bg-shadcn-200 h-9 w-9 self-end rounded-full"
             onClick={handleSubmit}
             disabled={loading || !selected}
           >

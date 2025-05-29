@@ -23,7 +23,7 @@ export const SidebarRoot = ({ children }: React.PropsWithChildren) => {
     <AnimatePresence>
       <motion.div
         data-collapsed={isCollapsed}
-        className="group/sidebar relative flex flex-col shadow-sidebar dark:bg-cod-gray-950"
+        className="group/sidebar shadow-sidebar dark:bg-cod-gray-950 relative flex flex-col"
         variants={sidebarVariants}
         initial="closed"
         animate={isCollapsed ? 'closed' : 'opened'}

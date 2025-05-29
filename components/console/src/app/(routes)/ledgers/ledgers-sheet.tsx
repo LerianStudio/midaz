@@ -167,7 +167,7 @@ export const LedgersSheet = ({
               <TabsList className="mb-8 px-0">
                 <TabsTrigger
                   value="details"
-                  className="focus:outline-hidden focus:ring-0"
+                  className="focus:ring-0 focus:outline-hidden"
                 >
                   {intl.formatMessage({
                     id: 'ledgers.sheet.tabs.details',
@@ -194,7 +194,7 @@ export const LedgersSheet = ({
                     required
                   />
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'

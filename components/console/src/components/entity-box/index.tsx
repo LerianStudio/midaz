@@ -28,7 +28,7 @@ const EntityBoxRoot = React.forwardRef<HTMLDivElement, EntityBoxRootProps>(
       <div
         ref={ref}
         className={cn(
-          'mb-2 flex justify-between rounded-lg bg-white p-6 shadow-entity-box',
+          'shadow-entity-box mb-2 flex justify-between rounded-lg bg-white p-6',
           className
         )}
         {...props}
@@ -46,7 +46,7 @@ const EntityBoxCollapsible = React.forwardRef<
 >(({ className, ...props }) => (
   <Collapsible
     className={cn(
-      'mb-2 flex flex-col rounded-lg bg-white shadow-entity-box',
+      'shadow-entity-box mb-2 flex flex-col rounded-lg bg-white',
       className
     )}
     {...props}
@@ -100,7 +100,7 @@ const EntityBoxHeaderTitle = React.forwardRef<
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <CircleHelp className="pointer h-5 w-5 text-shadcn-400" />
+                <CircleHelp className="pointer text-shadcn-400 h-5 w-5" />
               </TooltipTrigger>
               <TooltipContent
                 side="right"
@@ -117,7 +117,7 @@ const EntityBoxHeaderTitle = React.forwardRef<
         )}
       </div>
 
-      {subtitle && <p className="text-sm text-shadcn-400">{subtitle}</p>}
+      {subtitle && <p className="text-shadcn-400 text-sm">{subtitle}</p>}
     </div>
   )
 })

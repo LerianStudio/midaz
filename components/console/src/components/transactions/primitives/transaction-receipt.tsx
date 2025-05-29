@@ -54,7 +54,7 @@ export const TransactionReceiptDescription = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-row items-center gap-2 text-xs text-shadcn-400',
+      'text-shadcn-400 flex flex-row items-center gap-2 text-xs',
       className
     )}
     {...props}
@@ -71,7 +71,7 @@ export const TransactionReceiptAction = forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('absolute right-6 top-6', className)}
+    className={cn('absolute top-6 right-6', className)}
     {...props}
   />
 ))

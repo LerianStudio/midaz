@@ -147,7 +147,7 @@ export const TransactionComplexForm = ({
               <div className="flex items-center justify-center">
                 {(values.source?.length > 0 ||
                   values.destination?.length > 0) && (
-                  <ArrowRight className="mb-14 h-5 w-5 shrink-0 text-shadcn-400" />
+                  <ArrowRight className="text-shadcn-400 mb-14 h-5 w-5 shrink-0" />
                 )}
               </div>
               <div className="col-span-5">

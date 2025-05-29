@@ -30,7 +30,7 @@ const EntityDataTableFooterText = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-sm italic leading-8 text-shadcn-400', className)}
+    className={cn('text-shadcn-400 text-sm leading-8 italic', className)}
     {...props}
   />
 ))

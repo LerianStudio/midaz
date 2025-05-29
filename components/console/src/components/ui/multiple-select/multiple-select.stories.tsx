@@ -52,7 +52,7 @@ const Component = (args: any) => {
         </MultipleSelectTrigger>
         <MultipleSelectContent>
           <MultipleSelectEmpty>
-            <p className="text-sm text-muted-foreground">No frameworks found</p>
+            <p className="text-muted-foreground text-sm">No frameworks found</p>
           </MultipleSelectEmpty>
           {frameworks.map((framework) => (
             <MultipleSelectItem key={framework.value} value={framework.value}>

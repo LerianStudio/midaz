@@ -42,7 +42,7 @@ export const SystemTabContent = () => {
     <React.Fragment>
       <div className="grid grid-cols-3">
         <Paper className="col-span-2 mb-6 flex flex-col">
-          <p className="p-6 text-sm font-medium text-shadcn-400">
+          <p className="text-shadcn-400 p-6 text-sm font-medium">
             {intl.formatMessage({
               id: 'settings.system.paper.description',
               defaultMessage: 'Adjust system preferences.'

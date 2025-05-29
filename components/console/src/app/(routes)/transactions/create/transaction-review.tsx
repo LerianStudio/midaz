@@ -89,7 +89,7 @@ export const TransactionReview = () => {
 
   return (
     <div className="px-24 py-8">
-      <h6 className="mb-4 text-sm font-medium text-shadcn-400">
+      <h6 className="text-shadcn-400 mb-4 text-sm font-medium">
         {mode === TransactionMode.SIMPLE &&
           intl.formatMessage({
             id: 'transactions.create.mode.simple',
@@ -142,7 +142,7 @@ export const TransactionReview = () => {
           <TransactionReceipt className="mb-2 py-5">
             {mode === 'simple' && (
               <GitCompare
-                className="h-9 w-9 rotate-90 -scale-x-100 text-zinc-400"
+                className="h-9 w-9 -scale-x-100 rotate-90 text-zinc-400"
                 strokeWidth={1}
               />
             )}

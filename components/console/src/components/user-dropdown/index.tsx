@@ -40,7 +40,7 @@ export const UserDropdown = () => {
     <div>
       <DropdownMenu>
         <DropdownMenuTrigger>
-          <CircleUser className="h-8 w-8 text-shadcn-400" />
+          <CircleUser className="text-shadcn-400 h-8 w-8" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="min-w-[241px]">
           <DropdownMenuLabel>

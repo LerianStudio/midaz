@@ -67,7 +67,7 @@ export const TransactionModeModal = ({
                   <CardButton
                     icon={
                       <GitCompare
-                        className="h-8 w-8 rotate-90 -scale-x-100"
+                        className="h-8 w-8 -scale-x-100 rotate-90"
                         strokeWidth={1}
                       />
                     }

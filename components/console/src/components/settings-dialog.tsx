@@ -74,7 +74,7 @@ const SettingsDialog = ({ open, setOpen }: Props) => {
         <DialogFooter>
           <Button
             type="submit"
-            className="bg-sunglow-300 text-black hover:bg-sunglow-300/70"
+            className="bg-sunglow-300 hover:bg-sunglow-300/70 text-black"
           >
             {intl.formatMessage({ id: 'common.save', defaultMessage: 'Save' })}
           </Button>

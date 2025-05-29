@@ -59,7 +59,7 @@ export const PaperCollapsibleContent = forwardRef<
   <CollapsibleContent
     ref={ref}
     className={cn(
-      'overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden',
       className
     )}
     {...props}

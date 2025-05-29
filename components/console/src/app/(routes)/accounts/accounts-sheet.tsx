@@ -449,7 +449,7 @@ export const AccountSheet = ({
                       />
                     </div>
 
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'
@@ -500,7 +500,7 @@ export const AccountSheet = ({
 
                   <div className="mt-4 flex flex-row items-center">
                     <div className="grow">
-                      <p className="text-xs font-normal italic text-shadcn-400">
+                      <p className="text-shadcn-400 text-xs font-normal italic">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({
                               id: 'accounts.sheet.noLinkedPortfolio',
