@@ -34,5 +34,6 @@ export const transaction = {
   value,
   asset,
   source,
+  share,
   metadata
 }
