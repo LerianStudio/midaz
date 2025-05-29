@@ -27,7 +27,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@formatjs/intl-localematcher": "^0.5.6",
+    "@formatjs/intl-localematcher": "^0.6.1",
     "@hookform/resolvers": "^3.9.0",
     "@lerian/lib-commons-js": "^1.4.0",
     "@opentelemetry/api": "^1.9.0",
@@ -89,7 +89,7 @@
     "react-color": "^2.19.3",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.53.1",
-    "react-intl": "^6.8.4",
+    "react-intl": "^7.1.11",
     "read-yaml-file": "^2.1.0",
     "reflect-metadata": "^0.2.2",
     "swr": "^2.2.5",
@@ -101,8 +101,8 @@
     "@chromatic-com/storybook": "^4.0.0-next.16",
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
-    "@formatjs/cli": "^6.3.5",
-    "@formatjs/cli-lib": "^6.6.1",
+    "@formatjs/cli": "^6.7.1",
+    "@formatjs/cli-lib": "^7.4.1",
     "@lhci/cli": "^0.14.0",
     "@playwright/test": "^1.48.2",
     "@semantic-release/changelog": "^6.0.3",
@@ -151,7 +151,7 @@
     "tailwindcss": "^3.4.14",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
-    "typescript": "^5",
+    "typescript": "^5.8.3",
     "uuid": "^10.0.0"
   },
   "overrides": {
