@@ -1,3 +1,14 @@
+## [v2.3.0-beta.2] - 2025-05-29
+
+### ✨ Features
+- Develop initial version of the first controller to enhance application modularity and functionality.
+
+### 🐛 Bug Fixes
+- Remove commented code from the codebase to improve code readability and maintainability.
+
+### 🔧 Maintenance
+- Update version in `.env.example` to v2.3.0 to reflect the latest release.
+
 ## [v2.2.0-beta.62] - 2025-05-29
 
 ### 🐛 Bug Fixes
