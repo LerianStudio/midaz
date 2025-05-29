@@ -28,12 +28,6 @@ export function ControllerLogger(): ClassDecorator {
         // Clear any existing Midaz ID from the context
         midazRequestContext.clearMidazId()
 
-        // Extract request body for non-GET and non-DELETE requests
-        // let body = undefined
-        // if (config.method !== 'GET' && config.method !== 'DELETE') {
-        //   body = await req.json()
-        // }
-
         // Execute the next middleware/handler within a logged context
         return loggerAggregator.runWithContext(
           `${target.name}.${methodName}`,
