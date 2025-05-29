@@ -69,6 +69,44 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
+// Global state for cleanup
+let tempFiles = [];
+let isShuttingDown = false;
+
+// Graceful shutdown handler
+function gracefulShutdown(exitCode = 0) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  console.log('\nPerforming cleanup...');
+  
+  // Clean up temporary files
+  tempFiles.forEach(file => {
+    try {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+        console.log(`Cleaned up: ${file}`);
+      }
+    } catch (error) {
+      console.warn(`Warning: Could not clean up ${file}: ${error.message}`);
+    }
+  });
+  
+  process.exit(exitCode);
+}
+
+// Set up signal handlers
+process.on('SIGINT', () => gracefulShutdown(130)); // Ctrl+C
+process.on('SIGTERM', () => gracefulShutdown(143)); // Termination
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  gracefulShutdown(1);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  gracefulShutdown(1);
+});
+
 //=============================================================================
 // COMMAND LINE ARGUMENT HANDLING
 //=============================================================================
@@ -82,7 +120,7 @@ function parseCommandLineArgs() {
   
   if (args.length < 2) {
     console.error('Usage: node convert-openapi.js <input-file> <output-file> [--env <env-output-file>]');
-    process.exit(1);
+    gracefulShutdown(1);
   }
 
   const inputFile = args[0];
@@ -117,31 +155,68 @@ function ensureDirectoriesExist(outputFile, envOutputFile) {
 }
 
 /**
+ * Validate input file before processing
+ * @param {string} inputFile - Path to the input file
+ */
+function validateInputFile(inputFile) {
+  if (!inputFile || typeof inputFile !== 'string') {
+    throw new Error('Input file path is required and must be a string');
+  }
+  
+  if (!fs.existsSync(inputFile)) {
+    throw new Error(`Input file not found: ${inputFile}`);
+  }
+  
+  if (!inputFile.match(/\.(json|yaml|yml)$/i)) {
+    throw new Error('Input file must be JSON or YAML format');
+  }
+}
+
+/**
+ * Validate OpenAPI specification structure
+ * @param {Object} spec - Parsed OpenAPI specification
+ */
+function validateOpenApiSpec(spec) {
+  if (!spec || typeof spec !== 'object') {
+    throw new Error('OpenAPI spec must be a valid object');
+  }
+  
+  if (!spec.openapi && !spec.swagger) {
+    throw new Error('Invalid OpenAPI spec: missing openapi or swagger version');
+  }
+  
+  if (!spec.info) {
+    throw new Error('Invalid OpenAPI spec: missing info section');
+  }
+  
+  if (!spec.paths) {
+    throw new Error('Invalid OpenAPI spec: missing paths section');
+  }
+}
+
+/**
  * Read and parse the OpenAPI specification file
  * @param {string} inputFile - Path to the input file
  * @returns {Object} Parsed OpenAPI specification
  */
 function readOpenApiSpec(inputFile) {
-  // Check if input file exists
-  if (!fs.existsSync(inputFile)) {
-    console.error(`Input file not found: ${inputFile}`);
-    process.exit(1);
-  }
-
   try {
+    // Validate input file
+    validateInputFile(inputFile);
+    
     const fileContent = fs.readFileSync(inputFile, 'utf8');
     
     if (inputFile.endsWith('.json')) {
-      return JSON.parse(fileContent);
+      const parsed = JSON.parse(fileContent);
+      validateOpenApiSpec(parsed);
+      return parsed;
     } else if (inputFile.endsWith('.yaml') || inputFile.endsWith('.yml')) {
-      return yaml.load(fileContent);
-    } else {
-      console.error('Input file must be JSON or YAML format');
-      process.exit(1);
+      const parsed = yaml.load(fileContent);
+      validateOpenApiSpec(parsed);
+      return parsed;
     }
   } catch (error) {
-    console.error(`Error reading/parsing input file: ${error.message}`);
-    process.exit(1);
+    throw new Error(`Error reading/parsing input file: ${error.message}`);
   }
 }
 
@@ -1967,49 +2042,98 @@ function removeIgnoredFields(example, schema, spec) {
   return filteredExample;
 }
 
-// Main function
+// Safe file write with atomic operations
+function safeWriteFile(filePath, data) {
+  const tempFile = `${filePath}.tmp.${Date.now()}`;
+  tempFiles.push(tempFile);
+  
+  try {
+    // Write to temporary file first
+    fs.writeFileSync(tempFile, data, 'utf8');
+    
+    // Atomic move to final location
+    fs.renameSync(tempFile, filePath);
+    
+    // Remove from temp files list since it's now the real file
+    tempFiles = tempFiles.filter(f => f !== tempFile);
+    
+    console.log(`Successfully wrote: ${filePath}`);
+  } catch (error) {
+    // Clean up temp file on error
+    if (fs.existsSync(tempFile)) {
+      try {
+        fs.unlinkSync(tempFile);
+      } catch (cleanupError) {
+        console.warn(`Warning: Could not clean up temp file ${tempFile}: ${cleanupError.message}`);
+      }
+    }
+    throw new Error(`Failed to write file ${filePath}: ${error.message}`);
+  }
+}
+
+// Main function with comprehensive error handling
 function main() {
-  const { inputFile, outputFile, envOutputFile } = parseCommandLineArgs();
-  ensureDirectoriesExist(outputFile, envOutputFile);
-  
-  // Read and parse the OpenAPI spec
-  const spec = readOpenApiSpec(inputFile);
-  
-  // Fix path parameters format (replace :param with {param})
-  const fixedSpec = fixPathParameters(spec);
-  
-  // Update the OpenAPI spec with enhanced components
-  const enhancedSpec = updateOpenApiSpec(fixedSpec);
-  
-  // Update endpoints to use standard responses
-  const finalSpec = updateEndpoints(enhancedSpec);
-  
-  // Create Postman collection
-  console.log('Creating Postman collection...');
-  const collection = createPostmanCollection(finalSpec);
-  
-  // Create Postman environment
-  let environment = null;
-  if (envOutputFile) {
-    console.log('Creating Postman environment...');
-    environment = createEnvironmentTemplate(finalSpec);
+  try {
+    console.log('🚀 Starting OpenAPI to Postman conversion...');
+    
+    const { inputFile, outputFile, envOutputFile } = parseCommandLineArgs();
+    
+    console.log(`📖 Reading OpenAPI spec from: ${inputFile}`);
+    ensureDirectoriesExist(outputFile, envOutputFile);
+    
+    // Read and parse the OpenAPI spec
+    const spec = readOpenApiSpec(inputFile);
+    console.log('✅ OpenAPI spec validated successfully');
+    
+    // Fix path parameters format (replace :param with {param})
+    console.log('🔧 Fixing path parameters...');
+    const fixedSpec = fixPathParameters(spec);
+    
+    // Update the OpenAPI spec with enhanced components
+    console.log('⚡ Enhancing OpenAPI spec...');
+    const enhancedSpec = updateOpenApiSpec(fixedSpec);
+    
+    // Update endpoints to use standard responses
+    console.log('🔗 Updating endpoints...');
+    const finalSpec = updateEndpoints(enhancedSpec);
+    
+    // Create Postman collection
+    console.log('📦 Creating Postman collection...');
+    const collection = createPostmanCollection(finalSpec);
+    
+    // Create Postman environment
+    let environment = null;
+    if (envOutputFile) {
+      console.log('🌍 Creating Postman environment...');
+      environment = createEnvironmentTemplate(finalSpec);
+    }
+    
+    // Ensure all examples follow project standards
+    console.log('📋 Ensuring examples follow project standards...');
+    ensureExamplesFollowStandards(collection);
+    
+    // Write files safely
+    console.log(`💾 Writing Postman collection to ${outputFile}...`);
+    safeWriteFile(outputFile, JSON.stringify(collection, null, 2));
+    
+    if (envOutputFile && environment) {
+      console.log(`💾 Writing Postman environment to ${envOutputFile}...`);
+      safeWriteFile(envOutputFile, JSON.stringify(environment, null, 2));
+    }
+    
+    console.log('✅ Conversion completed successfully!');
+    gracefulShutdown(0);
+    
+  } catch (error) {
+    console.error('❌ Error during conversion:');
+    console.error(`   ${error.message}`);
+    
+    if (process.env.DEBUG) {
+      console.error('   Stack trace:', error.stack);
+    }
+    
+    gracefulShutdown(1);
   }
-  
-  // Ensure all examples follow project standards
-  console.log('Ensuring examples follow project standards...');
-  ensureExamplesFollowStandards(collection);
-  
-  // Write the Postman collection to file
-  console.log(`Writing Postman collection to ${outputFile}...`);
-  fs.writeFileSync(outputFile, JSON.stringify(collection, null, 2));
-  
-  // Write the Postman environment to file if requested
-  if (envOutputFile && environment) {
-    console.log(`Writing Postman environment to ${envOutputFile}...`);
-    fs.writeFileSync(envOutputFile, JSON.stringify(environment, null, 2));
-  }
-  
-  console.log('Done!');
 }
 
 /**
