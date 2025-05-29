@@ -348,7 +348,11 @@ export const AutocompleteContent = React.forwardRef<
     const _searchChildren = (children: React.ReactNode) => {
       React.Children.forEach(React.Children.toArray(children), (child) => {
         // If child is already invalid, like pure string, dismiss
-        if (!React.isValidElement(child)) {
+        if (
+          !React.isValidElement<{ value: string; children: React.ReactNode }>(
+            child
+          )
+        ) {
           return
         }
 
