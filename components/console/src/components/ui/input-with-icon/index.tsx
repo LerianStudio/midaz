@@ -4,6 +4,8 @@ import { Input } from '../input'
 import { cn } from '@/lib/utils'
 import { VariantProps, cva } from 'class-variance-authority'
 
+import type { JSX } from "react";
+
 const InputVariants = cva('relative', {
   variants: {
     iconPosition: {

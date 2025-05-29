@@ -27,7 +27,7 @@ type MultipleSelectContextType = React.HtmlHTMLAttributes<HTMLInputElement> & {
   addOption: (option: Record<string, string>) => void
 
   /** Component References */
-  inputRef: React.RefObject<HTMLInputElement>
+  inputRef: React.RefObject<HTMLInputElement | null>
 }
 
 const MultipleSelectContext = React.createContext<MultipleSelectContextType>({

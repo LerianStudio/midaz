@@ -29,7 +29,7 @@ export const SidebarItemButton = ({
   disabledReason
 }: SidebarItemButtonProps) => {
   const clonedIcon = React.isValidElement(icon)
-    ? React.cloneElement(icon as React.ReactElement, {
+    ? React.cloneElement(icon as React.ReactElement<any>, {
         className: cn(
           'mr-3 h-6 w-6 text-shadcn-400',
           'group-hover/link:text-accent-foreground',

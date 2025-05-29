@@ -30,7 +30,7 @@ export type AutocompleteContextType =
     addOption: (option: Record<string, string>) => void
 
     /** Component References */
-    inputRef: React.RefObject<HTMLInputElement>
+    inputRef: React.RefObject<HTMLInputElement | null>
   }
 
 const AutocompleteContext = React.createContext<AutocompleteContextType>({
