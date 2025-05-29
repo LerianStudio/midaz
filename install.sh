@@ -1,165 +1,187 @@
 #!/usr/bin/env sh
-# ============================================================================
-# Midaz Core-Banking Stack Installation Script
-# ============================================================================
-#
-# This script provides an automated installation of the Midaz core-banking platform.
-# It detects the operating system, installs dependencies, clones the repository,
-# and sets up all required services using Docker containers.
-#
-# The installation is designed to be interactive by default but can be run in
-# non-interactive mode by passing the -y flag. The script includes extensive
-# error handling, recovery capabilities, and diagnostic information.
-#
-# Key Features:
-# - Cross-platform support (Linux distributions and macOS)
-# - Automatic dependency installation
-# - Branch selection for different development environments
-# - Optional demo data generation
-# - Recovery from interrupted installations
-# - Uninstallation capability
-# - Comprehensive error diagnostics
-#
-# It performs the following actions:
-#  1. Detects the operating system and package manager
-#  2. Verifies required dependencies are installed:
-#     - Git (for cloning the repository)
-#     - Docker + Docker Compose (for containerization)
-#     - Make (for running build processes)
-#  3. Clones the Midaz repository (with branch selection)
-#  4. Ensures Docker daemon is running
-#  5. Starts the services using Docker Compose
-#  6. Optionally generates demo data for testing
-#
-# Usage:
-#   curl -fsSL https://get.midaz.dev | sh
-#   ./install.sh [OPTIONS]
-#
-# Common Options:
-#   --help         Display help information
-#   --uninstall    Remove Midaz from the system
-#   -y, --yes      Non-interactive mode
-#
-# Configurable environment variables:
-#   MIDAZ_DIR      Override installation directory (default: ~/midaz)
-#   MIDAZ_REF      Branch/tag to clone (default: main)
-#   INSTALL_FLAGS  Pass -y to skip interactive prompts (fully automated install)
-#
-# For developers:
-# This script is designed to be maintainable and extensible. Each function has a
-# single responsibility, and error handling is consistent throughout. The script
-# includes state tracking to enable recovery from interruptions and diagnostics
-# to help troubleshoot issues.
-#
-# Author: Lerian Studio Engineering Team
-# License: See LICENSE file in the repository
-# Version: 1.0.0
-# Last updated: 2023-05-15
-#
-# ============================================================================
-# Configuration and Safety Settings
-# ============================================================================
-#
-# The script uses strict error handling to fail fast and provide clear feedback.
-# Three options are enabled to ensure robust execution:
-#
-# set -e: Exits immediately if a command fails. This prevents the script from 
-#         continuing after errors that might lead to incorrect installations.
-#
-# set -u: Treats unset variables as errors. This catches typos and ensures all
-#         required variables are properly defined before use.
-#
-# set -o pipefail: Ensures that a pipeline fails if any command in it fails,
-#                  not just the last one. This helps catch errors in piped commands.
-#
-# The script also sets a safe Internal Field Separator (IFS) to handle whitespace
-# in filenames and paths correctly, preventing common filepath parsing errors.
-
-# Enable strict mode for safer execution
-# -e: Exit immediately if a command fails
-# -u: Treat unset variables as an error
-# -o pipefail: Ensures that a pipeline fails if any command in it fails
+# Midaz Core-Banking Platform Installer
+# Automates setup of complete banking stack with Docker containers
+# Supports Linux/macOS with interactive branch selection and recovery
+# Strict error handling: exit on command failure, undefined vars, pipe failures
 set -eu
+set -o pipefail
 
-# Set a safe Internal Field Separator (IFS)
-# This ensures that whitespace in filenames and paths is handled correctly
+# Safe field separator to handle whitespace in paths
 IFS="$(printf '\n\t')"
 
-# ============================================================================
-# Default Configuration Variables
-# ============================================================================
-#
-# These variables control the installation process and can be customized
-# through environment variables or command-line flags.
-#
-# Users can override these settings either by:
-# 1. Exporting them as environment variables before running the script
-#    Example: MIDAZ_DIR=/opt/midaz curl -fsSL https://get.midaz.dev | sh
-#
-# 2. Using command-line arguments for the supported options
-#    Example: ./install.sh --yes to enable non-interactive mode
-#
-# The script will always prioritize explicitly set variables over defaults.
-# If a configuration variable is not set, the script will use these sensible defaults.
+# Check for existing Midaz containers
+check_existing_installation() {
+  log "Checking for existing Midaz containers..."
+  
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    # Check for running Midaz containers
+    RUNNING_MIDAZ=$(docker ps --filter "name=midaz" --format "{{.Names}}" 2>/dev/null)
+    if [ -n "$RUNNING_MIDAZ" ]; then
+      echo ""
+      echo "WARNING: Found running Midaz containers:"
+      echo "$RUNNING_MIDAZ" | sed 's/^/  - /'
+      echo ""
+      echo "This installation may conflict with existing containers."
+      echo "Options:"
+      echo "  1. Stop existing containers first: 'docker stop \$(docker ps -q --filter name=midaz)'"
+      echo "  2. Use different installation directory"
+      echo "  3. Continue anyway (may cause conflicts)"
+      echo ""
+      
+      if [ "${MIDAZ_AUTOCONFIRM}" -ne 1 ]; then
+        if ! prompt "Continue with existing containers running? (y/N): "; then
+          die "Installation aborted due to existing containers"
+        fi
+        log_warning "Proceeding with existing containers - conflicts may occur"
+      else
+        log_warning "Auto-confirming with existing containers (conflicts possible)"
+      fi
+    else
+      log "No conflicting Midaz containers found"
+    fi
+  else
+    log "Docker not available - skipping container check"
+  fi
+}
 
-# Installation location - can be overridden by setting MIDAZ_DIR environment variable
-# Default is in the user's home directory for unprivileged installation
-MIDAZ_DIR="${MIDAZ_DIR:-$HOME/midaz}"
+# Interactive installation directory selection
+select_installation_directory() {
+  if [ -n "${MIDAZ_DIR}" ]; then
+    log "Using pre-configured directory: ${MIDAZ_DIR}"
+    return 0
+  fi
+  
+  if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ]; then
+    # Non-interactive: use default
+    MIDAZ_DIR="$HOME/midaz"
+    log "Non-interactive mode: using ${MIDAZ_DIR}"
+    return 0
+  fi
+  
+  echo ""
+  echo "=== INSTALLATION DIRECTORY ==="
+  echo "Choose where to install Midaz:"
+  echo ""
+  echo "  1. $HOME/midaz (default)"
+  echo "  2. /opt/midaz (system-wide, requires sudo)"
+  echo "  3. ./midaz (current directory)"
+  echo "  4. Custom path"
+  echo ""
+  printf "Select option [1-4]: "
+  read -r dir_choice
+  
+  case "$dir_choice" in
+    1|"")
+      MIDAZ_DIR="$HOME/midaz"
+      ;;
+    2)
+      MIDAZ_DIR="/opt/midaz"
+      log_warning "System-wide installation will require sudo privileges"
+      ;;
+    3)
+      MIDAZ_DIR="$(pwd)/midaz"
+      ;;
+    4)
+      printf "Enter custom installation path: "
+      read -r custom_path
+      if [ -z "$custom_path" ]; then
+        log_warning "Empty path provided, using default"
+        MIDAZ_DIR="$HOME/midaz"
+      else
+        MIDAZ_DIR="$custom_path"
+      fi
+      ;;
+    *)
+      log_warning "Invalid choice, using default"
+      MIDAZ_DIR="$HOME/midaz"
+      ;;
+  esac
+  
+  echo ""
+  log "Selected installation directory: ${MIDAZ_DIR}"
+  
+  # Check if directory exists and has content
+  if [ -d "${MIDAZ_DIR}" ] && [ "$(ls -A "${MIDAZ_DIR}" 2>/dev/null)" ]; then
+    echo ""
+    log_warning "Directory ${MIDAZ_DIR} exists and is not empty"
+    if ! prompt "Continue and potentially overwrite contents? (y/N): "; then
+      die "Installation aborted - directory not empty"
+    fi
+  fi
+}
 
-# Git reference (branch/tag) to install - can be overridden by setting MIDAZ_REF
-# Users can specify a different branch for development/testing purposes
-MIDAZ_REF="${MIDAZ_REF:-main}"
+# Security validation for environment variables
+validate_env_vars() {
+  # Select installation directory if not set
+  select_installation_directory
+  
+  # Check MIDAZ_DIR for shell injection patterns
+  case "${MIDAZ_DIR:-}" in
+    *";"*|*"|"*|*"&"*|*"$"*|*"`"*|*"\\"*)
+      die "MIDAZ_DIR contains dangerous characters"
+      ;;
+    "")
+      die "MIDAZ_DIR cannot be empty"
+      ;;
+    /*)
+      # Absolute path - validate length
+      if [ "${#MIDAZ_DIR}" -gt 200 ]; then
+        die "MIDAZ_DIR path too long (>200 chars)"
+      fi
+      ;;
+    ~/*)
+      # Home-relative path OK
+      ;;
+    *)
+      # Convert relative to absolute
+      MIDAZ_DIR="$(pwd)/${MIDAZ_DIR}"
+      log_warning "Converting relative MIDAZ_DIR to absolute: ${MIDAZ_DIR}"
+      ;;
+  esac
+  
+  # Check MIDAZ_REF for shell injection
+  case "${MIDAZ_REF:-}" in
+    *";"*|*"|"*|*"&"*|*"$"*|*"`"*|*"\\"*|*".."*)
+      die "MIDAZ_REF contains dangerous characters"
+      ;;
+  esac
+  
+  # Validate git ref format
+  if [ -n "${MIDAZ_REF:-}" ]; then
+    case "${MIDAZ_REF}" in
+      -*)
+        die "MIDAZ_REF cannot start with dash"
+        ;;
+      *" "*|*"\t"*|*"\n"*)
+        die "MIDAZ_REF cannot contain whitespace"
+        ;;
+    esac
+    
+    if [ "${#MIDAZ_REF}" -gt 100 ]; then
+      die "MIDAZ_REF too long (>100 chars)"
+    fi
+  fi
+}
 
-# Repository URL - this is the official Midaz repository
-# This is the canonical source for the Midaz core-banking platform
-MIDAZ_REPO="https://github.com/lerianstudio/midaz"
+# Configuration variables (override via environment)
+MIDAZ_DIR="${MIDAZ_DIR:-}"             # Install location (will prompt if empty)
+MIDAZ_REF="${MIDAZ_REF:-main}"         # Git branch/tag
+MIDAZ_REPO="https://github.com/lerianstudio/midaz"  # Repository URL
+MIDAZ_AUTOCONFIRM=0                    # Interactive mode flag
+INSTALL_FLAGS="${INSTALL_FLAGS:-}"     # Additional install flags
+BRANCH_SELECTION_TIMEOUT=10            # Branch selection timeout
 
-# Flag to track if we're running in non-interactive mode
-# This is set to 1 when -y or --yes flag is passed
-MIDAZ_AUTOCONFIRM=0
-
-# Installation flags from environment - used to enable non-interactive mode
-# Typically set to "-y" to automatically confirm all prompts
-INSTALL_FLAGS="${INSTALL_FLAGS:-}"
-
-# Branch selection timeout (in seconds)
-# How long to wait for user input when selecting a branch before defaulting to main
-BRANCH_SELECTION_TIMEOUT=10
-
-# ============================================================================
-# Installation State Tracking and Recovery
-# ============================================================================
-#
-# The script maintains a state file to track installation progress, allowing
-# for recovery if the process is interrupted. This is particularly useful for
-# long installations or when network interruptions occur.
-#
-# State tracking works by:
-# 1. Saving the current state to a temporary file after completing each major step
-# 2. Checking for this state file on startup to detect interrupted installations
-# 3. Offering to resume from the last completed step rather than starting over
-#
-# The state file is cleaned up after successful installation, but persists
-# if the installation is interrupted, allowing for recovery later.
-#
-# States tracked include:
-# - not_started: Fresh installation, no previous state found
-# - deps_installed: Dependencies successfully installed
-# - repo_cloned: Repository successfully cloned
-# - services_started: Docker services successfully started
-# - completed: Installation completed successfully
-
-# Define the state file path
+# State tracking for installation recovery
 MIDAZ_STATE_FILE="/tmp/midaz_install_state.tmp"
 
-# Function to save the current installation state
+# Save installation progress state
 save_state() {
   state=$1
   echo "${state}" > "${MIDAZ_STATE_FILE}"
-  log "Installation state saved: ${state}"
+  log "State saved: ${state}"
 }
 
-# Function to read the current installation state
+# Read current installation state
 read_state() {
   if [ -f "${MIDAZ_STATE_FILE}" ]; then
     cat "${MIDAZ_STATE_FILE}"
@@ -168,9 +190,9 @@ read_state() {
   fi
 }
 
-# Function to check if a previous installation was interrupted
+# Check for interrupted installation and offer recovery
 check_for_recovery() {
-  log "Checking for previous interrupted installation..."
+  log "Checking for interrupted installation..."
   
   CURRENT_STATE=$(read_state)
   
@@ -241,427 +263,449 @@ check_for_recovery() {
   esac
 }
 
-# ============================================================================
-# Signal Handling and Cleanup
-# ============================================================================
-#
-# This section defines how the script responds to various signals, ensuring
-# graceful termination even when interrupted. The cleanup function is called
-# whenever the script exits abnormally, providing users with information about
-# the interrupted state and saving progress for later recovery.
-#
-# Signal traps handle:
-# - INT: Keyboard interrupt (Ctrl+C)
-# - TERM: Termination signal sent by system
-# - EXIT: Any exit from the script (unless trap is reset)
-# - HUP: Terminal disconnect (hangup)
-#
-# The cleanup function:
-# 1. Saves the current installation state to enable recovery
-# 2. Provides clear messaging about the interrupted installation
-# 3. Gives instructions for resuming the installation later
-
-# This function handles interruption signals to ensure clean termination
-# If the user presses Ctrl+C or the script receives a termination signal,
-# this ensures we exit gracefully instead of leaving partial installations
+# Signal cleanup handler - saves state and cleans temp files
 cleanup() {
-  # If we have a current state, save it to allow for recovery
+  exit_code=${1:-1}
+  
+  # Save current state for recovery
   if [ -n "${CURRENT_INSTALL_STATE:-}" ]; then
     save_state "${CURRENT_INSTALL_STATE}"
     echo "[MIDAZ] Installation state saved for recovery."
   fi
   
+  # Clean up temporary files
+  if [ -n "${TEMP_FILES:-}" ]; then
+    log "Cleaning up temporary files..."
+    for temp_file in $TEMP_FILES; do
+      if [ -f "$temp_file" ]; then
+        rm -f "$temp_file" 2>/dev/null || true
+      fi
+    done
+  fi
+  
+  # Clean up artifact directories if installation failed
+  if [ $exit_code -ne 0 ] && [ -n "${ARTIFACT_DIRS:-}" ]; then
+    log "Cleaning up build artifacts..."
+    for artifact_dir in $ARTIFACT_DIRS; do
+      if [ -d "$artifact_dir" ]; then
+        rm -rf "$artifact_dir" 2>/dev/null || true
+      fi
+    done
+  fi
+  
   echo "[MIDAZ] Installation interrupted. Exiting..."
   echo "[MIDAZ] You may need to manually clean up any partially installed components."
   echo "[MIDAZ] Run the installer again to attempt recovery."
-  exit 1
+  
+  # Security error guidance
+  if [ $exit_code -eq 2 ]; then
+    echo "[MIDAZ] Security-related failure detected."
+    echo "[MIDAZ] Review error messages and ensure you're using trusted sources."
+  fi
+  
+  exit $exit_code
 }
 
-# Set traps for various signals:
-# INT: Keyboard interrupt (Ctrl+C)
-# TERM: Termination signal
-# EXIT: Script exit
-# HUP: Terminal disconnection
-trap cleanup INT TERM EXIT HUP
+# Signal traps for graceful shutdown
+trap 'cleanup 130' INT  # Ctrl+C
+trap 'cleanup 143' TERM # Kill signal
+trap 'cleanup' EXIT     # Script exit
+trap 'cleanup 129' HUP  # Terminal disconnect
 
-# We'll reset the EXIT trap at the end of successful installation
-# This prevents the cleanup function from running on normal exit
-trap '' EXIT
+# Track temp files and artifacts for cleanup
+TEMP_FILES=""
+ARTIFACT_DIRS=""
 
-# ============================================================================
-# Logging Functions
-# ============================================================================
-#
-# These functions provide consistent messaging throughout the script.
-# Each function has a specific purpose to help users
-# distinguish between different types of information:
-#
-# - log: Standard informational messages
-# - log_success: Success messages for completed operations
-# - log_warning: Warning messages for potential issues
-# - log_error: Error messages for problems that prevent continuing
-# - die: Fatal error handler that exits with detailed diagnostic information
-#
-# Using consistent log functions improves readability and makes it easier
-# to filter or parse the output programmatically if needed.
-#
-# The die() function is especially important as it collects system information
-# for troubleshooting before exiting with a non-zero status code.
+# Add file to cleanup list
+add_temp_file() {
+  if [ -n "$1" ]; then
+    TEMP_FILES="$TEMP_FILES $1"
+  fi
+}
 
-# Standard informational message
+# Add directory to artifact cleanup list
+add_artifact_dir() {
+  if [ -n "$1" ]; then
+    ARTIFACT_DIRS="$ARTIFACT_DIRS $1"
+  fi
+}
+
+# Logging functions with consistent formatting
 log() {
   echo "[MIDAZ] $1"
 }
 
-# Success message for completed operations
 log_success() {
   echo "[MIDAZ] SUCCESS: $1"
 }
 
-# Warning message for potential issues that don't stop installation
 log_warning() {
   echo "[MIDAZ] WARNING: $1"
 }
 
-# Error message for issues that prevent continuing
-# Outputs to stderr to differentiate from regular output
 log_error() {
   echo "[MIDAZ] ERROR: $1" >&2
 }
 
-# Fatal error handler - logs error, collects system information for debugging,
-# and exits with a non-zero status code
+# Fatal error with diagnostic info and cleanup
 die() {
-  log_error "$1"
-  # Provide detailed system information to help with troubleshooting
-  echo "\nDiagnostic Information (please include in any support requests):"
-  echo "===================================================================="
+  error_message="$1"
+  exit_code="${2:-1}"
   
-  # OS release information if available
+  log_error "$error_message"
+  
+  # Diagnostic information for troubleshooting
+  echo "\nDiagnostic Information:"
+  echo "===================================================================="
+  echo "Error: $error_message"
+  echo "Exit Code: $exit_code"
+  echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  echo ""
+  
+  # System info
   if [ -f /etc/os-release ]; then
     echo "OS Information:"
     cat /etc/os-release
-  fi
-  
-  # Kernel and architecture information
-  echo "UNAME: $(uname -a)"
-  
-  # Information about installation parameters
-  echo "Installation directory: ${MIDAZ_DIR}"
-  echo "Git reference: ${MIDAZ_REF}"
-  
-  echo "\nPlease report installation issues to support@midaz.dev with the above information."
-  echo "===================================================================="
-  exit 1
-}
-
-# ============================================================================
-# User Interaction Functions
-# ============================================================================
-#
-# These functions handle user interactions throughout the installation process.
-# They provide a consistent way to request input from users while supporting
-# both interactive and non-interactive modes.
-#
-# The prompt() function is particularly important as it:
-# 1. Shows a prompt to the user requesting confirmation
-# 2. Skips the prompt entirely in non-interactive mode (auto-confirms)
-# 3. Handles various affirmative responses (y, yes, or just Enter)
-# 4. Returns standardized exit codes for consistent handling (0 for yes, 1 for no)
-#
-# This design allows the same code to work in both interactive installations 
-# (where users can make choices) and automated deployments (where default or
-# specified choices are used automatically).
-
-# Prompts the user for confirmation to proceed with an action
-# Returns 0 (success) if user confirms or we're in autoconfirm mode
-# Returns 1 (failure) if user declines
-prompt() {
-  # Skip prompting if we're in non-interactive mode
-  if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ]; then
-    log "Auto-confirming: $1"
-    return 0
-  fi
-  
-  # Otherwise, ask the user and wait for their response
-  printf "[MIDAZ] %s" "$1"
-  read -r response
-  case "${response}" in
-    [yY]|[yY][eE][sS]|"")
-      # User confirmed (y, yes, or just pressed Enter)
-      return 0
-      ;;
-    *)
-      # User declined
-      return 1
-      ;;
-  esac
-}
-
-# ============================================================================
-# Privilege Escalation Functions
-# ============================================================================
-#
-# These functions handle running commands with elevated privileges when necessary.
-# The script always tries to minimize the use of sudo/doas by:
-# 1. Checking if the command can be run without privileges
-# 2. Using user-specific alternatives when available (e.g., --user flag)
-# 3. Only escalating privileges when absolutely necessary
-#
-# This approach follows the principle of least privilege and makes the script
-# safer to run. When privilege escalation is needed, the script:
-# 1. Detects the appropriate command (sudo, doas, or none if already root)
-# 2. Provides clear messaging about why elevated privileges are needed
-# 3. Handles errors gracefully with helpful guidance for common issues
-#
-# The run_sudo() function has special handling for common commands like Docker,
-# apt, and systemctl to avoid unnecessary privilege escalation.
-
-# Determines the appropriate privilege escalation command to use (if any)
-# Returns the command name (sudo, doas) or empty string if already root
-get_sudo() {
-  if [ "$(id -u)" = 0 ]; then
-    # We're already running as root, no need for sudo/doas
     echo ""
+  fi
+  echo "System: $(uname -a)"
+  echo ""
+  
+  # Installation context
+  echo "Installation Parameters:"
+  echo "  Directory: ${MIDAZ_DIR}"
+  echo "  Git reference: ${MIDAZ_REF}"
+  echo "  Auto-confirm: ${MIDAZ_AUTOCONFIRM}"
+  echo "  State: ${CURRENT_INSTALL_STATE:-unknown}"
+  echo ""
+  
+  # Quick dependency checks
+  echo "Dependencies:"
+  echo "  Docker: $(command -v docker >/dev/null && echo 'Yes' || echo 'No')"
+  echo "  Git: $(command -v git >/dev/null && echo 'Yes' || echo 'No')"
+  echo "  Make: $(command -v make >/dev/null && echo 'Yes' || echo 'No')"
+  echo "  Network: $(ping -c 1 8.8.8.8 >/dev/null 2>&1 && echo 'Yes' || echo 'No')"
+  echo ""
+  echo "Report issues to: support@midaz.dev"
+  echo "===================================================================="
+  
+  cleanup $exit_code
+}
+
+# User confirmation prompt with safe defaults
+prompt() {
+  prompt_text="$1"
+  
+  # Auto-confirm in non-interactive mode
+  if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ]; then
+    log "Auto-confirming: $prompt_text"
     return 0
-  elif command -v sudo >/dev/null 2>&1; then
-    # sudo is available, prefer this
-    echo "sudo"
-    return 0
-  elif command -v doas >/dev/null 2>&1; then
-    # doas is available (common on OpenBSD and some security-focused systems)
-    echo "doas"
-    return 0
+  fi
+  
+  printf "[MIDAZ] %s" "$prompt_text"
+  
+  # Use timeout to prevent hanging (5 min limit)
+  if command -v timeout >/dev/null 2>&1; then
+    response=$(timeout 300 sh -c 'read -r response && echo "$response"' || echo "timeout")
   else
-    # No privilege escalation command found
+    read -r response
+  fi
+  
+  # Handle timeout
+  if [ "$response" = "timeout" ]; then
+    echo ""
+    log_warning "No response within 5 minutes, assuming 'no'"
     return 1
   fi
+  
+  # Detect default behavior from prompt format
+  # (Y/n) = default YES, (y/N) = default NO
+  if echo "$prompt_text" | grep -q "(Y/n)"; then
+    # Default YES prompts
+    case "${response}" in
+      [nN]|[nN][oO])
+        return 1  # No
+        ;;
+      *)
+        return 0  # Yes (including empty)
+        ;;
+    esac
+  elif echo "$prompt_text" | grep -q "(y/N)"; then
+    # Default NO prompts
+    case "${response}" in
+      [yY]|[yY][eE][sS])
+        return 0  # Yes
+        ;;
+      *)
+        return 1  # No (including empty)
+        ;;
+    esac
+  else
+    # Ambiguous prompts - require explicit yes
+    case "${response}" in
+      [yY]|[yY][eE][sS])
+        return 0  # Yes
+        ;;
+      *)
+        return 1  # No
+        ;;
+    esac
+  fi
 }
 
-# Runs a command with appropriate privilege escalation if needed
-# Automatically determines whether to use sudo, doas, or run directly
+# Privilege escalation detection (sudo/doas)
+get_sudo() {
+  if [ "$(id -u)" = 0 ]; then
+    echo ""  # Already root
+  elif command -v sudo >/dev/null 2>&1; then
+    echo "sudo"
+  elif command -v doas >/dev/null 2>&1; then
+    echo "doas"
+  else
+    return 1  # No privilege escalation available
+  fi
+}
+
+# Run command with privilege escalation if needed
 run_sudo() {
-  # First try to see if the command can be run without sudo
+  # Try without sudo first for certain commands
   if [ -z "${FORCE_SUDO:-}" ]; then
-    # Try to run the command without sudo first for specific commands
-    if [ "$1" = "apt-get" ] && [ "$2" = "update" ]; then
-      # Skip sudo for apt-get update if we can access the apt sources
-      if [ -w /var/lib/apt/lists ] || [ -w /var/cache/apt ]; then
-        log "Running apt-get update without elevated privileges"
-        "$@"
-        return $?
-      fi
-    elif [ "$1" = "systemctl" ]; then
-      # For systemctl, try user mode first if available (systemctl --user)
-      if systemctl --user daemon-reload >/dev/null 2>&1; then
-        log "Running systemctl in user mode"
-        systemctl --user "$2" "$3"
-        return $?
-      fi
-    elif [ "$1" = "docker" ]; then
-      # Check if docker socket is accessible without sudo
-      if [ -S /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
-        log "Running docker command without elevated privileges"
-        "$@"
-        return $?
-      elif groups "$(whoami)" | grep -q '\bdocker\b'; then
-        log "Running docker command with docker group membership"
-        "$@"
-        return $?
-      fi
-    fi
+    case "$1" in
+      "apt-get")
+        if [ "$2" = "update" ] && [ -w /var/lib/apt/lists ]; then
+          log "Running apt-get update without sudo"
+          "$@"
+          return $?
+        fi
+        ;;
+      "systemctl")
+        if systemctl --user daemon-reload >/dev/null 2>&1; then
+          log "Using systemctl user mode"
+          systemctl --user "$2" "$3"
+          return $?
+        fi
+        ;;
+      "docker")
+        if [ -S /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
+          log "Docker available without sudo"
+          "$@"
+          return $?
+        elif groups "$(whoami)" | grep -q '\bdocker\b'; then
+          log "Using docker group membership"
+          "$@"
+          return $?
+        fi
+        ;;
+    esac
   fi
   
+  # Use sudo/doas if available
   SUDO="$(get_sudo)"
   if [ -n "$SUDO" ]; then
-    # Run with sudo/doas if available
     log "Running with elevated privileges: $*"
     
-    # Check if we've already asked for sudo in this session
     if [ -z "${SUDO_PASSWORD_ENTERED:-}" ]; then
-      log "You may be prompted for your password to grant administrative privileges."
-      log "This is necessary for system-wide installation of dependencies."
-      # Setting this variable to track that we've already shown the prompt
+      log "You may be prompted for your password"
       SUDO_PASSWORD_ENTERED=1
     fi
     
-    # Run the command with sudo/doas
-    # If it fails with a permission error, provide helpful guidance
     if ! $SUDO "$@"; then
       ERROR_CODE=$?
       if [ $ERROR_CODE -eq 1 ] || [ $ERROR_CODE -eq 126 ] || [ $ERROR_CODE -eq 127 ]; then
-        log_warning "Command failed, possibly due to permission issues."
-        log_warning "If you were prompted for a password and it was rejected:"
-        log_warning "1. Ensure you're using the correct password"
-        log_warning "2. Verify that your user has sudo privileges"
-        log_warning "You can check sudo access with: 'sudo -v'"
+        log_warning "Command failed - check sudo privileges with 'sudo -v'"
       fi
       return $ERROR_CODE
     fi
   else
-    # No privilege escalation available, try running directly
-    log_warning "No privilege escalation command (sudo/doas) available, attempting to run directly"
-    log_warning "This may fail if the command requires elevated privileges"
+    log_warning "No sudo/doas available, running directly"
     "$@"
   fi
 }
 
-# ============================================================================
-# Dependency Checking Functions
-# ============================================================================
-#
-# These functions verify that required dependencies are available and meet
-# version requirements. The script uses a modular approach to dependency checking:
-#
-# 1. check_command() - Verifies if a command exists in the system PATH
-# 2. check_version() - Compares version numbers to ensure minimum requirements are met
-# 3. verify_installation() - Validates that an installation was successful
-#
-# For version checking, the script includes fallback mechanisms to handle various
-# version string formats. This makes the version detection more robust across
-# different implementations of the same tool.
-#
-# If dependencies are missing or outdated, the script offers to install them
-# automatically (with user confirmation in interactive mode). This reduces the
-# manual setup required from users.
+# Dependency checking functions
 
-# Checks if a command is available in the current PATH
-# Returns 0 (success) if command exists, 1 (failure) if not
+# Check if command exists in PATH
 check_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# Compares version numbers to ensure a minimum version requirement is met
-# Parameters:
-#   $1: Command name to check
-#   $2: Shell command to get the version string (e.g., "go version")
-#   $3: Minimum required version (e.g., "1.22")
-# Returns 0 (success) if version meets requirements, 1 (failure) if not
+# Compare version numbers against minimum requirements
 check_version() {
   command=$1
-  version_str=$2
+  version_command=$2
   min_version=$3
   
-  # For macOS special case when checking sw_vers
+  # macOS version check handled separately
   if [ "$command" = "sw_vers" ]; then
-    # Just return true for any version since we handle version check separately
     return 0
   fi
 
-  # Extract the version number from the command output
-  # This regex finds sequences of numbers separated by periods
-  version=$(eval "$version_str" | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)
+  # Safe command execution (no eval)
+  case "$version_command" in
+    "git --version")
+      version_output=$(git --version 2>/dev/null)
+      ;;
+    "docker --version")
+      version_output=$(docker --version 2>/dev/null)
+      ;;
+    "make --version")
+      version_output=$(make --version 2>/dev/null)
+      ;;
+    "go version")
+      version_output=$(go version 2>/dev/null)
+      ;;
+    "node --version")
+      version_output=$(node --version 2>/dev/null)
+      ;;
+    "npm --version")
+      version_output=$(npm --version 2>/dev/null)
+      ;;
+    *)
+      log_warning "Unsupported version command: $version_command"
+      return 1
+      ;;
+  esac
   
-  # Fallback methods if version extraction fails
+  # Extract version with fallback methods
+  version=$(echo "$version_output" | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)
+  
   if [ -z "$version" ]; then
-    # Try alternative method for version extraction
-    version=$(eval "$version_str" | grep -oE '[0-9]+\.[0-9]+' | head -1)
-    
-    # If still empty, try just getting the first number
+    version=$(echo "$version_output" | grep -oE '[0-9]+\.[0-9]+' | head -1)
     if [ -z "$version" ]; then
-      version=$(eval "$version_str" | grep -oE '[0-9]+' | head -1)
-      
-      # If we can't extract a version at all, assume it doesn't meet requirements
+      version=$(echo "$version_output" | grep -oE '[0-9]+' | head -1)
       if [ -z "$version" ]; then
-        log_warning "Could not determine version for $command, assuming it needs to be updated"
+        log_warning "Could not determine version for $command"
         return 1
       fi
-      
-      # If we only found a single number, add .0 to make it compatible with version comparison
-      version="${version}.0"
+      version="${version}.0"  # Add .0 for single numbers
     fi
   fi
   
-  # Split the version into major and minor components
+  # Parse major.minor versions
   major=$(echo "$version" | cut -d. -f1)
   minor=$(echo "$version" | cut -d. -f2)
-  
-  # Split the minimum required version the same way
   req_major=$(echo "$min_version" | cut -d. -f1)
   req_minor=$(echo "$min_version" | cut -d. -f2)
   
-  # Compare versions: major must be greater than required, or
-  # if major is equal, minor must be at least as high as required
+  # Version comparison
   if [ "$major" -gt "$req_major" ] || ([ "$major" -eq "$req_major" ] && [ "$minor" -ge "$req_minor" ]); then
-    # Version meets requirements
-    return 0
+    return 0  # Version OK
   else
-    # Version is too old
-    return 1
+    return 1  # Version too old
   fi
 }
 
-# Function to verify installation success
+# Verify successful installation
 verify_installation() {
   command=$1
   version_command=$2
   
   if ! check_command "$command"; then
-    log_warning "Failed to install $command or it's not in PATH"
+    log_warning "$command not found in PATH after installation"
     return 1
   fi
   
-  version_output=$(eval "$version_command" 2>&1)
+  # Safe version check
+  case "$version_command" in
+    "git --version")
+      version_output=$(git --version 2>&1)
+      ;;
+    "docker --version")
+      version_output=$(docker --version 2>&1)
+      ;;
+    "make --version")
+      version_output=$(make --version 2>&1)
+      ;;
+    *)
+      log_warning "Unsupported version command: $version_command"
+      return 1
+      ;;
+  esac
+  
   if [ $? -ne 0 ]; then
-    log_warning "Installed $command but couldn't verify version: $version_output"
+    log_warning "Installed $command but version check failed: $version_output"
     return 1
   fi
   
-  log_success "$command successfully installed: $version_output"
+  log_success "$command installed: $version_output"
   return 0
 }
 
-# ============================================================================
-# Network Utility Functions
-# ============================================================================
+# Network utilities
 
-# Determines the best available download tool (curl or wget)
-# Returns the appropriate command string with common options for silent operation
+# Get secure download tool (curl/wget with TLS 1.2+)
 get_downloader() {
   if command -v curl >/dev/null 2>&1; then
-    # curl options:
-    # -f: Fail silently on server errors
-    # -s: Silent mode
-    # -S: Show error messages
-    # -L: Follow redirects
-    echo "curl -fsSL"
+    echo "curl -fsSL --tlsv1.2"  # Secure curl with TLS 1.2+
   elif command -v wget >/dev/null 2>&1; then
-    # wget options:
-    # -q: Quiet mode (no output)
-    # -O-: Output to stdout
-    echo "wget -q -O-"
+    echo "wget -q -O- --secure-protocol=TLSv1_2"  # Secure wget
   else
-    # Neither tool is available
-    die "Neither curl nor wget found. Please install either to continue with installation."
+    die "Neither curl nor wget found"
   fi
 }
 
-# ============================================================================
-# Operating System Detection
-# ============================================================================
-#
-# This function identifies the operating system, distribution, package manager,
-# and architecture to determine the appropriate installation methods.
-#
-# It handles:
-# - Major Linux distributions (Debian/Ubuntu, RHEL/CentOS/Fedora, Arch, openSUSE, Alpine)
-# - macOS (with version-specific compatibility checks)
-# - Various architectures (amd64/x86_64, arm64/aarch64, armv7)
-#
-# For each platform, it sets:
-# - OS_NAME: The specific distribution or OS name (e.g., ubuntu, macos)
-# - OS_FAMILY: The broader OS family (e.g., debian, rhel, darwin)
-# - OS_PACKAGE_MANAGER: The native package manager for the platform
-# - OS_VERSION: The OS version number
-# - ARCH: The normalized architecture identifier
-#
-# The function also performs compatibility checks to warn users if their
-# system may not be fully supported or might have limited compatibility.
-
-detect_os() {
-  log "Detecting operating system and distribution..."
+# Safe download with retry and integrity checks
+safe_download() {
+  url="$1"
+  output_file="$2"
+  max_retries="${3:-3}"
   
-  # Detect architecture
+  # Validate URL (HTTPS only)
+  case "$url" in
+    https://*)
+      ;; # OK
+    http://*)
+      die "HTTP not allowed: $url"
+      ;;
+    *)
+      die "Invalid URL: $url"
+      ;;
+  esac
+  
+  DOWNLOADER=$(get_downloader)
+  
+  retry_count=0
+  while [ $retry_count -lt $max_retries ]; do
+    log "Downloading (attempt $((retry_count + 1))/$max_retries): $url"
+    
+    if [ -n "$output_file" ]; then
+      # Download to file with temp handling
+      temp_file="$output_file.tmp"
+      add_temp_file "$temp_file"  # Track for cleanup
+      
+      if $DOWNLOADER "$url" > "$temp_file"; then
+        # Basic integrity check (non-empty, reasonable size)
+        if [ -s "$temp_file" ] && [ "$(wc -c < "$temp_file")" -gt 10 ]; then
+          mv "$temp_file" "$output_file"
+          log_success "Downloaded: $output_file"
+          return 0
+        else
+          log_warning "File empty or too small, retrying"
+          rm -f "$temp_file"
+        fi
+      fi
+    else
+      # Download to stdout
+      if $DOWNLOADER "$url"; then
+        return 0
+      fi
+    fi
+    
+    retry_count=$((retry_count + 1))
+    if [ $retry_count -lt $max_retries ]; then
+      log "Retrying in 2 seconds..."
+      sleep 2
+    fi
+  done
+  
+  die "Download failed after $max_retries attempts: $url"
+}
+
+# OS and architecture detection
+detect_os() {
+  log "Detecting OS and architecture..."
+  
+  # Normalize architecture names
   ARCH=$(uname -m)
   case "${ARCH}" in
     x86_64|amd64)
@@ -674,24 +718,26 @@ detect_os() {
       ARCH="armv7"
       ;;
     *)
-      log_warning "Architecture ${ARCH} might not be fully supported. Proceeding with caution."
+      log_warning "Architecture ${ARCH} may not be fully supported"
       ;;
   esac
   
-  log "Detected architecture: ${ARCH}"
+  log "Architecture: ${ARCH}"
   
-  # Detect if running in a container
+  # Container detection
   if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || grep -q container /proc/1/cgroup 2>/dev/null; then
     RUNNING_IN_CONTAINER=1
-    log "Detected running inside a container environment"
+    log "Container environment detected"
   fi
   
+  # Detect Linux distribution or macOS
   if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS_NAME="${ID}"
     OS_VERSION="${VERSION_ID:-}"
     OS_FAMILY="linux"
     
+    # Set package manager based on distribution
     case "${OS_NAME}" in
       *debian*|*ubuntu*)
         OS_PACKAGE_MANAGER="apt"
@@ -717,7 +763,7 @@ detect_os() {
         OS_FAMILY="alpine"
         ;;
       *)
-        log_warning "Unsupported Linux distribution: ${OS_NAME}. Attempting to proceed."
+        log_warning "Unknown Linux distribution: ${OS_NAME}"
         OS_PACKAGE_MANAGER="unknown"
         ;;
     esac
@@ -727,94 +773,68 @@ detect_os() {
     OS_PACKAGE_MANAGER="brew"
     OS_VERSION="$(sw_vers -productVersion)"
   else
-    die "Unsupported operating system. This installer supports Debian/Ubuntu, RHEL/CentOS/Fedora, Arch Linux, and macOS."
+    die "Unsupported OS. Supports: Debian/Ubuntu, RHEL/CentOS/Fedora, Arch, macOS"
   fi
   
-  log "Detected: ${OS_NAME} ${OS_VERSION} (${OS_FAMILY}) on ${ARCH}"
+  log "OS: ${OS_NAME} ${OS_VERSION} (${OS_FAMILY}) on ${ARCH}"
   
-  # Check if system is supported
+  # Basic version compatibility warnings
   if [ "${OS_FAMILY}" = "darwin" ]; then
-    # macOS versions are now 11+ for Big Sur and beyond, so any 11+ or any 10.15+ is fine
-    # Handle non-standard version formats by checking if version contains dots
+    # macOS version validation
     if ! echo "${OS_VERSION}" | grep -q "\."; then
-      log_warning "Non-standard macOS version format detected: ${OS_VERSION}"
-      # Try to get more detailed version
+      log_warning "Non-standard macOS version: ${OS_VERSION}"
       DETAILED_VERSION=$(sw_vers -productVersion 2>/dev/null)
       if [ -n "${DETAILED_VERSION}" ] && echo "${DETAILED_VERSION}" | grep -q "\."; then
-        log "Using more detailed version: ${DETAILED_VERSION}"
         OS_VERSION="${DETAILED_VERSION}"
       else
-        # If non-standard format and cannot get detailed version, assume it's new enough
-        log_warning "Unable to parse macOS version format. Assuming it's compatible."
+        log_warning "Cannot parse macOS version, assuming compatible"
         return 0
       fi
     fi
     
     MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
     if [ "${MAJOR_VERSION}" -ge 11 ]; then
-      # macOS 11 or higher (Big Sur, Monterey, Ventura, Sonoma, etc.) - supported
-      :
+      : # macOS 11+ OK
     elif [ "${MAJOR_VERSION}" -eq 10 ]; then
-      # Check if at least 10.15 (Catalina)
       MINOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f2)
       if [ "${MINOR_VERSION}" -lt 15 ]; then
-        die "macOS ${OS_VERSION} is not supported. Please upgrade to macOS 10.15 or later."
+        die "macOS ${OS_VERSION} not supported. Need 10.15+"
       fi
     fi
   elif [ "${OS_FAMILY}" = "linux" ]; then
-    # Handle Linux version checking
+    # Linux version warnings (non-blocking)
     case "${OS_NAME}" in
       ubuntu)
-        # Parse Ubuntu version and check if it's compatible
         if [ -n "${OS_VERSION}" ]; then
           MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
           if [ "${MAJOR_VERSION}" -lt 20 ]; then
-            log_warning "Ubuntu ${OS_VERSION} is quite old. We recommend using Ubuntu 20.04 or newer."
+            log_warning "Ubuntu ${OS_VERSION} is old. Recommend 20.04+"
           fi
         fi
         ;;
       debian)
-        # Parse Debian version and check if it's compatible
-        if [ -n "${OS_VERSION}" ]; then
-          if [ "${OS_VERSION}" -lt 10 ]; then
-            log_warning "Debian ${OS_VERSION} is quite old. We recommend using Debian 10 or newer."
-          fi
+        if [ -n "${OS_VERSION}" ] && [ "${OS_VERSION}" -lt 10 ]; then
+          log_warning "Debian ${OS_VERSION} is old. Recommend 10+"
         fi
         ;;
       fedora)
         if [ -n "${OS_VERSION}" ] && [ "${OS_VERSION}" -lt 34 ]; then
-          log_warning "Fedora ${OS_VERSION} is quite old. We recommend using Fedora 34 or newer."
+          log_warning "Fedora ${OS_VERSION} is old. Recommend 34+"
         fi
         ;;
-      centos|rhel)
+      centos|rhel|rocky|alma)
         if [ -n "${OS_VERSION}" ]; then
           MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
           if [ "${MAJOR_VERSION}" -lt 8 ]; then
-            log_warning "${OS_NAME^} ${OS_VERSION} is quite old. We recommend using version 8 or newer."
+            log_warning "${OS_NAME} ${OS_VERSION} is old. Recommend 8+"
           fi
         fi
-        ;;
-      rocky|alma)
-        if [ -n "${OS_VERSION}" ]; then
-          MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
-          if [ "${MAJOR_VERSION}" -lt 8 ]; then
-            log_warning "${OS_NAME^} Linux ${OS_VERSION} may not be fully compatible. Version 8+ is recommended."
-          fi
-        fi
-        ;;
-      arch|manjaro)
-        # Rolling releases don't need version checks
         ;;
       alpine)
         if [ -n "${OS_VERSION}" ]; then
           MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
-          if [ "${MAJOR_VERSION}" -lt 3 ]; then
-            log_warning "Alpine ${OS_VERSION} is quite old. We recommend using Alpine 3.14 or newer."
-          elif [ "${MAJOR_VERSION}" -eq 3 ]; then
-            MINOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f2)
-            if [ "${MINOR_VERSION}" -lt 14 ]; then
-              log_warning "Alpine ${OS_VERSION} is quite old. We recommend using Alpine 3.14 or newer."
-            fi
+          if [ "${MAJOR_VERSION}" -lt 3 ] || ([ "${MAJOR_VERSION}" -eq 3 ] && [ "$(echo "${OS_VERSION}" | cut -d. -f2)" -lt 14 ]); then
+            log_warning "Alpine ${OS_VERSION} is old. Recommend 3.14+"
           fi
         fi
         ;;
@@ -822,13 +842,12 @@ detect_os() {
         if echo "${OS_VERSION}" | grep -q "\."; then
           MAJOR_VERSION=$(echo "${OS_VERSION}" | cut -d. -f1)
           if [ "${MAJOR_VERSION}" -lt 15 ]; then
-            log_warning "openSUSE ${OS_VERSION} is quite old. We recommend using version 15 or newer."
+            log_warning "openSUSE ${OS_VERSION} is old. Recommend 15+"
           fi
         fi
         ;;
-      # Add more distributions as needed
       *)
-        log_warning "Unknown Linux distribution ${OS_NAME}. Compatibility not verified."
+        log_warning "Unknown distribution ${OS_NAME}. Compatibility unknown"
         ;;
     esac
   fi
@@ -863,14 +882,59 @@ detect_os() {
 # The branch selection is especially useful for developers who want to install
 # specific versions or features that are still in development.
 
-# Gets a list of available branches from GitHub repository
+# Display Docker image info for manual security verification
+verify_docker_images() {
+  log "Docker image verification required"
+  
+  # Core images used by Midaz stack
+  IMAGES="postgres:15-alpine rabbitmq:3-management mongo:6 redis:7-alpine"
+  
+  echo ""
+  echo "=== DOCKER IMAGE VERIFICATION ==="
+  echo "These Docker images will be downloaded:"
+  echo ""
+  
+  for image in $IMAGES; do
+    echo "Image: $image"
+    
+    # Show image info if Docker available
+    if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+      # Local image ID if already pulled
+      IMAGE_ID=$(docker images --format "{{.ID}}" "$image" 2>/dev/null | head -1)
+      if [ -n "$IMAGE_ID" ]; then
+        echo "  Local ID: $IMAGE_ID"
+      fi
+      
+      # Remote digest for verification
+      DIGEST=$(docker manifest inspect "$image" 2>/dev/null | grep '"digest"' | head -1 | cut -d'"' -f4 2>/dev/null || echo "Unable to fetch")
+      echo "  Digest: $DIGEST"
+    else
+      echo "  (Docker unavailable for inspection)"
+    fi
+    
+    echo "  Verify: https://hub.docker.com/_/$image"
+    echo ""
+  done
+  
+  echo "SECURITY: Verify these digests match official Docker Hub images"
+  echo "Optional: Use 'docker trust inspect <image>' for signature verification"
+  echo ""
+  
+  if [ "${MIDAZ_AUTOCONFIRM}" -ne 1 ]; then
+    if ! prompt "Have you verified these images are from trusted sources? (Y/n): "; then
+      die "User declined image verification" 2
+    fi
+  else
+    log "Auto-confirming image verification (non-interactive mode)"
+  fi
+}
+
+# Fetch available git branches from GitHub API
 get_available_branches() {
-  log "Fetching available branches from ${MIDAZ_REPO}..."
+  log "Fetching branches from ${MIDAZ_REPO}..."
   
-  DOWNLOADER=$(get_downloader)
-  
-  # Try to fetch branches using Git API
-  BRANCHES=$($DOWNLOADER "https://api.github.com/repos/lerianstudio/midaz/branches" | grep '"name"' | cut -d '"' -f 4)
+  # Use safe HTTPS download
+  BRANCHES=$(safe_download "https://api.github.com/repos/lerianstudio/midaz/branches" | grep '"name"' | cut -d '"' -f 4)
   
   if [ -z "$BRANCHES" ]; then
     log_warning "Failed to fetch branches from GitHub API. Using default branches."
@@ -911,8 +975,11 @@ get_available_branches() {
 
 # Clones or updates the Midaz repository to the specified directory
 clone_midaz_repo() {
-  log "Preparing to install Midaz repository to ${MIDAZ_DIR}..."
-  log "This will download the core banking platform source code"
+  log "Installing Midaz repository to ${MIDAZ_DIR}..."
+  log "Downloading core banking platform source code"
+  
+  # Track the directory for artifact cleanup
+  add_artifact_dir "${MIDAZ_DIR}"
   
   # Branch selection logic
   if [ "${MIDAZ_AUTOCONFIRM}" -ne 1 ]; then
@@ -1006,7 +1073,7 @@ clone_midaz_repo() {
   if [ -d "${MIDAZ_DIR}" ]; then
     if [ -d "${MIDAZ_DIR}/.git" ]; then
       log_warning "Midaz repository already exists at ${MIDAZ_DIR}"
-      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Update repository? (Y/n): "; then
+      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Update existing repository? (Y/n): "; then
         log "Updating repository..."
         cd "${MIDAZ_DIR}"
         git fetch origin
@@ -1015,17 +1082,21 @@ clone_midaz_repo() {
       fi
     else
       log_warning "Directory ${MIDAZ_DIR} exists but is not a git repository"
-      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Remove and clone repository? (Y/n): "; then
-        log "Removing existing directory and cloning repository..."
+      if [ "${MIDAZ_AUTOCONFIRM}" -eq 1 ] || prompt "Remove and clone fresh repository? (Y/n): "; then
+        log "Removing existing directory and cloning..."
         rm -rf "${MIDAZ_DIR}"
         git clone --branch "${MIDAZ_REF}" --single-branch "${MIDAZ_REPO}" "${MIDAZ_DIR}"
       else
-        die "Cannot proceed without cloning repository."
+        die "Cannot proceed without clean repository"
       fi
     fi
   else
     log "Cloning Midaz repository (branch: ${MIDAZ_REF})..."
-    mkdir -p "$(dirname "${MIDAZ_DIR}")"
+    # Create parent directory if needed
+    parent_dir="$(dirname "${MIDAZ_DIR}")"
+    if [ ! -d "$parent_dir" ]; then
+      mkdir -p "$parent_dir" || die "Cannot create parent directory: $parent_dir"
+    fi
     git clone --branch "${MIDAZ_REF}" --single-branch "${MIDAZ_REPO}" "${MIDAZ_DIR}"
   fi
 }
@@ -1040,6 +1111,12 @@ run_midaz() {
   log "This will prepare and start the complete Midaz environment"
   cd "${MIDAZ_DIR}"
   
+  # Track artifact directories for potential cleanup
+  add_artifact_dir "${MIDAZ_DIR}/components/infra/artifacts"
+  add_artifact_dir "${MIDAZ_DIR}/components/onboarding/artifacts"
+  add_artifact_dir "${MIDAZ_DIR}/components/transaction/artifacts"
+  add_artifact_dir "${MIDAZ_DIR}/components/mdz/artifacts"
+  
   # Check if environment needs setup
   if [ ! -f "${MIDAZ_DIR}/components/infra/.env" ] || 
      [ ! -f "${MIDAZ_DIR}/components/onboarding/.env" ] || 
@@ -1047,6 +1124,9 @@ run_midaz() {
     log "Setting up environment configuration..."
     make set-env || die "Failed to set up environment files. Please check error messages above."
   fi
+  
+  # Verify Docker images before proceeding
+  verify_docker_images
   
   # Ensure Docker daemon is running before proceeding
   log "Verifying Docker daemon status..."
@@ -1235,6 +1315,21 @@ display_success() {
 # Primary execution function that orchestrates the entire installation process
 
 main() {
+  # Display welcome banner first
+  echo ""
+  echo " ██      ███████ ██████  ██  █████  ███    ██"
+  echo " ██      ██      ██   ██ ██ ██   ██ ████   ██"
+  echo " ██      █████   ██████  ██ ███████ ██ ██  ██"
+  echo " ██      ██      ██   ██ ██ ██   ██ ██  ██ ██"
+  echo " ███████ ███████ ██   ██ ██ ██   ██ ██   ████"
+  echo ""
+  echo "                   midaz core banking"
+  echo ""
+  echo "Welcome to the Midaz Core Banking Platform installer"
+  echo "This script will set up a complete Midaz environment on your system"
+  echo "Run with --help for usage information"
+  echo ""
+  
   # Process arguments
   for arg in "$@"; do
     case "$arg" in
@@ -1246,19 +1341,12 @@ main() {
         ;;
     esac
   done
-
-  # Display welcome banner
-  echo "  __  __ _     _            "
-  echo " |  \\/  (_)   | |           "
-  echo " | \\  / |_  __| | __ _ ____"
-  echo " | |\\/| | |/ _\` |/ _\` |_  /"
-  echo " | |  | | | (_| | (_| |/ / "
-  echo " |_|  |_|_|\\__,_|\\__,_/___| Core Banking"
-  echo ""
-  echo "Welcome to the Midaz Core Banking Platform installer"
-  echo "This script will set up a complete Midaz environment on your system"
-  echo "Run with --help for usage information"
-  echo ""
+  
+  # Check for existing installation conflicts
+  check_existing_installation
+  
+  # Validate environment variables and select directory
+  validate_env_vars
   
   # Check for uninstall command
   if [ "${1:-}" = "--uninstall" ]; then
@@ -1298,10 +1386,21 @@ main() {
   
   display_success
   
-  # Clean up the state file on successful completion
+  # Clean up state file and temp files on success
   rm -f "${MIDAZ_STATE_FILE}"
   
-  # If we've made it this far, disable the EXIT trap
+  # Clean up temp files (but keep artifacts on success)
+  if [ -n "${TEMP_FILES:-}" ]; then
+    for temp_file in $TEMP_FILES; do
+      if [ -f "$temp_file" ]; then
+        rm -f "$temp_file" 2>/dev/null || true
+      fi
+    done
+  fi
+  
+  log "Installation completed successfully - artifacts preserved"
+  
+  # Disable EXIT trap for successful completion
   trap - EXIT
 }
 
