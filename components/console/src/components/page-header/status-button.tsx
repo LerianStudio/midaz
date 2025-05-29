@@ -24,7 +24,7 @@ export const StatusButton = () => {
 
       <DropdownMenu>
         <DropdownMenuTrigger>
-          <div className="relative flex items-center justify-center rounded-md bg-deYork-600 text-sm font-medium text-white focus:outline-none">
+          <div className="relative flex items-center justify-center rounded-md bg-de-york-600 text-sm font-medium text-white focus:outline-hidden">
             <p className="px-4">Ativo</p>
 
             <span className="border-l border-black/15 p-2">

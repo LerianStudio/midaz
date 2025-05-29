@@ -160,14 +160,14 @@ export const LedgersSheet = ({
 
         <Form {...form}>
           <form
-            className="flex flex-grow flex-col"
+            className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
             <Tabs defaultValue="details" className="mt-0">
               <TabsList className="mb-8 px-0">
                 <TabsTrigger
                   value="details"
-                  className="focus:outline-none focus:ring-0"
+                  className="focus:outline-hidden focus:ring-0"
                 >
                   {intl.formatMessage({
                     id: 'ledgers.sheet.tabs.details',
@@ -182,7 +182,7 @@ export const LedgersSheet = ({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <InputField
                     name="name"
                     label={intl.formatMessage({

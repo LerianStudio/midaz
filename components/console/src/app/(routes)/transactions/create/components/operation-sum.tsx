@@ -40,7 +40,7 @@ export const OperationSum = ({
           <TooltipTrigger asChild>
             <div
               className={cn(
-                'flex h-8 flex-row items-center rounded-[6px] border border-zinc-200 py-2 pl-2 pr-3 shadow-sm',
+                'flex h-8 flex-row items-center rounded-[6px] border border-zinc-200 py-2 pl-2 pr-3 shadow-xs',
                 {
                   'bg-zinc-200 shadow-none': divergent
                 }

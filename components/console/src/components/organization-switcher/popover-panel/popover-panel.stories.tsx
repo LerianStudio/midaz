@@ -24,7 +24,7 @@ export default meta
 
 export const Primary: StoryObj<PopoverPanelProps> = {
   render: (args) => (
-    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none">
+    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden">
       <PopoverPanel {...args}>
         <PopoverPanelTitle>
           Midaz
@@ -63,7 +63,7 @@ export const Primary: StoryObj<PopoverPanelProps> = {
 
 export const Dense: StoryObj<PopoverPanelProps> = {
   render: (args) => (
-    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none">
+    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden">
       <PopoverPanel {...args}>
         <PopoverPanelTitle>
           Midaz

@@ -79,7 +79,7 @@ export const MultipleSelectTrigger = React.forwardRef<
     <div
       ref={_ref}
       className={cn(
-        'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0 focus-visible:outline-none dark:border-inherit md:text-sm [&>span]:line-clamp-1',
+        'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-0 focus-visible:outline-hidden dark:border-inherit md:text-sm [&>span]:line-clamp-1',
         {
           'h-9': value.length === 0,
           'min-h-9': value.length > 0,
@@ -87,13 +87,13 @@ export const MultipleSelectTrigger = React.forwardRef<
           'cursor-not-allowed bg-shadcn-100 opacity-50': disabled
         },
         readOnly && [
-          'data-[read-only]:cursor-default',
-          'data-[read-only]:select-text',
-          'data-[read-only]:bg-zinc-100',
-          'data-[read-only]:opacity-50',
-          'data-[read-only]:pointer-events-none',
-          'data-[read-only]:focus:outline-none',
-          'data-[read-only]:focus:ring-0'
+          'data-read-only:cursor-default',
+          'data-read-only:select-text',
+          'data-read-only:bg-zinc-100',
+          'data-read-only:opacity-50',
+          'data-read-only:pointer-events-none',
+          'data-read-only:focus:outline-hidden',
+          'data-read-only:focus:ring-0'
         ],
         className
       )}
@@ -114,7 +114,7 @@ export const MultipleSelectTrigger = React.forwardRef<
         setOpen(!open)
       }}
     >
-      <div className="flex flex-grow flex-wrap gap-1 px-3 py-2">{children}</div>
+      <div className="flex grow flex-wrap gap-1 px-3 py-2">{children}</div>
       <div className="flex flex-1 items-center justify-end">
         <button
           type="button"
@@ -166,14 +166,14 @@ export const MultipleSelectValue = React.forwardRef<
             key={value}
             variant="secondary"
             className={cn(
-              'data-[disabled]:bg-muted-foreground data-[fixed]:bg-muted-foreground data-[disabled]:text-muted data-[fixed]:text-muted data-[disabled]:hover:bg-muted-foreground data-[fixed]:hover:bg-muted-foreground'
+              'data-disabled:bg-muted-foreground data-fixed:bg-muted-foreground data-disabled:text-muted data-fixed:text-muted data-disabled:hover:bg-muted-foreground data-fixed:hover:bg-muted-foreground'
             )}
           >
             {showValue ? value : options[value]}
             <button
               type="button"
               className={cn(
-                'ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                'ml-1 rounded-full outline-hidden ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2',
                 disabled && 'hidden'
               )}
             >
@@ -192,7 +192,7 @@ export const MultipleSelectValue = React.forwardRef<
         ref={inputRef}
         disabled={disabled}
         className={cn(
-          'focus:outline-hidden bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
+          'focus:outline-hidden bg-transparent outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
           className
         )}
       />
@@ -264,7 +264,7 @@ export const MultipleSelectContent = React.forwardRef<
         <CommandPrimitive.List
           ref={ref}
           className={cn(
-            'absolute top-1 z-50 max-h-96 w-full min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in',
+            'absolute top-1 z-50 max-h-96 w-full min-w-32 overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-hidden animate-in',
             position === 'popper' &&
               'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
             className
@@ -313,7 +313,7 @@ export const MultipleSelectItem = React.forwardRef<
       ref={ref}
       value={value}
       className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 dark:data-[selected='true']:bg-accent dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 dark:data-[selected='true']:bg-accent dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         className
       )}
       {...props}

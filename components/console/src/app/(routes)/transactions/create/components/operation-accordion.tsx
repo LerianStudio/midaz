@@ -98,13 +98,13 @@ export const OperationAccordion = ({
   return (
     <PaperCollapsible className="mb-2">
       <PaperCollapsibleBanner>
-        <div className="flex flex-grow flex-row">
+        <div className="flex grow flex-row">
           {type === 'debit' && <ArrowLeft className="my-1 mr-4 text-red-500" />}
           {type === 'credit' && (
             <ArrowRight className="my-1 mr-4 text-green-500" />
           )}
 
-          <div className="flex flex-grow flex-col">
+          <div className="flex grow flex-col">
             <p className="text-lg font-medium text-neutral-600">
               {type === 'debit'
                 ? intl.formatMessage({
@@ -149,7 +149,7 @@ export const OperationAccordion = ({
       <PaperCollapsibleContent>
         <Separator orientation="horizontal" />
         <div className="flex flex-row gap-5 p-6">
-          <div className="grid flex-grow grid-cols-2 gap-2">
+          <div className="grid grow grid-cols-2 gap-2">
             <InputField
               name={`${name}.description`}
               label={intl.formatMessage({

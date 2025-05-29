@@ -78,7 +78,7 @@ export const AutocompleteTrigger = React.forwardRef<
     <div
       ref={_ref}
       className={cn(
-        'flex rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus-visible:outline-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:bg-shadcn-100 data-[read-only=true]:bg-shadcn-100 data-[disabled=true]:opacity-50 data-[read-only=true]:opacity-50 dark:border-inherit md:text-sm [&>span]:line-clamp-1',
+        'flex rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-hidden focus-visible:outline-hidden data-[disabled=true]:cursor-not-allowed data-[disabled=true]:bg-shadcn-100 data-[read-only=true]:bg-shadcn-100 data-[disabled=true]:opacity-50 data-[read-only=true]:opacity-50 dark:border-inherit md:text-sm [&>span]:line-clamp-1',
         {
           'h-9': value.length === 0,
           'min-h-9': value.length > 0,
@@ -103,8 +103,8 @@ export const AutocompleteTrigger = React.forwardRef<
       data-disabled={disabled}
       data-read-only={readOnly}
     >
-      <div className="flex flex-grow flex-wrap gap-1 px-3 py-2">{children}</div>
-      <div className="flex flex-shrink-0 items-center justify-end">
+      <div className="flex grow flex-wrap gap-1 px-3 py-2">{children}</div>
+      <div className="flex shrink-0 items-center justify-end">
         <button type="button" className={cn(isNoSelection && 'hidden')}>
           <X
             className="mx-2 h-4 cursor-pointer text-muted-foreground"
@@ -193,7 +193,7 @@ export const AutocompleteValue = React.forwardRef<
       disabled={disabled}
       readOnly={readOnly}
       className={cn(
-        'focus:outline-hidden w-full bg-transparent outline-none placeholder:text-muted-foreground read-only:opacity-50 read-only:placeholder:opacity-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
+        'focus:outline-hidden w-full bg-transparent outline-hidden placeholder:text-muted-foreground read-only:opacity-50 read-only:placeholder:opacity-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
         className
       )}
       onBlur={handleBlur}
@@ -219,14 +219,14 @@ export const AutocompleteMultipleValue = React.forwardRef<
             key={value}
             variant="secondary"
             className={cn(
-              'data-[disabled]:bg-muted-foreground data-[fixed]:bg-muted-foreground data-[disabled]:text-muted data-[fixed]:text-muted data-[disabled]:hover:bg-muted-foreground data-[fixed]:hover:bg-muted-foreground'
+              'data-disabled:bg-muted-foreground data-fixed:bg-muted-foreground data-disabled:text-muted data-fixed:text-muted data-disabled:hover:bg-muted-foreground data-fixed:hover:bg-muted-foreground'
             )}
           >
             {showValue ? value : options[value]}
             <button
               type="button"
               className={cn(
-                'ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                'ml-1 rounded-full outline-hidden ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2',
                 disabled && 'hidden'
               )}
             >
@@ -245,7 +245,7 @@ export const AutocompleteMultipleValue = React.forwardRef<
         ref={inputRef}
         disabled={disabled}
         className={cn(
-          'focus:outline-hidden w-full bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
+          'focus:outline-hidden w-full bg-transparent outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
           className
         )}
       />
@@ -393,7 +393,7 @@ export const AutocompleteContent = React.forwardRef<
         <CommandPrimitive.List
           ref={_ref}
           className={cn(
-            'absolute top-1 z-50 max-h-96 w-full min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in',
+            'absolute top-1 z-50 max-h-96 w-full min-w-32 overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-hidden animate-in',
             position === 'popper' &&
               'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
             className
@@ -443,7 +443,7 @@ export const AutocompleteItem = React.forwardRef<
       ref={ref}
       value={value}
       className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 dark:data-[selected='true']:bg-accent dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 dark:data-[selected='true']:bg-accent dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         className
       )}
       {...props}

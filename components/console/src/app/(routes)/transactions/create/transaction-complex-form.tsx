@@ -94,7 +94,7 @@ export const TransactionComplexForm = ({
 
           <StepperContent active={currentStep >= 1}>
             <div className="mb-24 grid grid-cols-11 gap-x-4">
-              <div className="col-span-5 mb-8 flex flex-grow flex-col gap-1">
+              <div className="col-span-5 mb-8 flex grow flex-col gap-1">
                 <SectionTitle>
                   {intl.formatMessage({
                     id: 'entity.transactions.source',
@@ -108,7 +108,7 @@ export const TransactionComplexForm = ({
                   })}
                 </p>
               </div>
-              <div className="col-span-5 col-start-7 mb-8 flex flex-grow flex-col gap-1">
+              <div className="col-span-5 col-start-7 mb-8 flex grow flex-col gap-1">
                 <SectionTitle>
                   {intl.formatMessage({
                     id: 'entity.transactions.destination',

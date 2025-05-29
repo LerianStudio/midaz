@@ -125,7 +125,7 @@ export const OrganizationsForm = ({
     <Form {...form}>
       <div className="mb-16 flex gap-6">
         <div className="grow space-y-6">
-          <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow">
+          <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow-sm">
             <Card.Header
               title={
                 isNewOrganization
@@ -356,7 +356,7 @@ export const OrganizationsForm = ({
         </div>
 
         <div className="grow space-y-6">
-          <Card.Root className="p-6 shadow">
+          <Card.Root className="p-6 shadow-sm">
             <Card.Header
               className="text-md w-full font-medium normal-case text-zinc-600"
               title={intl.formatMessage({
@@ -379,7 +379,7 @@ export const OrganizationsForm = ({
             </CardContent>
           </Card.Root>
 
-          <Card.Root className="hidden p-6 shadow">
+          <Card.Root className="hidden p-6 shadow-sm">
             <Card.Header
               className="text-sm font-medium text-zinc-600"
               title={intl.formatMessage({

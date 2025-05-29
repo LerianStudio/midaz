@@ -39,7 +39,7 @@ export const StepperItemNumber = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-shadcn-400 text-sm font-medium text-shadcn-400',
+      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-shadcn-400 text-sm font-medium text-shadcn-400',
       'group-data-[active=true]:border-none group-data-[active=true]:bg-zinc-700 group-data-[active=true]:text-white',
       'group-data-[complete=true]:border-none group-data-[complete=true]:bg-white group-data-[complete=true]:text-zinc-700',
       className

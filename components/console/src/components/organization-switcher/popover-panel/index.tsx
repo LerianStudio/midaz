@@ -59,7 +59,7 @@ const PopoverPanelLink = ({
       href={href}
       onClick={onClick}
       className={cn(
-        'flex w-[320px] flex-1 items-center justify-between rounded-md bg-white p-4 text-black outline-none hover:bg-shadcn-100',
+        'flex w-[320px] flex-1 items-center justify-between rounded-md bg-white p-4 text-black outline-hidden hover:bg-shadcn-100',
         dense && 'h-10 flex-auto'
       )}
       {...others}

@@ -101,7 +101,7 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+        <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
           <Command>
             <CommandInput
               placeholder={

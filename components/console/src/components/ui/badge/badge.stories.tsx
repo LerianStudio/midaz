@@ -25,7 +25,7 @@ export const Secundary: StoryObj<BadgeProps> = {
 export const Outline: StoryObj<BadgeProps> = {
   args: {
     children: 'Badge',
-    variant: 'outline'
+    variant: 'outline-solid'
   }
 }
 

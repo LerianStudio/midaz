@@ -144,7 +144,7 @@ export const UserSheet = ({
         data-testid="user-sheet"
         className="flex flex-col justify-between"
       >
-        <div className="flex flex-grow flex-col">
+        <div className="flex grow flex-col">
           {mode === 'edit' && (
             <SheetHeader>
               <SheetTitle>

@@ -125,7 +125,7 @@ export const TransactionReview = () => {
               })}
             </p>
           </div>
-          <p className="flex-grow py-2 text-center text-sm font-medium text-zinc-500">
+          <p className="grow py-2 text-center text-sm font-medium text-zinc-500">
             {intl.formatMessage({
               id: 'transactions.create.review.description',
               defaultMessage:

@@ -240,7 +240,7 @@ export const AccountSheet = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex flex-grow flex-col"
+              className="flex grow flex-col"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
@@ -264,7 +264,7 @@ export const AccountSheet = ({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="details">
-                  <div className="flex flex-grow flex-col gap-4">
+                  <div className="flex grow flex-col gap-4">
                     <InputField
                       control={form.control}
                       name="name"
@@ -499,7 +499,7 @@ export const AccountSheet = ({
                   </SelectField>
 
                   <div className="mt-4 flex flex-row items-center">
-                    <div className="flex-grow">
+                    <div className="grow">
                       <p className="text-xs font-normal italic text-shadcn-400">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({

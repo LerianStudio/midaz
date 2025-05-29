@@ -162,7 +162,7 @@ export const PortfolioSheet = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex flex-grow flex-col"
+              className="flex grow flex-col"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
@@ -180,7 +180,7 @@ export const PortfolioSheet = ({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="details">
-                  <div className="flex flex-grow flex-col gap-4">
+                  <div className="flex grow flex-col gap-4">
                     <InputField
                       name="name"
                       label={intl.formatMessage({

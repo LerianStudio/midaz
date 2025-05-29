@@ -29,7 +29,7 @@ export const PaperCollapsibleBanner = forwardRef<
   HTMLAttributes<HTMLDivElement>
 >(({ className, children, ...props }, ref) => (
   <div ref={ref} className={cn('flex flex-row p-6', className)} {...props}>
-    <div className="flex flex-grow flex-col">{children}</div>
+    <div className="flex grow flex-col">{children}</div>
     <PaperCollapsibleTrigger />
   </div>
 ))

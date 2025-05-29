@@ -28,7 +28,7 @@ const EntityBoxRoot = React.forwardRef<HTMLDivElement, EntityBoxRootProps>(
       <div
         ref={ref}
         className={cn(
-          'mb-2 flex justify-between rounded-lg bg-white p-6 shadow-entityBox',
+          'mb-2 flex justify-between rounded-lg bg-white p-6 shadow-entity-box',
           className
         )}
         {...props}
@@ -46,7 +46,7 @@ const EntityBoxCollapsible = React.forwardRef<
 >(({ className, ...props }) => (
   <Collapsible
     className={cn(
-      'mb-2 flex flex-col rounded-lg bg-white shadow-entityBox',
+      'mb-2 flex flex-col rounded-lg bg-white shadow-entity-box',
       className
     )}
     {...props}

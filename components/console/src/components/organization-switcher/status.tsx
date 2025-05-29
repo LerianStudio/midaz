@@ -9,7 +9,7 @@ const StatusIndicator = ({ status }: StatusIndicatorProps) => (
   <div
     className={cn(
       'h-[10px] w-[10px] rounded-full',
-      status === 'active' && 'bg-deYork-300',
+      status === 'active' && 'bg-de-york-300',
       status === 'inactive' && 'bg-red-600'
     )}
   />

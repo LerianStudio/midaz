@@ -123,18 +123,18 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
           <DialogTrigger onClick={() => !readOnly && setOpen(true)}>
             <Avatar
               className={cn(
-                'flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow',
+                'flex h-44 w-44 items-center justify-center rounded-[30px] border border-zinc-300 bg-zinc-200 shadow-sm',
                 !readOnly && 'hover:border-zinc-400'
               )}
             >
               <AvatarImage
-                className="h-44 w-44 items-center justify-center gap-2 rounded-[30px] border border-zinc-200 shadow"
+                className="h-44 w-44 items-center justify-center gap-2 rounded-[30px] border border-zinc-200 shadow-sm"
                 src={value}
                 alt="Organization Avatar"
               />
               <AvatarFallback
                 className={cn(
-                  'flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow',
+                  'flex h-10 w-10 gap-2 rounded-full border border-zinc-200 bg-white p-2 shadow-sm',
                   !readOnly && 'hover:border-zinc-400'
                 )}
               >

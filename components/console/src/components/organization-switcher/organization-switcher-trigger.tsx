@@ -37,7 +37,7 @@ const Logo = ({
         className={cn(
           'rounded-lg',
           button &&
-            'box-border border-[3px] p-[1px] group-hover:border-shadcn-300',
+            'box-border border-[3px] p-px group-hover:border-shadcn-300',
           active && 'border-shadcn-400 group-hover:border-shadcn-400'
         )}
       />

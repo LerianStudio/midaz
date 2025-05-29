@@ -194,7 +194,7 @@ export const LedgerSelector = () => {
                 </div>
               </SelectTrigger>
 
-              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+              <SelectContent className="w-(--radix-select-trigger-width)">
                 {isLargeList ? (
                   <SelectGroup className="px-3 pb-3">
                     <SelectLabel className="text-xs font-medium uppercase text-zinc-400">
@@ -206,7 +206,7 @@ export const LedgerSelector = () => {
                     <SelectItem
                       disabled
                       value={currentLedger?.id}
-                      className="font-medium text-zinc-800 data-[disabled]:opacity-100"
+                      className="font-medium text-zinc-800 data-disabled:opacity-100"
                     >
                       {ledgers?.items?.find(
                         (ledger: any) => ledger.id === currentLedger?.id

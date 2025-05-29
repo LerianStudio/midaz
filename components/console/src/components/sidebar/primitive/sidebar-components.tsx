@@ -12,7 +12,7 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, SidebarHeaderProps>(
       ref={ref}
       data-collapsed={collapsed}
       className={cn(
-        'flex h-[60px] items-center border-b bg-white px-4 dark:bg-codGray-950',
+        'flex h-[60px] items-center border-b bg-white px-4 dark:bg-cod-gray-950',
         collapsed && 'justify-center p-0'
       )}
       {...props}

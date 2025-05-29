@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { ArrowRight } from 'lucide-react'
 
 export const FadeEffect = () => (
-  <div className="sticky -top-16 h-36 w-full bg-gradient-to-b from-shadcn-100" />
+  <div className="sticky -top-16 h-36 w-full bg-linear-to-b from-shadcn-100" />
 )
 
 export const SectionTitle = ({
@@ -32,7 +32,7 @@ export const SideControl = ({
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <div
     className={cn(
-      'sticky top-0 flex h-full flex-grow flex-col py-16 pl-16',
+      'sticky top-0 flex h-full grow flex-col py-16 pl-16',
       className
     )}
     {...props}
@@ -54,7 +54,7 @@ export const SideControlActions = ({
   ...props
 }: React.HtmlHTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-grow flex-row items-end', className)}
+    className={cn('flex grow flex-row items-end', className)}
     {...props}
   />
 )

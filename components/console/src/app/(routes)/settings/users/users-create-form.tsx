@@ -91,10 +91,10 @@ export const CreateUserForm = ({
   return (
     <Form {...form}>
       <form
-        className="flex flex-grow flex-col"
+        className="flex grow flex-col"
         onSubmit={form.handleSubmit(handleSubmit)}
       >
-        <div className="flex flex-grow flex-col gap-4">
+        <div className="flex grow flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <InputField
               name="firstName"

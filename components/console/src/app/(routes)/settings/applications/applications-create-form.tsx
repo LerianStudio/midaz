@@ -73,7 +73,7 @@ export const CreateApplicationForm = ({
   }
 
   return (
-    <div className="flex flex-grow flex-col justify-between">
+    <div className="flex grow flex-col justify-between">
       <Form {...form}>
         <form
           id="application-create-form"
@@ -122,7 +122,7 @@ export const CreateApplicationForm = ({
               href="https://docs.lerian.studio/docs/midaz-console-with-access-manager"
               target="_blank"
               rel="noopener noreferrer"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              className={buttonVariants({ variant: 'outline-solid', size: 'sm' })}
             >
               {intl.formatMessage({
                 id: 'applications.create.rolesAndPermissions',
