@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import {
   ArrowLeftRight,
   BarChartHorizontal,

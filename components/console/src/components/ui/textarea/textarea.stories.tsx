@@ -1,5 +1,5 @@
 import { ComponentProps } from 'react'
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Textarea } from '.'
 import { FormProvider, useForm } from 'react-hook-form'
 

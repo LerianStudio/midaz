@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Checkbox } from '.'
 import { CheckboxProps } from '@radix-ui/react-checkbox'
 

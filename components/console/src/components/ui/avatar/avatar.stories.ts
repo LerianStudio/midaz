@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Avatar, AvatarFallback, AvatarImage, AvatarProps } from '.'
 
 const meta: Meta = {
