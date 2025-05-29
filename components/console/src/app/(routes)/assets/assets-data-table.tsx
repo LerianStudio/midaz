@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyResource } from '@/components/empty-resource'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Minus } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import { capitalizeFirstLetter } from '@/helpers'
 import {
   DropdownMenu,
@@ -90,19 +90,15 @@ const AssetRow: React.FC<AssetRowProps> = ({
       </TableCell>
       <TableCell>{asset.original.code}</TableCell>
       <TableCell>
-        {metadataCount === 0 ? (
-          <Minus size={20} />
-        ) : (
-          intl.formatMessage(
-            {
-              id: 'common.table.metadata',
-              defaultMessage:
-                '{number, plural, =0 {-} one {# record} other {# records}}'
-            },
-            {
-              number: metadataCount
-            }
-          )
+        {intl.formatMessage(
+          {
+            id: 'common.table.metadata',
+            defaultMessage:
+              '{number, plural, =0 {-} one {# record} other {# records}}'
+          },
+          {
+            number: metadataCount
+          }
         )}
       </TableCell>
       <TableCell align="center">

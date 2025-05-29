@@ -19,7 +19,9 @@ export const Header = () => {
         <div className="flex items-center gap-6">
           <p className="text-xs font-medium text-zinc-400">
             Midaz Console{' '}
-            <span className="text-xs font-normal text-zinc-400">v.0.1</span>
+            <span className="text-xs font-normal text-zinc-400">
+              v.{process.env.NEXT_PUBLIC_MIDAZ_VERSION}
+            </span>
           </p>
 
           <Separator orientation="vertical" className="h-10" />

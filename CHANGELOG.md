@@ -1,3 +1,29 @@
+## [v2.2.0-beta.62] - 2025-05-29
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement to ensure proper configuration
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.61] - 2025-05-29
+
+### ✨ Features
+- Enhance security measures to bolster system protection (#929)
+- Improve user experience with streamlined navigation and interface updates (#929)
+
+### 🔧 Maintenance
+- Conduct code refactoring to improve code quality and maintainability
+
+
+## [v2.2.0-beta.59] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Allow `entityId` and `segmentId` to be nullable in form schema, resolving issues related to data validation and form submission.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.58] - 2025-05-28
 
 ### 🐛 Bug Fixes
