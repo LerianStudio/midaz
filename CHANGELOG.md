@@ -1,3 +1,60 @@
+## [v2.2.0] - 2025-05-29
+
+### ✨ Features
+- Implement comprehensive security hardening and UX improvements (#929)
+- Add authentication toggle support and remove external network dependencies
+- Implement account, segment, portfolio, asset, and ledger count functionalities with tests and API documentation
+- Enhance password and username validation with stricter rules and improved tooltips
+- Add inflow and outflow transaction endpoints to support external funding and withdrawal operations
+- Implement application management features
+- Add Node version management section to README
+- Implement multi-select on Users page
+- Add account alias column and improve external account UI
+- Implement dynamic version management
+- Create IdentityGroup, MidazPortfolio, MidazSegment, MidazAccount, MidazAsset, and MidazLedger mappers
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement
+- Correct version environment variable for client-side access
+- Resolve inconsistency when deleting organizations
+- Reset form when creating new entity
+- Enhance performance by avoiding balance fetch for destination account
+- Display transaction sum with correct precision
+- Redirect users without a ledger to appropriate page
+- Update avatar file upload image handling and error validation
+- Implement organization avatar MongoDB model and error handling
+- Fix front-end issue preventing user redirection to sign-in page
+- Handle empty username fields and add authentication enabled environment variable
+- Resolve Prettier build problem
+- Improve transaction processing tracing, code quality, and idempotency
+- Handle 204 success responses
+
+### 🔄 Changes
+- Improve form behavior and data table display consistency
+- Update application configuration and localization settings
+- Improve form UX and fix read-only field handling
+- Set read-only on form fields based on user permissions
+- Add organization tooltip and update title translations in settings page
+- Main refactor of transaction details
+- Improve security alert formatting and translations
+- Adjust create and listing functionality
+
+### 🔧 Maintenance
+- Refactor: Improve type safety and form handling in organization form components
+- Prevent reinstalling golangci-lint if already installed
+- Standardize and optimize GitHub Actions workflows
+- Update workflows to use latest versions of dependencies and tools
+- Configure app_name_prefix input in build pipeline
+- Define GoReleaser version in pipeline flow
+- Clean dirty files before executing GoReleaser
+- Add RabbitMQ health check before retrieving balances
+
+### 📚 Documentation
+- Add API documentation for asset and ledger count functionalities
+- Update PR notifications with environment version
+- Update README with Node version management section
+
+
 ## [v2.2.0-beta.62] - 2025-05-29
 
 ### 🐛 Bug Fixes
