@@ -10,6 +10,20 @@ LOCK_DIR="/tmp/midaz-docs-tools"
 SWAG_LOCK_FILE="${LOCK_DIR}/swag.lock"
 TIMEOUT_SECONDS=300
 
+# Detect platform for cross-platform compatibility
+PLATFORM=$(uname -s)
+case $PLATFORM in
+    "Darwin")
+        IS_MACOS=true
+        ;;
+    "Linux")
+        IS_LINUX=true
+        ;;
+    *)
+        IS_OTHER=true
+        ;;
+esac
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -50,6 +64,71 @@ cleanup() {
 
 # Set up cleanup trap
 trap cleanup EXIT INT TERM
+
+# Cross-platform timeout implementation
+run_with_timeout() {
+    local timeout_duration="$1"
+    shift
+    local command_to_run="$@"
+    
+    # Try native timeout first (Linux)
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "${timeout_duration}" $command_to_run
+        return $?
+    fi
+    
+    # Try GNU timeout (if installed via Homebrew on macOS)
+    if command -v gtimeout >/dev/null 2>&1; then
+        gtimeout "${timeout_duration}" $command_to_run
+        return $?
+    fi
+    
+    # Fallback: implement timeout using background process and kill
+    # This works on any UNIX-like system including macOS
+    local temp_result_file="/tmp/midaz_timeout_result_$$"
+    local temp_pid_file="/tmp/midaz_timeout_pid_$$"
+    
+    # Run command in background and capture its PID
+    (
+        $command_to_run
+        echo $? > "${temp_result_file}"
+    ) &
+    local cmd_pid=$!
+    echo $cmd_pid > "${temp_pid_file}"
+    
+    # Start timeout monitoring in background
+    (
+        sleep "${timeout_duration}"
+        if kill -0 $cmd_pid 2>/dev/null; then
+            log_warning "Command timed out after ${timeout_duration} seconds, terminating..."
+            kill -TERM $cmd_pid 2>/dev/null || true
+            sleep 2
+            if kill -0 $cmd_pid 2>/dev/null; then
+                kill -KILL $cmd_pid 2>/dev/null || true
+            fi
+            echo 124 > "${temp_result_file}" # timeout exit code
+        fi
+    ) &
+    local timeout_pid=$!
+    
+    # Wait for command to complete
+    wait $cmd_pid 2>/dev/null
+    local cmd_exit_code=$?
+    
+    # Kill timeout monitor
+    kill $timeout_pid 2>/dev/null || true
+    wait $timeout_pid 2>/dev/null || true
+    
+    # Clean up temp files
+    local result_code=$cmd_exit_code
+    if [ -f "${temp_result_file}" ]; then
+        result_code=$(cat "${temp_result_file}" 2>/dev/null || echo $cmd_exit_code)
+        rm -f "${temp_result_file}"
+    fi
+    rm -f "${temp_pid_file}"
+    
+    return $result_code
+}
 
 # Function to acquire lock with timeout
 acquire_lock() {

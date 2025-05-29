@@ -4,6 +4,9 @@ set -euo pipefail
 # Root directory of the repo
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Source platform utilities for cross-platform compatibility
+source "${ROOT_DIR}/scripts/platform-utils.sh"
+
 # Dynamic component discovery
 discover_components() {
   local components=()
@@ -85,6 +88,17 @@ validate_prerequisites() {
 }
 
 print_header "Generating Swagger API Documentation"
+
+# Display platform information
+log_with_timestamp "Platform: $(uname -s) ($(uname -m))"
+if [ "$IS_MACOS" = true ]; then
+  log_with_timestamp "Detected: macOS with $([ "$HAS_GNU_TIMEOUT" = true ] && echo "GNU coreutils" || echo "native tools")"
+elif [ "$IS_LINUX" = true ]; then
+  log_with_timestamp "Detected: Linux with $([ "$HAS_NATIVE_TIMEOUT" = true ] && echo "native timeout" || echo "fallback timeout")"
+else
+  log_with_timestamp "Detected: Other platform - using fallback implementations"
+fi
+
 validate_prerequisites
 
 # Function to generate docs for a component with enhanced error handling
@@ -112,29 +126,12 @@ generate_component_docs() {
       exit 1
     }
     
-    # Run the make command with timeout protection (if available)
-    if command -v timeout >/dev/null 2>&1; then
-      if timeout 600 make generate-docs > "${out_log}" 2> "${err_log}"; then
-        echo "Documentation generation completed successfully for ${component}" >> "${out_log}"
-      else
-        echo "Failed to generate docs for ${component}" >> "${err_log}"
-        exit 1
-      fi
-    elif command -v gtimeout >/dev/null 2>&1; then
-      if gtimeout 600 make generate-docs > "${out_log}" 2> "${err_log}"; then
-        echo "Documentation generation completed successfully for ${component}" >> "${out_log}"
-      else
-        echo "Failed to generate docs for ${component}" >> "${err_log}"
-        exit 1
-      fi
+    # Run the make command with cross-platform timeout protection
+    if run_with_timeout 600 "make generate-docs > \"${out_log}\" 2> \"${err_log}\""; then
+      echo "Documentation generation completed successfully for ${component}" >> "${out_log}"
     else
-      # No timeout available, run without timeout
-      if make generate-docs > "${out_log}" 2> "${err_log}"; then
-        echo "Documentation generation completed successfully for ${component}" >> "${out_log}"
-      else
-        echo "Failed to generate docs for ${component}" >> "${err_log}"
-        exit 1
-      fi
+      echo "Failed to generate docs for ${component}" >> "${err_log}"
+      exit 1
     fi
   )
   exit_code=$?
@@ -229,24 +226,9 @@ sync_err="${LOG_DIR}/sync.err"
 
 printf "  %-30s " "Updating Postman collection"
 
-# Run the sync-postman script with timeout protection (if available)
+# Run the sync-postman script with cross-platform timeout protection
 log_with_timestamp "Starting Postman collection sync..."
-sync_success=false
-if command -v timeout >/dev/null 2>&1; then
-  if timeout 300 "${ROOT_DIR}/scripts/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
-    sync_success=true
-  fi
-elif command -v gtimeout >/dev/null 2>&1; then
-  if gtimeout 300 "${ROOT_DIR}/scripts/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
-    sync_success=true
-  fi
-else
-  if "${ROOT_DIR}/scripts/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
-    sync_success=true
-  fi
-fi
-
-if [ "$sync_success" = true ]; then
+if run_with_timeout 300 "\"${ROOT_DIR}/scripts/sync-postman.sh\" > \"${sync_out}\" 2> \"${sync_err}\""; then
   log_with_timestamp "Postman sync: ✅ SUCCESS"
 else
   log_with_timestamp "Postman sync: ❌ FAILED"
