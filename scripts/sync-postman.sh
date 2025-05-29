@@ -261,16 +261,33 @@ rm -rf "${TEMP_DIR}"
 # Add workflow sequence to the Postman collection
 echo "Adding workflow sequence to Postman collection..."
 if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ]; then
-    # Ensure uuid dependency is installed
+    # Ensure uuid dependency is installed safely
     echo "Checking for required dependencies..."
-    if ! grep -q "\"uuid\"" "${SCRIPTS_DIR}/package.json"; then
+    if ! grep -q "\"uuid\"" "${SCRIPTS_DIR}/package.json" 2>/dev/null; then
         echo "Adding uuid dependency to package.json..."
-        # Use a temporary file to avoid issues with in-place editing
-        jq '.dependencies.uuid = "^9.0.1"' "${SCRIPTS_DIR}/package.json" > "${SCRIPTS_DIR}/package.json.tmp"
-        mv "${SCRIPTS_DIR}/package.json.tmp" "${SCRIPTS_DIR}/package.json"
         
-        echo "Installing uuid dependency..."
-        (cd "${SCRIPTS_DIR}" && npm install uuid)
+        # Create backup before modifying
+        if [ -f "${SCRIPTS_DIR}/package.json" ]; then
+            cp "${SCRIPTS_DIR}/package.json" "${SCRIPTS_DIR}/package.json.backup.$(date +%s)"
+        fi
+        
+        # Use a safe atomic update with validation
+        if jq '.dependencies.uuid = "^9.0.1"' "${SCRIPTS_DIR}/package.json" > "${SCRIPTS_DIR}/package.json.tmp" 2>/dev/null; then
+            # Validate the JSON is still valid
+            if jq . "${SCRIPTS_DIR}/package.json.tmp" >/dev/null 2>&1; then
+                mv "${SCRIPTS_DIR}/package.json.tmp" "${SCRIPTS_DIR}/package.json"
+                echo "Installing uuid dependency..."
+                (cd "${SCRIPTS_DIR}" && npm install uuid)
+            else
+                echo "Failed to update package.json - invalid JSON generated"
+                rm -f "${SCRIPTS_DIR}/package.json.tmp"
+                exit 1
+            fi
+        else
+            echo "Failed to update package.json"
+            rm -f "${SCRIPTS_DIR}/package.json.tmp"
+            exit 1
+        fi
     fi
     
     if node "${MIDAZ_ROOT}/scripts/create-workflow.js" "${POSTMAN_COLLECTION}" "${MIDAZ_ROOT}/postman/WORKFLOW.md" "${POSTMAN_COLLECTION}"; then

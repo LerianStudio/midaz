@@ -276,12 +276,17 @@ run:
 .PHONY: generate-docs
 generate-docs:
 	$(call title1,"Generating Swagger API documentation - Onboarding")
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
+	@echo "$(YELLOW)Ensuring documentation tools are available...$(NC)"
+	@$(MIDAZ_ROOT)/scripts/install-docs-tools.sh install
 	@cd $(MIDAZ_ROOT)/components/onboarding && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
-	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
+	@echo "$(YELLOW)Converting to OpenAPI YAML format...$(NC)"
+	@if command -v timeout >/dev/null 2>&1; then \
+		timeout 300 docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) --memory=512m --cpus=1 openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api; \
+	elif command -v gtimeout >/dev/null 2>&1; then \
+		gtimeout 300 docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) --memory=512m --cpus=1 openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api; \
+	else \
+		docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) --memory=512m --cpus=1 openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api; \
+	fi
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 	@if [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
