@@ -43,7 +43,7 @@ export const Outline: StoryObj<LoadingButtonProps> = {
   args: {
     loading: true,
     children: 'Button',
-    variant: 'outline-solid'
+    variant: 'outline'
   }
 }
 

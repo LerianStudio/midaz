@@ -1,5 +1,5 @@
 import { Meta, StoryObj } from '@storybook/nextjs'
-import { Avatar, AvatarFallback, AvatarImage, AvatarProps } from '.'
+import { Avatar } from '.'
 
 const meta: Meta = {
   title: 'Primitives/Avatar',

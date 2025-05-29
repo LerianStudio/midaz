@@ -111,7 +111,7 @@ export const CreateApplicationForm = ({
           />
 
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-normal italic text-shadcn-400">
+            <p className="text-shadcn-400 text-xs font-normal italic">
               {intl.formatMessage({
                 id: 'common.requiredFields',
                 defaultMessage: '(*) required fields.'
@@ -122,7 +122,7 @@ export const CreateApplicationForm = ({
               href="https://docs.lerian.studio/docs/midaz-console-with-access-manager"
               target="_blank"
               rel="noopener noreferrer"
-              className={buttonVariants({ variant: 'outline-solid', size: 'sm' })}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
             >
               {intl.formatMessage({
                 id: 'applications.create.rolesAndPermissions',
