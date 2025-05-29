@@ -1,3 +1,11 @@
+## [v2.2.0-beta.62] - 2025-05-29
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement to ensure proper configuration
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
 ## [v2.2.0-beta.61] - 2025-05-29
 
 ### ✨ Features
