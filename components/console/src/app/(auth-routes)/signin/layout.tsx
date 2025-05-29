@@ -4,17 +4,9 @@ import { getServerSession } from 'next-auth'
 import React from 'react'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 
-type AuthRoutesProps = {
-  children: React.ReactNode
-  params: {
-    locale: string
-  }
-}
-
-const AuthRoutes = async ({
-  children,
-  params: { locale }
-}: AuthRoutesProps) => {
+export default async function AuthRoutes({
+  children
+}: React.PropsWithChildren) {
   if (process.env.PLUGIN_AUTH_ENABLED !== 'true') {
     redirect(`/`, RedirectType.replace)
   }
@@ -26,5 +18,3 @@ const AuthRoutes = async ({
 
   return <React.Fragment>{children}</React.Fragment>
 }
-
-export default AuthRoutes

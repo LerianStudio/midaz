@@ -36,6 +36,6 @@ export async function generateMetadata(props: {}): Promise<Metadata> {
     title: title,
     icons: icons,
     description: description,
-    ...props
+    ...(await props)
   }
 }
