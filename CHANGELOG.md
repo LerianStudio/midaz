@@ -1,3 +1,460 @@
+## [v2.2.0-beta.62] - 2025-05-29
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement to ensure proper configuration
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.61] - 2025-05-29
+
+### ✨ Features
+- Enhance security measures to bolster system protection (#929)
+- Improve user experience with streamlined navigation and interface updates (#929)
+
+### 🔧 Maintenance
+- Conduct code refactoring to improve code quality and maintainability
+
+
+## [v2.2.0-beta.59] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Allow `entityId` and `segmentId` to be nullable in form schema, resolving issues related to data validation and form submission.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.58] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Resolve inconsistency when deleting organizations to ensure reliable operation.
+- Ensure form resets correctly when creating a new entity, improving user experience and preventing data entry errors.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes, providing users with a clear history of modifications and improvements.
+
+## [v2.2.0-beta.57] - 2025-05-28
+
+### ✨ Features
+- Enhance validation for passwords and usernames with stricter rules and improved tooltips
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.56] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Add environment version to `env.example` for console setup to ensure consistency in environment configuration
+- Update environment PR notification to improve clarity and effectiveness of communication
+
+## [v2.2.0-beta.54] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Improve performance by avoiding balance fetch for destination account
+- Correct transaction sum display to ensure proper precision
+- Redirect users without a ledger to the appropriate page
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.53] - 2025-05-28
+
+### ✨ Features
+- Implement account count functionality
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+## [v2.2.0-beta.52] - 2025-05-28
+
+### ✨ Features
+- Implement segment count functionality to enhance data analysis capabilities.
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections for better developer support and integration.
+
+### 🔧 Maintenance
+- Consolidate CHANGELOG updates to improve documentation consistency and reduce redundancy.
+
+### 🔧 Maintenance
+- Enhance type safety and form handling in organization form components to improve code reliability and maintainability.
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
+## [v2.2.0-beta.51] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct issue with Select input functionality to ensure proper user interaction.
+- Resolve Prettier build problem to maintain code formatting standards.
+
+## [v2.2.0-beta.50] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct logic in user name validation to prevent validation errors.
+- Handle empty user name fields correctly and introduce an environment variable to enable authentication.
+
+## [v2.2.0-beta.49] - 2025-05-27
+
+### ✨ Features
+- Implement local Inter font for improved performance
+
+## [v2.2.0-beta.48] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Resolve issue with console context build to ensure proper functionality
+
+## [v2.2.0-beta.47] - 2025-05-27
+
+### ✨ Features
+- Remove external option to simplify configuration, streamlining the setup process and reducing complexity.
+
+### 🐛 Bug Fixes
+- Update translations for improved localization, ensuring accurate and consistent user interface language across different regions.
+
+## [v2.2.0-beta.45] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct console context build issue to ensure proper functionality.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.44] - 2025-05-27
+
+### ✨ Features
+- Implement asset count functionality with API documentation
+- Add tests for asset management functionality
+- Add documentation for new features
+
+### 📚 Documentation
+- Update Postman collection for MIDAZ API
+- Update Swagger documentation for onboarding API
+
+## [v2.2.0-beta.42] - 2025-05-27
+
+### ✨ Features
+- Add authentication toggle support, allowing users to enable or disable authentication as needed.
+
+### 🗑️ Removed
+- Remove external network dependencies to streamline the application and reduce reliance on external services.
+
+## [v2.2.0-beta.40] - 2025-05-27
+
+### ✨ Features
+- Implement ledger count functionality with comprehensive tests and API documentation
+- Add capability to count ledgers by `organization_id`
+
+### 🔧 Maintenance
+- Update Postman collection for MIDAZ
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.39] - 2025-05-27
+
+### ✨ Features
+- Add endpoint for organization count metrics, enhancing data visibility for organizational analysis.
+- Generate documentation for new API, providing detailed guidance on usage and integration.
+- Add mock and tests for new implementation, ensuring robustness and reliability of new features.
+
+### 🐛 Bug Fixes
+- Resolve Copilot warnings in the codebase, improving code quality and reducing potential errors.
+- Update `go.mod` and `go.sum` for dependency management, addressing compatibility and stability issues.
+
+### 🔧 Maintenance
+- Update OpenAPI and Swagger specifications for onboarding API, ensuring accurate API representation and ease of integration.
+- Update Postman collection for MIDAZ API, aligning with the latest API changes and improving testing capabilities.
+
+## [v2.2.0-beta.38] - 2025-05-26
+
+### ✨ Features
+- Add context to build components, enhancing the functionality and flexibility of component construction.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes and maintain accurate project documentation.
+
+## [v2.2.0-beta.37] - 2025-05-26
+
+### ✨ Features
+- Add organization tooltip and update title translations on the settings page for improved user experience.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.36] - 2025-05-26
+
+### 🐛 Bug Fixes
+- Add 'omitempty' tag to optional struct fields to prevent serialization of empty values
+
+
+## [v2.2.0-beta.34] - 2025-05-23
+
+### ✨ Features
+- Implement Transactions Details v2.0 and create Transactions v2.0 for enhanced transaction management.
+- Rework back-end architecture to improve scalability and performance.
+- Implement application management features and API for streamlined application handling.
+- Create AccountBalanceCard component and autocomplete component for improved user interaction.
+- Add search accounts by alias functionality to enhance account lookup.
+- Implement back-end balances and application API integration for better data handling.
+- Add animation to PaperCollapsible and disabled functionality to Tooltip for enhanced UI experience.
+- Include error treatment for identity API and dependency injection on container-registry for robust error handling.
+- Set read-only on form fields based on user permissions to enhance security.
+- Update avatar UI to send base64 image to BFF and include organization avatar flow on organization use cases.
+- Implement multi-select on Users page and create SelectEmpty component for better user management.
+- Create IdentityGroup, MidazPortfolio, MidazSegment, MidazAccount, IdentityUser, MidazTransaction, and MidazOrganization mappers for efficient data mapping.
+- Add Node version management section to README and verify Node LTS version with shell script for improved development environment setup.
+- Implement HTTP service into repositories for consistent data handling.
+
+### 🐛 Bug Fixes
+- Adjust create and listing functionality to resolve data handling issues.
+- Improve applications management UI and API integration for better user experience.
+- Refine validation schema for optional account fields and fix account mapper issues.
+- Resolve build issues and transaction mapping problems.
+- Fix issue when running script on WSL and simplify readOnly component styling and behavior.
+- Update translation keys and standardize password field labels for consistency.
+- Resolve popover content scrolling issue in Sheet components with usePortal option.
+- Refactor and fix image format validation on UI layer for better error handling.
+- Implement organization avatar MongoDB model and error handling for improved data management.
+- Fix front-end redirect issue to sign page and ledger typing on front-end for smoother user navigation.
+- Adjust if statements and error messages for identity and auth for better error communication.
+
+### 📚 Documentation
+- Update console structure documentation and STRUCTURE.md with comprehensive architecture documentation for better developer guidance.
+
+### 🔧 Maintenance
+- Update packages and adjust package.json for dependency management.
+- Merge code from old repo refactor for codebase consolidation.
+- Clean up code and adjust naming consistency for improved code quality.
+- Update components/console/src/lib/intl/use-format-number.ts for better internationalization support.
+
+## [v2.2.0-beta.33] - 2025-05-23
+
+### 🔧 Maintenance
+- Update `github.com/gofiber/fiber` to the latest v2 version
+
+## [v2.2.0-beta.32] - 2025-05-23
+
+### 🐛 Bug Fixes
+- Reduce cognitive complexity by extracting `handleAccountFields` and add `isConcat` for array manipulation, improving code readability and maintainability.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.31] - 2025-05-22
+
+### ✨ Features
+- Add endpoint for outflow transactions to support external withdrawal operations
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.30] - 2025-05-22
+
+### ✨ Features
+- Add Inflow Transaction Endpoint to support external funding operations
+
+### 🔧 Maintenance
+- Update HTTP adapter for transaction component
+- Update Postgres adapter for transaction component
+
+## [v2.2.0-beta.29] - 2025-05-21
+
+### 🐛 Bug Fixes
+- Prevent reinstalling golangci-lint if already installed
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.28] - 2025-05-20
+
+### 🐛 Bug Fixes
+- Correct message format to align with `lib-commons` standards.
+- Improve overflow handling for scales greater than 18 to prevent errors in mathematical operations.
+- Add overflow validation to enhance stability in calculations.
+- Remove auth network from OSS midaz onboarding and transaction processes to streamline user experience.
+
+### 🔧 Maintenance
+- Integrate `lib-commons` beta version, updating `go.mod` and `go.sum` for compatibility.
+- Update `go.mod` and `go.sum` files to reflect the latest dependency versions.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and improvements.
+
+## [v2.2.0-beta.27] - 2025-05-19
+
+### ✨ Features
+- Set up demo data for feature development, facilitating easier testing and demonstration of new functionalities (#812)
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
+## [v2.2.0-beta.26] - 2025-05-17
+
+### 🐛 Bug Fixes
+- Correct console output in Makefile build script to ensure accurate logging during builds.
+
+### 🔧 Maintenance
+- Update `docker-compose.yml` configuration for improved setup and deployment processes. [#810]
+
+## [v2.2.0-beta.25] - 2025-05-16
+
+### ✨ Features
+- Add support for retrieving balances by alias and external code, enhancing the flexibility of balance queries.
+
+### 🐛 Bug Fixes
+- Resolve linter issues to improve code quality and maintainability.
+- Implement pagination in return values and update documentation to ensure efficient data handling and clarity in usage.
+- Update log messages for clarity, enhancing the readability and usefulness of log outputs.
+
+
+## [v2.2.0-beta.23] - 2025-05-14
+
+### ✨ Features
+- Add endpoint to retrieve external accounts by code
+
+### 🐛 Bug Fixes
+- Resolve linter issues to ensure code quality and adherence to standards
+
+### 🔧 Maintenance
+- Remove unused class to improve codebase maintainability
+
+## [v2.2.0-beta.21] - 2025-05-14
+
+### ✨ Features
+- Support multiple transactions with the same account in From/To fields
+
+### 🐛 Bug Fixes
+- Rollback recent changes to stabilize the system
+- Validate and handle invalid strings for account type, improving error handling
+- Change error message to 'Invalid Account Type' for better user feedback
+
+### 📚 Documentation
+- Update account type field description for clarity
+
+### 🔧 Maintenance
+- Apply linting corrections to codebase
+
+## [v2.2.0-beta.20] - 2025-05-13
+
+### ✨ Features
+- Add operation type filter to account operations for enhanced functionality, allowing users to refine their search and improve workflow efficiency.
+
+### 🐛 Bug Fixes
+- Update string formatting from '&' to '*' for improved clarity, ensuring consistent and clear presentation of information across the application.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes, ensuring documentation is up-to-date and accurately represents the current state of the project.
+
+## [v2.2.0-beta.19] - 2025-05-09
+
+### 🐛 Bug Fixes
+- Adjust test to improve reliability
+
+### 🗑️ Removed
+- ⚠️ **Breaking Change**: Remove transaction templates API and update MongoDB connection string
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.18] - 2025-05-09
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+- Bump Bubble Tea dependency from version 1.3.4 to 1.3.5
+
+## [v2.2.0-beta.17] - 2025-05-09
+
+### 📚 Documentation
+- Update project description and features to reflect the latest changes
+
+### 🔧 Maintenance
+- Update CHANGELOG with the latest release information
+- Bump `github.com/redis/go-redis/v9` from version 9.7.3 to 9.8.0 for improved performance and new features
+
+## [v2.2.0-beta.16] - 2025-05-06
+
+### 🔧 Maintenance
+- Remove unused `APP_CONTEXT` environment variable to clean up configuration and improve code clarity.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and ensure accurate version tracking.
+
+## [v2.2.0-beta.15] - 2025-05-05
+
+### ✨ Features
+- ⚠️ **Breaking Change**: Remove account type enum constraint, allowing more flexibility in account type definitions. This change may affect existing implementations relying on previous constraints.
+
+### 🐛 Bug Fixes
+- Map invalid account types correctly to ensure proper handling of unexpected inputs.
+- Implement code review suggestions to enhance code quality and address minor issues identified during the review process.
+
+### 📚 Documentation
+- Update documentation for the account type field to reflect recent changes and improve clarity.
+
+## [v2.2.0-beta.14] - 2025-05-02
+
+### ✨ Features
+- Clean temporary files before executing Goreleaser to ensure a clean build environment
+
+## [v2.2.0-beta.12] - 2025-04-29
+
+### ✨ Features
+- Configure commit process with push bot application ID
+
+
+## [v2.2.0-beta.11] - 2025-04-29
+
+### ✨ Features
+- Update `goreleaser` configuration to improve the release process, enhancing the efficiency and reliability of software releases.
+
+### 🔧 Maintenance
+- Ignore dirty files during `goreleaser` execution by using `git clean`, ensuring a clean working directory and preventing potential release issues.
+
+## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
+
+
+### Bug Fixes
+
+* improve transaction processing tracing, code quality and idempotency; ([fd377d9](https://github.com/LerianStudio/midaz/commit/fd377d9364e103dee5bcb8239810c7102b55137c))
+* update go mod and go sum and update lib-auth method newauthclient with new parameter logger; ([13c751d](https://github.com/LerianStudio/midaz/commit/13c751d0e8b465da1ded90ff99d8c2c5f689d7cb))
+
+## [2.2.0-beta.4](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.3...v2.2.0-beta.4) (2025-04-23)
+
+
+### Bug Fixes
+
+* **pipeline:** execute console integration tests in right directory during release workflow execution ([0c840d1](https://github.com/LerianStudio/midaz/commit/0c840d1999e0298b4edf3edcbc4c21acfb5638a4))
+
+## [2.2.0-beta.3](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.2...v2.2.0-beta.3) (2025-04-17)
+
+## [2.2.0-beta.2](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.1...v2.2.0-beta.2) (2025-04-15)
+
+
+### Features
+
+* Update workflows to use latest versions of dependencies and tools. ([6511248](https://github.com/LerianStudio/midaz/commit/6511248ef2b7a2c116c846675f96a8fb748d224b))
+
+
+### Bug Fixes
+
+* **pipeline:** enable pushing of Docker images in CI workflow ([ffeeb3b](https://github.com/LerianStudio/midaz/commit/ffeeb3b8b6274ce859c912c065eefb5e12fc1abe))
+* **workflow:** update github-actions-changed-paths action to use main branch instead of develop ([fe08d78](https://github.com/LerianStudio/midaz/commit/fe08d789e31d558cec82bd496beb2d12b122d767))
+
+## [2.2.0-beta.1](https://github.com/LerianStudio/midaz/compare/v2.1.0...v2.2.0-beta.1) (2025-04-10)
+
+
+### Features
+
+* **transaction:** adding accountAlias field to keep backward compatibility ([7c6875c](https://github.com/LerianStudio/midaz/commit/7c6875cf407da06456f5645390b61388f94c9a4b))
+* define gorelease version on pipeline flow ([c845fe1](https://github.com/LerianStudio/midaz/commit/c845fe15ff5af0d562a554b44d6612820589208e))
+* remove discord beta releases flow ([3e050eb](https://github.com/LerianStudio/midaz/commit/3e050eb863b694734c18ee32eb02547eec713056))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([2e5a1ca](https://github.com/LerianStudio/midaz/commit/2e5a1ca0744362524bbf89fa1f189764a789d87f))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([c674fde](https://github.com/LerianStudio/midaz/commit/c674fde681a6077af03462c59e094e5786aaa265))
+* **transaction:** removing get-all-metadata-operations.go is not being used ([8a5014c](https://github.com/LerianStudio/midaz/commit/8a5014c0383cd0fddfc8f31625011d086723fb03))
+* **transaction:** upgrading lib-commons to 1.5.0 versionwith new accountAlias field ([e6bb757](https://github.com/LerianStudio/midaz/commit/e6bb757a94c34ddfb39d3d3f2110daa565db7e1c))
+
 ## [2.1.0](https://github.com/LerianStudio/midaz/compare/v2.0.0...v2.1.0) (2025-04-08)
 
 

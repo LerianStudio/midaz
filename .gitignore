@@ -3,6 +3,10 @@
 .idea/
 *.iml
 ide/
+tmp/
+CLAUDE.md
+.claude/
+.windsurf/
 .run/onboarding.run.xml
 .run/transaction.run.xml
 
@@ -26,6 +30,62 @@ components/onboarding/_docker-compose.yml
 # Dependencies
 node_modules/
 scripts/node_modules/
+scripts/demo-data/node_modules/
+scripts/demo-data/dist/
+scripts/demo-data/sdk-source/
 
 # Other
 postman/backups
+
+# === Console Component (components/console) ===
+
+# dependencies
+/components/console/node_modules
+/components/console/.pnp
+/components/console/.pnp.js
+/components/console/.yarn/install-state.gz
+
+# testing
+/components/console/coverage
+
+# next.js
+/components/console/.next/
+/components/console/out/
+
+# production
+/components/console/build
+
+# misc
+/components/console/.DS_Store
+/components/console/*.pem
+
+# debug
+/components/console/npm-debug.log*
+/components/console/yarn-debug.log*
+/components/console/yarn-error.log*
+
+# local env files
+/components/console/.env
+/components/console/.env*.local
+
+# vercel
+/components/console/.vercel
+
+# typescript
+/components/console/*.tsbuildinfo
+/components/console/next-env.d.ts
+
+# IDE's
+/components/console/.idea
+/components/console/*storybook.log
+
+# Storybook
+/components/console/storybook-static/
+
+# playwright
+/components/console/.env.playwright
+/components/console/playwright-report/
+/components/console/playwright/.cache/
+/components/console/blob-report/
+/components/console/tests/storage/
+.windsurfrules

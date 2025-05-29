@@ -1,11 +1,13 @@
 package in
 
 import (
+	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -222,6 +224,53 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	return http.OK(c, account)
 }
 
+// GetAccountExternalByCode is a method that retrieves External Account information by a given asset code.
+//
+//	@Summary		Retrieve an account by alias
+//	@Description	Returns detailed information about an account identified by its alias within the specified ledger
+//	@Tags			Accounts
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			code			path		string	true	"Account External Code (e.g. BRL)"
+//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code} [get]
+func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	code := c.Params("code")
+	alias := constant.DefaultExternalAccountAliasPrefix + code
+
+	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
+
+	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
+
+	return http.OK(c, account)
+}
+
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
 //
 //	@Summary		Retrieve an account by alias
@@ -378,6 +427,51 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully removed Account with ID: %s", id.String())
+
+	return http.NoContent(c)
+}
+
+// CountAccounts is a method that counts all accounts for a given organization and ledger, with an optional portfolio ID.
+//
+//	@Summary		Count accounts
+//	@Description	Returns the total count of accounts for the specified organization, ledger, and optional portfolio
+//	@Tags			Accounts
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Success		200				{object}	nil	"Successfully retrieved accounts count"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count [head]
+func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.count_accounts")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	logger.Infof("Counting accounts for organization %s and ledger %s", organizationID, ledgerID)
+
+	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count accounts", err)
+		logger.Errorf("Error counting accounts: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count)
+
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
 }

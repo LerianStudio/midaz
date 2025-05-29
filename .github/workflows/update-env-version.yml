@@ -11,9 +11,9 @@ on:
       - reopened
 
 permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
+  id-token: write       # Needed for authentication
+  contents: write       # Needed to update files
+  pull-requests: write  # Needed to update the PR
 
 jobs:
   update-env-release:
@@ -21,12 +21,14 @@ jobs:
     name: Run update VERSION in every ENV on components
     runs-on: ubuntu-24.04
     steps:
+      # Create a GitHub App token for authentication with higher rate limits
       - uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
+      # Import GPG key for signing commits
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -39,62 +41,81 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+      # Checkout the PR branch code
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref }}  # Checkout the head branch of the PR
 
+      # Install GitHub CLI for interacting with GitHub API
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
+      # Get the latest release tag from GitHub
       - name: Fetch Latest Release
         id: latest_release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          # Get the most recent release tag
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
+          # Remove any suffix after a hyphen (e.g., -beta)
           FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
           echo "Raw release: $RAW_RELEASE"
           echo "Formatted release: $FORMATTED_RELEASE"
-          echo "::set-output name=tag::$FORMATTED_RELEASE"
+          echo "tag=$FORMATTED_RELEASE" >> $GITHUB_OUTPUT
 
+      # Get the current version from the environment file
       - name: Fetch Env Release
         id: env_release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          # Extract the current version from the .env.example file
           VERSION=$(grep '^VERSION=' ./components/onboarding/.env.example | cut -d '=' -f2)
           echo "LEDGER version: $VERSION"
-          echo "::set-output name=version::$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # Update the version in the Onboarding component's .env.example file
       - name: Update ONBOARDING Env
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/onboarding/.env.example
 
+      # Update the version in the Transaction component's .env.example file
       - name: Update TRANSACTION Env
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/transaction/.env.example
 
+      # Update the version in the MDZ component's .env.example file
       - name: Update MDZ Env
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/mdz/.env.example
+      
+      # Update the version in the Console component's .env.example file
+      - name: Update CONSOLE Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/console/.env.example
 
+      # Update the version in the Chocolatey installation script
       - name: Update Version Choco version file install.ps1
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           TAG=${{ steps.latest_release.outputs.tag }}
           sed -i "s/\$version *= *'[^']*'/\$version = '$TAG'/g" "./chocolatey/tools/chocolateyinstall.ps1"
 
+      # Show the changes made to the files
       - name: Git Diff
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           git diff
 
+      # Commit and push the version updates to the PR branch
       - name: Commit Changes
-        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -105,4 +126,4 @@ jobs:
         run: |
           git add .
           git commit -m "chore(release): update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
-          git push origin ${{ github.head_ref }}
+          git push origin ${{ github.head_ref }}  # Push to the PR branch

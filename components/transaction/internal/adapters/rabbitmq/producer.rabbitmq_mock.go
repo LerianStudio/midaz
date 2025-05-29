@@ -41,6 +41,20 @@ func (m *MockProducerRepository) EXPECT() *MockProducerRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CheckRabbitMQHealth mocks base method.
+func (m *MockProducerRepository) CheckRabbitMQHealth() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckRabbitMQHealth")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CheckRabbitMQHealth indicates an expected call of CheckRabbitMQHealth.
+func (mr *MockProducerRepositoryMockRecorder) CheckRabbitMQHealth() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckRabbitMQHealth", reflect.TypeOf((*MockProducerRepository)(nil).CheckRabbitMQHealth))
+}
+
 // ProducerDefault mocks base method.
 func (m *MockProducerRepository) ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error) {
 	m.ctrl.T.Helper()

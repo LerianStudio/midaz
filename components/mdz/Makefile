@@ -13,8 +13,13 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
 # Include shared color definitions and utility functions
-include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
-include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
+# Define local utility functions
+define title1
+	@echo ""
+	@echo "-----------------------------"
+	@echo "   📝 $(1)  "
+	@echo "-----------------------------"
+endef
 
 # Check if Go is installed
 GO := $(shell which go)
@@ -66,7 +71,6 @@ help:
 	@echo "  make dev-setup                   - Set up development environment"
 	@echo ""
 	@echo "$(BOLD)Code Quality Helper Commands:$(NC)"
-	@echo "  make get-lint-deps               - Install golangci-lint"
 	@echo "  make get-govulncheck-deps        - Install govulncheck"
 	@echo "  make get-gosec-deps              - Install gosec"
 	@echo "  make get-perfsprint-deps         - Install perfsprint"
@@ -155,15 +159,16 @@ check-tests:
 # Code Quality Commands
 #-------------------------------------------------------
 
-.PHONY: get-lint-deps
-get-lint-deps:
-	@echo "$(BLUE)Installing golangci-lint...$(NC)"
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
 .PHONY: lint
-lint: get-lint-deps
-	$(call title1,"Running code linting")
+lint:
+	$(call title1,"Running linters")
 	@if find . -name "*.go" -type f | grep -q .; then \
+		if ! command -v golangci-lint >/dev/null 2>&1; then \
+			echo "$(YELLOW)golangci-lint not found, installing...$(NC)"; \
+			@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		else \
+			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
+		fi; \
 		golangci-lint run --fix ./... --verbose; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
 	else \

@@ -1,0 +1,33 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './loading-button.stories'
+
+<Meta of={Story} />
+
+# Loading Button
+
+This is a button component that adds a rotating spinner and changes to it's disabled state, to represent loading.
+
+### Primary
+
+<Canvas of={Story.Primary} />
+
+### Secundary
+
+<Canvas of={Story.Secundary} />
+
+### Outline
+
+<Canvas of={Story.Outline} />
+
+### With leading icon
+
+<Canvas of={Story.WithIcon} />
+
+### State Change Example
+
+Click on the button, it will stay in loading state for 2 seconds.
+
+<Canvas of={Story.StateChange} />
+
+<Primary />
+<Controls />

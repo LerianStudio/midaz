@@ -94,13 +94,20 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	newBalances := make([]*mmodel.Balance, 0)
 
 	for _, balance := range balances {
-		calculateBalances := libTransaction.OperateBalances(fromTo[balance.Alias],
+		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
 			libTransaction.Balance{
 				Scale:     balance.Scale,
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
 			},
 			fromTo[balance.Alias].Operation)
+
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+			logger.Errorf("Failed to update balances on database: %v", err.Error())
+
+			return err
+		}
 
 		newBalances = append(newBalances, &mmodel.Balance{
 			ID:        balance.ID,

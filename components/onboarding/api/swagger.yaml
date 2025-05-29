@@ -1,83 +1,129 @@
 basePath: /
 definitions:
   Account:
-    description: Account represents an individual financial entity within a ledger,
-      such as a bank account, credit card, or expense category.
+    description: Complete account entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for account operations. Accounts represent individual financial entities (bank
+      accounts, cards, expense categories, etc.) within a ledger and are the primary
+      structures for tracking balances and transactions.
     properties:
       alias:
-        description: Unique alias for the account (max length 100 characters)
-        example: '@person1'
+        description: |-
+          Unique alias for the account (makes referencing easier)
+          example: @treasury_checking
+          maxLength: 100
+        example: '@treasury_checking'
         maxLength: 100
         type: string
       assetCode:
-        description: Asset code associated with this account (max length 100 characters)
-        example: BRL
+        description: |-
+          Asset code associated with this account (determines currency/asset type)
+          example: USD
+          maxLength: 100
+        example: USD
         maxLength: 100
         type: string
       createdAt:
-        description: Timestamp when the account was created
+        description: |-
+          Timestamp when the account was created (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       deletedAt:
-        description: Timestamp when the account was deleted (null if not deleted)
+        description: |-
+          Timestamp when the account was soft deleted, null if not deleted (RFC3339 format)
+          example: null
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       entityId:
-        description: Optional external entity identifier (max length 256 characters)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Optional external identifier for linking to external systems
+          example: EXT-ACC-12345
+          maxLength: 256
+        example: EXT-ACC-12345
         maxLength: 256
         type: string
       id:
-        description: Unique identifier for the account (UUID format)
+        description: |-
+          Unique identifier for the account (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       ledgerId:
-        description: ID of the ledger this account belongs to (UUID format)
+        description: |-
+          ID of the ledger this account belongs to (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       metadata:
         additionalProperties: {}
-        description: Additional custom attributes for the account
+        description: |-
+          Custom key-value pairs for extending the account information
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
         type: object
       name:
-        description: Name of the account (max length 256 characters)
-        example: My Account
+        description: |-
+          Human-readable name of the account
+          example: Corporate Checking Account
+          maxLength: 256
+        example: Corporate Checking Account
         maxLength: 256
         type: string
       organizationId:
-        description: ID of the organization that owns this account (UUID format)
+        description: |-
+          ID of the organization that owns this account (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       parentAccountId:
-        description: ID of the parent account if this is a sub-account (UUID format)
+        description: |-
+          ID of the parent account if this is a sub-account (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       portfolioId:
-        description: ID of the portfolio this account belongs to (UUID format)
+        description: |-
+          ID of the portfolio this account belongs to (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       segmentId:
-        description: ID of the segment this account belongs to (UUID format)
+        description: |-
+          ID of the segment this account belongs to (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Status of the account (active, inactive, pending)
+        description: Current operating status of the account
       type:
-        description: Type of the account (e.g., checking, savings, creditCard, expense)
-        example: creditCard
+        description: |-
+          Type of the account.
+          example: deposit
+        example: deposit
         type: string
       updatedAt:
-        description: Timestamp when the account was last updated
+        description: |-
+          Timestamp when the account was last updated (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
@@ -85,39 +131,56 @@ definitions:
   Address:
     description: Structured address information following standard postal address
       format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
-      codes).
+      codes). Used for organization physical locations and other address needs.
     properties:
       city:
-        description: City or locality name
+        description: |-
+          City or locality name
+          example: New York
+          maxLength: 100
         example: New York
         maxLength: 100
         type: string
       country:
-        description: Country code in ISO 3166-1 alpha-2 format (two-letter country
-          code)
+        description: |-
+          Country code in ISO 3166-1 alpha-2 format (two-letter country code)
+          example: US
+          minLength: 2
+          maxLength: 2
         example: US
         maxLength: 2
         minLength: 2
         type: string
       line1:
-        description: Primary address line (street address or PO Box)
-        example: Street 1
+        description: |-
+          Primary address line (street address or PO Box)
+          example: 123 Financial Avenue
+          maxLength: 256
+        example: 123 Financial Avenue
         maxLength: 256
         type: string
       line2:
-        description: Secondary address information like apartment number, suite, or
-          floor
-        example: Street 2
+        description: |-
+          Secondary address information like apartment number, suite, or floor
+          example: Suite 1500
+          maxLength: 256
+        example: Suite 1500
         maxLength: 256
         type: string
       state:
-        description: State, province, or region name or code
+        description: |-
+          State, province, or region name or code
+          example: NY
+          maxLength: 100
         example: NY
         maxLength: 100
         type: string
       zipCode:
-        description: Postal code or ZIP code
-        example: 00000-000
+        description: |-
+          Postal code or ZIP code
+          example: 10001
+          maxLength: 20
+        example: "10001"
         maxLength: 20
         type: string
     type: object
@@ -127,7 +190,7 @@ definitions:
     properties:
       code:
         description: Unique code/symbol for the asset (max length 100 characters)
-        example: BRL
+        example: USD
         maxLength: 100
         type: string
       createdAt:
@@ -156,7 +219,7 @@ definitions:
         type: object
       name:
         description: Name of the asset (max length 256 characters)
-        example: Brazilian Real
+        example: US Dollar
         maxLength: 256
         type: string
       organizationId:
@@ -180,61 +243,90 @@ definitions:
         type: string
     type: object
   CreateAccountInput:
-    description: CreateAccountInput is the input payload to create an account within
-      a ledger, representing an individual financial entity like a bank account, credit
-      card, or expense category.
+    description: Request payload for creating a new account within a ledger. Accounts
+      represent individual financial entities such as bank accounts, credit cards,
+      expense categories, or any other financial buckets within a ledger. Accounts
+      are identified by a unique ID, can have aliases for easy reference, and are
+      associated with a specific asset type.
     properties:
       alias:
-        description: Unique alias for the account (optional, max length 100 characters,
-          must follow alias format rules)
-        example: '@person1'
+        description: |-
+          Unique alias for the account (optional, must follow alias format rules)
+          required: false
+          example: @treasury_checking
+          maxLength: 100
+        example: '@treasury_checking'
         maxLength: 100
         type: string
       assetCode:
-        description: Asset code that this account will use (required, max length 100
-          characters)
-        example: BRL
+        description: |-
+          Asset code that this account will use for balances and transactions
+          required: true
+          example: USD
+          maxLength: 100
+        example: USD
         maxLength: 100
         type: string
       entityId:
-        description: Optional external entity identifier (max length 256 characters)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Optional external identifier for linking to external systems
+          required: false
+          example: EXT-ACC-12345
+          maxLength: 256
+        example: EXT-ACC-12345
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
         description: |-
-          Additional custom attributes for the account
-          Keys max length: 100 characters, Values max length: 2000 characters
+          Custom key-value pairs for extending the account information
+          required: false
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
         type: object
       name:
-        description: Name of the account (optional, max length 256 characters)
-        example: My Account
+        description: |-
+          Human-readable name of the account
+          required: false
+          example: Corporate Checking Account
+          maxLength: 256
+        example: Corporate Checking Account
         maxLength: 256
         type: string
       parentAccountId:
-        description: ID of the parent account if this is a sub-account (optional,
-          UUID format)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          ID of the parent account if this is a subaccount (optional)
+          required: false
+          format: uuid
         format: uuid
         type: string
       portfolioId:
-        description: ID of the portfolio this account belongs to (optional, UUID format)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          ID of the portfolio this account belongs to (optional)
+          required: false
+          format: uuid
         format: uuid
         type: string
       segmentId:
-        description: ID of the segment this account belongs to (optional, UUID format)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          ID of the segment this account belongs to (optional)
+          required: false
+          format: uuid
         format: uuid
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Status of the account (active, inactive, pending)
+        description: |-
+          Current operating status of the account
+          required: false
       type:
-        description: Type of the account (e.g., checking, savings, creditCard, expense)
-        example: creditCard
+        description: |-
+          Type of the account
+          required: true
+          example: deposit
+          maxLength: 256
+        example: deposit
+        maxLength: 256
         type: string
     required:
     - assetCode
@@ -246,7 +338,7 @@ definitions:
     properties:
       code:
         description: Unique code/symbol for the asset (required, max length 100 characters)
-        example: BRL
+        example: USD
         maxLength: 100
         type: string
       metadata:
@@ -257,7 +349,7 @@ definitions:
         type: object
       name:
         description: Name of the asset (required, max length 256 characters)
-        example: Brazilian Real
+        example: US Dollar
         maxLength: 256
         type: string
       status:
@@ -272,68 +364,95 @@ definitions:
     required:
     - code
     - name
+    - type
     type: object
   CreateLedgerInput:
     description: Request payload for creating a new ledger. Contains the ledger name
-      (required), status, and optional metadata.
+      (required), status, and optional metadata. Ledgers are organizational units
+      within an organization that group related financial accounts and assets together.
     properties:
       metadata:
         additionalProperties: {}
-        description: Custom key-value pairs for extending the ledger information
+        description: |-
+          Custom key-value pairs for extending the ledger information
+          required: false
+          example: {"department": "Finance", "currency": "USD", "region": "North America"}
         type: object
       name:
-        description: Display name of the ledger (required)
-        example: Lerian Studio
+        description: |-
+          Display name of the ledger
+          required: true
+          maxLength: 256
         maxLength: 256
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Current operating status of the ledger (defaults to ACTIVE if
-          not specified)
+        description: |-
+          Current operating status of the ledger (defaults to ACTIVE if not specified)
+          required: false
     required:
     - name
     type: object
   CreateOrganizationInput:
     description: Request payload for creating a new organization. Contains all the
       necessary fields for organization creation, with required fields marked as such.
+      Organizations are the top-level entities in the hierarchy and contain ledgers,
+      which in turn contain accounts and assets.
     properties:
       address:
         allOf:
         - $ref: '#/definitions/Address'
-        description: Physical address of the organization (optional)
+        description: |-
+          Physical address of the organization
+          required: false
       doingBusinessAs:
-        description: Trading or brand name of the organization, if different from
-          legal name (optional)
-        example: Lerian Studio
+        description: |-
+          Trading or brand name of the organization, if different from legal name
+          required: false
+          example: Lerian FS
+          maxLength: 256
+        example: Lerian FS
         maxLength: 256
         type: string
       legalDocument:
-        description: Official tax ID, company registration number, or other legal
-          identification (required)
-        example: "00000000000000"
+        description: |-
+          Official tax ID, company registration number, or other legal identification
+          required: true
+          example: 123456789012345
+          maxLength: 256
+        example: "123456789012345"
         maxLength: 256
         type: string
       legalName:
-        description: Official legal name of the organization (required)
-        example: Lerian Studio
+        description: |-
+          Official legal name of the organization
+          required: true
+          example: Lerian Financial Services Ltd.
+          maxLength: 256
+        example: Lerian Financial Services Ltd.
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
-        description: Custom key-value pairs for extending the organization information
+        description: |-
+          Custom key-value pairs for extending the organization information
+          required: false
+          example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
         type: object
       parentOrganizationId:
-        description: UUID of the parent organization if this is a child organization
-          (optional)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          UUID of the parent organization if this is a child organization
+          required: false
+          format: uuid
         format: uuid
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Current operating status of the organization (defaults to ACTIVE
-          if not specified)
+        description: |-
+          Current operating status of the organization (defaults to ACTIVE if not specified)
+          required: false
     required:
     - legalDocument
     - legalName
@@ -390,17 +509,24 @@ definitions:
     type: object
   Error:
     description: Standardized error response format used across all API endpoints
-      for error situations
+      for error situations. Provides structured information about errors including
+      codes, messages, and field-specific validation details.
     properties:
       code:
         description: |-
           Error code identifying the specific error condition
           example: ERR_INVALID_INPUT
+          maxLength: 50
+        example: ERR_INVALID_INPUT
+        maxLength: 50
         type: string
       entityType:
         description: |-
           Optional type of entity associated with the error
           example: Organization
+          maxLength: 100
+        example: Organization
+        maxLength: 100
         type: string
       fields:
         additionalProperties:
@@ -408,50 +534,76 @@ definitions:
         description: |-
           Optional detailed field validations for client-side handling
           example: {"name": "Field 'name' is required"}
+        example:
+          '{"name"': ' "Field ''name'' is required"}'
         type: object
       message:
         description: |-
           Detailed error message explaining the issue
           example: The request contains invalid fields. Please check the field 'name' and try again.
+          maxLength: 500
+        example: The request contains invalid fields. Please check the field 'name'
+          and try again.
+        maxLength: 500
         type: string
       title:
         description: |-
           Short, human-readable error title
           example: Bad Request
+          maxLength: 100
+        example: Bad Request
+        maxLength: 100
         type: string
     type: object
   Ledger:
     description: Complete ledger entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
-      for ledger operations.
+      for ledger operations. Ledgers are organizational units within an organization
+      that group related financial accounts and assets together.
     properties:
       createdAt:
-        description: Timestamp when the ledger was created (RFC3339 format)
+        description: |-
+          Timestamp when the ledger was created (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       deletedAt:
-        description: Timestamp when the ledger was soft deleted, null if not deleted
-          (RFC3339 format)
+        description: |-
+          Timestamp when the ledger was soft deleted, null if not deleted (RFC3339 format)
+          example: null
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       id:
-        description: Unique identifier for the ledger (UUID format)
+        description: |-
+          Unique identifier for the ledger (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       metadata:
         additionalProperties: {}
-        description: Custom key-value pairs for extending the ledger information
+        description: |-
+          Custom key-value pairs for extending the ledger information
+          example: {"department": "Finance", "currency": "USD", "region": "North America"}
         type: object
       name:
-        description: Display name of the ledger
-        example: Lerian Studio
+        description: |-
+          Display name of the ledger
+          example: Treasury Operations
+          maxLength: 256
+        example: Treasury Operations
         maxLength: 256
         type: string
       organizationId:
-        description: Reference to the organization that owns this ledger
+        description: |-
+          Reference to the organization that owns this ledger (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
@@ -460,7 +612,10 @@ definitions:
         - $ref: '#/definitions/Status'
         description: Current operating status of the ledger
       updatedAt:
-        description: Timestamp when the ledger was last updated (RFC3339 format)
+        description: |-
+          Timestamp when the ledger was last updated (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
@@ -468,52 +623,72 @@ definitions:
   Organization:
     description: Complete organization entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
-      for organization operations.
+      for organization operations. Organizations are the top-level entities in the
+      Midaz platform hierarchy.
     properties:
       address:
         allOf:
         - $ref: '#/definitions/Address'
         description: Physical address of the organization
       createdAt:
-        description: Timestamp when the organization was created (RFC3339 format)
+        description: |-
+          Timestamp when the organization was created (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       deletedAt:
-        description: Timestamp when the organization was soft deleted, null if not
-          deleted (RFC3339 format)
+        description: |-
+          Timestamp when the organization was soft deleted, null if not deleted (RFC3339 format)
+          example: null
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
       doingBusinessAs:
-        description: Trading or brand name of the organization, if different from
-          legal name
-        example: Lerian Studio
+        description: |-
+          Trading or brand name of the organization, if different from legal name
+          example: Lerian FS
+          maxLength: 256
+        example: Lerian FS
         maxLength: 256
         type: string
       id:
-        description: Unique identifier for the organization (UUID format)
+        description: |-
+          Unique identifier for the organization (UUID format)
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
       legalDocument:
-        description: Official tax ID, company registration number, or other legal
-          identification
-        example: "00000000000000"
+        description: |-
+          Official tax ID, company registration number, or other legal identification
+          example: 123456789012345
+          maxLength: 256
+        example: "123456789012345"
         maxLength: 256
         type: string
       legalName:
-        description: Official legal name of the organization
-        example: Lerian Studio
+        description: |-
+          Official legal name of the organization
+          example: Lerian Financial Services Ltd.
+          maxLength: 256
+        example: Lerian Financial Services Ltd.
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
-        description: Custom key-value pairs for extending the organization information
+        description: |-
+          Custom key-value pairs for extending the organization information
+          example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
         type: object
       parentOrganizationId:
-        description: Reference to the parent organization, if this is a child organization
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Reference to the parent organization, if this is a child organization
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
         format: uuid
         type: string
       status:
@@ -521,7 +696,10 @@ definitions:
         - $ref: '#/definitions/Status'
         description: Current operating status of the organization
       updatedAt:
-        description: Timestamp when the organization was last updated (RFC3339 format)
+        description: |-
+          Timestamp when the organization was last updated (RFC3339 format)
+          example: 2021-01-01T00:00:00Z
+          format: date-time
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
@@ -665,34 +843,56 @@ definitions:
         type: string
     type: object
   UpdateAccountInput:
-    description: UpdateAccountInput is the input payload to update an existing account's
-      properties such as name, status, portfolio, segment, and metadata.
+    description: Request payload for updating an existing account. All fields are
+      optional - only specified fields will be updated. Omitted fields will remain
+      unchanged. This allows partial updates to account properties such as name, status,
+      portfolio, segment, and metadata.
     properties:
+      entityId:
+        description: |-
+          Optional external identifier for linking to external systems
+          required: false
+          example: EXT-ACC-12345
+          maxLength: 256
+        example: EXT-ACC-12345
+        maxLength: 256
+        type: string
       metadata:
         additionalProperties: {}
         description: |-
-          Updated or additional custom attributes for the account
-          Keys max length: 100 characters, Values max length: 2000 characters
+          Updated custom key-value pairs for extending the account information
+          required: false
+          example: {"department": "Global Treasury", "purpose": "Primary Operations", "region": "Global"}
         type: object
       name:
-        description: Updated name of the account (optional, max length 256 characters)
-        example: My Account Updated
+        description: |-
+          Updated name of the account
+          required: false
+          example: Primary Corporate Checking Account
+          maxLength: 256
+        example: Primary Corporate Checking Account
         maxLength: 256
         type: string
       portfolioId:
-        description: Updated portfolio ID for the account (optional, UUID format)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Updated portfolio ID for the account
+          required: false
+          format: uuid
         format: uuid
         type: string
       segmentId:
-        description: Updated segment ID for the account (optional, UUID format)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Updated segment ID for the account
+          required: false
+          format: uuid
         format: uuid
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Updated status of the account (active, inactive, pending)
+        description: |-
+          Updated status of the account
+          required: false
     type: object
   UpdateAssetInput:
     description: UpdateAssetInput is the input payload to update an existing asset's
@@ -720,18 +920,26 @@ definitions:
     properties:
       metadata:
         additionalProperties: {}
-        description: Updated custom key-value pairs for extending the ledger information
-          (optional)
+        description: |-
+          Updated custom key-value pairs for extending the ledger information
+          required: false
+          example: {"department": "Global Finance", "currency": "USD", "region": "Global"}
         type: object
       name:
-        description: Updated display name of the ledger (optional)
-        example: Lerian Studio Updated
+        description: |-
+          Updated display name of the ledger
+          required: false
+          example: Treasury Operations Global
+          maxLength: 256
+        example: Treasury Operations Global
         maxLength: 256
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Updated status of the ledger (optional)
+        description: |-
+          Updated status of the ledger
+          required: false
     type: object
   UpdateOrganizationInput:
     description: Request payload for updating an existing organization. All fields
@@ -741,32 +949,47 @@ definitions:
       address:
         allOf:
         - $ref: '#/definitions/Address'
-        description: Updated physical address of the organization (optional)
+        description: |-
+          Updated physical address of the organization
+          required: false
       doingBusinessAs:
-        description: Updated trading or brand name of the organization (optional)
-        example: The ledger.io
+        description: |-
+          Updated trading or brand name of the organization
+          required: false
+          example: Lerian Group
+          maxLength: 256
+        example: Lerian Group
         maxLength: 256
         type: string
       legalName:
-        description: Updated legal name of the organization (optional)
-        example: Lerian Studio Updated
+        description: |-
+          Updated legal name of the organization
+          required: false
+          example: Lerian Financial Group Ltd.
+          maxLength: 256
+        example: Lerian Financial Group Ltd.
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
-        description: Updated custom key-value pairs for extending the organization
-          information (optional)
+        description: |-
+          Updated custom key-value pairs for extending the organization information
+          required: false
+          example: {"industry": "Financial Technology", "founded": 2020, "employees": 200, "headquarters": "New York"}
         type: object
       parentOrganizationId:
-        description: UUID of the parent organization if this is a child organization
-          (optional)
-        example: 00000000-0000-0000-0000-000000000000
+        description: |-
+          Updated UUID of the parent organization if this is a child organization
+          required: false
+          format: uuid
         format: uuid
         type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
-        description: Updated status of the organization (optional)
+        description: |-
+          Updated status of the organization
+          required: false
     type: object
   UpdatePortfolioInput:
     description: UpdatePortfolioInput is the input payload to update an existing portfolio's
@@ -1818,6 +2041,108 @@ paths:
       summary: Retrieve an account by alias
       tags:
       - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
+    get:
+      description: Returns detailed information about an account identified by its
+        alias within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account External Code (e.g. BRL)
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved account
+          schema:
+            $ref: '#/definitions/Account'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account with the specified alias, ledger, or organization not
+            found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve an account by alias
+      tags:
+      - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+    head:
+      description: Returns the total count of accounts for the specified organization,
+        ledger, and optional portfolio
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Successfully retrieved accounts count
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count accounts
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       description: Returns a paginated list of assets within the specified ledger,
@@ -2160,6 +2485,54 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Update an asset
+      tags:
+      - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+    head:
+      description: Returns the total count of assets for a specific ledger in an organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total assets
       tags:
       - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
@@ -2506,6 +2879,57 @@ paths:
       summary: Update a portfolio
       tags:
       - Portfolios
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+    head:
+      description: Returns the total count of portfolios for a specific organization
+        and ledger as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Successfully counted portfolios, total count available in X-Total-Count
+            header
+        "400":
+          description: Invalid UUID format
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total portfolios
+      tags:
+      - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       description: Returns a paginated list of segments within the specified ledger,
@@ -2849,4 +3273,131 @@ paths:
       summary: Update a segment
       tags:
       - Segments
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
+    head:
+      description: Returns the total count of segments for the specified organization
+        and ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Successfully retrieved segments count
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count segments
+      tags:
+      - Segments
+  /v1/organizations/{organization_id}/ledgers/metrics/count:
+    head:
+      description: Returns the total count of ledgers for a specific organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total ledgers
+      tags:
+      - Ledgers
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total organizations
+      tags:
+      - Organizations
 swagger: "2.0"

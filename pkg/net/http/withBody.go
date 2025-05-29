@@ -152,6 +152,10 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 			case "singletransactiontype":
 				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
+			case "invalidstrings":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaliascharacters":
+				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
 			}
 		}
 
@@ -165,34 +169,19 @@ func ValidateStruct(s any) error {
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs
 func ParseUUIDPathParameters(c *fiber.Ctx) error {
-	params := c.AllParams()
-
-	var invalidUUIDs []string
-
-	validPathParamsMap := make(map[string]any)
-
-	for param, value := range params {
+	for param, value := range c.AllParams() {
 		if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
-			validPathParamsMap[param] = value
+			c.Locals(param, value)
 			continue
 		}
 
 		parsedUUID, err := uuid.Parse(value)
 		if err != nil {
-			invalidUUIDs = append(invalidUUIDs, param)
-			continue
+			err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
+			return WithError(c, err)
 		}
 
-		validPathParamsMap[param] = parsedUUID
-	}
-
-	for param, value := range validPathParamsMap {
-		c.Locals(param, value)
-	}
-
-	if len(invalidUUIDs) > 0 {
-		err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", strings.Join(invalidUUIDs, ", "))
-		return WithError(c, err)
+		c.Locals(param, parsedUUID)
 	}
 
 	return c.Next()
@@ -225,6 +214,8 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
 	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
+	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
+	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -287,6 +278,21 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("prohibitedexternalaccountprefix", "{0} cannot contain the text '"+prefix+"'", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("prohibitedexternalaccountprefix", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("invalidstrings", trans, func(ut ut.Translator) error {
+		return ut.Add("invalidstrings", "{0} cannot contain any of these invalid strings: {1}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("invalidstrings", formatErrorFieldName(fe.Namespace()), fe.Param())
+		return t
+	})
+
+	_ = v.RegisterTranslation("invalidaliascharacters", trans, func(ut ut.Translator) error {
+		return ut.Add("invalidaliascharacters", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("invalidaliascharacters", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -374,6 +380,15 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
 	return !strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
+}
+
+// validateInvalidAliasCharacters validate if it has invalid characters on alias. only permit a-zA-Z0-9@:_-
+func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
+	f := fl.Field().Interface().(string)
+
+	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+
+	return validChars.MatchString(f)
 }
 
 // formatErrorFieldName formats metadata field error names for error messages
@@ -528,4 +543,19 @@ func compareSlices(original, marshaled []any) []any {
 	}
 
 	return diff
+}
+
+// validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive)
+func validateInvalidStrings(fl validator.FieldLevel) bool {
+	f := strings.ToLower(fl.Field().Interface().(string))
+
+	invalidStrings := strings.Split(fl.Param(), ",")
+
+	for _, str := range invalidStrings {
+		if strings.Contains(f, strings.ToLower(str)) {
+			return false
+		}
+	}
+
+	return true
 }

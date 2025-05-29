@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default background color of <body /> */
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+
+    /* Background color for <Card /> */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+
+    /*Background color for popovers such as <DropdownMenu />, <HoverCard />, <Popover />*/
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+
+    /* Primary ans secondary colors for <Button /> */
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    /* Used for accents such as hover effects on <DropdownMenuItem>, <SelectItem>...etc */
+    --accent: 56 99% 50%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    /* Used for destructive actions such as <Button variant="destructive"> */
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Default border color */
+    --border: 214.3 31.8% 91.4%;
+
+    /* Border color for inputs such as <Input />, <Select />, <Textarea /> */
+    --input: 214.3 31.8% 91.4%;
+
+    /* Used for focus rings */
+    --ring: 215 20.2% 65.1%;
+
+    /* Used for border radius */
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply h-full overflow-y-auto;
+    font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+
+  body {
+    @apply h-full overflow-y-auto bg-background text-foreground;
+    font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+.ticket {
+  mask: radial-gradient(21px 13px at 50% 102%, #0000 98%, #000) 50%
+    calc(100% - 16px) / 64px 100% repeat-x;
+}
