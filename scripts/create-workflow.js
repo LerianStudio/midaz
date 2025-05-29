@@ -133,22 +133,66 @@ function getPathFromUrl(urlObject) {
     return joinedPath;
 }
 
-// Utility function to normalize a path string
+// Enhanced path normalization with pattern-based matching
 function normalizePath(pathStr) {
     if (!pathStr) return '';
+    
     let normalized = pathStr.trim();
-    if (normalized.endsWith('/')) {
-        normalized = normalized.slice(0, -1);
-    }
+    
+    // Ensure proper leading/trailing slashes
     if (!normalized.startsWith('/')) {
         normalized = '/' + normalized;
     }
-    // Replace Postman-style {{variables}} first
-    normalized = normalized.replace(/\{\{[^}]+\}\}/g, '{}');
-    // Then replace standard {parameters}
-    normalized = normalized.replace(/\{[^}]+\}/g, '{}');
-
+    if (normalized.endsWith('/') && normalized.length > 1) {
+        normalized = normalized.slice(0, -1);
+    }
+    
+    // Replace all parameter variations with normalized placeholders
+    normalized = normalized
+        .replace(/\{\{[^}]+\}\}/g, '{}')  // {{variable}} -> {}
+        .replace(/\{[^}]+\}/g, '{}')     // {parameter} -> {}
+        .replace(/:\w+/g, '{}');         // :param -> {}
+    
     return normalized;
+}
+
+// Generate all possible path variants for flexible matching
+function generatePathVariants(normalizedPath) {
+    const variants = new Set([normalizedPath]);
+    
+    // Common path transformation patterns for Midaz API
+    const transformations = [
+        // Add ledger layer: /organizations/{}/resource -> /organizations/{}/ledgers/{}/resource
+        {
+            pattern: /^\/organizations\/\{\}\/([^/]+)/,
+            replacement: '/organizations/{}/ledgers/{}/$1'
+        },
+        // Add account layer: /organizations/{}/ledgers/{}/resource -> /organizations/{}/ledgers/{}/accounts/{}/resource  
+        {
+            pattern: /^\/organizations\/\{\}\/ledgers\/\{\}\/([^/]+)/,
+            replacement: '/organizations/{}/ledgers/{}/accounts/{}/$1'
+        },
+        // Remove account layer: /organizations/{}/ledgers/{}/accounts/{}/resource -> /organizations/{}/ledgers/{}/resource
+        {
+            pattern: /^\/organizations\/\{\}\/ledgers\/\{\}\/accounts\/\{\}\/([^/]+)/,
+            replacement: '/organizations/{}/ledgers/{}/$1'
+        },
+        // Remove ledger layer: /organizations/{}/ledgers/{}/resource -> /organizations/{}/resource
+        {
+            pattern: /^\/organizations\/\{\}\/ledgers\/\{\}\/([^/]+)/,
+            replacement: '/organizations/{}/$1'
+        }
+    ];
+    
+    // Apply transformations to generate variants
+    transformations.forEach(({ pattern, replacement }) => {
+        if (pattern.test(normalizedPath)) {
+            const variant = normalizedPath.replace(pattern, replacement);
+            variants.add(variant);
+        }
+    });
+    
+    return Array.from(variants);
 }
 
 // --- Workflow Parsing ---
@@ -226,79 +270,49 @@ function parseWorkflowStepsFromMarkdown(markdown) {
 
 // --- Request Finding ---
 
-// Recursive function to find a request matching method and path
+// Simplified recursive function to find a request matching method and path
 function findRequestRecursive(items, targetMethod, targetPath) {
-    // Normalize target path once before the loop
+    // Normalize target path and generate all possible variants
     const normalizedTargetPath = normalizePath(targetPath);
+    const targetVariants = generatePathVariants(normalizedTargetPath);
     
-    // Create alternative paths for common discrepancies
-    const alternativePaths = [];
-    
-    // Handle /organizations/{}/accounts/{} vs /organizations/{}/ledgers/{}/accounts/{}
-    if (normalizedTargetPath.includes('/organizations/{}/accounts/')) {
-        const altPath = normalizedTargetPath.replace('/organizations/{}/accounts/', '/organizations/{}/ledgers/{}/accounts/');
-        alternativePaths.push(altPath);
-    }
-    
-    // Handle /organizations/{}/balances vs /organizations/{}/ledgers/{}/balances
-    if (normalizedTargetPath.includes('/organizations/{}/balances')) {
-        const altPath = normalizedTargetPath.replace('/organizations/{}/balances', '/organizations/{}/ledgers/{}/balances');
-        alternativePaths.push(altPath);
-    }
-    
-    // Handle /organizations/{}/asset-rates vs /organizations/{}/ledgers/{}/asset-rates
-    if (normalizedTargetPath.includes('/organizations/{}/ledgers/{}/asset-rates')) {
-        const altPath = normalizedTargetPath.replace('/organizations/{}/ledgers/{}/asset-rates', '/organizations/{}/ledgers/{}/asset-rates');
-        alternativePaths.push(altPath);
-    }
-    
-    // Handle operations path variations
-    if (normalizedTargetPath.includes('/operations/')) {
-        // Try with ledgers in the path
-        const altPath = normalizedTargetPath.replace('/organizations/{}/operations/', '/organizations/{}/ledgers/{}/operations/');
-        alternativePaths.push(altPath);
-        
-        // Try with accounts in the path
-        const altPath2 = normalizedTargetPath.replace('/organizations/{}/operations/', '/organizations/{}/ledgers/{}/accounts/{}/operations/');
-        alternativePaths.push(altPath2);
-    }
+    console.log(`🔍 Searching for: ${targetMethod} ${normalizedTargetPath}`);
+    console.log(`   Generated ${targetVariants.length} path variants to check`);
 
     for (const item of items) {
         // If it's a request, check if it matches
         if (item.request) {
             const requestMethod = item.request.method;
-            // Call getPathFromUrl 
             const requestPath = getPathFromUrl(item.request.url);
-            // Call normalizePath 
             const normalizedRequestPath = normalizePath(requestPath);
 
-            // Log the final comparison details
-            console.log(`  Comparing: Target[${targetMethod} ${normalizedTargetPath}] vs Collection[${requestMethod} ${normalizedRequestPath}] (Name: ${item.name})`);
-
-            // Check primary path
-            if (requestMethod === targetMethod && normalizedRequestPath === normalizedTargetPath) {
-                console.log(`    Match found for ${item.name}!`); // Log match success
-                return item; // Return the found item (request holder)
+            // Check method match first (quick elimination)
+            if (requestMethod !== targetMethod) {
+                continue;
             }
+
+            // Check if request path matches any of the target variants
+            const isMatch = targetVariants.includes(normalizedRequestPath);
             
-            // Check alternative paths
-            for (const altPath of alternativePaths) {
-                if (requestMethod === targetMethod && normalizedRequestPath === altPath) {
-                    console.log(`    Match found for ${item.name} using alternative path!`);
-                    console.log(`    Alternative path used: ${altPath}`);
-                    return item;
-                }
+            if (isMatch) {
+                console.log(`✅ Match found: ${item.name}`);
+                console.log(`   Target: ${normalizedTargetPath}`);
+                console.log(`   Collection: ${normalizedRequestPath}`);
+                return item;
             }
         }
+        
         // If it's a folder, search recursively within its items
         if (item.item && item.item.length > 0) {
             const found = findRequestRecursive(item.item, targetMethod, targetPath);
             if (found) {
-                return found; // Return the found item from recursion
+                return found;
             }
         }
     }
-    return null; // Not found in this branch
+    
+    console.log(`❌ No match found for: ${targetMethod} ${normalizedTargetPath}`);
+    return null;
 }
 
 
