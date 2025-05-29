@@ -3,8 +3,8 @@ services:
     container_name: midaz-onboarding
     restart: always
     build:
-      context: ../../
-      dockerfile: ./components/onboarding/Dockerfile
+      context: ../../../
+      dockerfile: ./core/components/onboarding/Dockerfile
     env_file:
       - .env
     ports:

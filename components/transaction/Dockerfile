@@ -2,11 +2,22 @@ FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
 WORKDIR /transaction-app
 
-COPY go.mod go.sum ./
-COPY tmp ./tmp
+# Copy go.mod and go.sum from core directory
+COPY core/go.mod core/go.sum ./
+
+# Copy lib dependencies to satisfy replace directives
+COPY libs/ ./libs/
+
+# Fix replace paths for Docker build context
+RUN sed -i 's|../libs/|./libs/|g' go.mod
+
 RUN go mod download
 
-COPY . .
+# Copy the entire core directory
+COPY core/ ./
+
+# Fix replace paths again in case they were overwritten
+RUN sed -i 's|../libs/|./libs/|g' go.mod
 
 ARG TARGETPLATFORM
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/transaction/cmd/app/main.go
