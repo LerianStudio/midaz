@@ -171,7 +171,7 @@ export const CreateUserForm = ({
             tooltip={intl.formatMessage({
               id: 'entity.user.password.tooltip',
               defaultMessage:
-                'Password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
+                'The password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
             })}
             control={form.control}
             disabled={isReadOnly}
