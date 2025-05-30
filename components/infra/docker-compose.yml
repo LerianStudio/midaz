@@ -45,11 +45,12 @@ services:
     environment:
       - REDIS_USER=${REDIS_USER}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}",  "--port", "${REDIS_PORT}"]
+    command: ["redis-server", "/usr/local/etc/redis/valkey.conf"]
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
     volumes:
       - redis-data:/data
+      - ./valkey/valkey.conf:/usr/local/etc/redis/valkey.conf:ro
     networks:
       - infra-network
 
