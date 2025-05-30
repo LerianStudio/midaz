@@ -3,8 +3,8 @@ import React, { ReactNode } from 'react'
 import { Paper, PaperProps } from '../ui/paper'
 
 const EntityDataTableRoot = React.forwardRef<HTMLDivElement, PaperProps>(
-  ({ className, ...props }) => (
-    <Paper className={cn('', className)} {...props} />
+  ({ className, ...props }, ref) => (
+    <Paper ref={ref} className={cn('', className)} {...props} />
   )
 )
 EntityDataTableRoot.displayName = 'EntityDataTable'
