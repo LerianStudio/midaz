@@ -1,7 +1,6 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,6 +8,7 @@ import { useIntl } from 'react-intl'
 import { useGetOrganization } from '@/client/organizations'
 import { OrganizationsForm } from '../organizations-form'
 import { NotFoundContent } from '@/components/not-found-content'
+import { useToast } from '@/hooks/use-toast'
 
 const Page = ({ params }: { params: { id: string } }) => {
   const router = useRouter()
@@ -18,15 +18,16 @@ const Page = ({ params }: { params: { id: string } }) => {
   const { data, error, isPending } = useGetOrganization({
     organizationId
   })
-  const { showSuccess } = useCustomToast()
+  const { toast } = useToast()
 
   const handleSuccess = () => {
-    showSuccess(
-      intl.formatMessage({
-        id: 'organizations.toast.update.success',
+    toast({
+      description: intl.formatMessage({
+        id: 'success.organizations.update',
         defaultMessage: 'Organization updated successfully!'
-      })
-    )
+      }),
+      variant: 'success'
+    })
     router.push('/settings')
   }
 

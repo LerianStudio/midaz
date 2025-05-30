@@ -1,8 +1,8 @@
-import { FetchAllUsersRepository } from '@/core/domain/repositories/users/fetch-all-users-repository'
 import { UserResponseDto } from '../../dto/user-dto'
 import { UserMapper } from '../../mappers/user-mapper'
 import { inject } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface FetchAllUsers {
   execute: () => Promise<UserResponseDto[]>
@@ -10,13 +10,13 @@ export interface FetchAllUsers {
 
 export class FetchAllUsersUseCase implements FetchAllUsers {
   constructor(
-    @inject(FetchAllUsersRepository)
-    private readonly fetchAllUsersRepository: FetchAllUsersRepository
+    @inject(UserRepository)
+    private readonly userRepository: UserRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(): Promise<UserResponseDto[]> {
-    const users = await this.fetchAllUsersRepository.fetchAll()
+    const users = await this.userRepository.fetchAll()
     const usersResponseDto: UserResponseDto[] = users.map(UserMapper.toDto)
 
     return usersResponseDto

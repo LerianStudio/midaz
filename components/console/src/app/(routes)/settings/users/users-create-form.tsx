@@ -6,13 +6,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { user, passwordChange } from '@/schema/user'
 import { useListGroups } from '@/client/groups'
-import { SelectItem } from '@/components/ui/select'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateUser } from '@/client/users'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
+import { useToast } from '@/hooks/use-toast'
+import { MultipleSelectItem } from '@/components/ui/multiple-select'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 const FormSchema = z
   .object({
@@ -38,20 +39,22 @@ const initialValues = {
   password: '',
   confirmPassword: '',
   email: '',
-  groups: ''
+  groups: []
 }
 
 interface CreateUserFormProps {
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
+  isReadOnly?: boolean
 }
 
 export const CreateUserForm = ({
   onSuccess,
-  onOpenChange
+  onOpenChange,
+  isReadOnly = false
 }: CreateUserFormProps) => {
   const intl = useIntl()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const { data: groups } = useListGroups({})
 
   const form = useForm<FormData>({
@@ -67,34 +70,22 @@ export const CreateUserForm = ({
       await onSuccess?.()
       onOpenChange?.(false)
 
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'users.toast.create.success',
+            id: 'success.users.create',
             defaultMessage: 'User {userName} created successfully'
           },
           { userName: `${newUser.firstName} ${newUser.lastName}` }
-        )
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'users.toast.create.error',
-          defaultMessage: 'Error creating User'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
   const handleSubmit = (formData: FormData) => {
     const { confirmPassword, ...userData } = formData
-
-    createUser({
-      ...userData,
-      groups: [userData.groups]
-    })
+    createUser(userData)
   }
 
   return (
@@ -112,6 +103,7 @@ export const CreateUserForm = ({
                 defaultMessage: 'Name'
               })}
               control={form.control}
+              readOnly={isReadOnly}
               required
             />
 
@@ -122,6 +114,7 @@ export const CreateUserForm = ({
                 defaultMessage: 'Last Name'
               })}
               control={form.control}
+              readOnly={isReadOnly}
               required
             />
           </div>
@@ -132,7 +125,13 @@ export const CreateUserForm = ({
               id: 'entity.user.username',
               defaultMessage: 'Username'
             })}
+            tooltip={intl.formatMessage({
+              id: 'entity.user.username.tooltip',
+              defaultMessage:
+                'Only letters, numbers, hyphens, and underscores are allowed'
+            })}
             control={form.control}
+            readOnly={isReadOnly}
             required
           />
 
@@ -143,6 +142,7 @@ export const CreateUserForm = ({
               defaultMessage: 'E-mail'
             })}
             control={form.control}
+            readOnly={isReadOnly}
             required
           />
 
@@ -156,8 +156,9 @@ export const CreateUserForm = ({
             tooltip={intl.formatMessage({
               id: 'entity.user.password.tooltip',
               defaultMessage:
-                'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+                'The password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
             })}
+            disabled={isReadOnly}
             required
           />
 
@@ -170,9 +171,10 @@ export const CreateUserForm = ({
             tooltip={intl.formatMessage({
               id: 'entity.user.password.tooltip',
               defaultMessage:
-                'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+                'Password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
             })}
             control={form.control}
+            disabled={isReadOnly}
             required
           />
 
@@ -187,12 +189,14 @@ export const CreateUserForm = ({
               defaultMessage: 'Select'
             })}
             control={form.control}
+            readOnly={isReadOnly}
+            multi
             required
           >
             {groups?.map((group: GroupResponseDto) => (
-              <SelectItem key={group.id} value={group.id}>
+              <MultipleSelectItem key={group.id} value={group.id}>
                 {group.name}
-              </SelectItem>
+              </MultipleSelectItem>
             ))}
           </SelectField>
 
@@ -207,17 +211,19 @@ export const CreateUserForm = ({
         </div>
 
         <div className="mt-4">
-          <LoadingButton
-            size="lg"
-            type="submit"
-            fullWidth
-            loading={createPending}
-          >
-            {intl.formatMessage({
-              id: 'common.save',
-              defaultMessage: 'Save'
-            })}
-          </LoadingButton>
+          <Enforce resource="users" action="post">
+            <LoadingButton
+              size="lg"
+              type="submit"
+              fullWidth
+              loading={createPending}
+            >
+              {intl.formatMessage({
+                id: 'common.save',
+                defaultMessage: 'Save'
+              })}
+            </LoadingButton>
+          </Enforce>
         </div>
       </form>
     </Form>

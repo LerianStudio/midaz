@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyResource } from '@/components/empty-resource'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Minus } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import { capitalizeFirstLetter } from '@/helpers'
 import {
   DropdownMenu,
@@ -21,34 +21,32 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { isNil } from 'lodash'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { AssetResponseDto } from '@/core/application/dto/asset-response-dto'
+import { AssetDto } from '@/core/application/dto/asset-dto'
 
 type AssetsTableProps = {
-  assets: PaginationDto<AssetResponseDto> | undefined
+  assets: PaginationDto<AssetDto> | undefined
   table: {
     getRowModel: () => {
-      rows: { id: string; original: AssetResponseDto }[]
+      rows: { id: string; original: AssetDto }[]
     }
   }
   handleDialogOpen: (id: string, name: string) => void
   handleCreate: () => void
-  handleEdit: (asset: AssetResponseDto) => void
+  handleEdit: (asset: AssetDto) => void
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
 }
 
 type AssetRowProps = {
-  asset: { id: string; original: AssetResponseDto }
-  handleCopyToClipboard: (value: string, message: string) => void
+  asset: { id: string; original: AssetDto }
   handleDialogOpen: (id: string, name: string) => void
-  handleEdit: (asset: AssetResponseDto) => void
+  handleEdit: (asset: AssetDto) => void
 }
 
 const AssetRow: React.FC<AssetRowProps> = ({
@@ -92,19 +90,15 @@ const AssetRow: React.FC<AssetRowProps> = ({
       </TableCell>
       <TableCell>{asset.original.code}</TableCell>
       <TableCell>
-        {metadataCount === 0 ? (
-          <Minus size={20} />
-        ) : (
-          intl.formatMessage(
-            {
-              id: 'common.table.metadata',
-              defaultMessage:
-                '{number, plural, =0 {-} one {# record} other {# records}}'
-            },
-            {
-              number: metadataCount
-            }
-          )
+        {intl.formatMessage(
+          {
+            id: 'common.table.metadata',
+            defaultMessage:
+              '{number, plural, =0 {-} one {# record} other {# records}}'
+          },
+          {
+            number: metadataCount
+          }
         )}
       </TableCell>
       <TableCell align="center">
@@ -117,8 +111,8 @@ const AssetRow: React.FC<AssetRowProps> = ({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => handleEdit(asset.original)}>
               {intl.formatMessage({
-                id: `common.edit`,
-                defaultMessage: 'Edit'
+                id: `common.details`,
+                defaultMessage: 'Details'
               })}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -144,7 +138,6 @@ const AssetRow: React.FC<AssetRowProps> = ({
 
 export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
   const intl = useIntl()
-  const { showInfo } = useCustomToast()
 
   const {
     assets,
@@ -156,11 +149,6 @@ export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
     pagination,
     total
   } = props
-
-  const handleCopyToClipboard = (value: string, message: string) => {
-    navigator.clipboard.writeText(value)
-    showInfo(message)
-  }
 
   return (
     <FormProvider {...form}>
@@ -226,7 +214,6 @@ export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
                     <AssetRow
                       key={asset.id}
                       asset={asset}
-                      handleCopyToClipboard={handleCopyToClipboard}
                       handleDialogOpen={handleDialogOpen}
                       handleEdit={handleEdit}
                     />

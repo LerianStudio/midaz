@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { useIntl } from 'react-intl'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useDeleteSegment, useListSegments } from '@/client/segments'
-import { SegmentResponseDto } from '@/core/application/dto/segment-dto'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import {
@@ -13,7 +12,7 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { SegmentsSheet } from './segments-sheet'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
@@ -21,11 +20,10 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { SegmentsDataTable } from './segments-data-table'
 import { SegmentsSkeleton } from './segments-skeleton'
-import { useRouter } from 'next/navigation'
+import { SegmentType } from '@/types/segment-type'
 
 const Page = () => {
   const intl = useIntl()
-  const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const [columnFilters, setColumnFilters] = useState<any>([])
 
@@ -75,7 +73,7 @@ const Page = () => {
   )
 
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<SegmentResponseDto>({
+    useCreateUpdateSheet<SegmentType>({
       enableRouting: true
     })
 
@@ -93,12 +91,6 @@ const Page = () => {
       columnFilters
     }
   })
-
-  useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -169,12 +161,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'segments.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Custom labels that allow grouping of accounts according to user-defined policies.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/segments"
         />
       </PageHeader.Root>
 

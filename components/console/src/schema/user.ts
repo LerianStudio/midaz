@@ -5,20 +5,27 @@ import {
   oneUpperCaseLetter,
   oneLowerCaseLetter,
   oneNumber,
-  oneSpecialCharacter
+  oneSpecialCharacter,
+  alphanumericWithDashUnderscoreRegex
 } from './regex'
 
 const firstName = z.string().min(3).max(255)
 
 const lastName = z.string().min(3).max(255)
 
-const username = z.string().min(3).max(255)
+const username = z
+  .string()
+  .min(3)
+  .max(255)
+  .refine(regex(alphanumericWithDashUnderscoreRegex), {
+    params: { id: 'custom_alphanumeric_with_dash_underscore' }
+  })
 
 const email = z.string().email().max(255)
 
 const password = z
   .string()
-  .min(8)
+  .min(12)
   .max(255)
   .refine(regex(oneUpperCaseLetter), {
     params: { id: 'custom_one_uppercase_letter' }
@@ -33,9 +40,9 @@ const password = z
     params: { id: 'custom_one_special_character' }
   })
 
-const confirmPassword = z.string().min(8).max(255)
+const confirmPassword = z.string().min(12).max(255)
 
-const groups = z.string()
+const groups = z.array(z.string()).nonempty()
 
 export const user = {
   firstName,

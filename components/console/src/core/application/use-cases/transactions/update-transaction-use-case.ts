@@ -1,10 +1,13 @@
-import { UpdateTransactionRepository } from '@/core/domain/repositories/transactions/update-transaction-repository'
+import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
 import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
 import { TransactionMapper } from '../../mappers/transaction-mapper'
-import { UpdateTransactionDto } from '../../dto/update-transaction-dto'
-import { TransactionResponseDto } from '../../dto/transaction-dto'
-import { LogOperation } from '../../decorators/log-operation'
+import {
+  CreateTransactionDto,
+  UpdateTransactionDto
+} from '../../dto/transaction-dto'
+import { TransactionDto } from '../../dto/transaction-dto'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdateTransaction {
   execute: (
@@ -12,14 +15,14 @@ export interface UpdateTransaction {
     ledgerId: string,
     transactionId: string,
     transaction: Partial<UpdateTransactionDto>
-  ) => Promise<TransactionResponseDto>
+  ) => Promise<TransactionDto>
 }
 
 @injectable()
 export class UpdateTransactionUseCase implements UpdateTransaction {
   constructor(
-    @inject(UpdateTransactionRepository)
-    private readonly updateTransactionRepository: UpdateTransactionRepository
+    @inject(TransactionRepository)
+    private readonly transactionRepository: TransactionRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -28,22 +31,21 @@ export class UpdateTransactionUseCase implements UpdateTransaction {
     ledgerId: string,
     transactionId: string,
     transaction: Partial<UpdateTransactionDto>
-  ): Promise<TransactionResponseDto> {
-    const transactionEntity: Partial<TransactionEntity> =
-      TransactionMapper.transactionMapperUpdate(
-        transaction.description ?? '',
-        transaction.metadata ?? {}
-      )
+  ): Promise<TransactionDto> {
+    const transactionEntity = TransactionMapper.toDomain({
+      description: transaction.description ?? '',
+      metadata: transaction.metadata ?? {}
+    } as CreateTransactionDto)
 
     const updatedTransaction: TransactionEntity =
-      await this.updateTransactionRepository.update(
+      await this.transactionRepository.update(
         organizationId,
         ledgerId,
         transactionId,
         transactionEntity
       )
 
-    const updatedTransactionResponseDto: TransactionResponseDto =
+    const updatedTransactionResponseDto =
       TransactionMapper.toResponseDto(updatedTransaction)!
 
     return updatedTransactionResponseDto

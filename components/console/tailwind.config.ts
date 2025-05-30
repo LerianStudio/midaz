@@ -18,6 +18,15 @@ const config = {
       }
     },
     extend: {
+      fontFamily: {
+        sans: [
+          'var(--font-inter)',
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif'
+        ]
+      },
       boxShadow: {
         sidebar: '5px 0px 15px -3px rgba(0, 0, 0, 0.05)',
         dataTable:
@@ -134,10 +143,10 @@ const config = {
       keyframes: {
         'accordion-down': {
           from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' }
+          to: { height: 'var(--radix-collapsible-content-height)' }
         },
         'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
+          from: { height: 'var(--radix-collapsible-content-height)' },
           to: { height: '0' }
         },
         fill: {

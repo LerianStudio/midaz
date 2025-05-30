@@ -38,6 +38,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
+	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -643,6 +644,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.SegmentID)
 	}
 
+	if !libCommons.IsNilOrEmpty(acc.EntityID) {
+		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.EntityID)
+	}
+
 	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.PortfolioID)
@@ -870,4 +876,37 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	}
 
 	return accounts, nil
+}
+
+// Count retrieves the count of accounts from the database.
+func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	query := "SELECT COUNT(*) FROM account WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	spanQuery.End()
+
+	return count, nil
 }

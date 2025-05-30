@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Plus } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React from 'react'
 import { useIntl } from 'react-intl'
@@ -29,21 +29,22 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
-import { Badge } from '@/components/ui/badge'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Skeleton } from '@/components/ui/skeleton'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { IdTableCell } from '@/components/table/id-table-cell'
 
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
-  const { data, refetch, isLoading } = useListOrganizations({})
+  const { currentOrganization, setOrganization } = useOrganization()
+  const { data, isLoading } = useListOrganizations({})
   const router = useRouter()
 
   const { mutate: deleteOrganization, isPending: deletePending } =
     useDeleteOrganization({
       onSuccess: () => {
         handleDialogClose()
-        refetch()
       }
     })
 
@@ -53,7 +54,7 @@ export const OrganizationsTabContent = () => {
     }
   )
 
-  const handleEdit = (organization: OrganizationEntity) => {
+  const handleEdit = (organization: OrganizationResponseDto) => {
     router.push(`/settings/organizations/${organization.id}`)
   }
 
@@ -81,12 +82,18 @@ export const OrganizationsTabContent = () => {
         <EntityBox.Header
           title={intl.formatMessage({
             id: 'organizations.title',
-            defaultMessage: 'Settings'
+            defaultMessage: 'Organizations'
           })}
           subtitle={intl.formatMessage({
             id: 'organizations.subtitle',
             defaultMessage: 'View and manage Organizations.'
           })}
+          tooltip={intl.formatMessage({
+            id: 'organizations.tooltip',
+            defaultMessage:
+              'Organizations is the top-level entity in Midaz, representing a financial institution such as a bank or fintech'
+          })}
+          tooltipWidth="655px"
         />
 
         <EntityBox.Actions>
@@ -147,13 +154,7 @@ export const OrganizationsTabContent = () => {
                       defaultMessage: 'Document'
                     })}
                   </TableHead>
-                  <TableHead>
-                    {intl.formatMessage({
-                      id: `entity.organization.status`,
-                      defaultMessage: 'Status'
-                    })}
-                  </TableHead>
-                  <TableHead>
+                  <TableHead align="center">
                     {intl.formatMessage({
                       id: 'common.actions',
                       defaultMessage: 'Actions'
@@ -164,29 +165,10 @@ export const OrganizationsTabContent = () => {
               <TableBody>
                 {data.items.map((organization) => (
                   <TableRow key={organization.id}>
-                    <TableCell>{organization.id}</TableCell>
+                    <IdTableCell id={organization.id} />
                     <TableCell>{organization.legalName}</TableCell>
                     <TableCell>{organization.doingBusinessAs}</TableCell>
                     <TableCell>{organization.legalDocument}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          organization.status.code === 'ACTIVE'
-                            ? 'active'
-                            : 'inactive'
-                        }
-                      >
-                        {organization.status.code === 'ACTIVE'
-                          ? intl.formatMessage({
-                              id: 'common.active',
-                              defaultMessage: 'Active'
-                            })
-                          : intl.formatMessage({
-                              id: 'common.inactive',
-                              defaultMessage: 'Inactive'
-                            })}
-                      </Badge>
-                    </TableCell>
                     <TableCell align="center">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -202,11 +184,24 @@ export const OrganizationsTabContent = () => {
                             onClick={() => handleEdit(organization)}
                           >
                             {intl.formatMessage({
-                              id: `common.edit`,
-                              defaultMessage: 'Edit'
+                              id: `common.details`,
+                              defaultMessage: 'Details'
                             })}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          {currentOrganization.id !== organization.id && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => setOrganization(organization)}
+                              >
+                                {intl.formatMessage({
+                                  id: `organizations.useOrganization`,
+                                  defaultMessage: 'Use this Organization'
+                                })}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
                           <DropdownMenuItem
                             onClick={() => handleDialogOpen(organization.id!)}
                           >

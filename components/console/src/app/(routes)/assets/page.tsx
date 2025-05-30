@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useDeleteAsset, useListAssets } from '@/client/assets'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import {
@@ -11,10 +11,9 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { AssetsSheet } from './assets-sheet'
 import { AssetsSkeleton } from './assets-skeleton'
@@ -22,14 +21,14 @@ import { AssetsDataTable } from './assets-data-table'
 import { PageHeader } from '@/components/page-header'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
 import { Breadcrumb } from '@/components/breadcrumb'
+import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
-  const router = useRouter()
   const { id: ledgerId } = useParams<{ id: string }>()
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
 
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
@@ -63,33 +62,19 @@ const Page = () => {
     setTotal(assets.items.length)
   }, [assets?.items, assets?.limit])
 
-  useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
-
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteAsset({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     onSuccess: () => {
       handleDialogClose()
       refetch()
-      showSuccess(
-        intl.formatMessage({
-          id: 'assets.toast.delete.success',
+      toast({
+        description: intl.formatMessage({
+          id: 'success.assets.delete',
           defaultMessage: 'Asset successfully deleted'
-        })
-      )
-    },
-    onError: () => {
-      handleDialogClose()
-      showError(
-        intl.formatMessage({
-          id: 'assets.toast.delete.error',
-          defaultMessage: 'Error deleting Asset'
-        })
-      )
+        }),
+        variant: 'success'
+      })
     }
   })
 
@@ -185,12 +170,13 @@ const Page = () => {
           answer={intl.formatMessage({
             id: 'assets.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Represent units of value, such as currencies or tokens, that can be transacted and managed within the system.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/assets"
         />
       </PageHeader.Root>
 

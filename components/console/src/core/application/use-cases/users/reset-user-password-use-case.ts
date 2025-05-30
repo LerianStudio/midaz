@@ -1,7 +1,6 @@
-import { ResetUserPasswordRepository } from '@/core/domain/repositories/users/reset-user-password-repository'
-import { UpdateUserPasswordRepository } from '@/core/domain/repositories/users/update-user-password-repository'
 import { inject } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface ResetUserPassword {
   execute: (userId: string, newPassword: string) => Promise<void>
@@ -9,12 +8,12 @@ export interface ResetUserPassword {
 
 export class ResetUserPasswordUseCase implements ResetUserPassword {
   constructor(
-    @inject(ResetUserPasswordRepository)
-    private readonly resetUserPasswordRepository: ResetUserPasswordRepository
+    @inject(UserRepository)
+    private readonly userRepository: UserRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(userId: string, newPassword: string): Promise<void> {
-    await this.resetUserPasswordRepository.resetPassword(userId, newPassword)
+    await this.userRepository.resetPassword(userId, newPassword)
   }
 }

@@ -151,7 +151,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 //	@Accept			mpfd
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
@@ -565,6 +565,28 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	return http.OK(c, pagination)
 }
 
+// handleAccountFields processes account and accountAlias fields for transaction entries
+// accountAlias is deprecated but still needs to be handled for backward compatibility
+func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
+	result := make([]libTransaction.FromTo, 0, len(entries))
+
+	for i := range entries {
+		var newAlias string
+		if isConcat {
+			newAlias = entries[i].ConcatAlias(i)
+		} else {
+			newAlias = entries[i].SplitAlias()
+		}
+
+		entries[i].Account = newAlias
+		entries[i].AccountAlias = newAlias
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
 // createTransaction func that received struct from DSL parsed and create Transaction
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
 	ctx := c.UserContext()
@@ -579,20 +601,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var fromTo []libTransaction.FromTo
 
-	//Helper function to handle account and accountAlias fields - accountAlias is deprecated
-	handleAccountFields := func(entries []libTransaction.FromTo) {
-		for i := range entries {
-			newAlias := entries[i].ConcatAlias(i)
-
-			entries[i].Account = newAlias
-			entries[i].AccountAlias = newAlias
-
-			fromTo = append(fromTo, entries[i])
-		}
-	}
-
-	handleAccountFields(parserDSL.Send.Source.From)
-	handleAccountFields(parserDSL.Send.Distribute.To)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
@@ -661,6 +671,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		value := transactionID.String()
 		parentTransactionID = &value
 	}
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 
 	tran := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),

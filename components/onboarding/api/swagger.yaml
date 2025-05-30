@@ -848,6 +848,15 @@ definitions:
       unchanged. This allows partial updates to account properties such as name, status,
       portfolio, segment, and metadata.
     properties:
+      entityId:
+        description: |-
+          Optional external identifier for linking to external systems
+          required: false
+          example: EXT-ACC-12345
+          maxLength: 256
+        example: EXT-ACC-12345
+        maxLength: 256
+        type: string
       metadata:
         additionalProperties: {}
         description: |-
@@ -2088,6 +2097,52 @@ paths:
       summary: Retrieve an account by alias
       tags:
       - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+    head:
+      description: Returns the total count of accounts for the specified organization,
+        ledger, and optional portfolio
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Successfully retrieved accounts count
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count accounts
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
     get:
       description: Returns a paginated list of assets within the specified ledger,
@@ -2430,6 +2485,54 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Update an asset
+      tags:
+      - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+    head:
+      description: Returns the total count of assets for a specific ledger in an organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total assets
       tags:
       - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
@@ -2776,6 +2879,57 @@ paths:
       summary: Update a portfolio
       tags:
       - Portfolios
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+    head:
+      description: Returns the total count of portfolios for a specific organization
+        and ledger as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Successfully counted portfolios, total count available in X-Total-Count
+            header
+        "400":
+          description: Invalid UUID format
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total portfolios
+      tags:
+      - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       description: Returns a paginated list of segments within the specified ledger,
@@ -3119,4 +3273,131 @@ paths:
       summary: Update a segment
       tags:
       - Segments
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
+    head:
+      description: Returns the total count of segments for the specified organization
+        and ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Successfully retrieved segments count
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count segments
+      tags:
+      - Segments
+  /v1/organizations/{organization_id}/ledgers/metrics/count:
+    head:
+      description: Returns the total count of ledgers for a specific organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total ledgers
+      tags:
+      - Ledgers
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      responses:
+        "204":
+          description: No content with X-Total-Count header containing the count
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count total organizations
+      tags:
+      - Organizations
 swagger: "2.0"

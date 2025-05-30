@@ -25,7 +25,8 @@ export const UserDropdown = () => {
   })
   const [openSettings, setOpenSettings] = useState(false)
 
-  const isAuthPluginEnabled = process.env.PLUGIN_AUTH_ENABLED === 'true'
+  const isAuthPluginEnabled =
+    process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
 
   const userData = isAuthPluginEnabled
     ? useUserById({ userId: session?.user?.id })
@@ -50,31 +51,36 @@ export const UserDropdown = () => {
               })}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <Book />
-            </DropdownMenuItemIcon>
-            {intl.formatMessage({
-              id: 'header.userDropdown.documentation',
-              defaultMessage: 'Documentation Hub'
-            })}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="pl-10">
-            {intl.formatMessage({
-              id: 'header.userDropdown.support',
-              defaultMessage: 'Support'
-            })}
+          <DropdownMenuItem asChild>
+            <a
+              href="https://docs.lerian.studio/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <DropdownMenuItemIcon>
+                <Book />
+              </DropdownMenuItemIcon>
+              {intl.formatMessage({
+                id: 'header.userDropdown.documentation',
+                defaultMessage: 'Documentation Hub'
+              })}
+            </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/signin' })}>
-            <DropdownMenuItemIcon>
-              <LogOut />
-            </DropdownMenuItemIcon>
-            {intl.formatMessage({
-              id: 'header.userDropdown.logout',
-              defaultMessage: 'Logout'
-            })}
-          </DropdownMenuItem>
+
+          {isAuthPluginEnabled && (
+            <DropdownMenuItem
+              onClick={() => signOut({ callbackUrl: '/signin' })}
+            >
+              <DropdownMenuItemIcon>
+                <LogOut />
+              </DropdownMenuItemIcon>
+              {intl.formatMessage({
+                id: 'header.userDropdown.logout',
+                defaultMessage: 'Logout'
+              })}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

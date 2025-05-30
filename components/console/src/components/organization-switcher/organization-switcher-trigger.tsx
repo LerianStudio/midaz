@@ -35,8 +35,9 @@ const Logo = ({
         height={40}
         width={40}
         className={cn(
+          'rounded-lg',
           button &&
-            'box-border rounded-lg border-[3px] p-[1px] group-hover:border-shadcn-300',
+            'box-border border-[3px] p-[1px] group-hover:border-shadcn-300',
           active && 'border-shadcn-400 group-hover:border-shadcn-400'
         )}
       />

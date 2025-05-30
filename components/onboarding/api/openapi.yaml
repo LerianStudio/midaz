@@ -161,6 +161,56 @@ paths:
       tags:
       - Organizations
       x-codegen-request-body-name: organization
+  /v1/organizations/metrics/count:
+    head:
+      description: Returns the total count of organizations as a header without a
+        response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      responses:
+        "204":
+          content:
+            '*/*':
+              schema:
+                type: string
+          description: No content with X-Total-Count header containing the count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total organizations
+      tags:
+      - Organizations
   /v1/organizations/{id}:
     delete:
       description: 'Permanently removes an organization identified by its UUID. Note:
@@ -516,6 +566,62 @@ paths:
       tags:
       - Ledgers
       x-codegen-request-body-name: ledger
+  /v1/organizations/{organization_id}/ledgers/metrics/count:
+    head:
+      description: Returns the total count of ledgers for a specific organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content:
+            '*/*':
+              schema:
+                type: string
+          description: No content with X-Total-Count header containing the count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total ledgers
+      tags:
+      - Ledgers
   /v1/organizations/{organization_id}/ledgers/{id}:
     delete:
       description: 'Permanently removes a ledger identified by its UUID. Note: This
@@ -1048,6 +1154,65 @@ paths:
       summary: Retrieve an account by alias
       tags:
       - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
+    head:
+      description: Returns the total count of accounts for the specified organization,
+        ledger, and optional portfolio
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content: {}
+          description: Successfully retrieved accounts count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count accounts
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       description: Permanently removes an account from the specified ledger. This
@@ -1463,6 +1628,68 @@ paths:
       tags:
       - Assets
       x-codegen-request-body-name: asset
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count:
+    head:
+      description: Returns the total count of assets for a specific ledger in an organization
+        as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content:
+            '*/*':
+              schema:
+                type: string
+          description: No content with X-Total-Count header containing the count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total assets
+      tags:
+      - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
       description: Permanently removes an asset from the specified ledger. This operation
@@ -1878,6 +2105,72 @@ paths:
       tags:
       - Portfolios
       x-codegen-request-body-name: portfolio
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count:
+    head:
+      description: Returns the total count of portfolios for a specific organization
+        and ledger as a header without a response body
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully counted portfolios, total count available in X-Total-Count
+            header
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid UUID format
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count total portfolios
+      tags:
+      - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
       description: Permanently removes a portfolio from the specified ledger. This
@@ -2292,6 +2585,65 @@ paths:
       tags:
       - Segments
       x-codegen-request-body-name: segment
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count:
+    head:
+      description: Returns the total count of segments for the specified organization
+        and ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content: {}
+          description: Successfully retrieved segments count
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization or ledger not found
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count segments
+      tags:
+      - Segments
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
       description: Permanently removes a segment from the specified ledger. This operation
@@ -3530,8 +3882,18 @@ components:
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         name: Primary Corporate Checking Account
+        entityId: EXT-ACC-12345
         status: '{}'
       properties:
+        entityId:
+          description: |-
+            Optional external identifier for linking to external systems
+            required: false
+            example: EXT-ACC-12345
+            maxLength: 256
+          example: EXT-ACC-12345
+          maxLength: 256
+          type: string
         metadata:
           additionalProperties:
             type: object

@@ -38,6 +38,10 @@ export class Container {
   get<T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): T {
     return this.container.get(serviceIdentifier)
   }
+
+  getAsync<T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): Promise<T> {
+    return this.container.getAsync(serviceIdentifier)
+  }
 }
 
 export type ContainerModuleRegistry = (container: Container) => void

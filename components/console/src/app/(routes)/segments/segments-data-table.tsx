@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { isNil } from 'lodash'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { EntityDataTable } from '@/components/entity-data-table'
@@ -28,18 +27,18 @@ import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
-import { SegmentResponseDto } from '@/core/application/dto/segment-dto'
+import { SegmentType } from '@/types/segment-type'
 
 type SegmentsTableProps = {
-  segments: PaginationDto<SegmentResponseDto> | undefined
+  segments: PaginationDto<SegmentType> | undefined
   table: {
     getRowModel: () => {
-      rows: { id: string; original: SegmentResponseDto }[]
+      rows: { id: string; original: SegmentType }[]
     }
   }
   handleDialogOpen: (id: string, name: string) => void
   handleCreate: () => void
-  handleEdit: (asset: SegmentResponseDto) => void
+  handleEdit: (asset: SegmentType) => void
   refetch: () => void
   form: UseFormReturn<any>
   total: number
@@ -47,10 +46,9 @@ type SegmentsTableProps = {
 }
 
 type SegmentRowProps = {
-  segment: { id: string; original: SegmentResponseDto }
-  handleCopyToClipboard: (value: string, message: string) => void
+  segment: { id: string; original: SegmentType }
   handleDialogOpen: (id: string, name: string) => void
-  handleEdit: (segment: SegmentResponseDto) => void
+  handleEdit: (segment: SegmentType) => void
 }
 
 const SegmentRow: React.FC<SegmentRowProps> = ({
@@ -75,8 +73,8 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => handleEdit(segment.original)}>
               {intl.formatMessage({
-                id: `common.edit`,
-                defaultMessage: 'Edit'
+                id: `common.details`,
+                defaultMessage: 'Details'
               })}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -102,7 +100,6 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
 
 export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
   const intl = useIntl()
-  const { showInfo } = useCustomToast()
 
   const {
     segments,
@@ -114,11 +111,6 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
     pagination,
     total
   } = props
-
-  const handleCopyToClipboard = (value: string, message: string) => {
-    navigator.clipboard.writeText(value)
-    showInfo(message)
-  }
 
   return (
     <FormProvider {...form}>
@@ -177,7 +169,6 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
                   <SegmentRow
                     key={segment.id}
                     segment={segment}
-                    handleCopyToClipboard={handleCopyToClipboard}
                     handleDialogOpen={handleDialogOpen}
                     handleEdit={handleEdit}
                   />

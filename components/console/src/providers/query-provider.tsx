@@ -1,14 +1,32 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  MutationCache,
+  QueryClient,
+  QueryClientProvider
+} from '@tanstack/react-query'
+import { useToast } from '@/hooks/use-toast'
+import { useIntl } from 'react-intl'
 
-type Props = {
-  children: ReactNode
-}
+export const QueryProvider = ({ children }: { children: ReactNode }) => {
+  const intl = useIntl()
+  const { toast } = useToast()
 
-export const QueryProvider = ({ children }: Props) => {
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        toast({
+          title: intl.formatMessage({
+            id: 'error.query.title',
+            defaultMessage: 'Server Error'
+          }),
+          description: error.message,
+          variant: 'destructive'
+        })
+      }
+    })
+  })
 
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

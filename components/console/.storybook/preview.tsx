@@ -1,8 +1,8 @@
 import type { Preview } from '@storybook/react'
 
 import '../src/app/globals.css'
+import './storybook.css'
 
-import React from 'react'
 import { ThemeProvider } from '../src/lib/theme/theme-provider'
 import { IntlProvider } from 'react-intl'
 

@@ -1,8 +1,8 @@
-import { FetchAllOrganizationsRepository } from '@/core/domain/repositories/organizations/fetch-all-organizations-repository'
-import { OrganizationResponseDto } from '../../dto/organization-response-dto'
-import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
+import { OrganizationResponseDto } from '../../dto/organization-dto'
+import { OrganizationMapper } from '../../mappers/organization-mapper'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchParentOrganizations {
   execute(organizationId?: string): Promise<OrganizationResponseDto[]>
@@ -13,23 +13,22 @@ export class FetchParentOrganizationsUseCase
   implements FetchParentOrganizations
 {
   constructor(
-    @inject(FetchAllOrganizationsRepository)
-    private readonly fetchAllOrganizationsRepository: FetchAllOrganizationsRepository
+    @inject(OrganizationRepository)
+    private readonly organizationRepository: OrganizationRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(organizationId?: string): Promise<OrganizationResponseDto[]> {
-    const organizations = await this.fetchAllOrganizationsRepository.fetchAll(
-      100,
-      1
-    )
+    const organizations = await this.organizationRepository.fetchAll(100, 1)
 
     const parentOrganizationsFiltered = organizations.items.filter(
       (organization) => organization.id !== organizationId
     )
 
     const parentOrganizations: OrganizationResponseDto[] =
-      parentOrganizationsFiltered.map(OrganizationMapper.toResponseDto)
+      parentOrganizationsFiltered.map((organization) => {
+        return OrganizationMapper.toResponseDto(organization, undefined)
+      })
 
     return parentOrganizations
   }

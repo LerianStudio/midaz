@@ -1,6 +1,6 @@
-import { DeletePortfolioRepository } from '@/core/domain/repositories/portfolios/delete-portfolio-repository'
+import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface DeletePortfolio {
   execute: (
@@ -13,8 +13,8 @@ export interface DeletePortfolio {
 @injectable()
 export class DeletePortfolioUseCase implements DeletePortfolio {
   constructor(
-    @inject(DeletePortfolioRepository)
-    private readonly deletePortfolioRepository: DeletePortfolioRepository
+    @inject(PortfolioRepository)
+    private readonly portfolioRepository: PortfolioRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -23,10 +23,6 @@ export class DeletePortfolioUseCase implements DeletePortfolio {
     ledgerId: string,
     portfolioId: string
   ): Promise<void> {
-    await this.deletePortfolioRepository.delete(
-      organizationId,
-      ledgerId,
-      portfolioId
-    )
+    await this.portfolioRepository.delete(organizationId, ledgerId, portfolioId)
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useListTransactions } from '@/client/transactions'
 import { TransactionsDataTable } from './transactions-data-table'
 import { TransactionsSkeleton } from './transactions-skeleton'
@@ -12,12 +12,19 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { Breadcrumb } from '@/components/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
+import { TransactionModeModal } from './transaction-mode-modal'
+import {
+  TransactionMode,
+  useTransactionMode
+} from './create/hooks/use-transaction-mode'
 
 export default function TransactionsPage() {
   const intl = useIntl()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
+  const [open, setOpen] = React.useState(false)
   const [total, setTotal] = React.useState(0)
+  const { setMode } = useTransactionMode()
 
   const { form, searchValues, pagination } = useQueryParams({ total })
 
@@ -42,12 +49,6 @@ export default function TransactionsPage() {
     setTotal(transactions.items.length)
   }, [transactions?.items, transactions?.limit])
 
-  React.useEffect(() => {
-    if (!currentLedger?.id) {
-      router.replace('/ledgers')
-    }
-  }, [currentLedger, router])
-
   const hasLedgerLoaded = Boolean(currentLedger.id)
 
   const breadcrumbPaths = getBreadcrumbPaths([
@@ -65,21 +66,19 @@ export default function TransactionsPage() {
     }
   ])
 
-  const handleCreateTransaction = () => {
+  const handleCreateTransaction = (mode: TransactionMode) => {
+    setMode(mode)
     router.push(`/transactions/create`)
   }
 
-  const transactionsTableProps = {
-    transactions,
-    form,
-    total,
-    pagination,
-    currentLedger,
-    onCreateTransaction: handleCreateTransaction
-  }
-
   return (
-    <React.Fragment>
+    <div className="p-16">
+      <TransactionModeModal
+        open={open}
+        onOpenChange={setOpen}
+        onSelect={handleCreateTransaction}
+      />
+
       <Breadcrumb paths={breadcrumbPaths} />
 
       <PageHeader.Root>
@@ -104,10 +103,7 @@ export default function TransactionsPage() {
               })}
             />
 
-            <Button
-              onClick={handleCreateTransaction}
-              data-testid="new-transaction"
-            >
+            <Button onClick={() => setOpen(true)} data-testid="new-transaction">
               {intl.formatMessage({
                 id: 'transactions.create.title',
                 defaultMessage: 'New Transaction'
@@ -122,14 +118,15 @@ export default function TransactionsPage() {
             defaultMessage: 'What is a Transaction?'
           })}
           answer={intl.formatMessage({
-            id: 'ledgers.helperTrigger.answer',
+            id: 'transactions.helperTrigger.answer',
             defaultMessage:
-              'Book with the record of all transactions and operations of the Organization.'
+              'Records of financial movements between accounts, based on the double-entry model.'
           })}
           seeMore={intl.formatMessage({
-            id: 'ledgers.helperTrigger.seeMore',
+            id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
+          href="https://docs.lerian.studio/docs/transactions"
         />
       </PageHeader.Root>
 
@@ -137,9 +134,15 @@ export default function TransactionsPage() {
         {isLoadingTransactions && <TransactionsSkeleton />}
 
         {!isLoadingTransactions && hasLedgerLoaded && (
-          <TransactionsDataTable {...transactionsTableProps} />
+          <TransactionsDataTable
+            transactions={transactions}
+            form={form}
+            total={total}
+            pagination={pagination}
+            onCreateTransaction={() => setOpen(true)}
+          />
         )}
       </div>
-    </React.Fragment>
+    </div>
   )
 }

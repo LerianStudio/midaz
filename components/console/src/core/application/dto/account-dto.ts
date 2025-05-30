@@ -1,6 +1,13 @@
-import { StatusDto } from './status.dto'
+import { MetadataDto } from './metadata-dto'
+import { type PortfolioDto } from './portfolio-dto'
+import { SearchParamDto } from './request-dto'
 
-export interface CreateAccountDto {
+export type AccountSearchParamDto = SearchParamDto & {
+  id?: string
+  alias?: string
+}
+
+export type CreateAccountDto = {
   assetCode: string
   name: string
   alias: string
@@ -11,14 +18,12 @@ export interface CreateAccountDto {
   segmentId?: string
   allowSending?: boolean
   allowReceiving?: boolean
-  status: {
-    code: string
-    description: string
-  }
-  metadata?: Record<string, any>
+  metadata?: MetadataDto
 }
 
-export interface AccountResponseDto {
+export type UpdateAccountDto = Partial<CreateAccountDto>
+
+export interface AccountDto {
   id: string
   ledgerId: string
   assetCode: string
@@ -30,26 +35,11 @@ export interface AccountResponseDto {
   parentAccountId: string
   portfolioId?: string | null
   segmentId: string
-  status: StatusDto
   allowSending?: boolean
   allowReceiving?: boolean
-  metadata: Record<string, any>
+  portfolio?: PortfolioDto
+  metadata: MetadataDto
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
-}
-
-export interface UpdateAccountDto {
-  assetCode?: string
-  name?: string
-  alias?: string
-  type?: string
-  entityId?: string
-  parentAccountId?: string
-  segmentId?: string
-  portfolioId?: string
-  allowSending?: boolean
-  allowReceiving?: boolean
-  status?: StatusDto
-  metadata?: Record<string, any>
 }

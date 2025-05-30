@@ -3,7 +3,14 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
-import { Building, HelpCircle, Settings, Users } from 'lucide-react'
+import {
+  Building,
+  Globe,
+  HelpCircle,
+  Layers,
+  Settings,
+  Users
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +21,7 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu'
 import { AboutMidazDialog } from './about-midaz-dialog'
-import { Enforce } from '@/context/permission-provider/enforce'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export const SettingsDropdown = () => {
   const intl = useIntl()
@@ -57,7 +64,23 @@ export const SettingsDropdown = () => {
               })}
             </DropdownMenuItem>
           </Enforce>
-          <DropdownMenuItem className="pl-10">
+          <Enforce resource="applications" action="get">
+            <DropdownMenuItem
+              onClick={() => router.push('/settings?tab=applications')}
+            >
+              <DropdownMenuItemIcon>
+                <Layers />
+              </DropdownMenuItemIcon>
+              {intl.formatMessage({
+                id: 'settingsDropdown.applications',
+                defaultMessage: 'Applications'
+              })}
+            </DropdownMenuItem>
+          </Enforce>
+          <DropdownMenuItem onClick={() => router.push('/settings?tab=system')}>
+            <DropdownMenuItemIcon>
+              <Globe />
+            </DropdownMenuItemIcon>
             {intl.formatMessage({
               id: 'settingsDropdown.system',
               defaultMessage: 'System'

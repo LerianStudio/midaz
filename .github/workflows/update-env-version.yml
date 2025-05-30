@@ -93,6 +93,12 @@ jobs:
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/mdz/.env.example
+      
+      # Update the version in the Console component's .env.example file
+      - name: Update CONSOLE Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version  # Only run if versions differ
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/console/.env.example
 
       # Update the version in the Chocolatey installation script
       - name: Update Version Choco version file install.ps1

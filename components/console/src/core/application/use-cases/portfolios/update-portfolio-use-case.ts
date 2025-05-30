@@ -1,13 +1,13 @@
-import { UpdatePortfolioRepository } from '@/core/domain/repositories/portfolios/update-portfolio-repository'
+import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
 import {
   CreatePortfolioDto,
-  PortfolioResponseDto,
+  PortfolioDto,
   UpdatePortfolioDto
-} from '../../dto/portfolios-dto'
+} from '../../dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface UpdatePortfolio {
   execute: (
@@ -15,14 +15,14 @@ export interface UpdatePortfolio {
     ledgerId: string,
     portfolioId: string,
     portfolio: Partial<UpdatePortfolioDto>
-  ) => Promise<PortfolioResponseDto>
+  ) => Promise<PortfolioDto>
 }
 
 @injectable()
 export class UpdatePortfolioUseCase implements UpdatePortfolio {
   constructor(
-    @inject(UpdatePortfolioRepository)
-    private readonly updatePortfolioRepository: UpdatePortfolioRepository
+    @inject(PortfolioRepository)
+    private readonly portfolioRepository: PortfolioRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -31,16 +31,12 @@ export class UpdatePortfolioUseCase implements UpdatePortfolio {
     ledgerId: string,
     portfolioId: string,
     portfolio: Partial<UpdatePortfolioDto>
-  ): Promise<PortfolioResponseDto> {
-    portfolio.status = {
-      code: 'ACTIVE',
-      description: 'Teste Portfolio'
-    }
+  ): Promise<PortfolioDto> {
     const portfolioEntity: Partial<PortfolioEntity> = PortfolioMapper.toDomain(
       portfolio as CreatePortfolioDto
     )
     const updatedPortfolio: PortfolioEntity =
-      await this.updatePortfolioRepository.update(
+      await this.portfolioRepository.update(
         organizationId,
         ledgerId,
         portfolioId,

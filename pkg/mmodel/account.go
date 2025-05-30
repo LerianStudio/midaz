@@ -113,6 +113,12 @@ type UpdateAccountInput struct {
 	// format: uuid
 	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid" format:"uuid"`
 
+	// Optional external identifier for linking to external systems
+	// required: false
+	// example: EXT-ACC-12345
+	// maxLength: 256
+	EntityID *string `json:"entityId" validate:"omitempty,max=256" example:"EXT-ACC-12345" maxLength:"256"`
+
 	// Updated status of the account
 	// required: false
 	Status Status `json:"status"`

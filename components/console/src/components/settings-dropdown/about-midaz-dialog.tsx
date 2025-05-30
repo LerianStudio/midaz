@@ -9,7 +9,7 @@ import {
 } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { useIntl } from 'react-intl'
-import midazLogo from '@/svg/brand-midaz.svg'
+import LerianFlag from '@/images/lerian-flag.jpg'
 
 export const AboutMidazDialog = ({ open, setOpen }: any) => {
   const intl = useIntl()
@@ -19,11 +19,11 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="w-fit justify-center gap-6 sm:max-w-[425px] [&>button]:hidden"
+        className="w-fit justify-center gap-6 p-4 sm:max-w-[425px] [&>button]:hidden"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <DialogHeader className="flex flex-col items-center">
-          <Image src={midazLogo} alt="Midaz Logo" width={112} height={112} />
+          <Image src={LerianFlag} alt="Lerian Flag" width={324} height={32} />
           <div className="flex flex-col gap-2">
             <DialogTitle className="text-lg font-bold text-zinc-900 sm:text-center">
               Midaz Console
@@ -35,10 +35,9 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
                     id: 'dialog.about.midaz.version',
                     defaultMessage: 'Version {version}'
                   },
-                  { version: '0.1' }
+                  { version: process.env.NEXT_PUBLIC_MIDAZ_VERSION }
                 )}
               </span>
-              <span>Build 947</span>
             </DialogDescription>
           </div>
 

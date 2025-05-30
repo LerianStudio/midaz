@@ -1,3 +1,258 @@
+## [v2.3.0-beta.2] - 2025-05-29
+
+### ✨ Features
+- Develop initial version of the first controller to enhance application modularity and functionality.
+
+### 🐛 Bug Fixes
+- Remove commented code from the codebase to improve code readability and maintainability.
+
+### 🔧 Maintenance
+- Update version in `.env.example` to v2.3.0 to reflect the latest release.
+
+## [v2.2.0-beta.62] - 2025-05-29
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement to ensure proper configuration
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.61] - 2025-05-29
+
+### ✨ Features
+- Enhance security measures to bolster system protection (#929)
+- Improve user experience with streamlined navigation and interface updates (#929)
+
+### 🔧 Maintenance
+- Conduct code refactoring to improve code quality and maintainability
+
+
+## [v2.2.0-beta.59] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Allow `entityId` and `segmentId` to be nullable in form schema, resolving issues related to data validation and form submission.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.58] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Resolve inconsistency when deleting organizations to ensure reliable operation.
+- Ensure form resets correctly when creating a new entity, improving user experience and preventing data entry errors.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes, providing users with a clear history of modifications and improvements.
+
+## [v2.2.0-beta.57] - 2025-05-28
+
+### ✨ Features
+- Enhance validation for passwords and usernames with stricter rules and improved tooltips
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.56] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Add environment version to `env.example` for console setup to ensure consistency in environment configuration
+- Update environment PR notification to improve clarity and effectiveness of communication
+
+## [v2.2.0-beta.54] - 2025-05-28
+
+### 🐛 Bug Fixes
+- Improve performance by avoiding balance fetch for destination account
+- Correct transaction sum display to ensure proper precision
+- Redirect users without a ledger to the appropriate page
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.53] - 2025-05-28
+
+### ✨ Features
+- Implement account count functionality
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+## [v2.2.0-beta.52] - 2025-05-28
+
+### ✨ Features
+- Implement segment count functionality to enhance data analysis capabilities.
+
+### 📚 Documentation
+- Generate API documentation including Swagger, OpenAPI, and Postman collections for better developer support and integration.
+
+### 🔧 Maintenance
+- Consolidate CHANGELOG updates to improve documentation consistency and reduce redundancy.
+
+### 🔧 Maintenance
+- Enhance type safety and form handling in organization form components to improve code reliability and maintainability.
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes
+
+## [v2.2.0-beta.51] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct issue with Select input functionality to ensure proper user interaction.
+- Resolve Prettier build problem to maintain code formatting standards.
+
+## [v2.2.0-beta.50] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct logic in user name validation to prevent validation errors.
+- Handle empty user name fields correctly and introduce an environment variable to enable authentication.
+
+## [v2.2.0-beta.49] - 2025-05-27
+
+### ✨ Features
+- Implement local Inter font for improved performance
+
+## [v2.2.0-beta.48] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Resolve issue with console context build to ensure proper functionality
+
+## [v2.2.0-beta.47] - 2025-05-27
+
+### ✨ Features
+- Remove external option to simplify configuration, streamlining the setup process and reducing complexity.
+
+### 🐛 Bug Fixes
+- Update translations for improved localization, ensuring accurate and consistent user interface language across different regions.
+
+## [v2.2.0-beta.45] - 2025-05-27
+
+### 🐛 Bug Fixes
+- Correct console context build issue to ensure proper functionality.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.44] - 2025-05-27
+
+### ✨ Features
+- Implement asset count functionality with API documentation
+- Add tests for asset management functionality
+- Add documentation for new features
+
+### 📚 Documentation
+- Update Postman collection for MIDAZ API
+- Update Swagger documentation for onboarding API
+
+## [v2.2.0-beta.42] - 2025-05-27
+
+### ✨ Features
+- Add authentication toggle support, allowing users to enable or disable authentication as needed.
+
+### 🗑️ Removed
+- Remove external network dependencies to streamline the application and reduce reliance on external services.
+
+## [v2.2.0-beta.40] - 2025-05-27
+
+### ✨ Features
+- Implement ledger count functionality with comprehensive tests and API documentation
+- Add capability to count ledgers by `organization_id`
+
+### 🔧 Maintenance
+- Update Postman collection for MIDAZ
+- Update CHANGELOG to reflect recent changes
+
+## [v2.2.0-beta.39] - 2025-05-27
+
+### ✨ Features
+- Add endpoint for organization count metrics, enhancing data visibility for organizational analysis.
+- Generate documentation for new API, providing detailed guidance on usage and integration.
+- Add mock and tests for new implementation, ensuring robustness and reliability of new features.
+
+### 🐛 Bug Fixes
+- Resolve Copilot warnings in the codebase, improving code quality and reducing potential errors.
+- Update `go.mod` and `go.sum` for dependency management, addressing compatibility and stability issues.
+
+### 🔧 Maintenance
+- Update OpenAPI and Swagger specifications for onboarding API, ensuring accurate API representation and ease of integration.
+- Update Postman collection for MIDAZ API, aligning with the latest API changes and improving testing capabilities.
+
+## [v2.2.0-beta.38] - 2025-05-26
+
+### ✨ Features
+- Add context to build components, enhancing the functionality and flexibility of component construction.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes and maintain accurate project documentation.
+
+## [v2.2.0-beta.37] - 2025-05-26
+
+### ✨ Features
+- Add organization tooltip and update title translations on the settings page for improved user experience.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
+## [v2.2.0-beta.36] - 2025-05-26
+
+### 🐛 Bug Fixes
+- Add 'omitempty' tag to optional struct fields to prevent serialization of empty values
+
+
+## [v2.2.0-beta.34] - 2025-05-23
+
+### ✨ Features
+- Implement Transactions Details v2.0 and create Transactions v2.0 for enhanced transaction management.
+- Rework back-end architecture to improve scalability and performance.
+- Implement application management features and API for streamlined application handling.
+- Create AccountBalanceCard component and autocomplete component for improved user interaction.
+- Add search accounts by alias functionality to enhance account lookup.
+- Implement back-end balances and application API integration for better data handling.
+- Add animation to PaperCollapsible and disabled functionality to Tooltip for enhanced UI experience.
+- Include error treatment for identity API and dependency injection on container-registry for robust error handling.
+- Set read-only on form fields based on user permissions to enhance security.
+- Update avatar UI to send base64 image to BFF and include organization avatar flow on organization use cases.
+- Implement multi-select on Users page and create SelectEmpty component for better user management.
+- Create IdentityGroup, MidazPortfolio, MidazSegment, MidazAccount, IdentityUser, MidazTransaction, and MidazOrganization mappers for efficient data mapping.
+- Add Node version management section to README and verify Node LTS version with shell script for improved development environment setup.
+- Implement HTTP service into repositories for consistent data handling.
+
+### 🐛 Bug Fixes
+- Adjust create and listing functionality to resolve data handling issues.
+- Improve applications management UI and API integration for better user experience.
+- Refine validation schema for optional account fields and fix account mapper issues.
+- Resolve build issues and transaction mapping problems.
+- Fix issue when running script on WSL and simplify readOnly component styling and behavior.
+- Update translation keys and standardize password field labels for consistency.
+- Resolve popover content scrolling issue in Sheet components with usePortal option.
+- Refactor and fix image format validation on UI layer for better error handling.
+- Implement organization avatar MongoDB model and error handling for improved data management.
+- Fix front-end redirect issue to sign page and ledger typing on front-end for smoother user navigation.
+- Adjust if statements and error messages for identity and auth for better error communication.
+
+### 📚 Documentation
+- Update console structure documentation and STRUCTURE.md with comprehensive architecture documentation for better developer guidance.
+
+### 🔧 Maintenance
+- Update packages and adjust package.json for dependency management.
+- Merge code from old repo refactor for codebase consolidation.
+- Clean up code and adjust naming consistency for improved code quality.
+- Update components/console/src/lib/intl/use-format-number.ts for better internationalization support.
+
+## [v2.2.0-beta.33] - 2025-05-23
+
+### 🔧 Maintenance
+- Update `github.com/gofiber/fiber` to the latest v2 version
+
+## [v2.2.0-beta.32] - 2025-05-23
+
+### 🐛 Bug Fixes
+- Reduce cognitive complexity by extracting `handleAccountFields` and add `isConcat` for array manipulation, improving code readability and maintainability.
+
+### 🔧 Maintenance
+- Update CHANGELOG to reflect recent changes.
+
 ## [v2.2.0-beta.31] - 2025-05-22
 
 ### ✨ Features

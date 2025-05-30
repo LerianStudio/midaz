@@ -33,6 +33,7 @@ type Repository interface {
 	FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	Count(ctx context.Context) (int64, error)
 }
 
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
@@ -463,4 +464,33 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	return nil
+}
+
+// Count retrieves the total count of organizations.
+func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_organizations")
+	defer span.End()
+
+	var count = int64(0)
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return count, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
+	defer spanQuery.End()
+
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM organization WHERE deleted_at IS NULL`).Scan(&count)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return count, err
+	}
+
+	return count, nil
 }

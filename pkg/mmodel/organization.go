@@ -41,7 +41,7 @@ type CreateOrganizationInput struct {
 	// required: false
 	// example: Lerian FS
 	// maxLength: 256
-	DoingBusinessAs *string `json:"doingBusinessAs" validate:"max=256" example:"Lerian FS" maxLength:"256"`
+	DoingBusinessAs *string `json:"doingBusinessAs" validate:"omitempty,max=256" example:"Lerian FS" maxLength:"256"`
 
 	// Official tax ID, company registration number, or other legal identification
 	// required: true

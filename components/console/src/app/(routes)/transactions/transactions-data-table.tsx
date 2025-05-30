@@ -34,28 +34,29 @@ import { isNil } from 'lodash'
 import { HelpCircle, MoreVertical } from 'lucide-react'
 import Link from 'next/link'
 import React from 'react'
-import { defineMessages, IntlShape, useIntl } from 'react-intl'
+import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { TransactionType } from '@/types/transactions-type'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { LedgerType } from '@/types/ledgers-type'
+import {
+  TransactionOperationDto,
+  TransactionDto
+} from '@/core/application/dto/transaction-dto'
+import { useFormatAmount } from '@/hooks/use-format-amount'
 
 type TransactionsDataTableProps = {
-  transactions: PaginationDto<TransactionType> | undefined
+  transactions: PaginationDto<TransactionDto> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
-  currentLedger: LedgerType
   onCreateTransaction: () => void
 }
 
 type TransactionsRowProps = {
-  transaction: Row<TransactionType>
-  currentLedger: LedgerType
+  transaction: Row<TransactionDto>
 }
 
 const multipleItemsMessages = defineMessages({
@@ -88,34 +89,25 @@ const statusMessages = defineMessages({
   }
 })
 
-const TransactionRow: React.FC<TransactionsRowProps> = ({
-  transaction,
-  currentLedger
-}) => {
+const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const intl = useIntl()
+  const { formatAmount } = useFormatAmount()
   const {
     status: { code },
     createdAt,
-    assetCode,
+    asset,
     source = [],
     destination = []
   } = transaction.original
 
   const badgeVariant = getBadgeVariant(code)
-  const numericValue = transaction.original.amount
-
-  const displayValue = intl.formatNumber(numericValue, {
-    minimumFractionDigits: transaction.original.amountScale,
-    maximumFractionDigits: transaction.original.amountScale
-  })
 
   const renderItemsList = (
-    items: string[],
-    type: 'source' | 'destination',
-    intl: IntlShape
+    items: TransactionOperationDto[],
+    type: 'source' | 'destination'
   ) => {
     if (items.length === 1) {
-      return <p>{String(items[0])}</p>
+      return <p>{String(items[0].accountAlias)}</p>
     }
     if (items.length === 0) {
       return null
@@ -134,7 +126,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({
             </TooltipTrigger>
             <TooltipContent className="max-w-80">
               <p className="text-shadcn-400">
-                {items.map((item) => String(item)).join(', ')}
+                {items.map((item) => item.accountAlias).join(', ')}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -143,8 +135,8 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({
     )
   }
 
-  const renderSource = renderItemsList(source, 'source', intl)
-  const renderDestination = renderItemsList(destination, 'destination', intl)
+  const renderSource = renderItemsList(source, 'source')
+  const renderDestination = renderItemsList(destination, 'destination')
 
   return (
     <React.Fragment>
@@ -163,8 +155,8 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({
           </Badge>
         </TableCell>
         <TableCell className="text-base font-medium text-zinc-600">
-          <span className="mr-2 text-xs font-normal">{assetCode}</span>
-          {capitalizeFirstLetter(displayValue)}
+          <span className="mr-2 text-xs font-normal">{asset}</span>
+          {formatAmount(transaction.original.amount)}
         </TableCell>
         <TableCell align="center">
           <DropdownMenu>
@@ -199,7 +191,6 @@ export const TransactionsDataTable = ({
   form,
   total,
   pagination,
-  currentLedger,
   onCreateTransaction
 }: TransactionsDataTableProps) => {
   const intl = useIntl()
@@ -297,7 +288,6 @@ export const TransactionsDataTable = ({
                   <TransactionRow
                     key={transaction.id}
                     transaction={transaction}
-                    currentLedger={currentLedger}
                   />
                 ))}
               </TableBody>

@@ -18,9 +18,10 @@ export const POST = applyMiddleware(
   async (request: Request) => {
     try {
       const createOnboardingOrganization: CreateOnboardingOrganization =
-        container.get<CreateOnboardingOrganization>(
+        await container.getAsync<CreateOnboardingOrganization>(
           CreateOnboardingOrganizationUseCase
         )
+
       const body = await request.json()
       const organization = await createOnboardingOrganization.execute(body)
 

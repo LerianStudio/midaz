@@ -1,29 +1,26 @@
-import { CreateTransactionRepository } from '@/core/domain/repositories/transactions/create-transaction-repository'
+import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
 import { TransactionMapper } from '../../mappers/transaction-mapper'
 import type {
   CreateTransactionDto,
-  TransactionResponseDto
+  TransactionDto
 } from '../../dto/transaction-dto'
-import {
-  TransactionCreateEntity,
-  TransactionEntity
-} from '@/core/domain/entities/transaction-entity'
-import { LogOperation } from '../../decorators/log-operation'
+import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface CreateTransaction {
   execute: (
     organizationId: string,
     ledgerId: string,
     transaction: CreateTransactionDto
-  ) => Promise<TransactionResponseDto>
+  ) => Promise<TransactionDto>
 }
 
 @injectable()
 export class CreateTransactionUseCase implements CreateTransaction {
   constructor(
-    @inject(CreateTransactionRepository)
-    private readonly createTransactionRepository: CreateTransactionRepository
+    @inject(TransactionRepository)
+    private readonly transactionRepository: TransactionRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -31,17 +28,17 @@ export class CreateTransactionUseCase implements CreateTransaction {
     organizationId: string,
     ledgerId: string,
     transaction: CreateTransactionDto
-  ): Promise<TransactionResponseDto> {
-    const transactionEntity: TransactionCreateEntity =
+  ): Promise<TransactionDto> {
+    const transactionEntity: TransactionEntity =
       TransactionMapper.toDomain(transaction)
 
-    const transactionCreated = await this.createTransactionRepository.create(
+    const transactionCreated = await this.transactionRepository.create(
       organizationId,
       ledgerId,
       transactionEntity
     )
 
-    const transactionResponseDto: TransactionResponseDto =
+    const transactionResponseDto: TransactionDto =
       TransactionMapper.toResponseDto(transactionCreated)
 
     return transactionResponseDto

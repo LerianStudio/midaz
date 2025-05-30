@@ -1,92 +1,33 @@
+import { MetadataEntity } from './metadata-entity'
 import { StatusEntity } from './status-entity'
 
-type TransactionSourceEntity = {
+type AmountEntity = {
+  value: number
+  scale: number
+}
+
+type TransactionSourceDto = {
   account: string
-  amount: {
-    asset: string
-    value: number
-    scale: number
-  }
-  share?: {
-    percentage: number
-    percentageOfPercentage: number
-  }
+  accountAlias?: string
+  asset: string
+  amount: AmountEntity
+  description?: string
   chartOfAccounts?: string
-  description?: string
-  metadata: Record<string, any> | null
-}
-
-export type TransactionUpdateEntity = {
-  description?: string
-  metadata?: Record<string, unknown>
-}
-
-export type TransactionCreateEntity = {
-  id?: string
-  description?: string
-  chartOfAccountsGroupName?: string
-  send: {
-    asset: string
-    value: number
-    scale: number
-    source: {
-      from: TransactionSourceEntity[]
-    }
-    distribute: {
-      to: TransactionSourceEntity[]
-    }
-  }
-  metadata: Record<string, any> | null
-}
-
-export type OperationEntity = {
-  id: string
-  transactionId: string
-  description: string
-  type: string
-  assetCode: string
-  chartOfAccounts: string
-  amount: {
-    amount: number
-    scale: number
-  }
-  balance: {
-    available: number
-    onHold: number
-    scale: number
-  }
-  balanceAfter: {
-    available: number
-    onHold: number
-    scale: number
-  }
-  status: StatusEntity
-  accountId: string
-  accountAlias: string
-  portfolioId?: string
-  organizationId: string
-  ledgerId: string
-  createdAt?: string
-  updatedAt?: string
-  deletedAt?: string
-  metadata?: Record<string, unknown>
+  metadata: MetadataEntity
 }
 
 export type TransactionEntity = {
-  id: string
-  description: string
-  template: string
-  status: StatusEntity
-  amount: number
-  amountScale: number
-  assetCode: string
-  chartOfAccountsGroupName: string
-  source: string[]
-  destination: string[]
-  ledgerId: string
-  organizationId: string
-  operations?: OperationEntity[]
-  metadata?: Record<string, unknown>
+  id?: string
+  ledgerId?: string
+  organizationId?: string
+  description?: string
+  chartOfAccountsGroupName?: string
+  status?: StatusEntity
+  amount: AmountEntity
+  asset: string
+  source: TransactionSourceDto[]
+  destination: TransactionSourceDto[]
+  metadata: MetadataEntity
   createdAt?: string
   updatedAt?: string
   deletedAt?: string

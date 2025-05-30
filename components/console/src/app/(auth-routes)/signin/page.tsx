@@ -1,29 +1,23 @@
 'use client'
 
+import React from 'react'
 import Image from 'next/image'
+import LoadingScreen from '@/components/loading-screen'
+import LerianLogo from '@/images/lerian-logo-outline.webp'
+import BackgroundImage from '@/images/bg-wallpaper.webp'
 import { Form } from '@/components/ui/form'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { signIn } from 'next-auth/react'
 import { auth } from '@/schema/auth'
 import { useIntl } from 'react-intl'
 import { InputField } from '@/components/form'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { ArrowRight } from 'lucide-react'
-import React from 'react'
-import LoadingScreen from '@/components/loading-screen'
-import MidazLogo from '@/images/midaz-login-screen.webp'
-import BackgroundImage from '@/images/login-wallpaper.webp'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip'
 import { useListOrganizations } from '@/client/organizations'
+import { useToast } from '@/hooks/use-toast'
 
 const FormSchema = z.object({
   username: auth.username,
@@ -40,14 +34,13 @@ const defaultValues = {
 const SignInPage = () => {
   const intl = useIntl()
   const route = useRouter()
+  const { toast } = useToast()
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues
   })
 
-  const { showError } = useCustomToast()
   const [isLoading, setIsLoading] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [redirectUrl, setRedirectUrl] = React.useState<string | null>(null)
 
   const { data: organizationsData, isLoading: orgLoading } =
@@ -66,8 +59,6 @@ const SignInPage = () => {
   }, [isLoading, orgLoading, organizationsData])
 
   const onSubmit = async (values: FormData) => {
-    setIsSubmitting(true)
-
     const result = await signIn('credentials', {
       ...values,
       redirect: false
@@ -75,17 +66,16 @@ const SignInPage = () => {
 
     if (result?.error) {
       console.error('Login error ->', result)
-      showError(
-        intl.formatMessage({
+      toast({
+        description: intl.formatMessage({
           id: 'signIn.toast.error',
           defaultMessage: 'Invalid credentials.'
-        })
-      )
-      setIsSubmitting(false)
+        }),
+        variant: 'destructive'
+      })
       return
     }
 
-    setIsSubmitting(false)
     setIsLoading(true)
   }
 
@@ -151,28 +141,6 @@ const SignInPage = () => {
                     id: 'signIn.placeholderPassword',
                     defaultMessage: '******'
                   })}
-                  labelExtra={
-                    <TooltipProvider>
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger>
-                          <span className="cursor-pointer text-sm font-medium text-slate-900 underline">
-                            {intl.formatMessage({
-                              id: 'entity.auth.reset.password',
-                              defaultMessage: 'I forgot the password'
-                            })}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            {intl.formatMessage({
-                              id: 'tooltip.passwordInfo',
-                              defaultMessage: 'Contact the system administrator'
-                            })}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  }
                 />
 
                 <LoadingButton
@@ -202,9 +170,9 @@ const SignInPage = () => {
           sizes="50vw, 100vh"
           className="object-cover"
         />
-        <div className="absolute inset-0 bg-black bg-opacity-50"></div>
+
         <div className="relative z-10">
-          <Image alt="Midaz Logo" src={MidazLogo} width={150} height={150} />
+          <Image alt="Lerian Logo" src={LerianLogo} width={240} height={240} />
         </div>
       </div>
     </div>

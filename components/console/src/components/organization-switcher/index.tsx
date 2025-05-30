@@ -1,21 +1,15 @@
 'use client'
 import { useListOrganizations } from '@/client/organizations'
 import { Popover } from '@/components/ui/popover'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
-import { useTheme } from '@/lib/theme'
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import React, { useEffect } from 'react'
 import { useIntl } from 'react-intl'
 import { useSidebar } from '../sidebar/primitive'
 import { Skeleton } from '../ui/skeleton'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { OrganizationSwitcherContent } from './organization-switcher-content'
 import { SwitcherTrigger } from './organization-switcher-trigger'
-import MidazLogo from '/public/svg/brand-midaz.svg'
-
-/**
- * TODO: Fix potential bug of user changing the organization and still having old stale data in the UI
- * @returns
- */
+import LerianLogo from '@/svg/lerian-logo.svg'
 
 export const OrganizationSwitcher = () => {
   const intl = useIntl()
@@ -23,19 +17,19 @@ export const OrganizationSwitcher = () => {
   const { data, isPending } = useListOrganizations({})
   const { currentOrganization, setOrganization } = useOrganization()
   const [open, setOpen] = React.useState(false)
-  const [avatar, setAvatar] = React.useState<string>(MidazLogo)
+  const [avatar, setAvatar] = React.useState<string>(LerianLogo)
 
-  const handleChange = (organization: OrganizationEntity) => {
+  const handleChange = (organization: OrganizationResponseDto) => {
     setOrganization(organization)
     setOpen(false)
   }
 
   useEffect(() => {
-    if (currentOrganization.metadata?.avatar) {
-      return setAvatar(currentOrganization.metadata.avatar)
+    if (currentOrganization.avatar) {
+      return setAvatar(currentOrganization.avatar)
     }
 
-    setAvatar(MidazLogo)
+    setAvatar(LerianLogo)
   }, [currentOrganization])
 
   if ((isPending && !data) || !currentOrganization) {

@@ -1,24 +1,23 @@
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
-import { AssetResponseDto } from '../../dto/asset-response-dto'
-import { CreateAssetRepository } from '@/core/domain/repositories/assets/create-asset-repository'
-import type { CreateAssetDto } from '../../dto/create-asset-dto'
+import { AssetRepository } from '@/core/domain/repositories/asset-repository'
+import type { CreateAssetDto, AssetDto } from '../../dto/asset-dto'
 import { inject, injectable } from 'inversify'
 import { AssetMapper } from '../../mappers/asset-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface CreateAsset {
   execute: (
     organizationId: string,
     ledgerId: string,
     asset: CreateAssetDto
-  ) => Promise<AssetResponseDto>
+  ) => Promise<AssetDto>
 }
 
 @injectable()
 export class CreateAssetUseCase implements CreateAsset {
   constructor(
-    @inject(CreateAssetRepository)
-    private readonly createAssetRepository: CreateAssetRepository
+    @inject(AssetRepository)
+    private readonly assetRepository: AssetRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -26,10 +25,10 @@ export class CreateAssetUseCase implements CreateAsset {
     organizationId: string,
     ledgerId: string,
     asset: CreateAssetDto
-  ): Promise<AssetResponseDto> {
+  ): Promise<AssetDto> {
     const assetEntity: AssetEntity = AssetMapper.toDomain(asset)
 
-    const assetCreated = await this.createAssetRepository.create(
+    const assetCreated = await this.assetRepository.create(
       organizationId,
       ledgerId,
       assetEntity

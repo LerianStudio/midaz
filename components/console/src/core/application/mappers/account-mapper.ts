@@ -1,6 +1,6 @@
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import {
-  AccountResponseDto,
+  AccountDto,
   CreateAccountDto,
   UpdateAccountDto
 } from '../dto/account-dto'
@@ -11,23 +11,19 @@ import { BalanceEntity } from '@/core/domain/entities/balance-entity'
 export class AccountMapper {
   public static toDto(
     account: AccountEntity & Partial<BalanceEntity>
-  ): AccountResponseDto {
+  ): AccountDto {
     return {
       id: account.id!,
       entityId: account.entityId!,
       ledgerId: account.ledgerId!,
       organizationId: account.organizationId!,
       name: account.name,
-      status: {
-        ...account.status,
-        description: account.status.description ?? ''
-      },
       type: account.type,
       metadata: account.metadata ?? {},
       createdAt: account.createdAt!,
       updatedAt: account.updatedAt!,
       deletedAt: account.deletedAt ?? null,
-      alias: account.alias,
+      alias: account.alias!,
       assetCode: account.assetCode,
       parentAccountId: account.parentAccountId!,
       segmentId: account.segmentId!,
@@ -41,22 +37,21 @@ export class AccountMapper {
     dto: CreateAccountDto | UpdateAccountDto
   ): AccountEntity {
     return {
-      entityId: dto.entityId,
+      entityId: dto.entityId!,
       alias: dto.alias!,
       name: dto.name!,
       type: dto.type!,
       assetCode: dto.assetCode!,
-      status: dto.status!,
-      parentAccountId: dto.parentAccountId,
+      parentAccountId: dto.parentAccountId!,
       segmentId: dto.segmentId,
-      portfolioId: dto.portfolioId,
+      portfolioId: dto.portfolioId!,
       metadata: dto.metadata ?? {}
     }
   }
 
   static toPaginationResponseDto(
     result: PaginationEntity<AccountEntity>
-  ): PaginationEntity<AccountResponseDto> {
+  ): PaginationEntity<AccountDto> {
     return PaginationMapper.toResponseDto(result, AccountMapper.toDto)
   }
 }

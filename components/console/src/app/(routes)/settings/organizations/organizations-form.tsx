@@ -4,7 +4,7 @@ import React from 'react'
 import type { OrganizationsType } from '@/types/organizations-type'
 import { Card } from '@/components/card'
 import { Separator } from '@/components/ui/separator'
-import { CardContent, CardFooter } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -29,7 +29,10 @@ import {
   PaperCollapsibleBanner,
   PaperCollapsibleContent
 } from '@/components/transactions/primitives/paper-collapsible'
-import { usePopulateForm } from '@/lib/form'
+import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
+import { PageFooter, PageFooterSection } from '@/components/page-footer'
 
 type OrganizationsViewProps = {
   data?: OrganizationsType
@@ -48,7 +51,9 @@ const formSchema = z.object({
   avatar: organization.avatar
 })
 
-const defaultValues = {
+const initialValues: OrganizationFormData = {
+  id: '',
+  parentOrganizationId: '',
   legalName: '',
   doingBusinessAs: '',
   legalDocument: '',
@@ -67,29 +72,16 @@ const defaultValues = {
 
 const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   ...data,
-  accentColor: data?.metadata?.accentColor,
-  avatar: data?.metadata?.avatar,
-  metadata:
-    omit(data?.metadata, ['accentColor', 'avatar']) || defaultValues.metadata
+  metadata: data?.metadata || initialValues.metadata
 })
 
 const parseInputData = (data?: OrganizationsType) =>
-  Object.assign({}, defaultValues, parseInputMetadata(omit(data, ['status'])))
+  Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
-const parseMetadata = (data?: Partial<OrganizationFormData>) => ({
-  ...omit(data, ['accentColor', 'avatar']),
-  metadata: {
-    ...data?.metadata,
-    accentColor: data?.accentColor,
-    avatar: data?.avatar
-  }
-})
-
-export const parseCreateData = (data?: OrganizationFormData) =>
-  parseMetadata(data)
+export const parseCreateData = (data?: OrganizationFormData) => data
 
 export const parseUpdateData = (data?: OrganizationFormData) =>
-  parseMetadata(omit(data, ['id', 'legalDocument']))
+  omit(data, ['id', 'legalDocument'])
 
 export type OrganizationFormData = z.infer<typeof formSchema>
 
@@ -100,11 +92,13 @@ export const OrganizationsForm = ({
   const intl = useIntl()
   const router = useRouter()
   const isNewOrganization = !data
+  const { isReadOnly } = useFormPermissions('organizations')
 
   const { mutate: createOrganization, isPending: createPending } =
     useCreateOrganization({
       onSuccess
     })
+
   const { mutate: updateOrganization, isPending: updatePending } =
     useUpdateOrganization({
       organizationId: data?.id!,
@@ -113,7 +107,8 @@ export const OrganizationsForm = ({
 
   const form = useForm<OrganizationFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: parseInputData(data!)
+    values: getInitialValues(initialValues, parseInputData(data)),
+    defaultValues: initialValues
   })
 
   const metadataValue = form.watch('metadata')
@@ -126,302 +121,317 @@ export const OrganizationsForm = ({
     }
   }
 
-  usePopulateForm(form, data)
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <div className="mb-16 flex gap-6">
-          <div className="grow space-y-6">
-            <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow">
-              <Card.Header
-                title={
-                  isNewOrganization
+      <div className="mb-16 flex gap-6">
+        <div className="grow space-y-6">
+          <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow">
+            <Card.Header
+              title={
+                isNewOrganization
+                  ? intl.formatMessage({
+                      id: 'organizations.organizationForm.newOrganization.description',
+                      defaultMessage:
+                        'Fill in the details of the Organization you wish to create.'
+                    })
+                  : isReadOnly
                     ? intl.formatMessage({
-                        id: 'organizations.organizationForm.newOrganization.description',
+                        id: 'organizations.organizationForm.viewOrganization.description',
                         defaultMessage:
-                          'Fill in the details of the Organization you wish to create.'
+                          'View the Organization fields in read-only mode.'
                       })
                     : intl.formatMessage({
                         id: 'organizations.organizationForm.editOrganization.description',
                         defaultMessage: 'View and edit the Organization fields.'
                       })
-                }
-                className="space-x-0 space-y-0 p-6 text-sm font-medium normal-case text-zinc-400"
-              />
-              <Separator />
+              }
+              className="space-x-0 space-y-0 p-6 text-sm font-medium normal-case text-zinc-400"
+            />
+            <Separator />
 
-              <CardContent className="grid grid-cols-2 gap-5 p-6">
-                {!isNewOrganization && (
-                  <InputField
-                    name="id"
-                    label={intl.formatMessage({
-                      id: 'entity.organization.id',
-                      defaultMessage: 'Organization ID'
-                    })}
-                    placeholder={intl.formatMessage({
-                      id: 'common.typePlaceholder',
-                      defaultMessage: 'Type...'
-                    })}
-                    control={form.control}
-                    readOnly
-                  />
-                )}
-
+            <CardContent className="grid grid-cols-2 gap-5 p-6">
+              {!isNewOrganization && (
                 <InputField
-                  name="legalName"
+                  name="id"
                   label={intl.formatMessage({
-                    id: 'entity.organization.legalName',
-                    defaultMessage: 'Legal Name'
+                    id: 'entity.organization.id',
+                    defaultMessage: 'Organization ID'
                   })}
                   placeholder={intl.formatMessage({
                     id: 'common.typePlaceholder',
                     defaultMessage: 'Type...'
                   })}
                   control={form.control}
+                  readOnly
                 />
+              )}
 
-                <InputField
-                  name="doingBusinessAs"
-                  label={intl.formatMessage({
-                    id: 'entity.organization.doingBusinessAs',
-                    defaultMessage: 'Trade Name'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                />
-
-                <InputField
-                  name="legalDocument"
-                  label={intl.formatMessage({
-                    id: 'entity.organization.legalDocument',
-                    defaultMessage: 'Document'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                  readOnly={!isNewOrganization}
-                />
-              </CardContent>
-
-              <Separator />
-
-              <CardContent className="grid grid-cols-2 gap-5 p-6">
-                <InputField
-                  name="address.line1"
-                  label={intl.formatMessage({
-                    id: 'entity.address',
-                    defaultMessage: 'Address'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                />
-
-                <InputField
-                  name="address.line2"
-                  label={intl.formatMessage({
-                    id: 'entity.address.complement',
-                    defaultMessage: 'Complement'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                />
-
-                <CountryField
-                  name="address.country"
-                  label={intl.formatMessage({
-                    id: 'entity.address.country',
-                    defaultMessage: 'Country'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.selectPlaceholder',
-                    defaultMessage: 'Select...'
-                  })}
-                  control={form.control}
-                />
-
-                <StateField
-                  name="address.state"
-                  label={intl.formatMessage({
-                    id: 'entity.address.state',
-                    defaultMessage: 'State'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.selectPlaceholder',
-                    defaultMessage: 'Select...'
-                  })}
-                  control={form.control}
-                />
-
-                <InputField
-                  name="address.city"
-                  label={intl.formatMessage({
-                    id: 'entity.address.city',
-                    defaultMessage: 'City'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                />
-
-                <InputField
-                  name="address.zipCode"
-                  label={intl.formatMessage({
-                    id: 'entity.address.zipCode',
-                    defaultMessage: 'ZIP Code'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.typePlaceholder',
-                    defaultMessage: 'Type...'
-                  })}
-                  control={form.control}
-                />
-              </CardContent>
-
-              <Separator />
-
-              <CardContent className="grid grid-cols-2 gap-5 p-6">
-                <OrganizationsFormParentIdField
-                  name="parentOrganizationId"
-                  label={intl.formatMessage({
-                    id: 'entity.organization.parentOrganization',
-                    defaultMessage: 'Parent Organization'
-                  })}
-                  placeholder={intl.formatMessage({
-                    id: 'common.selectPlaceholder',
-                    defaultMessage: 'Select...'
-                  })}
-                  description={intl.formatMessage({
-                    id: 'organizations.organizationForm.parentOrganizationText',
-                    defaultMessage:
-                      'Select if your Organization is affiliated with another'
-                  })}
-                  control={form.control}
-                />
-              </CardContent>
-            </Card.Root>
-
-            <PaperCollapsible className="mb-32">
-              <PaperCollapsibleBanner className="flex items-center justify-between">
-                <p className="text-lg font-medium normal-case text-zinc-600">
-                  {intl.formatMessage({
-                    id: 'common.metadata',
-                    defaultMessage: 'Metadata'
-                  })}
-                </p>
-                <p className="text-xs italic text-shadcn-400">
-                  {intl.formatMessage(
-                    {
-                      id: 'organizations.organizationForm.metadataRegisterCountText',
-                      defaultMessage:
-                        '{count} added {count, plural, =0 {records} one {record} other {records}}'
-                    },
-                    {
-                      count: Object.entries(metadataValue || 0).length
-                    }
-                  )}
-                </p>
-              </PaperCollapsibleBanner>
-              <PaperCollapsibleContent>
-                <Separator orientation="horizontal" />
-                <div className="p-6">
-                  <MetadataField name="metadata" control={form.control} />
-                </div>
-              </PaperCollapsibleContent>
-            </PaperCollapsible>
-          </div>
-
-          <div className="grow space-y-6">
-            <Card.Root className="p-6 shadow">
-              <Card.Header
-                className="text-md w-full font-medium normal-case text-zinc-600"
-                title={intl.formatMessage({
-                  id: 'entity.organization.avatar',
-                  defaultMessage: 'Avatar'
+              <InputField
+                name="legalName"
+                label={intl.formatMessage({
+                  id: 'entity.organization.legalName',
+                  defaultMessage: 'Legal Name'
                 })}
-              />
-
-              <CardContent className="p-0">
-                <OrganizationsFormAvatarField
-                  name="avatar"
-                  description={intl.formatMessage({
-                    id: 'organizations.organizationForm.avatarInformationText',
-                    defaultMessage:
-                      'Organization Symbol, which will be applied in the UI. \nFormat: SVG or PNG, 512x512 px.'
-                  })}
-                  control={form.control}
-                />
-              </CardContent>
-            </Card.Root>
-
-            <Card.Root className="hidden p-6 shadow">
-              <Card.Header
-                className="text-sm font-medium text-zinc-600"
-                title={intl.formatMessage({
-                  id: 'entity.organization.accentColor',
-                  defaultMessage: 'Accent Color'
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
                 })}
+                control={form.control}
+                readOnly={isReadOnly}
               />
 
-              <CardContent className="flex items-start justify-start gap-2 rounded-lg p-0">
-                <OrganizationsFormColorField
-                  name="accentColor"
-                  description={intl.formatMessage({
-                    id: 'organizations.organizationForm.accentColorInformationText',
-                    defaultMessage:
-                      'Brand color, which will be used specifically in the UI. \nFormat: Hexadecimal/HEX (Ex. #FF0000);'
-                  })}
-                  control={form.control}
-                />
-              </CardContent>
-            </Card.Root>
-          </div>
-        </div>
+              <InputField
+                name="doingBusinessAs"
+                label={intl.formatMessage({
+                  id: 'entity.organization.doingBusinessAs',
+                  defaultMessage: 'Trade Name'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
 
-        <div className="relative h-10">
-          <CardFooter className="absolute inset-x-0 mb-20 inline-flex items-center justify-end gap-6 self-baseline rounded-none bg-white p-8 shadow">
-            <div className="mr-10 flex items-center justify-end gap-6">
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={() => router.back()}
-              >
+              <InputField
+                name="legalDocument"
+                label={intl.formatMessage({
+                  id: 'entity.organization.legalDocument',
+                  defaultMessage: 'Document'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={!isNewOrganization || isReadOnly}
+              />
+            </CardContent>
+
+            <Separator />
+
+            <CardContent className="grid grid-cols-2 gap-5 p-6">
+              <InputField
+                name="address.line1"
+                label={intl.formatMessage({
+                  id: 'entity.address',
+                  defaultMessage: 'Address'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+
+              <InputField
+                name="address.line2"
+                label={intl.formatMessage({
+                  id: 'entity.address.complement',
+                  defaultMessage: 'Complement'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+
+              <CountryField
+                name="address.country"
+                label={intl.formatMessage({
+                  id: 'entity.address.country',
+                  defaultMessage: 'Country'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.selectPlaceholder',
+                  defaultMessage: 'Select...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+
+              <StateField
+                name="address.state"
+                label={intl.formatMessage({
+                  id: 'entity.address.state',
+                  defaultMessage: 'State'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.selectPlaceholder',
+                  defaultMessage: 'Select...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+
+              <InputField
+                name="address.city"
+                label={intl.formatMessage({
+                  id: 'entity.address.city',
+                  defaultMessage: 'City'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+
+              <InputField
+                name="address.zipCode"
+                label={intl.formatMessage({
+                  id: 'entity.address.zipCode',
+                  defaultMessage: 'ZIP Code'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.typePlaceholder',
+                  defaultMessage: 'Type...'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+            </CardContent>
+
+            <Separator />
+
+            <CardContent className="grid grid-cols-2 gap-5 p-6">
+              <OrganizationsFormParentIdField
+                name="parentOrganizationId"
+                label={intl.formatMessage({
+                  id: 'entity.organization.parentOrganization',
+                  defaultMessage: 'Parent Organization'
+                })}
+                placeholder={intl.formatMessage({
+                  id: 'common.selectPlaceholder',
+                  defaultMessage: 'Select...'
+                })}
+                description={intl.formatMessage({
+                  id: 'organizations.organizationForm.parentOrganizationText',
+                  defaultMessage:
+                    'Select if your Organization is affiliated with another'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+            </CardContent>
+          </Card.Root>
+
+          <PaperCollapsible className="mb-32">
+            <PaperCollapsibleBanner className="flex items-center justify-between">
+              <p className="text-lg font-medium normal-case text-zinc-600">
                 {intl.formatMessage({
-                  id: 'common.cancel',
-                  defaultMessage: 'Cancel'
+                  id: 'common.metadata',
+                  defaultMessage: 'Metadata'
                 })}
-              </Button>
-              <LoadingButton
-                type="submit"
-                loading={createPending || updatePending}
-              >
-                {isNewOrganization
-                  ? intl.formatMessage({
-                      id: 'organizations.organizationForm.createOrganization',
-                      defaultMessage: 'Create Organization'
-                    })
-                  : intl.formatMessage({
-                      id: 'common.save',
-                      defaultMessage: 'Save'
-                    })}
-              </LoadingButton>
-            </div>
-          </CardFooter>
+              </p>
+              <p className="text-xs italic text-shadcn-400">
+                {intl.formatMessage(
+                  {
+                    id: 'organizations.organizationForm.metadataRegisterCountText',
+                    defaultMessage:
+                      '{count} added {count, plural, =0 {records} one {record} other {records}}'
+                  },
+                  {
+                    count: Object.entries(metadataValue || 0).length
+                  }
+                )}
+              </p>
+            </PaperCollapsibleBanner>
+            <PaperCollapsibleContent>
+              <Separator orientation="horizontal" />
+              <div className="p-6">
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
+              </div>
+            </PaperCollapsibleContent>
+          </PaperCollapsible>
         </div>
-      </form>
+
+        <div className="grow space-y-6">
+          <Card.Root className="p-6 shadow">
+            <Card.Header
+              className="text-md w-full font-medium normal-case text-zinc-600"
+              title={intl.formatMessage({
+                id: 'entity.organization.avatar',
+                defaultMessage: 'Avatar'
+              })}
+            />
+
+            <CardContent className="p-0">
+              <OrganizationsFormAvatarField
+                name="avatar"
+                description={intl.formatMessage({
+                  id: 'organizations.organizationForm.avatarInformationText',
+                  defaultMessage:
+                    'Organization Symbol, which will be applied in the UI. \nFormat: SVG or PNG, 512x512 px.'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+            </CardContent>
+          </Card.Root>
+
+          <Card.Root className="hidden p-6 shadow">
+            <Card.Header
+              className="text-sm font-medium text-zinc-600"
+              title={intl.formatMessage({
+                id: 'entity.organization.accentColor',
+                defaultMessage: 'Accent Color'
+              })}
+            />
+
+            <CardContent className="flex items-start justify-start gap-2 rounded-lg p-0">
+              <OrganizationsFormColorField
+                name="accentColor"
+                description={intl.formatMessage({
+                  id: 'organizations.organizationForm.accentColorInformationText',
+                  defaultMessage:
+                    'Brand color, which will be used specifically in the UI. \nFormat: Hexadecimal/HEX (Ex. #FF0000);'
+                })}
+                control={form.control}
+                readOnly={isReadOnly}
+              />
+            </CardContent>
+          </Card.Root>
+        </div>
+      </div>
+
+      <PageFooter open={form.formState.isDirty}>
+        <PageFooterSection>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => router.back()}
+          >
+            {intl.formatMessage({
+              id: 'common.cancel',
+              defaultMessage: 'Cancel'
+            })}
+          </Button>
+        </PageFooterSection>
+        <PageFooterSection>
+          <Enforce resource="organizations" action="post, patch">
+            <LoadingButton
+              type="submit"
+              onClick={form.handleSubmit(handleSubmit)}
+              loading={createPending || updatePending}
+            >
+              {intl.formatMessage({
+                id: 'common.save',
+                defaultMessage: 'Save'
+              })}
+            </LoadingButton>
+          </Enforce>
+        </PageFooterSection>
+      </PageFooter>
     </Form>
   )
 }

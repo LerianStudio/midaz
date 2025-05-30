@@ -14,20 +14,22 @@ import { Form } from '@/components/ui/form'
 import { useIntl } from 'react-intl'
 import { useCreatePortfolio, useUpdatePortfolio } from '@/client/portfolios'
 import { DialogProps } from '@radix-ui/react-dialog'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolios-dto'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { MetadataField } from '@/components/form/metadata-field'
 import { InputField } from '@/components/form'
 import { portfolio } from '@/schema/portfolio'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import useCustomToast from '@/hooks/use-custom-toast'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { useToast } from '@/hooks/use-toast'
+import { getInitialValues } from '@/lib/form'
+import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export type PortfolioSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data?: PortfolioResponseDto | null
+  data?: PortfolioDto | null
   onSuccess?: () => void
 }
 
@@ -54,7 +56,8 @@ export const PortfolioSheet = ({
 }: PortfolioSheetProps) => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
+  const { isReadOnly } = useFormPermissions('portfolios')
 
   const { mutate: createPortfolio, isPending: createPending } =
     useCreatePortfolio({
@@ -63,21 +66,14 @@ export const PortfolioSheet = ({
       onSuccess: () => {
         onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage({
-            id: 'portfolios.toast.create.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.portfolios.create',
             defaultMessage: 'Portfolio successfully created'
-          })
-        )
-      },
-      onError: () => {
-        onOpenChange?.(false)
-        showError(
-          intl.formatMessage({
-            id: 'portfolios.toast.create.error',
-            defaultMessage: 'Error creating Portfolio'
-          })
-        )
+          }),
+          variant: 'success'
+        })
+        form.reset()
       }
     })
 
@@ -89,29 +85,21 @@ export const PortfolioSheet = ({
       onSuccess: () => {
         onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage({
-            id: 'portfolios.toast.update.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.portfolios.update',
             defaultMessage: 'Portfolio changes saved successfully'
-          })
-        )
-      },
-      onError: () => {
-        onOpenChange?.(false)
-        showError(
-          intl.formatMessage({
-            id: 'portfolios.toast.update.error',
-            defaultMessage: 'Error updating Portfolio'
-          })
-        )
+          }),
+          variant: 'success'
+        })
       }
     })
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const handleSubmit = (values: FormData) => {
     if (mode === 'create') {
@@ -121,8 +109,6 @@ export const PortfolioSheet = ({
       updatePortfolio(data)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <React.Fragment>
@@ -160,10 +146,15 @@ export const PortfolioSheet = ({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {intl.formatMessage({
-                  id: 'ledgers.portfolio.sheet.edit.description',
-                  defaultMessage: 'View and edit segment fields.'
-                })}
+                {isReadOnly
+                  ? intl.formatMessage({
+                      id: 'ledgers.portfolio.sheet.edit.description.readonly',
+                      defaultMessage: 'View portfolio fields in read-only mode.'
+                    })
+                  : intl.formatMessage({
+                      id: 'ledgers.portfolio.sheet.edit.description',
+                      defaultMessage: 'View and edit segment fields.'
+                    })}
               </SheetDescription>
             </SheetHeader>
           )}
@@ -197,6 +188,7 @@ export const PortfolioSheet = ({
                         defaultMessage: 'Portfolio Name'
                       })}
                       control={form.control}
+                      readOnly={isReadOnly}
                       required
                     />
 
@@ -213,6 +205,7 @@ export const PortfolioSheet = ({
                             'Enter the unique identifier for the entity associated with this portfolio'
                         })}
                         control={form.control}
+                        readOnly={isReadOnly}
                       />
                     )}
                     <p className="text-xs font-normal italic text-shadcn-400">
@@ -224,23 +217,28 @@ export const PortfolioSheet = ({
                   </div>
                 </TabsContent>
                 <TabsContent value="metadata">
-                  <MetadataField name="metadata" control={form.control} />
+                  <MetadataField
+                    name="metadata"
+                    control={form.control}
+                    readOnly={isReadOnly}
+                  />
                 </TabsContent>
               </Tabs>
 
               <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <LoadingButton
-                  size="lg"
-                  type="submit"
-                  disabled={!isDirty}
-                  fullWidth
-                  loading={createPending || updatePending}
-                >
-                  {intl.formatMessage({
-                    id: 'common.save',
-                    defaultMessage: 'Save'
-                  })}
-                </LoadingButton>
+                <Enforce resource="portfolios" action="post, patch">
+                  <LoadingButton
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={createPending || updatePending}
+                  >
+                    {intl.formatMessage({
+                      id: 'common.save',
+                      defaultMessage: 'Save'
+                    })}
+                  </LoadingButton>
+                </Enforce>
               </SheetFooter>
             </form>
           </Form>

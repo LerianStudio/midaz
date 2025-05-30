@@ -1,35 +1,40 @@
-import { UpdateLedgerRepository } from '@/core/domain/repositories/ledgers/update-ledger-repository'
-import { LedgerResponseDto } from '../../dto/ledger-response-dto'
-import { UpdateLedgerDto } from '../../dto/update-ledger-dto'
+import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
+import type {
+  UpdateLedgerDto,
+  LedgerDto,
+  CreateLedgerDto
+} from '../../dto/ledger-dto'
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface UpdateLedger {
   execute: (
     organizationId: string,
     ledgerId: string,
-    ledger: Partial<UpdateLedgerDto>
-  ) => Promise<LedgerResponseDto>
+    ledger: UpdateLedgerDto
+  ) => Promise<LedgerDto>
 }
 
 @injectable()
 export class UpdateLedgerUseCase implements UpdateLedger {
   constructor(
-    @inject(UpdateLedgerRepository)
-    private readonly updateLedgerRepository: UpdateLedgerRepository
+    @inject(LedgerRepository)
+    private readonly ledgerRepository: LedgerRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(
     organizationId: string,
     ledgerId: string,
-    ledger: Partial<UpdateLedgerDto>
-  ): Promise<LedgerResponseDto> {
-    const ledgerEntity: Partial<LedgerEntity> = LedgerMapper.toDomain(ledger)
+    ledger: UpdateLedgerDto
+  ): Promise<LedgerDto> {
+    const ledgerEntity: Partial<LedgerEntity> = LedgerMapper.toDomain(
+      ledger as CreateLedgerDto
+    )
 
-    const updatedLedgerEntity = await this.updateLedgerRepository.update(
+    const updatedLedgerEntity = await this.ledgerRepository.update(
       organizationId,
       ledgerId,
       ledgerEntity

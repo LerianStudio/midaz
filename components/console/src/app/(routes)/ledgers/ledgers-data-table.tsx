@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyResource } from '@/components/empty-resource'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, Minus, HelpCircle } from 'lucide-react'
+import { MoreVertical, HelpCircle } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -31,7 +31,7 @@ import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet
 import { EntityDataTable } from '@/components/entity-data-table'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { Table as ReactTableType } from '@tanstack/react-table'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-response-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
@@ -39,11 +39,11 @@ import { AssetsSheet } from '../assets/assets-sheet'
 import { IdTableCell } from '@/components/table/id-table-cell'
 
 type LedgersTableProps = {
-  ledgers: PaginationDto<LedgerResponseDto> | undefined
-  table: ReactTableType<LedgerResponseDto>
+  ledgers: PaginationDto<LedgerDto> | undefined
+  table: ReactTableType<LedgerDto>
   handleDialogOpen: (id: string, name: string) => void
   handleCreate: () => void
-  handleEdit: (ledger: LedgerResponseDto) => void
+  handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
   form: UseFormReturn<any>
   total: number
@@ -51,9 +51,9 @@ type LedgersTableProps = {
 }
 
 type LedgerRowProps = {
-  ledger: { id: string; original: LedgerResponseDto }
+  ledger: { id: string; original: LedgerDto }
   handleDialogOpen: (id: string, name: string) => void
-  handleEdit: (ledger: LedgerResponseDto) => void
+  handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
 }
 
@@ -130,19 +130,15 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
         <TableCell>{ledger.original.name}</TableCell>
         <TableCell>{renderAssets()}</TableCell>
         <TableCell>
-          {metadataCount === 0 ? (
-            <Minus size={20} />
-          ) : (
-            intl.formatMessage(
-              {
-                id: 'common.table.metadata',
-                defaultMessage:
-                  '{number, plural, =0 {-} one {# record} other {# records}}'
-              },
-              {
-                number: metadataCount
-              }
-            )
+          {intl.formatMessage(
+            {
+              id: 'common.table.metadata',
+              defaultMessage:
+                '{number, plural, =0 {-} one {# record} other {# records}}'
+            },
+            {
+              number: metadataCount
+            }
           )}
         </TableCell>
         <TableCell className="w-0">
@@ -160,8 +156,8 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => handleEdit(ledger.original)}>
                   {intl.formatMessage({
-                    id: `common.edit`,
-                    defaultMessage: 'Edit'
+                    id: `common.details`,
+                    defaultMessage: 'Details'
                   })}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

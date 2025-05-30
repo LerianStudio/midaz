@@ -33,12 +33,10 @@ import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { PortfolioType } from '@/types/portfolio-type'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolios-dto'
-import { PortfolioViewResponseDTO } from '@/core/application/dto/portfolio-view-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 
 type PortfoliosDataTableProps = {
-  portfolios: PaginationDto<PortfolioViewResponseDTO> | undefined
+  portfolios: PaginationDto<PortfolioType> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
@@ -48,7 +46,7 @@ type PortfoliosDataTableProps = {
 }
 
 type PortfoliosRowProps = {
-  portfolio: Row<PortfolioViewResponseDTO>
+  portfolio: Row<PortfolioType>
   handleDialogOpen: (id: string) => void
   handleEdit: (portfolio: PortfolioType) => void
 }
@@ -92,17 +90,13 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
                 onClick={() =>
                   handleEdit({
                     ...portfolio.original,
-                    entityId: portfolio.original.id,
-                    status: {
-                      ...portfolio.original.status,
-                      description: portfolio.original.status.description ?? ''
-                    }
-                  } as PortfolioResponseDto)
+                    entityId: portfolio.original.id
+                  } as PortfolioType)
                 }
               >
                 {intl.formatMessage({
-                  id: `common.edit`,
-                  defaultMessage: 'Edit'
+                  id: `common.details`,
+                  defaultMessage: 'Details'
                 })}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

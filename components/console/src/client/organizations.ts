@@ -1,6 +1,5 @@
+import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
-import useCustomToast from '@/hooks/use-custom-toast'
 import {
   deleteFetcher,
   getFetcher,
@@ -10,11 +9,12 @@ import {
 import {
   useMutation,
   UseMutationOptions,
-  useQuery
+  useQuery,
+  useQueryClient
 } from '@tanstack/react-query'
 
 export const useListOrganizations = ({ ...options }) => {
-  return useQuery<PaginationDto<OrganizationEntity>>({
+  return useQuery<PaginationDto<OrganizationResponseDto>>({
     queryKey: ['organizations'],
     queryFn: getFetcher(`/api/organizations`),
     ...options
@@ -37,41 +37,61 @@ export const useGetOrganization = ({
   })
 }
 
-export const useCreateOrganization = ({ ...options }) => {
-  const { showError } = useCustomToast()
+export const useCreateOrganization = ({
+  onSuccess,
+  ...options
+}: UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: postFetcher(`/api/organizations`),
     ...options,
-    onError: (error) => {
-      showError(error.message)
-      options.onError?.(error)
+    onSuccess: (data: OrganizationResponseDto, ...args) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      onSuccess?.(data, ...args)
     }
   })
 }
 
 export const useUpdateOrganization = ({
   organizationId,
+  onSuccess,
   ...options
-}: UseGetOrganizationProps & UseMutationOptions<any, any, any>) => {
-  const { showError } = useCustomToast()
+}: UseGetOrganizationProps &
+  UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: patchFetcher(`/api/organizations/${organizationId}`),
     ...options,
-    onError: (error) => {
-      showError(error.message)
-      options.onError?.(error)
+    onSuccess: (data: OrganizationResponseDto, ...args) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      onSuccess?.(data, ...args)
     }
   })
 }
 
-export const useDeleteOrganization = ({ ...options }) => {
+export const useDeleteOrganization = ({
+  onSuccess,
+  ...options
+}: UseMutationOptions<OrganizationResponseDto, Error, unknown>) => {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: deleteFetcher(`/api/organizations`),
-    ...options
+    ...options,
+    onSuccess: (data: OrganizationResponseDto, ...args) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      onSuccess?.(data, ...args)
+    }
   })
 }
