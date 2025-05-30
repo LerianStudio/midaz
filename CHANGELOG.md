@@ -1,3 +1,14 @@
+## [v2.3.0-beta.2] - 2025-05-29
+
+### ✨ Features
+- Develop initial version of the first controller to enhance application modularity and functionality.
+
+### 🐛 Bug Fixes
+- Remove commented code from the codebase to improve code readability and maintainability.
+
+### 🔧 Maintenance
+- Update version in `.env.example` to v2.3.0 to reflect the latest release.
+
 ## [v2.2.0] - 2025-05-29
 
 ### ✨ Features
@@ -53,7 +64,6 @@
 - Add API documentation for asset and ledger count functionalities
 - Update PR notifications with environment version
 - Update README with Node version management section
-
 
 ## [v2.2.0-beta.62] - 2025-05-29
 
