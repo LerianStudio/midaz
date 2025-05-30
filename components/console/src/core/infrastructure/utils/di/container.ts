@@ -1,4 +1,8 @@
-import { interfaces, Container as InversifyContainer } from 'inversify'
+import {
+  BindToFluentSyntax,
+  Container as InversifyContainer,
+  ServiceIdentifier
+} from 'inversify'
 
 /**
  * A Wrapper class for the Inversify Container.
@@ -29,17 +33,15 @@ export class Container {
 
   // Inversify Container Wrappers
 
-  bind<T>(
-    serviceIdentifier: interfaces.ServiceIdentifier<T>
-  ): interfaces.BindingToSyntax<T> {
+  bind<T>(serviceIdentifier: ServiceIdentifier<T>): BindToFluentSyntax<T> {
     return this.container.bind(serviceIdentifier)
   }
 
-  get<T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): T {
+  get<T>(serviceIdentifier: ServiceIdentifier<T>): T {
     return this.container.get(serviceIdentifier)
   }
 
-  getAsync<T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): Promise<T> {
+  getAsync<T>(serviceIdentifier: ServiceIdentifier<T>): Promise<T> {
     return this.container.getAsync(serviceIdentifier)
   }
 }

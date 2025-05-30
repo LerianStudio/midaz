@@ -3,12 +3,13 @@ import { LoggerAggregator } from '../../logger/logger-aggregator'
 import { DBConfig, MongoConfig } from '../../mongo/mongo-config'
 import { Container, ContainerModule } from '../../utils/di/container'
 import { MongoOrganizationAvatarRepository } from '../../mongo/repositories/mongo-organization-avatar-repository'
+import { ResolutionContext } from 'inversify'
 
 export const DatabaseModule = new ContainerModule((container: Container) => {
   container
     .bind<MongoConfig>(DBConfig)
-    .toDynamicValue(async (context: any) => {
-      const logger = context.container.get(LoggerAggregator)
+    .toDynamicValue(async (context: ResolutionContext) => {
+      const logger = context.get(LoggerAggregator)
 
       const mongoConfig = new MongoConfig(logger)
       const mongoURI = process.env.MONGODB_URI ?? ''
