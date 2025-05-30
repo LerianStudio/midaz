@@ -1,6 +1,6 @@
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { CreateLedgerDto } from '../dto/ledger-dto'
-import { LedgerResponseDto } from '../dto/ledger-dto'
+import { LedgerDto } from '../dto/ledger-dto'
 import { UpdateSegmentDto } from '../dto/segment-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
@@ -15,7 +15,7 @@ export class LedgerMapper {
     }
   }
 
-  public static toResponseDto(ledger: LedgerEntity): LedgerResponseDto {
+  public static toResponseDto(ledger: LedgerEntity): LedgerDto {
     return {
       id: ledger.id!,
       organizationId: ledger.organizationId!,
@@ -29,7 +29,7 @@ export class LedgerMapper {
 
   public static toPaginationResponseDto(
     result: PaginationEntity<LedgerEntity>
-  ): PaginationEntity<LedgerResponseDto> {
+  ): PaginationEntity<LedgerDto> {
     return PaginationMapper.toResponseDto(result, LedgerMapper.toResponseDto)
   }
 }

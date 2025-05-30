@@ -8,7 +8,7 @@ export type CreateLedgerDto = {
 
 export type UpdateLedgerDto = Partial<CreateLedgerDto>
 
-export type LedgerResponseDto = {
+export type LedgerDto = {
   id: string
   organizationId: string
   name: string

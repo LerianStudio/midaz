@@ -1,7 +1,7 @@
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import type { CreateLedgerDto } from '../../dto/ledger-dto'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
-import { LedgerResponseDto } from '../../dto/ledger-dto'
+import { LedgerDto } from '../../dto/ledger-dto'
 import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
@@ -11,7 +11,7 @@ export interface CompleteOnboarding {
   execute: (
     organizationId: string,
     ledger: CreateLedgerDto
-  ) => Promise<LedgerResponseDto>
+  ) => Promise<LedgerDto>
 }
 
 @injectable()
@@ -27,7 +27,7 @@ export class CompleteOnboardingUseCase implements CompleteOnboarding {
   async execute(
     organizationId: string,
     ledger: CreateLedgerDto
-  ): Promise<LedgerResponseDto> {
+  ): Promise<LedgerDto> {
     const organization =
       await this.organizationRepository.fetchById(organizationId)
 

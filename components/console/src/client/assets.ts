@@ -1,4 +1,4 @@
-import { AssetResponseDto } from '@/core/application/dto/asset-dto'
+import { AssetDto } from '@/core/application/dto/asset-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
@@ -48,7 +48,7 @@ const useListAssets = ({
   limit,
   ...options
 }: UseListAssetsProps) => {
-  return useQuery<PaginationDto<AssetResponseDto>>({
+  return useQuery<PaginationDto<AssetDto>>({
     queryKey: ['assets', organizationId, ledgerId, page, limit],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/assets`,

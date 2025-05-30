@@ -29,13 +29,13 @@ import {
 import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useListLedgers } from '@/client/ledgers'
 import { Button } from './ui/button'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 
 const LedgerCommand = ({
   ledgers,
   onSelect
 }: {
-  ledgers: LedgerResponseDto[]
+  ledgers: LedgerDto[]
   onSelect: (id: string) => void
 }) => {
   const intl = useIntl()
@@ -126,7 +126,7 @@ export const LedgerSelector = () => {
       }
 
       const ledgerExists = ledgers.items.some(
-        (ledger: LedgerResponseDto) => ledger.id === currentLedger.id
+        (ledger: LedgerDto) => ledger.id === currentLedger.id
       )
 
       if (!ledgerExists) {
