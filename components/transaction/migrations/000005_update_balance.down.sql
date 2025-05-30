@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE balance
+  ALTER COLUMN available TYPE BIGINT USING available::BIGINT,
+  ALTER COLUMN on_hold TYPE BIGINT USING on_hold::BIGINT;
+
+COMMIT;

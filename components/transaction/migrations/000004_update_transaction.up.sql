@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE transaction
+  ALTER COLUMN amount TYPE DECIMAL USING amount::DECIMAL;
+
+COMMIT;
