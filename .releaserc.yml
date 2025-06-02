@@ -38,6 +38,9 @@ plugins:
     assets:
       - path: CHANGELOG.md
         label: "Changelog"
+    successComment: false
+    failComment: false
+    labels: []
   
  # Plugin to perform the backmerge between the 'main' and 'develop' branches
   - path: "@saithodev/semantic-release-backmerge"
@@ -56,4 +59,5 @@ branches:
   - main
   - name: develop
     prerelease: beta
-  - name: hotfix/*
+  - name: hotfix/v2.2.1
+    range: 2.2.x
