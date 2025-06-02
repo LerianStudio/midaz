@@ -19,7 +19,7 @@ plugins:
       - type: test
         release: patch
       - type: fix
-        release: minor
+        release: patch # to hotfix scenarios
       - type: refactor
         release: minor
       - type: docs
