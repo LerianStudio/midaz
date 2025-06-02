@@ -114,6 +114,7 @@ const SignInPage = () => {
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-8"
+                method="post"
               >
                 <InputField
                   control={form.control}
