@@ -1,3 +1,31 @@
+## [v2.3.0-beta.3] - 2025-06-02
+
+### ✨ Features
+- Upgrade tooltip component for enhanced functionality.
+- Upgrade Inversify to the latest version for improved dependency injection.
+- Remove server-side OrganizationProvider for improved performance.
+- Upgrade OpenTelemetry (OTEL) integration for better observability.
+- Upgrade ESLint and apply linting to the codebase for improved code quality.
+- Upgrade Radix UI components for a more consistent user interface.
+- Upgrade Tailwind CSS framework to leverage new styling capabilities.
+- Upgrade React-Intl for better internationalization support.
+- Upgrade Storybook for improved UI component development.
+- Upgrade NextJS and React to the latest versions to utilize new features and optimizations.
+- Address breaking changes in React 19 to ensure compatibility.
+
+### 🐛 Bug Fixes
+- Remove legacy ESLint configuration to prevent outdated linting errors.
+- Resolve console warning in the browser for a cleaner developer experience.
+- Make state optional to prevent errors in specific use cases.
+- Address issue with isValidElement check to ensure proper component validation.
+- Correct issue with formatjs/cli-lib to prevent localization errors.
+- Adjust NextJS configuration to prevent warnings during development.
+- Resolve build issues to ensure successful deployment.
+- Address breaking changes in NextJS to maintain application stability.
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes for accurate project documentation.
+
 ## [v2.3.0-beta.2] - 2025-05-29
 
 ### ✨ Features
