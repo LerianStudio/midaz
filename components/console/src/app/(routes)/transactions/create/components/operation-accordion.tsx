@@ -68,7 +68,7 @@ export const OperationEmptyAccordion = ({
     <div className="mb-6 flex flex-row rounded-xl border border-dashed border-zinc-300 p-6">
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">{title}</p>
-        <p className="text-sm font-medium text-shadcn-400">{description}</p>
+        <p className="text-shadcn-400 text-sm font-medium">{description}</p>
       </div>
     </div>
   )
@@ -98,13 +98,13 @@ export const OperationAccordion = ({
   return (
     <PaperCollapsible className="mb-2">
       <PaperCollapsibleBanner>
-        <div className="flex flex-grow flex-row">
+        <div className="flex grow flex-row">
           {type === 'debit' && <ArrowLeft className="my-1 mr-4 text-red-500" />}
           {type === 'credit' && (
             <ArrowRight className="my-1 mr-4 text-green-500" />
           )}
 
-          <div className="flex flex-grow flex-col">
+          <div className="flex grow flex-col">
             <p className="text-lg font-medium text-neutral-600">
               {type === 'debit'
                 ? intl.formatMessage({
@@ -116,7 +116,7 @@ export const OperationAccordion = ({
                     defaultMessage: 'Credit'
                   })}
             </p>
-            <p className="text-xs text-shadcn-400">{values.account}</p>
+            <p className="text-shadcn-400 text-xs">{values.account}</p>
           </div>
           <div className="mr-4 flex flex-col items-end">
             <div className="flex flex-row items-center gap-4">
@@ -142,14 +142,14 @@ export const OperationAccordion = ({
                 </p>
               )}
             </div>
-            <p className="text-xs text-shadcn-400">{asset}</p>
+            <p className="text-shadcn-400 text-xs">{asset}</p>
           </div>
         </div>
       </PaperCollapsibleBanner>
       <PaperCollapsibleContent>
         <Separator orientation="horizontal" />
         <div className="flex flex-row gap-5 p-6">
-          <div className="grid flex-grow grid-cols-2 gap-2">
+          <div className="grid grow grid-cols-2 gap-2">
             <InputField
               name={`${name}.description`}
               label={intl.formatMessage({

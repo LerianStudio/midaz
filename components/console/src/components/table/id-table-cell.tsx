@@ -37,7 +37,7 @@ export const IdTableCell = ({ id }: IdTableCellProps) => {
             <p className="text-shadcn-600 underline">{displayId}</p>
           </TooltipTrigger>
           <TooltipContent
-            className="border-none bg-shadcn-600"
+            className="bg-shadcn-600 border-none"
             arrowPadding={0}
           >
             <p className="text-shadcn-400">{id}</p>

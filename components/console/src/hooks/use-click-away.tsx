@@ -7,7 +7,7 @@ import React from 'react'
  * @param onClickAway Callback function to be called when a click is detected outside the component
  */
 export const useClickAway = (
-  ref: React.RefObject<HTMLElement>,
+  ref: React.RefObject<HTMLElement | null>,
   onClickAway: (event: MouseEvent | TouchEvent) => void
 ) => {
   const handleClick = React.useCallback(

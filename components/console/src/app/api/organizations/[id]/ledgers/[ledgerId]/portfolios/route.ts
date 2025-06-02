@@ -20,7 +20,8 @@ const createPortfolioUseCase: CreatePortfolio = container.get<CreatePortfolio>(
 const fetchAllPortfoliosUseCase: FetchAllPortfolios =
   container.get<FetchAllPortfolios>(FetchAllPortfoliosUseCase)
 
-const midazLogger = container.get(LoggerAggregator)
+const midazLogger: LoggerAggregator = container.get(LoggerAggregator)
+
 interface PortfolioParams {
   id: string
   ledgerId: string

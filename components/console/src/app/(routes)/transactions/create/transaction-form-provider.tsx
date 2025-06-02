@@ -63,9 +63,11 @@ export const TransactionProvider = ({
     clear: clearAccounts,
     addBalance
   } = useAccounts()
+
   const form = useForm<TransactionFormSchema>({
-    resolver: zodResolver(transactionFormSchema),
-    defaultValues: { ...initialValues, ...values } as TransactionFormSchema
+    resolver: zodResolver(transactionFormSchema) as any,
+    values,
+    defaultValues: initialValues as any
   })
 
   const formValues = form.watch()

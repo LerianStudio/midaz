@@ -19,11 +19,11 @@ export const SidebarExpandButton = () => {
   return (
     <React.Fragment>
       {!isCollapsed && (
-        <div className="flex w-full border-shadcn-200 bg-white">
-          <div className="absolute bottom-4 right-[-20px]">
+        <div className="border-shadcn-200 flex w-full bg-white">
+          <div className="absolute right-[-20px] bottom-4">
             <Button
               variant="white"
-              className="rounded-full border border-shadcn-200 p-2"
+              className="border-shadcn-200 rounded-full border p-2"
               onClick={toggleSidebar}
             >
               <PanelLeftClose className="text-shadcn-400" />
@@ -37,7 +37,7 @@ export const SidebarExpandButton = () => {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
-                className="group/expand-button rounded-sm bg-transparent p-2 text-shadcn-400 hover:bg-accent"
+                className="group/expand-button text-shadcn-400 hover:bg-accent rounded-sm bg-transparent p-2"
                 onClick={toggleSidebar}
               >
                 <PanelRightClose className="group-hover/expand-button:text-white dark:text-white" />

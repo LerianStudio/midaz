@@ -11,7 +11,7 @@ export const PageFooter = forwardRef<HTMLDivElement, PageFooterProps>(
     <div
       ref={ref}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-50 ml-[136px] mr-16 flex transform flex-col rounded-t-2xl bg-white shadow-drawer transition-transform',
+        'shadow-drawer fixed inset-x-0 bottom-0 z-50 mr-16 ml-[136px] flex transform flex-col rounded-t-2xl bg-white transition-transform',
         open ? 'translate-y-0' : 'translate-y-full',
         !true && 'ml-[315px]',
         'duration-300 ease-in-out'
@@ -21,7 +21,7 @@ export const PageFooter = forwardRef<HTMLDivElement, PageFooterProps>(
       {...props}
     >
       {thumb && <PageFooterThumb />}
-      <div className="flex flex-row justify-between px-16 pb-8 pt-6">
+      <div className="flex flex-row justify-between px-16 pt-6 pb-8">
         {children}
       </div>
     </div>

@@ -17,8 +17,9 @@ const createLedgerUseCases = container.get<CreateLedger>(CreateLedgerUseCase)
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params
   try {
     const { searchParams } = new URL(request.url)
     const limit = Number(searchParams.get('limit')) || 10
@@ -41,8 +42,9 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params
   try {
     const organizationId = params.id
     const body = await request.json()

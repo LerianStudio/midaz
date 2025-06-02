@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Alert, AlertDescription, AlertProps, AlertTitle } from '.'
 import { Terminal } from 'lucide-react'
 

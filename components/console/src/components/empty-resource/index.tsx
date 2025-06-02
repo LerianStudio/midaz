@@ -19,7 +19,7 @@ export const EmptyResource = ({
         <div className="flex flex-col items-center justify-center gap-4">
           <Image className="mb-2" src={NoResourceImage} alt="No Resource" />
 
-          <span className="text-center text-sm font-medium text-shadcn-400">
+          <span className="text-shadcn-400 text-center text-sm font-medium">
             {message}
           </span>
 
@@ -30,7 +30,7 @@ export const EmptyResource = ({
         <>
           <Separator />
           <div className="px-6 py-3">
-            <span className="text-sm font-normal italic text-shadcn-400">
+            <span className="text-shadcn-400 text-sm font-normal italic">
               {extra}
             </span>
           </div>

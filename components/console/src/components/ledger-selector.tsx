@@ -148,7 +148,7 @@ export const LedgerSelector = () => {
         variant="outline"
       >
         <Database size={20} className="text-zinc-400" />
-        <span className="pt-[2px] text-xs font-normal uppercase text-zinc-400">
+        <span className="pt-[2px] text-xs font-normal text-zinc-400 uppercase">
           {intl.formatMessage({
             id: 'ledger.selector.currentLedger.label',
             defaultMessage: 'Current Ledger'
@@ -184,7 +184,7 @@ export const LedgerSelector = () => {
               <SelectTrigger className="w-fit text-sm font-semibold text-zinc-800">
                 <div className="flex items-center gap-4">
                   <Database size={20} className="text-zinc-400" />
-                  <span className="pt-[2px] text-xs font-normal uppercase text-zinc-400">
+                  <span className="pt-[2px] text-xs font-normal text-zinc-400 uppercase">
                     {intl.formatMessage({
                       id: 'ledger.selector.currentLedger.label',
                       defaultMessage: 'Current Ledger'
@@ -194,10 +194,10 @@ export const LedgerSelector = () => {
                 </div>
               </SelectTrigger>
 
-              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+              <SelectContent className="w-(--radix-select-trigger-width)">
                 {isLargeList ? (
                   <SelectGroup className="px-3 pb-3">
-                    <SelectLabel className="text-xs font-medium uppercase text-zinc-400">
+                    <SelectLabel className="text-xs font-medium text-zinc-400 uppercase">
                       {intl.formatMessage({
                         id: 'ledgers.title',
                         defaultMessage: 'Ledgers'
@@ -206,7 +206,7 @@ export const LedgerSelector = () => {
                     <SelectItem
                       disabled
                       value={currentLedger?.id}
-                      className="font-medium text-zinc-800 data-[disabled]:opacity-100"
+                      className="font-medium text-zinc-800 data-disabled:opacity-100"
                     >
                       {ledgers?.items?.find(
                         (ledger: any) => ledger.id === currentLedger?.id
@@ -248,7 +248,7 @@ export const LedgerSelector = () => {
                   </SelectGroup>
                 ) : (
                   <SelectGroup className="px-3 pb-3">
-                    <SelectLabel className="text-xs font-medium uppercase text-zinc-400">
+                    <SelectLabel className="text-xs font-medium text-zinc-400 uppercase">
                       {intl.formatMessage({
                         id: 'ledgers.title',
                         defaultMessage: 'Ledgers'

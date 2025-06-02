@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import {
   AccountBalanceCard,
   AccountBalanceCardContent,
@@ -42,7 +42,7 @@ export const Primary: StoryObj = {
           <AccountBalanceCardInfo assetCode="USD" value={999999999.0} />
           <AccountBalanceCardInfo assetCode="BRL" value={10000.0} />
 
-          <Separator className="mb-2 mt-3" />
+          <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton
             timestamp={time}
             onRefresh={() => setTime(Date.now())}
@@ -66,7 +66,7 @@ export const Icon: StoryObj = {
         <AccountBalanceCardContent>
           <AccountBalanceCardInfo assetCode="USD" value={999999999.0} />
 
-          <Separator className="mb-2 mt-3" />
+          <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton
             timestamp={Date.now()}
             onRefresh={() => {}}
@@ -101,7 +101,7 @@ export const Loading: StoryObj = {
         </AccountBalanceCardHeader>
         <AccountBalanceCardContent>
           <AccountBalanceCardLoading />
-          <Separator className="mb-2 mt-3" />
+          <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton
             loading={true}
             timestamp={Date.now()}
@@ -124,7 +124,7 @@ export const Empty: StoryObj = {
         </AccountBalanceCardHeader>
         <AccountBalanceCardContent>
           <AccountBalanceCardEmpty />
-          <Separator className="mb-2 mt-3" />
+          <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton
             timestamp={Date.now()}
             onRefresh={() => {}}

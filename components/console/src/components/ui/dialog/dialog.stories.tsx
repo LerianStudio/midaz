@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '.'
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Button } from '../button'
 
 const meta: Meta<DialogProps> = {

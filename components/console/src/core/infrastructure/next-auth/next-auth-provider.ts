@@ -5,10 +5,8 @@ import {
   AuthLoginUseCase
 } from '@/core/application/use-cases/auth/auth-login-use-case'
 import { AuthEntity } from '@/core/domain/entities/auth-entity'
-import { LoggerRepository } from '@/core/domain/repositories/logger-repository'
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { log } from 'console'
 import { container } from '../container-registry/container-registry'
 import { MidazRequestContext } from '../logger/decorators/midaz-id'
 
@@ -44,7 +42,7 @@ export const nextAuthOptions: NextAuthOptions = {
       type: 'credentials',
 
       async authorize(credentials, req) {
-        const midazLogger = container.get(LoggerAggregator)
+        const midazLogger = container.get<LoggerAggregator>(LoggerAggregator)
         const midazRequestContext: MidazRequestContext =
           container.get<MidazRequestContext>(MidazRequestContext)
         try {

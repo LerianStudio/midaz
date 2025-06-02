@@ -63,7 +63,7 @@ export const AccountBalanceList = ({
         <>
           <div
             className={cn(
-              'mb-4 flex flex-grow flex-col justify-center gap-2 rounded bg-zinc-200 p-4',
+              'mb-4 flex grow flex-col justify-center gap-2 rounded bg-zinc-200 p-4',
               {
                 'mb-14': !expand
               }

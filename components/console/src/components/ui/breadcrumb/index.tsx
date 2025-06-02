@@ -19,7 +19,7 @@ const BreadcrumbList = React.forwardRef<
   <ol
     ref={ref}
     className={cn(
-      'flex flex-wrap items-center gap-1.5 break-words text-sm text-slate-500 dark:text-slate-400 sm:gap-2.5',
+      'flex flex-wrap items-center gap-1.5 text-sm break-words text-slate-500 sm:gap-2.5 dark:text-slate-400',
       className
     )}
     {...props}
@@ -70,7 +70,7 @@ const BreadcrumbPage = React.forwardRef<
     aria-disabled="true"
     aria-current="page"
     className={cn(
-      'text-sm font-normal text-shadcn-400 dark:text-slate-50',
+      'text-shadcn-400 text-sm font-normal dark:text-slate-50',
       className
     )}
     {...props}

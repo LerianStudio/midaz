@@ -125,7 +125,7 @@ export const OrganizationsForm = ({
     <Form {...form}>
       <div className="mb-16 flex gap-6">
         <div className="grow space-y-6">
-          <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow">
+          <Card.Root className="gap-0 space-y-0 space-x-0 p-0 shadow-sm">
             <Card.Header
               title={
                 isNewOrganization
@@ -145,7 +145,7 @@ export const OrganizationsForm = ({
                         defaultMessage: 'View and edit the Organization fields.'
                       })
               }
-              className="space-x-0 space-y-0 p-6 text-sm font-medium normal-case text-zinc-400"
+              className="space-y-0 space-x-0 p-6 text-sm font-medium text-zinc-400 normal-case"
             />
             <Separator />
 
@@ -323,13 +323,13 @@ export const OrganizationsForm = ({
 
           <PaperCollapsible className="mb-32">
             <PaperCollapsibleBanner className="flex items-center justify-between">
-              <p className="text-lg font-medium normal-case text-zinc-600">
+              <p className="text-lg font-medium text-zinc-600 normal-case">
                 {intl.formatMessage({
                   id: 'common.metadata',
                   defaultMessage: 'Metadata'
                 })}
               </p>
-              <p className="text-xs italic text-shadcn-400">
+              <p className="text-shadcn-400 text-xs italic">
                 {intl.formatMessage(
                   {
                     id: 'organizations.organizationForm.metadataRegisterCountText',
@@ -356,9 +356,9 @@ export const OrganizationsForm = ({
         </div>
 
         <div className="grow space-y-6">
-          <Card.Root className="p-6 shadow">
+          <Card.Root className="p-6 shadow-sm">
             <Card.Header
-              className="text-md w-full font-medium normal-case text-zinc-600"
+              className="text-md w-full font-medium text-zinc-600 normal-case"
               title={intl.formatMessage({
                 id: 'entity.organization.avatar',
                 defaultMessage: 'Avatar'
@@ -379,7 +379,7 @@ export const OrganizationsForm = ({
             </CardContent>
           </Card.Root>
 
-          <Card.Root className="hidden p-6 shadow">
+          <Card.Root className="hidden p-6 shadow-sm">
             <Card.Header
               className="text-sm font-medium text-zinc-600"
               title={intl.formatMessage({

@@ -1,4 +1,4 @@
-import { Meta } from '@storybook/react'
+import { Meta } from '@storybook/nextjs'
 import ConfirmationDialog, { ConfirmationDialogProps } from '.'
 import { Button } from '../ui/button'
 import React from 'react'

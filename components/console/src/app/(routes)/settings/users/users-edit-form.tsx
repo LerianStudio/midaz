@@ -166,7 +166,7 @@ export const EditUserForm = ({
 
       <Tabs
         defaultValue="personal-information"
-        className="mt-0 flex flex-grow flex-col"
+        className="mt-0 flex grow flex-col"
         onValueChange={setActiveTab}
         value={activeTab}
       >
@@ -186,7 +186,7 @@ export const EditUserForm = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="personal-information" className="flex-grow">
+          <TabsContent value="personal-information" className="grow">
             <Form {...form}>
               <form
                 id="profile-form"
@@ -251,7 +251,7 @@ export const EditUserForm = ({
                     ))}
                   </SelectField>
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'
@@ -262,7 +262,7 @@ export const EditUserForm = ({
             </Form>
           </TabsContent>
 
-          <TabsContent value="password" className="flex-grow">
+          <TabsContent value="password" className="grow">
             <Form {...passwordForm}>
               <form
                 id="password-form"

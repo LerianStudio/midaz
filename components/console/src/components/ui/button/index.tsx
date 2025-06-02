@@ -15,13 +15,13 @@ const buttonVariants = cva(
         hoverLink:
           'hover:bg-accent text-black hover:text-accent-foreground font-normal',
         default:
-          'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:bg-shadcn-200 disabled:text-shadcn-600',
+          'bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs disabled:bg-shadcn-200 disabled:text-shadcn-600',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         outline:
-          'border border-shadcn-300 bg-background hover:bg-accent hover:text-accent-foreground shadow-sm',
+          'border border-shadcn-300 bg-background hover:bg-accent hover:text-accent-foreground shadow-xs',
         secondary:
-          'border border-shadcn-300 bg-background hover:bg-primary/5 text-secondary-foreground shadow-sm',
+          'border border-shadcn-300 bg-background hover:bg-primary/5 text-secondary-foreground shadow-xs',
         ghost: 'hover:bg-shadcn-300',
         link: 'text-shadcn-600 underline-offset-4 underline text-sm font-normal justify-start font-medium'
       },
@@ -97,12 +97,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'w-full': fullWidth
           },
           readOnly && [
-            'data-[read-only]:cursor-default',
-            'data-[read-only]:select-text',
-            'data-[read-only]:bg-zinc-100',
-            'data-[read-only]:opacity-50',
-            'data-[read-only]:focus:outline-none',
-            'data-[read-only]:focus:ring-0'
+            'data-read-only:cursor-default',
+            'data-read-only:select-text',
+            'data-read-only:bg-zinc-100',
+            'data-read-only:opacity-50',
+            'data-read-only:focus:outline-hidden',
+            'data-read-only:focus:ring-0'
           ]
         )}
         data-read-only={readOnly ? '' : undefined}

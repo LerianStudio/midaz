@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { InputField, InputFieldProps } from '.'
 import { useForm } from 'react-hook-form'
 import { Form } from '@/components/ui/form'
