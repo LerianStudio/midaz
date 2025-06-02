@@ -57,4 +57,3 @@ branches:
   - name: develop
     prerelease: beta
   - name: hotfix/*
-    prerelease: hf
