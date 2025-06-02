@@ -1,6 +1,10 @@
 import { postFetcher } from '@/lib/fetcher'
 import { OrganizationsType } from '@/types/organizations-type'
-import { useMutation, UseMutationOptions } from '@tanstack/react-query'
+import {
+  useMutation,
+  UseMutationOptions,
+  useQueryClient
+} from '@tanstack/react-query'
 
 export const useCreateOnboardingOrganization = ({ ...options }) => {
   return useMutation<OrganizationsType>({
@@ -16,11 +20,18 @@ type UseCompleteOnboardingProps = UseMutationOptions & {
 
 export const useCompleteOnboarding = ({
   organizationId,
+  onSuccess,
   ...options
 }: UseCompleteOnboardingProps) => {
+  const queryClient = useQueryClient()
+
   return useMutation<any, any, any>({
     mutationKey: ['onboarding', organizationId, 'complete'],
     mutationFn: postFetcher(`/api/onboarding/${organizationId}/complete`),
-    ...options
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      onSuccess?.(...args)
+    }
   })
 }
