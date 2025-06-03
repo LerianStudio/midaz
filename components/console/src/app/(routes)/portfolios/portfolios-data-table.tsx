@@ -32,23 +32,23 @@ import { Pagination, PaginationProps } from '@/components/pagination'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { PortfolioType } from '@/types/portfolio-type'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 
 type PortfoliosDataTableProps = {
-  portfolios: PaginationDto<PortfolioType> | undefined
+  portfolios: PaginationDto<PortfolioDto> | undefined
   form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
   handleCreate: () => void
   handleDialogOpen: (id: string) => void
-  handleEdit: (portfolio: PortfolioType) => void
+  handleEdit: (portfolio: PortfolioDto) => void
 }
 
 type PortfoliosRowProps = {
-  portfolio: Row<PortfolioType>
+  portfolio: Row<PortfolioDto>
   handleDialogOpen: (id: string) => void
-  handleEdit: (portfolio: PortfolioType) => void
+  handleEdit: (portfolio: PortfolioDto) => void
 }
 
 const PortfolioRow: React.FC<PortfoliosRowProps> = ({
@@ -76,7 +76,7 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
           )}
         </TableCell>
 
-        <MetadataTableCell metadata={portfolio.original.metadata} />
+        <MetadataTableCell metadata={portfolio.original.metadata!} />
 
         <TableCell className="w-0">
           <DropdownMenu>
@@ -91,7 +91,7 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
                   handleEdit({
                     ...portfolio.original,
                     entityId: portfolio.original.id
-                  } as PortfolioType)
+                  } as PortfolioDto)
                 }
               >
                 {intl.formatMessage({
