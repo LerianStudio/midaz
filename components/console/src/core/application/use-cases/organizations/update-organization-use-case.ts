@@ -8,7 +8,7 @@ import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import type {
   CreateOrganizationDto,
-  OrganizationResponseDto,
+  OrganizationDto,
   UpdateOrganizationDto
 } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
@@ -19,7 +19,7 @@ export interface UpdateOrganization {
   execute: (
     organizationId: string,
     organization: Partial<UpdateOrganizationDto>
-  ) => Promise<OrganizationResponseDto>
+  ) => Promise<OrganizationDto>
 }
 
 @injectable()
@@ -35,7 +35,7 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
   async execute(
     organizationId: string,
     organization: Partial<UpdateOrganizationDto>
-  ): Promise<OrganizationResponseDto> {
+  ): Promise<OrganizationDto> {
     const intl = await getIntl()
 
     const updatedOrganizationEntity = await this.updateOrganization(
@@ -49,7 +49,7 @@ export class UpdateOrganizationUseCase implements UpdateOrganization {
       organization.avatar
     )
 
-    const organizationResponseDto: OrganizationResponseDto =
+    const organizationResponseDto: OrganizationDto =
       OrganizationMapper.toResponseDto(
         updatedOrganizationEntity,
         updatedOrganizationAvatarEntity?.avatar
