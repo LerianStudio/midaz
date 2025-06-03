@@ -20,7 +20,7 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { SegmentsDataTable } from './segments-data-table'
 import { SegmentsSkeleton } from './segments-skeleton'
-import { SegmentType } from '@/types/segment-type'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
 
 const Page = () => {
   const intl = useIntl()
@@ -73,7 +73,7 @@ const Page = () => {
   )
 
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<SegmentType>({
+    useCreateUpdateSheet<SegmentDto>({
       enableRouting: true
     })
 

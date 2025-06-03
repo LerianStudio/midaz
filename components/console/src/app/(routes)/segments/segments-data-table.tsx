@@ -27,18 +27,18 @@ import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
-import { SegmentType } from '@/types/segment-type'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
 
 type SegmentsTableProps = {
-  segments: PaginationDto<SegmentType> | undefined
+  segments: PaginationDto<SegmentDto> | undefined
   table: {
     getRowModel: () => {
-      rows: { id: string; original: SegmentType }[]
+      rows: { id: string; original: SegmentDto }[]
     }
   }
   handleDialogOpen: (id: string, name: string) => void
   handleCreate: () => void
-  handleEdit: (asset: SegmentType) => void
+  handleEdit: (asset: SegmentDto) => void
   refetch: () => void
   form: UseFormReturn<any>
   total: number
@@ -46,9 +46,9 @@ type SegmentsTableProps = {
 }
 
 type SegmentRowProps = {
-  segment: { id: string; original: SegmentType }
+  segment: { id: string; original: SegmentDto }
   handleDialogOpen: (id: string, name: string) => void
-  handleEdit: (segment: SegmentType) => void
+  handleEdit: (segment: SegmentDto) => void
 }
 
 const SegmentRow: React.FC<SegmentRowProps> = ({
@@ -62,7 +62,7 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
     <TableRow key={segment.id}>
       <IdTableCell id={segment.original.id} />
       <TableCell>{segment.original.name}</TableCell>
-      <MetadataTableCell metadata={segment.original.metadata} />
+      <MetadataTableCell metadata={segment.original.metadata!} />
       <TableCell className="w-0" align="center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
