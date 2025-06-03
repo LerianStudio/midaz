@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     ledger_id                           UUID NOT NULL,
     organization_id                     UUID NOT NULL,
     body                                JSONB NOT NULL,
+    route                               TEXT NULL,
     created_at                          TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at                          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                          TIMESTAMP WITH TIME ZONE,

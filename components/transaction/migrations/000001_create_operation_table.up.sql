@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS operation (
     chart_of_accounts                  TEXT NOT NULL,
     organization_id                    UUID NOT NULL,
     ledger_id                          UUID NOT NULL,
+    route                              TEXT NULL,
     created_at                         TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at                         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                         TIMESTAMP WITH TIME ZONE,

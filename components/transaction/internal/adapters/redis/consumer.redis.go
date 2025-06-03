@@ -27,6 +27,7 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error)
+	addSumBalanceRedis(ctx context.Context, key, value, operation string) (*string, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -393,4 +394,42 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
+}
+
+func (rr *RedisConsumerRepository) addSumBalanceRedis(ctx context.Context, key, value, operation string) (*string, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
+	defer span.End()
+
+	script := redis.NewScript("./lua/add_sub.lua")
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis: %v", err)
+
+		return nil, err
+	}
+
+	args := []any{
+		operation,
+		value,
+	}
+
+	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
+
+		logger.Errorf("Failed run lua script on redis: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("result type: %s", result)
+
+	return result.(*string), nil
+
 }
