@@ -49,9 +49,10 @@ plugins:
   - path: "@semantic-release/exec"
 
 branches:
-  - main
+  - name: main
   - name: develop
-    prerelease: "beta"
+    prerelease: beta
+    range: '>=2.2.1'
   - name: hotfix/*
     prerelease: false
     channel: false
