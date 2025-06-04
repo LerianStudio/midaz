@@ -8,3 +8,8 @@ ALTER TABLE operation
   ALTER COLUMN on_hold_balance_after TYPE DECIMAL USING on_hold_balance_after::DECIMAL;
 
 COMMIT;
+
+ALTER TABLE operation
+    DROP COLUMN amount_scale,
+    DROP COLUMN balance_scale,
+    DROP COLUMN balance_scale_after;

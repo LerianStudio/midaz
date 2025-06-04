@@ -81,7 +81,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -89,7 +89,6 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.Status,
 		record.StatusDescription,
 		record.Amount,
-		record.AmountScale,
 		record.AssetCode,
 		record.ChartOfAccountsGroupName,
 		record.LedgerID,
@@ -197,7 +196,6 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.Status,
 			&transaction.StatusDescription,
 			&transaction.Amount,
-			&transaction.AmountScale,
 			&transaction.AssetCode,
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
@@ -287,7 +285,6 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.Status,
 			&transaction.StatusDescription,
 			&transaction.Amount,
-			&transaction.AmountScale,
 			&transaction.AssetCode,
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
@@ -354,7 +351,6 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.Status,
 		&transaction.StatusDescription,
 		&transaction.Amount,
-		&transaction.AmountScale,
 		&transaction.AssetCode,
 		&transaction.ChartOfAccountsGroupName,
 		&transaction.LedgerID,
@@ -416,7 +412,6 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.Status,
 		&transaction.StatusDescription,
 		&transaction.Amount,
-		&transaction.AmountScale,
 		&transaction.AssetCode,
 		&transaction.ChartOfAccountsGroupName,
 		&transaction.LedgerID,

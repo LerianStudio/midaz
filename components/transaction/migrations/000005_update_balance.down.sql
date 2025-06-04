@@ -5,3 +5,6 @@ ALTER TABLE balance
   ALTER COLUMN on_hold TYPE BIGINT USING on_hold::BIGINT;
 
 COMMIT;
+
+ALTER TABLE balance
+    DROP COLUMN scale;

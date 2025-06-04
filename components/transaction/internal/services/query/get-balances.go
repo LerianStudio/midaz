@@ -106,7 +106,6 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 				Alias:          alias,
 				Available:      b.Available,
 				OnHold:         b.OnHold,
-				Scale:          b.Scale,
 				Version:        b.Version,
 				AccountType:    b.AccountType,
 				AllowSending:   b.AllowSending == 1,
@@ -138,7 +137,8 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		for k, v := range validate.From {
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.DEBIT)
+				v.Operation = constant.DEBIT
+				b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, internalKey, v, *balance)
 				if err != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 
@@ -155,7 +155,8 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		for k, v := range validate.To {
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.CREDIT)
+				v.Operation = constant.CREDIT
+				b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, internalKey, v, *balance)
 				if err != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 

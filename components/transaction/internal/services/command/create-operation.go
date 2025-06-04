@@ -32,13 +32,12 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
-					Scale:     &blc.Scale,
 				}
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], validate, blc.ConvertToLibBalance())
@@ -50,13 +49,11 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 				amount := operation.Amount{
 					Amount: &amt.Value,
-					Scale:  &amt.Scale,
 				}
 
 				balanceAfter := operation.Balance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
-					Scale:     &bat.Scale,
 				}
 
 				description := fromTo[i].Description

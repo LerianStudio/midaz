@@ -3,6 +3,7 @@ package operation
 import (
 	"database/sql"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	"github.com/shopspring/decimal"
 	"time"
 )
 
@@ -10,32 +11,29 @@ import (
 //
 // @Description Database model for storing operation information in PostgreSQL
 type OperationPostgreSQLModel struct {
-	ID                    string         // Unique identifier (UUID format)
-	TransactionID         string         // Parent transaction ID
-	Description           string         // Operation description
-	Type                  string         // Operation type (e.g., "DEBIT", "CREDIT")
-	AssetCode             string         // Asset code for the operation
-	Amount                *int64         // Operation amount value
-	AmountScale           *int64         // Decimal places for amount
-	AvailableBalance      *int64         // Available balance before operation
-	BalanceScale          *int64         // Decimal places for balance
-	OnHoldBalance         *int64         // On-hold balance before operation
-	AvailableBalanceAfter *int64         // Available balance after operation
-	OnHoldBalanceAfter    *int64         // On-hold balance after operation
-	BalanceScaleAfter     *int64         // Decimal places for balance after operation
-	Status                string         // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription     *string        // Status description
-	AccountID             string         // Account ID associated with operation
-	AccountAlias          string         // Account alias
-	BalanceID             string         // Balance ID affected by operation
-	ChartOfAccounts       string         // Chart of accounts code
-	OrganizationID        string         // Organization ID
-	LedgerID              string         // Ledger ID
-	Route                 string         // Route
-	CreatedAt             time.Time      // Creation timestamp
-	UpdatedAt             time.Time      // Last update timestamp
-	DeletedAt             sql.NullTime   // Deletion timestamp (if soft-deleted)
-	Metadata              map[string]any // Additional custom attributes
+	ID                    string           // Unique identifier (UUID format)
+	TransactionID         string           // Parent transaction ID
+	Description           string           // Operation description
+	Type                  string           // Operation type (e.g., "DEBIT", "CREDIT")
+	AssetCode             string           // Asset code for the operation
+	Amount                *decimal.Decimal // Operation amount value
+	AvailableBalance      *decimal.Decimal // Available balance before operation
+	OnHoldBalance         *decimal.Decimal // On-hold balance before operation
+	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
+	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
+	Status                string           // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription     *string          // Status description
+	AccountID             string           // Account ID associated with operation
+	AccountAlias          string           // Account alias
+	BalanceID             string           // Balance ID affected by operation
+	ChartOfAccounts       string           // Chart of accounts code
+	OrganizationID        string           // Organization ID
+	LedgerID              string           // Ledger ID
+	Route                 string           // Route
+	CreatedAt             time.Time        // Creation timestamp
+	UpdatedAt             time.Time        // Last update timestamp
+	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
+	Metadata              map[string]any   // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -67,17 +65,12 @@ type Amount struct {
 	// The amount value in the smallest unit of the asset (e.g., cents)
 	// example: 1500
 	// minimum: 0
-	Amount *int64 `json:"amount" example:"1500" minimum:"0"`
-
-	// Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
-	// example: 2
-	// minimum: 0
-	Scale *int64 `json:"scale" example:"2" minimum:"0"`
+	Amount *decimal.Decimal `json:"amount" example:"1500" minimum:"0"`
 } // @name Amount
 
 // IsEmpty method that set empty or nil in fields
 func (a Amount) IsEmpty() bool {
-	return a.Amount == nil && a.Scale == nil
+	return a.Amount == nil
 }
 
 // Balance structure for marshaling/unmarshalling JSON.
@@ -85,25 +78,20 @@ func (a Amount) IsEmpty() bool {
 // swagger:model Balance
 // @Description Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).
 type Balance struct {
-	// Amount available for transactions (in smallest unit of asset)
+	// Amount available for transactions (in the smallest unit of asset)
 	// example: 1500
 	// minimum: 0
-	Available *int64 `json:"available" example:"1500" minimum:"0"`
+	Available *decimal.Decimal `json:"available" example:"1500" minimum:"0"`
 
-	// Amount on hold and unavailable for transactions (in smallest unit of asset)
+	// Amount on hold and unavailable for transactions (in the smallest unit of asset)
 	// example: 500
 	// minimum: 0
-	OnHold *int64 `json:"onHold" example:"500" minimum:"0"`
-
-	// Decimal places for the balance (e.g., 2 for dollars/euros)
-	// example: 2
-	// minimum: 0
-	Scale *int64 `json:"scale" example:"2" minimum:"0"`
+	OnHold *decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
 } // @name Balance
 
 // IsEmpty method that set empty or nil in fields
 func (b Balance) IsEmpty() bool {
-	return b.Available == nil && b.OnHold == nil && b.Scale == nil
+	return b.Available == nil && b.OnHold == nil
 }
 
 // Operation is a struct designed to encapsulate response payload data.
@@ -213,19 +201,16 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 	amount := Amount{
 		Amount: t.Amount,
-		Scale:  t.AmountScale,
 	}
 
 	balance := Balance{
 		Available: t.AvailableBalance,
 		OnHold:    t.OnHoldBalance,
-		Scale:     t.BalanceScale,
 	}
 
 	balanceAfter := Balance{
 		Available: t.AvailableBalanceAfter,
 		OnHold:    t.OnHoldBalanceAfter,
-		Scale:     t.BalanceScaleAfter,
 	}
 
 	Operation := &Operation{
@@ -273,11 +258,8 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		AssetCode:             operation.AssetCode,
 		ChartOfAccounts:       operation.ChartOfAccounts,
 		Amount:                operation.Amount.Amount,
-		AmountScale:           operation.Amount.Scale,
-		BalanceScale:          operation.Balance.Scale,
 		OnHoldBalance:         operation.Balance.OnHold,
 		AvailableBalance:      operation.Balance.Available,
-		BalanceScaleAfter:     operation.BalanceAfter.Scale,
 		AvailableBalanceAfter: operation.BalanceAfter.Available,
 		OnHoldBalanceAfter:    operation.BalanceAfter.OnHold,
 		Status:                operation.Status.Code,

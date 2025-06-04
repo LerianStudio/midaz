@@ -3,7 +3,7 @@ package mmodel
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"github.com/shopspring/decimal"
 	"time"
 
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -49,17 +49,12 @@ type Balance struct {
 	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
 	// example: 1500
 	// minimum: 0
-	Available int64 `json:"available" example:"1500" minimum:"0"`
+	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
 
 	// Amount currently on hold and unavailable for transactions
 	// example: 500
 	// minimum: 0
-	OnHold int64 `json:"onHold" example:"500" minimum:"0"`
-
-	// Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)
-	// example: 2
-	// minimum: 0
-	Scale int64 `json:"scale" example:"2" minimum:"0"`
+	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
 
 	// Optimistic concurrency control version
 	// example: 1
@@ -155,13 +150,10 @@ type BalanceRedis struct {
 	AssetCode string `json:"assetCode"`
 
 	// Amount available for transactions
-	Available int64 `json:"available"`
+	Available decimal.Decimal `json:"available"`
 
 	// Amount currently on hold
-	OnHold int64 `json:"onHold"`
-
-	// Decimal places for the asset
-	Scale int64 `json:"scale"`
+	OnHold decimal.Decimal `json:"onHold"`
 
 	// Optimistic concurrency control version
 	Version int64 `json:"version"`
@@ -189,7 +181,6 @@ func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance
 			AssetCode:      balance.AssetCode,
 			Available:      balance.Available,
 			OnHold:         balance.OnHold,
-			Scale:          balance.Scale,
 			Version:        balance.Version,
 			AccountType:    balance.AccountType,
 			AllowSending:   balance.AllowSending,
@@ -215,7 +206,6 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 		AssetCode:      b.AssetCode,
 		Available:      b.Available,
 		OnHold:         b.OnHold,
-		Scale:          b.Scale,
 		Version:        b.Version,
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
@@ -245,14 +235,13 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 
 	switch v := aux.Available.(type) {
 	case float64:
-		b.Available = int64(v)
+		b.Available = decimal.NewFromFloat(v)
 	case string:
-		f, err := strconv.ParseFloat(v, 64)
+		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter available field from string to float64: %v", err)
+			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
 		}
-
-		b.Available = int64(f)
+		b.Available = decimalValue
 	case json.Number:
 		i, err := v.Int64()
 		if err != nil {
@@ -261,9 +250,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("err to converter available field from json.Number: %v", err)
 			}
 
-			b.Available = int64(f)
+			b.Available = decimal.NewFromFloat(f)
 		} else {
-			b.Available = i
+			b.Available = decimal.NewFromInt(i)
 		}
 	default:
 		f, ok := v.(float64)
@@ -271,19 +260,18 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("type unsuported to available: %T", v)
 		}
 
-		b.Available = int64(f)
+		b.Available = decimal.NewFromFloat(f)
 	}
 
 	switch v := aux.OnHold.(type) {
 	case float64:
-		b.OnHold = int64(v)
+		b.OnHold = decimal.NewFromFloat(v)
 	case string:
-		f, err := strconv.ParseFloat(v, 64)
+		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to float64: %v", err)
+			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
 		}
-
-		b.OnHold = int64(f)
+		b.OnHold = decimalValue
 	case json.Number:
 		i, err := v.Int64()
 		if err != nil {
@@ -292,9 +280,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
 			}
 
-			b.OnHold = int64(f)
+			b.OnHold = decimal.NewFromFloat(f)
 		} else {
-			b.OnHold = i
+			b.OnHold = decimal.NewFromInt(i)
 		}
 	default:
 		f, ok := v.(float64)
@@ -302,28 +290,10 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("type unsuported to  onHold: %T", v)
 		}
 
-		b.OnHold = int64(f)
+		b.OnHold = decimal.NewFromFloat(f)
 	}
 
 	return nil
-}
-
-// BalanceResponse represents a success response containing a single balance.
-//
-// swagger:response BalanceResponse
-// @Description Successful response containing a single balance entity.
-type BalanceResponse struct {
-	// in: body
-	Body Balance
-}
-
-// BalancesResponse represents a success response containing a paginated list of balances.
-//
-// swagger:response BalancesResponse
-// @Description Successful response containing a paginated list of balances.
-type BalancesResponse struct {
-	// in: body
-	Body Balances
 }
 
 // BalanceErrorResponse represents an error response for balance operations.

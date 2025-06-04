@@ -27,7 +27,7 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error)
-	addSumBalanceRedis(ctx context.Context, key, value, operation string) (*string, error)
+	AddSumBalanceRedis(ctx context.Context, key string, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -325,12 +325,10 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	args := []any{
 		operation,
 		amount.Asset,
-		strconv.FormatInt(amount.Value, 10),
-		strconv.FormatInt(amount.Scale, 10),
+		amount.Value,
 		balance.ID,
-		strconv.FormatInt(balance.Available, 10),
-		strconv.FormatInt(balance.OnHold, 10),
-		strconv.FormatInt(balance.Scale, 10),
+		balance.Available,
+		balance.OnHold,
 		strconv.FormatInt(balance.Version, 10),
 		balance.AccountType,
 		allowSending,
@@ -386,7 +384,6 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	balance.AccountID = b.AccountID
 	balance.Available = b.Available
 	balance.OnHold = b.OnHold
-	balance.Scale = b.Scale
 	balance.Version = b.Version
 	balance.AccountType = b.AccountType
 	balance.AllowSending = b.AllowSending == 1
@@ -396,14 +393,12 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	return &balance, nil
 }
 
-func (rr *RedisConsumerRepository) addSumBalanceRedis(ctx context.Context, key, value, operation string) (*string, error) {
+func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key string, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
 	defer span.End()
-
-	script := redis.NewScript("./lua/add_sub.lua")
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -414,22 +409,80 @@ func (rr *RedisConsumerRepository) addSumBalanceRedis(ctx context.Context, key, 
 		return nil, err
 	}
 
-	args := []any{
-		operation,
-		value,
+	allowSending := 0
+	if balance.AllowSending {
+		allowSending = 1
 	}
+
+	allowReceiving := 0
+	if balance.AllowReceiving {
+		allowReceiving = 1
+	}
+
+	args := []any{
+		amount.Operation,
+		amount.Value,
+		balance.ID,
+		balance.Available,
+		balance.OnHold,
+		strconv.FormatInt(balance.Version, 10),
+		balance.AccountType,
+		allowSending,
+		allowReceiving,
+		balance.AssetCode,
+		balance.AccountID,
+	}
+
+	script := redis.NewScript("./scripts/add_sub.lua")
 
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
 	if err != nil {
+		logger.Errorf("Failed run lua script on redis: %v", err)
+
 		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
-		logger.Errorf("Failed run lua script on redis: %v", err)
+		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		}
 
 		return nil, err
 	}
 
-	logger.Infof("result type: %s", result)
+	logger.Infof("result type: %T", result)
+	logger.Infof("result value: %v", result)
 
-	return result.(*string), nil
+	b := mmodel.BalanceRedis{}
 
+	var balanceJSON string
+	switch v := result.(type) {
+	case string:
+		balanceJSON = v
+	case []byte:
+		balanceJSON = string(v)
+	default:
+		err = fmt.Errorf("unexpected result type from Redis: %T", result)
+		logger.Warnf("Warning: %v", err)
+
+		return nil, err
+	}
+
+	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+
+		logger.Errorf("Error to Deserialization json: %v", err)
+
+		return nil, err
+	}
+
+	balance.ID = b.ID
+	balance.AccountID = b.AccountID
+	balance.Available = b.Available
+	balance.OnHold = b.OnHold
+	balance.Version = b.Version
+	balance.AccountType = b.AccountType
+	balance.AllowSending = b.AllowSending == 1
+	balance.AllowReceiving = b.AllowReceiving == 1
+	balance.AssetCode = b.AssetCode
+
+	return &balance, nil
 }

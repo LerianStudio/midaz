@@ -58,7 +58,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := p.(*mmodel.CreateTransactionInput)
+	input := p.(*transaction.CreateTransactionInput)
 	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
@@ -96,8 +96,8 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := p.(*mmodel.CreateTransactionInflowInput)
-	parserDSL := input.TransactionFromInflowInput()
+	input := p.(*transaction.CreateTransactionInflowInput)
+	parserDSL := input.InflowFromDSL()
 	logger.Infof("Request to create an transaction inflow with details: %#v", parserDSL)
 
 	response := handler.createTransaction(c, logger, *parserDSL)
@@ -134,8 +134,8 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := p.(*mmodel.CreateTransactionOutflowInput)
-	parserDSL := input.TransactionOutflowFromInput()
+	input := p.(*transaction.CreateTransactionOutflowInput)
+	parserDSL := input.OutflowFromDSL()
 	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
 	response := handler.createTransaction(c, logger, *parserDSL)
@@ -201,7 +201,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parsed := goldTransaction.Parse(dsl)
 
-	parserDSL, ok := parsed.(mmodel.Transaction)
+	parserDSL, ok := parsed.(libTransaction.Transaction)
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
@@ -366,7 +366,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
-	payload := p.(*mmodel.UpdateTransactionInput)
+	payload := p.(*transaction.UpdateTransactionInput)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
 	_, err := handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
@@ -567,8 +567,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 // handleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) handleAccountFields(entries []mmodel.FromTo, isConcat bool) []mmodel.FromTo {
-	result := make([]mmodel.FromTo, 0, len(entries))
+func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
+	result := make([]libTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
 		var newAlias string
@@ -586,7 +586,8 @@ func (handler *TransactionHandler) handleAccountFields(entries []mmodel.FromTo, 
 	return result
 }
 
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL mmodel.Transaction) error {
+// createTransaction func that received struct from DSL parsed and create Transaction
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -597,7 +598,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
 	defer spanValidateDSL.End()
 
-	var fromTo []mmodel.FromTo
+	var fromTo []libTransaction.FromTo
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
@@ -694,13 +695,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
-					Scale:     &blc.Scale,
 				}
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
@@ -710,13 +710,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 				amount := operation.Amount{
 					Amount: &amt.Value,
-					Scale:  &amt.Scale,
 				}
 
 				balanceAfter := operation.Balance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
-					Scale:     &bat.Scale,
 				}
 
 				descr := fromTo[i].Description

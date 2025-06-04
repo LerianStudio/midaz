@@ -163,24 +163,48 @@ sub_decimal = function(a, b)
 end
 
 local function main()
-    local op =  ARGV[1]
-    local delta = ARGV[2]
+    local ttl = 3600
+    local key = KEYS[1]
+    local operation = ARGV[1]
 
-    local current = redis.call("GET", KEYS[1])
+    local amount = tonumber(ARGV[2])
+
+    local balance = {
+      ID = ARGV[3],
+      Available = tonumber(ARGV[4]),
+      OnHold = tonumber(ARGV[5]),
+      Version = tonumber(ARGV[6]),
+      AccountType = ARGV[7],
+      AllowSending = tonumber(ARGV[8]),
+      AllowReceiving = tonumber(ARGV[9]),
+      AssetCode = ARGV[10],
+      AccountID = ARGV[11],
+    }
+
+    local current = redis.call("GET", key)
     if not current then
-        current = "0"
+        local balanceEncoded = cjson.encode(balance)
+        redis.call("SET", key, balanceEncoded, "EX", ttl)
+    else
+      balance = cjson.decode(current)
     end
 
     local result
-    if op == "ADD" then
-        result = add_decimal(current, delta)
-    elseif op == "SUB" then
-        result = sub_decimal(current, delta)
+    if operation == "DEBIT" then
+        result = sub_decimal(balance.Available, amount)
     else
-        return redis.error_reply("Invalid operation: use ADD or SUB only.")
+        result = add_decimal(balance.Available, amount)
     end
 
-    redis.call("SET", KEYS[1], result)
+    balance.Available = result
+    balance.Version = balance.Version + 1
 
-    return result
+    if balance.Available < 0 and balance.AccountType ~= "external" then
+      return redis.error_reply("0018")
+    end
+
+    local balanceEncoded = cjson.encode(balance)
+    redis.call("SET", key, balanceEncoded, "EX", ttl)
+
+    return balanceEncoded
 end

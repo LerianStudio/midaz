@@ -8,3 +8,8 @@ ALTER TABLE operation
   ALTER COLUMN on_hold_balance_after TYPE BIGINT USING on_hold_balance_after::BIGINT;
 
 COMMIT;
+
+ALTER TABLE operation
+    ADD COLUMN amount_scale BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN balance_scale BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN balance_scale_after BIGINT NOT NULL DEFAULT 0;

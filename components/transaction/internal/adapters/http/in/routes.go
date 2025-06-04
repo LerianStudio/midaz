@@ -7,6 +7,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -30,14 +31,14 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CreateTransactionDSL)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionInput), th.CreateTransactionJSON))
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionInflowInput), th.CreateTransactionInflow))
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionOutflowInput), th.CreateTransactionOutflow))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInflowInput), th.CreateTransactionInflow))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionOutflowInput), th.CreateTransactionOutflow))
 
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.CommitTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", auth.Authorize(midazName, "transactions", "post"), http.ParseUUIDPathParameters, th.RevertTransaction)
 
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateTransactionInput), th.UpdateTransaction))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))
 
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters, th.GetTransaction)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters, th.GetAllTransactions)
