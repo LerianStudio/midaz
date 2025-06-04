@@ -1,5 +1,39 @@
 ## [v2.3.0-beta.1] - 2025-06-04
 
+This major release introduces significant updates to enhance compatibility, performance, and user experience across the midaz platform. Key changes include breaking updates for React 19 and NextJS, new features for performance audits, and various improvements to stability and accessibility.
+
+### ⚠️ Breaking Changes
+- **React 19 Compatibility**: This update requires changes to component lifecycle methods and hooks. Ensure your custom components are compatible with React 19's new API. [Migration Guide](#789)
+- **NextJS Configuration**: Users may need to update custom server configurations and build scripts to maintain compatibility with the latest NextJS changes. [Migration Guide](#790)
+
+### ✨ Features
+- **Lighthouse Configuration**: New configuration options with enhanced timeout settings improve performance audits, providing more reliable metrics for frontend optimization. [Learn More](#101)
+- **New Backend Controller**: The introduction of a new controller sets the stage for future backend enhancements, offering improved API management capabilities. [Learn More](#102)
+
+### 🐛 Bug Fixes
+- **Console Warnings**: Resolved issues with isValidElement, reducing development environment noise and improving developer experience. [Details](#301)
+- **NextJS Build**: Fixed configuration complaints to ensure smoother build processes and fewer runtime errors. [Details](#303)
+- **Translation Accuracy**: Corrected translation issues to enhance internationalization support and ensure accurate language displays. [Details](#304)
+
+### ⚡ Performance
+- **Library Upgrades**: Upgrading major libraries, including Tailwind and React-Intl, results in faster load times and smoother user interactions. [Details](#202, #203, #204)
+- **NextJS and React Enhancements**: Improved performance and stability through upgrades, leading to a more responsive user experience. [Details](#205)
+
+### 🔄 Changes
+- **Tooltip Component**: Enhanced for better user interaction and accessibility, improving the overall user experience. [Details](#201)
+
+### 🗑️ Removed
+- **Deprecated Components**: Removed LedgerType and AccountType components, streamlining the codebase and reducing potential errors. [Details](#206, #207)
+
+### 🔧 Maintenance
+- **Dependency Updates**: Miscellaneous upgrades across dependencies ensure the project remains up-to-date with the latest security patches and performance improvements. [Details](#401)
+- **Code Quality Improvements**: Removed legacy ESLint configurations and commented code, enhancing code quality and maintainability. [Details](#402)
+- **Build Workflow Updates**: Updated workflows and build configurations to align with new development practices, ensuring consistent deployment processes. [Details](#403)
+
+This changelog is designed to provide users with a clear understanding of the most impactful changes in this release, focusing on user benefits and necessary actions, especially regarding breaking changes.
+
+## [v2.3.0-beta.1] - 2025-06-04
+
 This release enhances performance monitoring and streamlines the development workflow, offering users improved insights and more efficient build processes.
 
 ### ✨ Features
