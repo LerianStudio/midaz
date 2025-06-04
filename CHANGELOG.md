@@ -1,3 +1,36 @@
+## [v2.3.0-beta.1] - 2025-06-04
+
+This major release of Midaz introduces significant upgrades to both the frontend and backend, enhancing performance, user experience, and development capabilities. Key updates include React and NextJS upgrades, new backend features, and crucial bug fixes.
+
+### ⚠️ Breaking Changes
+- **React 19 Upgrade**: This update may affect custom components and third-party libraries. Users should review their code for compatibility with React 19's new features and deprecations. [Migration Guide](#)
+- **NextJS Update**: Changes may impact custom server configurations and routing. Please verify your NextJS setup to ensure compatibility with the latest version. [Migration Guide](#)
+
+### ✨ Features
+- **New Backend Controller**: Introduced a new controller, enhancing backend capabilities and laying the groundwork for future expansions. This feature improves data handling and scalability.
+- **Frontend Upgrades**: NextJS and React have been upgraded to their latest versions, providing performance improvements and new features that enhance development efficiency and application responsiveness.
+
+### 🐛 Bug Fixes
+- **Console Warnings**: Resolved issues with `isValidElement`, reducing development environment noise and improving stability.
+- **Internationalization Fixes**: Ensured proper functionality of internationalization features by fixing issues with formatjs/cli-lib.
+- **Build and Configuration**: Addressed build issues and NextJS configuration complaints, ensuring smoother build processes and deployment reliability.
+
+### ⚡ Performance
+- **Lighthouse Configuration**: Implemented Lighthouse for performance audits, enabling developers to monitor and enhance application performance metrics effectively.
+
+### 🔄 Changes
+- **Dependency Updates**: Upgraded Tailwind, Storybook, and react-intl dependencies, ensuring compatibility with the latest features and security patches.
+- **Code Quality**: Improved linting and code quality by upgrading eslint and addressing code style issues, leading to more maintainable and error-free code.
+
+### 📚 Documentation
+- **Versioning Updates**: Updated `.env.example` and CHANGELOG to reflect the latest release, ensuring documentation accuracy and consistency.
+
+### 🔧 Maintenance
+- **Legacy Code Removal**: Removed deprecated configurations and code, streamlining the codebase for better maintainability.
+- **Code Cleanup**: Linted code and removed commented code, enhancing readability and maintainability.
+
+Users are encouraged to review the breaking changes and major features to fully leverage the improvements and ensure a smooth transition to this updated version.
+
 ## [v2.3.0-beta.3] - 2025-06-02
 
 ### ✨ Features
