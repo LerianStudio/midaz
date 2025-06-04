@@ -52,7 +52,6 @@ branches:
   - name: main
   - name: develop
     prerelease: beta
-    range: '>=2.2.1'
   - name: hotfix/*
     prerelease: false
     channel: false
