@@ -1,5 +1,21 @@
 ## [v2.3.0-beta.1] - 2025-06-04
 
+This release enhances performance monitoring and streamlines the development workflow, offering users improved insights and more efficient build processes.
+
+### ✨ Features
+- **Enhanced Performance Monitoring**: A new configuration for Lighthouse has been introduced, providing better performance insights. Users can now access more reliable and consistent performance metrics, aiding in application optimization efforts.
+
+### ⚡ Performance
+- **Streamlined Frontend Analysis**: New configurations for executing Lighthouse simplify the setup process, offering immediate access to performance data. This enhancement improves the overall development workflow, making it easier for developers to monitor and analyze frontend performance.
+
+### 🔧 Maintenance
+- **Documentation Alignment**: The version in `.env.example` has been updated to v2.2.1, ensuring consistency across environments and preventing configuration-related issues.
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes, providing users with a clear history of updates and improvements.
+
+These updates focus on enhancing performance monitoring capabilities and improving the development workflow, providing users with more robust tools for application optimization and maintenance.
+
+## [v2.3.0-beta.1] - 2025-06-04
+
 This major release of Midaz introduces significant upgrades to both the frontend and backend, enhancing performance, user experience, and development capabilities. Key updates include React and NextJS upgrades, new backend features, and crucial bug fixes.
 
 ### ⚠️ Breaking Changes
