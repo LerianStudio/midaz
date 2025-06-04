@@ -22,22 +22,23 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      console: ${{ steps.filter.outputs.console }}
+      console: ${{ steps.changes.outputs.console }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Detect changes in console
-        id: filter
-        uses: tinyfists/actions-monorepo@v1
+        id: changes
+        uses: dorny/paths-filter@v3
         with:
-          paths: |
-            components/console/**
+          filters: |
+            console:
+              - 'components/console/**'
 
   npm-audit:
+    name: Run npm audit and fix vulnerabilities
     needs: detect-changes
     if: needs.detect-changes.outputs.console == 'true'
     runs-on: ubuntu-latest
-    name: Run npm audit and fix vulnerabilities
     defaults:
       run:
         working-directory: components/console
@@ -70,10 +71,10 @@ jobs:
         run: npm audit fix
 
   unit-tests:
+    name: Run Unit Tests for Console
     needs: detect-changes
     if: needs.detect-changes.outputs.console == 'true'
     runs-on: ubuntu-latest
-    name: Run Unit Tests for Console
     defaults:
       run:
         working-directory: components/console

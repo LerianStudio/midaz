@@ -22,25 +22,25 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      onboarding: ${{ steps.filter.outputs.onboarding }}
-      transaction: ${{ steps.filter.outputs.transaction }}
+      onboarding: ${{ steps.changes.outputs.onboarding }}
+      transaction: ${{ steps.changes.outputs.transaction }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Detect backend changes
-        id: filter
-        uses: tinyfists/actions-monorepo@v1
+        id: changes
+        uses: dorny/paths-filter@v3
         with:
-          paths: |
-            components/onboarding/**
-            components/transaction/**
+          filters: |
+            onboarding:
+              - 'components/onboarding/**'
+            transaction:
+              - 'components/transaction/**'
 
   CodeQL:
     name: Run CodeQL to Midaz
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.onboarding == 'true' ||
-      needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -70,13 +70,10 @@ jobs:
   GolangCI-Lint:
     name: Run GolangCI-Lint to Midaz
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.onboarding == 'true' ||
-      needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Run GoLangCI Lint
         uses: LerianStudio/github-actions-golangci-lint@main
@@ -94,9 +91,7 @@ jobs:
   GoSec:
     name: Run GoSec to Midaz
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.onboarding == 'true' ||
-      needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -114,9 +109,7 @@ jobs:
   unit-tests:
     name: Run Unit Tests to Midaz
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.onboarding == 'true' ||
-      needs.detect-changes.outputs.transaction == 'true'
+    if: needs.detect-changes.outputs.onboarding == 'true' || needs.detect-changes.outputs.transaction == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
