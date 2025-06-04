@@ -51,7 +51,7 @@ jobs:
       # Wait for the application to be fully ready before proceeding
       # Timeout after 60 seconds if the app doesn't respond
       - name: Wait for app to be ready
-        run: npx wait-on http://localhost:8081 --timeout 60000
+        run: npx start-server-and-test start http://localhost:8081 test:lighthouse
 
       # Step 1: Run Lighthouse CI for public upload to temporary storage
       # This makes the results publicly accessible via a Lighthouse CI URL

@@ -19,7 +19,7 @@ plugins:
       - type: test
         release: patch
       - type: fix
-        release: minor
+        release: patch
       - type: refactor
         release: minor
       - type: docs
@@ -47,14 +47,11 @@ plugins:
     message: "chore(release): Preparations for next release [skip ci]"
 
   - path: "@semantic-release/exec"
-    backmergeBranches:
-      - from: main 
-        to: develop
-    message: "chore(release): Preparations for next release [skip ci]"
 
 branches:
   - main
   - name: develop
-    prerelease: beta
+    prerelease: "beta"
   - name: hotfix/*
-    prerelease: hf
+    prerelease: false
+    channel: false

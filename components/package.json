@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "start-server-and-test": "^2.0.12"
+  }
+}
