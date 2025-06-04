@@ -25,7 +25,6 @@
     "format": "prettier --write .",
     "lhci": "lhci autorun",
     "test:lighthouse": "npm run lhci",
-    "lhci:ci": "start-server-and-test start http://localhost:8081 test:lighthouse --wait-on http-get --wait-on-timeout 120000",
     "format:check": "prettier --check ."
   },
   "dependencies": {
