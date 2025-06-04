@@ -24,6 +24,8 @@
     "prepare": "husky",
     "format": "prettier --write .",
     "lhci": "lhci autorun",
+    "test:lighthouse": "npm run lhci",
+    "lhci:ci": "start-server-and-test start http://localhost:8081 lhci",
     "format:check": "prettier --check ."
   },
   "dependencies": {
