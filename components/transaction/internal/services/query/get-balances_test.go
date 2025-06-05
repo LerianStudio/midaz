@@ -138,13 +138,14 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias1 with DEBIT operation
+		fromAmount := validate.From["alias1"]
+		fromAmount.Operation = constant.DEBIT
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey1,
+				fromAmount,
 				gomock.Any(),
-				validate.From["alias1"],
-				constant.DEBIT,
 			).
 			Return(&mmodel.Balance{
 				ID:             balanceRedis.ID,
@@ -163,25 +164,27 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias2 with CREDIT operation
+		toAmount2 := validate.To["alias2"]
+		toAmount2.Operation = constant.CREDIT
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey2,
+				toAmount2,
 				gomock.Any(),
-				validate.To["alias2"],
-				constant.CREDIT,
 			).
 			Return(databaseBalances[0], nil).
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias3 with CREDIT operation
+		toAmount3 := validate.To["alias3"]
+		toAmount3.Operation = constant.CREDIT
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey3,
+				toAmount3,
 				gomock.Any(),
-				validate.To["alias3"],
-				constant.CREDIT,
 			).
 			Return(databaseBalances[1], nil).
 			Times(1)
@@ -261,13 +264,14 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias1 with DEBIT operation
+		fromAmount := validate.From["alias1"]
+		fromAmount.Operation = constant.DEBIT
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey1,
+				fromAmount,
 				gomock.Any(),
-				validate.From["alias1"],
-				constant.DEBIT,
 			).
 			Return(&mmodel.Balance{
 				ID:             balance1.ID,
@@ -286,13 +290,14 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias2 with CREDIT operation
+		toAmount := validate.To["alias2"]
+		toAmount.Operation = constant.CREDIT
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey2,
+				toAmount,
 				gomock.Any(),
-				validate.To["alias2"],
-				constant.CREDIT,
 			).
 			Return(&mmodel.Balance{
 				ID:             balance2.ID,
@@ -383,27 +388,29 @@ func TestGetAccountAndLock(t *testing.T) {
 		}
 
 		// Mock Redis.LockBalanceRedis for alias1 with DEBIT operation
+		fromAmount := validate.From["alias1"]
+		fromAmount.Operation = constant.DEBIT
 		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey1,
+				fromAmount,
 				gomock.Any(),
-				validate.From["alias1"],
-				constant.DEBIT,
 			).
 			Return(balances[0], nil).
 			Times(1)
 
 		// Mock Redis.LockBalanceRedis for alias2 with CREDIT operation
+		toAmount := validate.To["alias2"]
+		toAmount.Operation = constant.CREDIT
 		internalKey2 := libCommons.LockInternalKey(organizationID, ledgerID, "alias2")
 		mockRedisRepo.EXPECT().
-			LockBalanceRedis(
+			AddSumBalanceRedis(
 				gomock.Any(),
 				internalKey2,
+				toAmount,
 				gomock.Any(),
-				validate.To["alias2"],
-				constant.CREDIT,
 			).
 			Return(balances[1], nil).
 			Times(1)
@@ -507,7 +514,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(1000),
+				Available:      decimal.NewFromFloat(10000),
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
@@ -534,7 +541,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968143-6677-7d4a-ad4b-0b0c8ae366fb",
 				AccountID:      "01968143-666c-7e4d-b127-bc5ac9af3058",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(1000000000000000),
+				Available:      decimal.NewFromFloat(10000000000000000),
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "creditCard",
@@ -647,13 +654,11 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			b := mmodel.BalanceRedis{}
 			err := json.Unmarshal([]byte(tt.json), &b)
 
-			// Verifica se deve ocorrer erro
 			if (err != nil) != tt.wantErr {
 				t.Errorf("json.Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			// Se não esperamos erro, verifica os valores
 			if !tt.wantErr {
 				if b.ID != tt.want.ID {
 					t.Errorf("ID: got = %v, want %v", b.ID, tt.want.ID)
@@ -664,10 +669,10 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				if b.AssetCode != tt.want.AssetCode {
 					t.Errorf("AssetCode: got = %v, want %v", b.AssetCode, tt.want.AssetCode)
 				}
-				if b.Available != tt.want.Available {
+				if b.Available.String() != tt.want.Available.String() {
 					t.Errorf("Available: got = %v, want %v", b.Available, tt.want.Available)
 				}
-				if b.OnHold != tt.want.OnHold {
+				if b.OnHold.String() != tt.want.OnHold.String() {
 					t.Errorf("OnHold: got = %v, want %v", b.OnHold, tt.want.OnHold)
 				}
 				if b.Version != tt.want.Version {

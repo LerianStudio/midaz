@@ -101,21 +101,6 @@ func (mr *MockRedisRepositoryMockRecorder) Incr(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), ctx, key)
 }
 
-// LockBalanceRedis mocks base method.
-func (m *MockRedisRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount transaction.Amount, operation string) (*mmodel.Balance, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockBalanceRedis", ctx, key, balance, amount, operation)
-	ret0, _ := ret[0].(*mmodel.Balance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockBalanceRedis indicates an expected call of LockBalanceRedis.
-func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(ctx, key, balance, amount, operation any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), ctx, key, balance, amount, operation)
-}
-
 // Set mocks base method.
 func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	m.ctrl.T.Helper()
