@@ -407,7 +407,7 @@ export const apiErrorMessages = defineMessages({
   },
   '0088': {
     id: 'errors.midaz.transactionIsAlreadyReversal',
-    defaultMessage: 'Transaction is already a reversal. Please try again'
+    defaultMessage: 'Transaction is already a reversal. Please try again.'
   },
   '0089': {
     id: 'errors.midaz.transactionCantBeReverted',
