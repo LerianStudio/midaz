@@ -7,4 +7,4 @@ ALTER TABLE balance
 COMMIT;
 
 ALTER TABLE balance
-    ADD COLUMN scale BIGINT NOT NULL DEFAULT 0;
+    DROP COLUMN scale;
