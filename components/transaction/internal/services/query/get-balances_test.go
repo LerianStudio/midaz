@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"
@@ -42,20 +43,17 @@ func TestGetBalances(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(40),
 				},
 				"alias3": {
 					Asset: "GBP",
-					Value: int64(30),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(30),
 				},
 			},
 		}
@@ -64,9 +62,8 @@ func TestGetBalances(t *testing.T) {
 		balanceRedis := mmodel.BalanceRedis{
 			ID:             uuid.New().String(),
 			AccountID:      uuid.New().String(),
-			Available:      int64(100),
-			OnHold:         int64(0),
-			Scale:          int64(2),
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   1,
@@ -83,9 +80,9 @@ func TestGetBalances(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias2",
-				Available:      int64(200),
-				OnHold:         int64(0),
-				Scale:          int64(2),
+				Available:      decimal.NewFromFloat(200),
+				OnHold:         decimal.NewFromFloat(0),
+
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -98,9 +95,9 @@ func TestGetBalances(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias3",
-				Available:      int64(300),
-				OnHold:         int64(0),
-				Scale:          int64(2),
+				Available:      decimal.NewFromFloat(300),
+				OnHold:         decimal.NewFromFloat(0),
+
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -157,7 +154,6 @@ func TestGetBalances(t *testing.T) {
 				Alias:          "alias1",
 				Available:      balanceRedis.Available,
 				OnHold:         balanceRedis.OnHold,
-				Scale:          balanceRedis.Scale,
 				Version:        balanceRedis.Version,
 				AccountType:    balanceRedis.AccountType,
 				AllowSending:   balanceRedis.AllowSending == 1,
@@ -206,26 +202,24 @@ func TestGetBalances(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(40),
 				},
 			},
 		}
 
 		// Redis balances
 		balance1 := mmodel.BalanceRedis{
-			ID:             uuid.New().String(),
-			AccountID:      uuid.New().String(),
-			Available:      int64(100),
-			OnHold:         int64(0),
-			Scale:          int64(2),
+			ID:        uuid.New().String(),
+			AccountID: uuid.New().String(),
+			Available: decimal.NewFromFloat(100),
+			OnHold:    decimal.NewFromFloat(0),
+
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   1,
@@ -235,11 +229,11 @@ func TestGetBalances(t *testing.T) {
 		balance1JSON, _ := json.Marshal(balance1)
 
 		balance2 := mmodel.BalanceRedis{
-			ID:             uuid.New().String(),
-			AccountID:      uuid.New().String(),
-			Available:      int64(200),
-			OnHold:         int64(0),
-			Scale:          int64(2),
+			ID:        uuid.New().String(),
+			AccountID: uuid.New().String(),
+			Available: decimal.NewFromFloat(200),
+			OnHold:    decimal.NewFromFloat(0),
+
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   1,
@@ -283,7 +277,6 @@ func TestGetBalances(t *testing.T) {
 				Alias:          "alias1",
 				Available:      balance1.Available,
 				OnHold:         balance1.OnHold,
-				Scale:          balance1.Scale,
 				Version:        balance1.Version,
 				AccountType:    balance1.AccountType,
 				AllowSending:   balance1.AllowSending == 1,
@@ -309,7 +302,6 @@ func TestGetBalances(t *testing.T) {
 				Alias:          "alias2",
 				Available:      balance2.Available,
 				OnHold:         balance2.OnHold,
-				Scale:          balance2.Scale,
 				Version:        balance2.Version,
 				AccountType:    balance2.AccountType,
 				AllowSending:   balance2.AllowSending == 1,
@@ -348,15 +340,13 @@ func TestGetAccountAndLock(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromFloat(40),
 				},
 			},
 		}
@@ -368,9 +358,8 @@ func TestGetAccountAndLock(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      int64(100),
-				OnHold:         int64(0),
-				Scale:          int64(2),
+				Available:      decimal.NewFromFloat(100),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -383,9 +372,8 @@ func TestGetAccountAndLock(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias2",
-				Available:      int64(200),
-				OnHold:         int64(0),
-				Scale:          int64(2),
+				Available:      decimal.NewFromFloat(200),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -451,9 +439,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 		balance1 := mmodel.BalanceRedis{
 			ID:             uuid.New().String(),
 			AccountID:      uuid.New().String(),
-			Available:      int64(100),
-			OnHold:         int64(0),
-			Scale:          int64(2),
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   1,
@@ -520,9 +507,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      10000,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(1000),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
 				AllowSending:   1,
@@ -548,9 +534,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968143-6677-7d4a-ad4b-0b0c8ae366fb",
 				AccountID:      "01968143-666c-7e4d-b127-bc5ac9af3058",
 				AssetCode:      "BRL",
-				Available:      10000000000000000,
-				OnHold:         0,
-				Scale:          14,
+				Available:      decimal.NewFromFloat(1000000000000000),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "creditCard",
 				AllowSending:   1,
@@ -576,9 +561,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      5000,
-				OnHold:         1000,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(5000),
+				OnHold:         decimal.NewFromFloat(1000),
 				Version:        1,
 				AccountType:    "external",
 				AllowSending:   1,
@@ -604,9 +588,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      -10000,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(-10000),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
 				AllowSending:   1,
@@ -632,9 +615,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      1500,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(1500),
+				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
 				AllowSending:   1,
@@ -687,9 +669,6 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				}
 				if b.OnHold != tt.want.OnHold {
 					t.Errorf("OnHold: got = %v, want %v", b.OnHold, tt.want.OnHold)
-				}
-				if b.Scale != tt.want.Scale {
-					t.Errorf("Scale: got = %v, want %v", b.Scale, tt.want.Scale)
 				}
 				if b.Version != tt.want.Version {
 					t.Errorf("Version: got = %v, want %v", b.Version, tt.want.Version)
