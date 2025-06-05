@@ -411,7 +411,7 @@ export const apiErrorMessages = defineMessages({
   },
   '0089': {
     id: 'errors.midaz.transactionCantBeReverted',
-    defaultMessage: "Transaction can't be reverted. Please try again"
+    defaultMessage: "Transaction can't be reverted. Please try again."
   },
   '0090': {
     id: 'errors.midaz.transactionAmbiguousAccount',
