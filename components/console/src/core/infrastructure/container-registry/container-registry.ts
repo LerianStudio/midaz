@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 
-import { MidazRequestContext } from '../logger/decorators/midaz-id'
 import { Container } from '../utils/di/container'
 import { DatabaseModule } from './database/database-module'
 import { LoggerModule } from './logger/logger-module'
@@ -19,8 +18,3 @@ container.load(MidazModule)
 container.load(DatabaseModule)
 container.load(UseCasesModule)
 container.load(OtelModule)
-
-container
-  .bind<MidazRequestContext>(MidazRequestContext)
-  .toSelf()
-  .inSingletonScope()

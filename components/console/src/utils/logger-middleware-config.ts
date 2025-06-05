@@ -1,6 +1,5 @@
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
 import { NextHandler } from '@/lib/middleware/types'
 import { NextRequest } from 'next/server'
 
@@ -14,8 +13,8 @@ interface LoggerMiddlewareConfig {
 
 // Get instances from the dependency injection container
 const loggerAggregator = container.get(LoggerAggregator)
-const midazRequestContext: MidazRequestContext =
-  container.get<MidazRequestContext>(MidazRequestContext)
+const requestIdRepository: RequestIdRepository =
+  container.get<RequestIdRepository>(RequestIdRepository)
 
 /**
  * Middleware factory function that creates a logger middleware
@@ -23,14 +22,14 @@ const midazRequestContext: MidazRequestContext =
  */
 export function loggerMiddleware(config: LoggerMiddlewareConfig) {
   return async (req: NextRequest, next: NextHandler) => {
-    // Clear any existing Midaz ID from the context
-    midazRequestContext.clearMidazId()
-
     // Extract request body for non-GET and non-DELETE requests
     let body = undefined
     if (config.method !== 'GET' && config.method !== 'DELETE') {
       body = await req.json()
     }
+
+    const traceId = requestIdRepository.generate()
+    requestIdRepository.set(traceId)
 
     // Execute the next middleware/handler within a logged context
     return loggerAggregator.runWithContext(
@@ -39,7 +38,7 @@ export function loggerMiddleware(config: LoggerMiddlewareConfig) {
       {
         useCase: config.useCase,
         action: config.action || 'execute', // Default action is 'execute'
-        midazId: midazRequestContext.getMidazId()
+        midazId: traceId
       },
       async () => {
         return await next()
