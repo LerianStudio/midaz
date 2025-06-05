@@ -1,3 +1,19 @@
+## [v2.3.0-beta.4] - 2025-06-05
+
+This release of Midaz introduces significant enhancements to authentication and server processes, improving security and streamlining development workflows.
+
+### ✨ Features  
+- **Lighthouse Execution with Plugin Authentication**: Now, performance audits can be conducted under authenticated sessions. This ensures that performance metrics are accurate for authenticated pages, enhancing security and reliability in your performance insights.
+
+### 🔄 Changes
+- **Streamlined Server Initialization**: A new server start script has been configured to automate server setup. This reduces manual configuration steps, ensuring consistent environments across development stages and minimizing setup time for developers.
+- **Integrated Frontend Setup**: The frontend setup process is now more integrated with server scripts, automatically managing dependencies and configurations. This improvement reduces overhead and enhances the consistency of the development environment.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring all stakeholders have access to current project information for better communication and planning.
+
+Each of these changes is designed to enhance user experience, streamline development processes, and prioritize performance and security in the evolution of the Midaz project.
+
 ## [v2.3.0-beta.3] - 2025-06-05
 
 This release of Midaz introduces enhanced performance monitoring capabilities and streamlines setup processes, ensuring a more efficient and user-friendly experience.
