@@ -1,5 +1,5 @@
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
-import { SegmentResponseDto } from '../../dto/segment-dto'
+import { SegmentDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
@@ -9,7 +9,7 @@ export interface FetchSegmentById {
     organizationId: string,
     ledgerId: string,
     segmentId: string
-  ) => Promise<SegmentResponseDto>
+  ) => Promise<SegmentDto>
 }
 
 @injectable()
@@ -24,7 +24,7 @@ export class FetchSegmentByIdUseCase implements FetchSegmentById {
     organizationId: string,
     ledgerId: string,
     segmentId: string
-  ): Promise<SegmentResponseDto> {
+  ): Promise<SegmentDto> {
     const segment = await this.segmentRepository.fetchById(
       organizationId,
       ledgerId,

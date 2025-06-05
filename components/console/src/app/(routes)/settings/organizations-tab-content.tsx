@@ -31,7 +31,7 @@ import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-d
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import { useOrganization } from '@/providers/organization-provider'
 import { IdTableCell } from '@/components/table/id-table-cell'
 
@@ -54,7 +54,7 @@ export const OrganizationsTabContent = () => {
     }
   )
 
-  const handleEdit = (organization: OrganizationResponseDto) => {
+  const handleEdit = (organization: OrganizationDto) => {
     router.push(`/settings/organizations/${organization.id}`)
   }
 

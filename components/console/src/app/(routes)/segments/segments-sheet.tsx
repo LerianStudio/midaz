@@ -20,15 +20,15 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCreateSegment, useUpdateSegment } from '@/client/segments'
-import { SegmentType } from '@/types/segment-type'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@/providers/permission-provider/enforce'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: SegmentType | null
+  data?: SegmentDto | null
   onSuccess?: () => void
 }
 

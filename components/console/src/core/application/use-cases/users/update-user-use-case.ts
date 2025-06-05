@@ -1,4 +1,4 @@
-import { UpdateUserDto, UserResponseDto } from '../../dto/user-dto'
+import { UpdateUserDto, UserDto } from '../../dto/user-dto'
 import { UserMapper } from '../../mappers/user-mapper'
 import { UserEntity } from '@/core/domain/entities/user-entity'
 import { inject } from 'inversify'
@@ -6,10 +6,7 @@ import { LogOperation } from '../../../infrastructure/logger/decorators/log-oper
 import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface UpdateUser {
-  execute: (
-    userId: string,
-    user: Partial<UpdateUserDto>
-  ) => Promise<UserResponseDto>
+  execute: (userId: string, user: Partial<UpdateUserDto>) => Promise<UserDto>
 }
 
 export class UpdateUserUseCase implements UpdateUser {
@@ -22,7 +19,7 @@ export class UpdateUserUseCase implements UpdateUser {
   async execute(
     userId: string,
     user: Partial<UpdateUserDto>
-  ): Promise<UserResponseDto> {
+  ): Promise<UserDto> {
     const userExists = await this.userRepository.fetchById(userId)
 
     if (!userExists) {

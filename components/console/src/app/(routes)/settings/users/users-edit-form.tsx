@@ -15,12 +15,12 @@ import React from 'react'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { AlertTriangle } from 'lucide-react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
-import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
 import { Enforce } from '@/providers/permission-provider/enforce'
+import { UserDto } from '@/core/application/dto/user-dto'
 
 const initialValues = {
   firstName: '',
@@ -50,7 +50,7 @@ type UpdateFormData = z.infer<typeof UpdateFormSchema>
 type PasswordFormData = z.infer<typeof PasswordSchema>
 
 interface EditUserFormProps {
-  user: UsersType
+  user: UserDto
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
   isReadOnly?: boolean
@@ -97,7 +97,7 @@ export const EditUserForm = ({
     userId: user.id,
     onSuccess: async (response: unknown) => {
       const responseData = response as any
-      const updatedUser = responseData.userUpdated as UsersType
+      const updatedUser = responseData.userUpdated as UserDto
 
       await onSuccess?.()
       onOpenChange?.(false)

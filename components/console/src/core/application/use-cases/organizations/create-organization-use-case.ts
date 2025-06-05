@@ -8,16 +8,14 @@ import { validateImage } from '@/core/infrastructure/utils/avatar/validate-image
 import { inject, injectable } from 'inversify'
 import type {
   CreateOrganizationDto,
-  OrganizationResponseDto
+  OrganizationDto
 } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { getIntl } from '@/lib/intl'
 import { IntlShape } from 'react-intl'
 
 export interface CreateOrganization {
-  execute: (
-    organization: CreateOrganizationDto
-  ) => Promise<OrganizationResponseDto>
+  execute: (organization: CreateOrganizationDto) => Promise<OrganizationDto>
 }
 
 @injectable()
@@ -32,7 +30,7 @@ export class CreateOrganizationUseCase implements CreateOrganization {
   @LogOperation({ layer: 'application' })
   async execute(
     organizationData: CreateOrganizationDto
-  ): Promise<OrganizationResponseDto> {
+  ): Promise<OrganizationDto> {
     const intl = await getIntl()
 
     const organizationCreated: OrganizationEntity =
@@ -45,7 +43,7 @@ export class CreateOrganizationUseCase implements CreateOrganization {
         organizationData.avatar
       )
 
-    const organizationResponseDto: OrganizationResponseDto =
+    const organizationResponseDto: OrganizationDto =
       OrganizationMapper.toResponseDto(
         organizationCreated,
         organizationAvatarCreated?.avatar
