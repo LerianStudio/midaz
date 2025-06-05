@@ -6,4 +6,4 @@ ALTER TABLE transaction
 COMMIT;
 
 ALTER TABLE transaction
-    ADD COLUMN amount_scale BIGINT NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS amount_scale BIGINT NOT NULL DEFAULT 0;

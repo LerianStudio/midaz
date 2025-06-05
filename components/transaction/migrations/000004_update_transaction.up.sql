@@ -6,4 +6,4 @@ ALTER TABLE transaction
 COMMIT;
 
 ALTER TABLE transaction
-    DROP COLUMN amount_scale;
+    DROP COLUMN IF EXISTS amount_scale;

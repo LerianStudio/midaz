@@ -7,4 +7,4 @@ ALTER TABLE balance
 COMMIT;
 
 ALTER TABLE balance
-    DROP COLUMN scale;
+    DROP COLUMN IF EXISTS scale;

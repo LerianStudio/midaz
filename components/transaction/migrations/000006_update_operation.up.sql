@@ -10,6 +10,6 @@ ALTER TABLE operation
 COMMIT;
 
 ALTER TABLE operation
-    DROP COLUMN amount_scale,
-    DROP COLUMN balance_scale,
-    DROP COLUMN balance_scale_after;
+    DROP COLUMN IF EXISTS amount_scale,
+    DROP COLUMN IF EXISTS balance_scale,
+    DROP COLUMN IF EXISTS balance_scale_after;
