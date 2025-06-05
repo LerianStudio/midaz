@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -17,6 +18,9 @@ import (
 	"strings"
 	"time"
 )
+
+//go:embed scripts/add_sub.lua
+var addSubLua string
 
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting, deleting keys, and incrementing values.
@@ -421,10 +425,10 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key s
 
 	args := []any{
 		amount.Operation,
-		amount.Value,
+		amount.Value.String(),
 		balance.ID,
-		balance.Available,
-		balance.OnHold,
+		balance.Available.String(),
+		balance.OnHold.String(),
 		strconv.FormatInt(balance.Version, 10),
 		balance.AccountType,
 		allowSending,
@@ -433,8 +437,7 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key s
 		balance.AccountID,
 	}
 
-	script := redis.NewScript("./scripts/add_sub.lua")
-
+	script := redis.NewScript(addSubLua)
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)

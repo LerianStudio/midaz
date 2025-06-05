@@ -162,23 +162,27 @@ sub_decimal = function(a, b)
     return res_int .. "." .. frac_normal
 end
 
+local function startsWithMinus(s)
+    return s:sub(1,1) == "-"
+end
+
 local function main()
     local ttl = 3600
     local key = KEYS[1]
     local operation = ARGV[1]
 
-    local amount = tonumber(ARGV[2])
+    local amount = ARGV[2]
 
     local balance = {
-      ID = ARGV[3],
-      Available = tonumber(ARGV[4]),
-      OnHold = tonumber(ARGV[5]),
-      Version = tonumber(ARGV[6]),
-      AccountType = ARGV[7],
-      AllowSending = tonumber(ARGV[8]),
-      AllowReceiving = tonumber(ARGV[9]),
-      AssetCode = ARGV[10],
-      AccountID = ARGV[11],
+        ID = ARGV[3],
+        Available = ARGV[4],
+        OnHold = ARGV[5],
+        Version = tonumber(ARGV[6]),
+        AccountType = ARGV[7],
+        AllowSending = tonumber(ARGV[8]),
+        AllowReceiving = tonumber(ARGV[9]),
+        AssetCode = ARGV[10],
+        AccountID = ARGV[11],
     }
 
     local current = redis.call("GET", key)
@@ -186,7 +190,7 @@ local function main()
         local balanceEncoded = cjson.encode(balance)
         redis.call("SET", key, balanceEncoded, "EX", ttl)
     else
-      balance = cjson.decode(current)
+        balance = cjson.decode(current)
     end
 
     local result
@@ -196,15 +200,17 @@ local function main()
         result = add_decimal(balance.Available, amount)
     end
 
+    if startsWithMinus(result) and balance.AccountType ~= "external" then
+        return redis.error_reply("0018")
+    end
+
     balance.Available = result
     balance.Version = balance.Version + 1
-
-    if balance.Available < 0 and balance.AccountType ~= "external" then
-      return redis.error_reply("0018")
-    end
 
     local balanceEncoded = cjson.encode(balance)
     redis.call("SET", key, balanceEncoded, "EX", ttl)
 
     return balanceEncoded
 end
+
+return main()
