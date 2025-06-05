@@ -7,7 +7,7 @@
 
 import { inject, injectable } from 'inversify'
 import mongoose, { Mongoose } from 'mongoose'
-import { LoggerAggregator } from '../logger/logger-aggregator'
+import { LoggerAggregator } from 'lib-logs'
 import { getIntl } from '@/lib/intl'
 import { DatabaseException } from './exceptions/database-exception'
 import { IntlShape } from 'react-intl'

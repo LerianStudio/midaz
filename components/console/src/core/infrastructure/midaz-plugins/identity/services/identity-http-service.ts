@@ -1,5 +1,4 @@
-import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
 import { HttpService, InternalServerErrorApiException } from '@/lib/http'
@@ -14,8 +13,8 @@ export class IdentityHttpService extends HttpService {
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
-    @inject(MidazRequestContext)
-    private readonly midazRequestContext: MidazRequestContext,
+    @inject(RequestIdRepository)
+    private readonly requestIdRepository: RequestIdRepository,
     @inject(OtelTracerProvider)
     private readonly otelTracerProvider: OtelTracerProvider
   ) {
@@ -27,7 +26,7 @@ export class IdentityHttpService extends HttpService {
   protected async createDefaults() {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Request-Id': this.midazRequestContext.getMidazId()
+      'X-Request-Id': this.requestIdRepository.get()!
     }
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {

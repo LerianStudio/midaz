@@ -1,6 +1,5 @@
 import { inject, injectable } from 'inversify'
-import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
 import { HttpService } from '@/lib/http'
 import { getServerSession } from 'next-auth'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
@@ -17,8 +16,8 @@ export class MidazHttpService extends HttpService {
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
-    @inject(MidazRequestContext)
-    private readonly midazRequestContext: MidazRequestContext,
+    @inject(RequestIdRepository)
+    private readonly requestIdRepository: RequestIdRepository,
     @inject(OtelTracerProvider)
     private readonly otelTracerProvider: OtelTracerProvider
   ) {
@@ -30,7 +29,7 @@ export class MidazHttpService extends HttpService {
   protected async createDefaults() {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Request-Id': this.midazRequestContext.getMidazId()
+      'X-Request-Id': this.requestIdRepository.get()!
     }
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {

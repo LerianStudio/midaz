@@ -9,7 +9,7 @@ import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { BalanceMapper } from '../../mappers/balance-mapper'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator } from 'lib-logs'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface FetchAccountsWithPortfolios {

@@ -2,14 +2,14 @@ import { inject, injectable } from 'inversify'
 import { NextResponse } from 'next/server'
 import { UpdateSegmentUseCase } from '../use-cases/segment/update-segment-use-case'
 import { z } from 'zod'
-import { ControllerLogger } from '@/lib/logger'
-import { Controller } from '@/lib/http/decorators'
+import { Controller } from '@/lib/http/server'
 import { FetchAllSegmentsUseCase } from '../use-cases/segment/fetch-all-segments-use-case'
 import { FetchSegmentByIdUseCase } from '../use-cases/segment/fetch-segment-by-id-use-case'
 import { CreateSegmentUseCase } from '../use-cases/segment/create-segment-use-case'
 import { DeleteSegmentUseCase } from '../use-cases/segment/delete-segment-use-case'
 import { ValidateZod } from '@/lib/zod/decorators/validate-zod'
 import { segment } from '@/schema/segment'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
 
 type SegmentParams = {
   id: string
@@ -26,7 +26,7 @@ const UpdateSchema = z.object({
 })
 
 @injectable()
-@ControllerLogger()
+@LoggerInterceptor()
 @Controller()
 export class SegmentController {
   constructor(
