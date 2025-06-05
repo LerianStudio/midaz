@@ -73,7 +73,7 @@ export const CreateApplicationForm = ({
   }
 
   return (
-    <div className="flex flex-grow flex-col justify-between">
+    <div className="flex grow flex-col justify-between">
       <Form {...form}>
         <form
           id="application-create-form"
@@ -111,7 +111,7 @@ export const CreateApplicationForm = ({
           />
 
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-normal italic text-shadcn-400">
+            <p className="text-shadcn-400 text-xs font-normal italic">
               {intl.formatMessage({
                 id: 'common.requiredFields',
                 defaultMessage: '(*) required fields.'

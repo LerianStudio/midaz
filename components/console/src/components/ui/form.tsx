@@ -132,22 +132,16 @@ const FormLabel = React.forwardRef<
 })
 FormLabel.displayName = 'FormLabel'
 
-export const FormTooltip = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Provider>,
-  TooltipProviderProps
->(({ children, ...others }, ref) => {
-  return (
-    <TooltipProvider {...others}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <HelpCircle className="ml-2 h-4 w-4 text-gray-400" />
-        </TooltipTrigger>
-        <TooltipContent>{children}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-})
-FormTooltip.displayName = 'FormTooltip'
+export const FormTooltip = ({ children, ...others }: TooltipProviderProps) => (
+  <TooltipProvider {...others}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <HelpCircle className="ml-2 h-4 w-4 text-gray-400" />
+      </TooltipTrigger>
+      <TooltipContent>{children}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)
 
 const FormControl = React.forwardRef<
   React.ElementRef<typeof Slot>,
@@ -181,7 +175,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn('text-xs font-medium text-shadcn-400', className)}
+      className={cn('text-shadcn-400 text-xs font-medium', className)}
       {...props}
     />
   )
@@ -203,7 +197,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn('text-sm font-medium text-destructive', className)}
+      className={cn('text-destructive text-sm font-medium', className)}
       {...props}
     >
       {body}

@@ -144,7 +144,7 @@ export const UserSheet = ({
         data-testid="user-sheet"
         className="flex flex-col justify-between"
       >
-        <div className="flex flex-grow flex-col">
+        <div className="flex grow flex-col">
           {mode === 'edit' && (
             <SheetHeader>
               <SheetTitle>
@@ -254,7 +254,7 @@ export const UserSheet = ({
                       ))}
                     </SelectField>
 
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'

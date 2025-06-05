@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { MetadataField } from '@/components/form/metadata-field'
 import { useListSegments } from '@/client/segments'
 import { useCreateAccount, useUpdateAccount } from '@/client/accounts'
@@ -240,7 +240,7 @@ export const AccountSheet = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex flex-grow flex-col"
+              className="flex grow flex-col"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
@@ -264,7 +264,7 @@ export const AccountSheet = ({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="details">
-                  <div className="flex flex-grow flex-col gap-4">
+                  <div className="flex grow flex-col gap-4">
                     <InputField
                       control={form.control}
                       name="name"
@@ -449,7 +449,7 @@ export const AccountSheet = ({
                       />
                     </div>
 
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'
@@ -499,8 +499,8 @@ export const AccountSheet = ({
                   </SelectField>
 
                   <div className="mt-4 flex flex-row items-center">
-                    <div className="flex-grow">
-                      <p className="text-xs font-normal italic text-shadcn-400">
+                    <div className="grow">
+                      <p className="text-shadcn-400 text-xs font-normal italic">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({
                               id: 'accounts.sheet.noLinkedPortfolio',

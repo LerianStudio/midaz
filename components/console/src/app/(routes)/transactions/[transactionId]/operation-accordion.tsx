@@ -18,7 +18,7 @@ const Value = ({
 }: React.PropsWithChildren & React.HtmlHTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex h-9 flex-grow items-center rounded-md bg-shadcn-100 px-2',
+      'bg-shadcn-100 flex h-9 grow items-center rounded-md px-2',
       className
     )}
     {...props}
@@ -40,13 +40,13 @@ export const OperationAccordion = ({
   return (
     <PaperCollapsible className="mb-2">
       <PaperCollapsibleBanner>
-        <div className="flex flex-grow flex-row">
+        <div className="flex grow flex-row">
           {type === 'debit' && <ArrowLeft className="my-1 mr-4 text-red-500" />}
           {type === 'credit' && (
             <ArrowRight className="my-1 mr-4 text-green-500" />
           )}
 
-          <div className="flex flex-grow flex-col">
+          <div className="flex grow flex-col">
             <p className="text-lg font-medium text-neutral-600">
               {type === 'debit'
                 ? intl.formatMessage({
@@ -58,7 +58,7 @@ export const OperationAccordion = ({
                     defaultMessage: 'Credit'
                   })}
             </p>
-            <p className="text-xs text-shadcn-400">{operation.accountAlias}</p>
+            <p className="text-shadcn-400 text-xs">{operation.accountAlias}</p>
           </div>
           <div className="mr-4 flex flex-col items-end">
             <div className="flex flex-row items-center gap-4">
@@ -74,14 +74,14 @@ export const OperationAccordion = ({
                 {formatAmount(operation.amount)}
               </p>
             </div>
-            <p className="text-xs text-shadcn-400">{operation.asset}</p>
+            <p className="text-shadcn-400 text-xs">{operation.asset}</p>
           </div>
         </div>
       </PaperCollapsibleBanner>
       <PaperCollapsibleContent>
         <Separator orientation="horizontal" />
         <div className="flex flex-row gap-5 p-6">
-          <div className="flex flex-grow flex-col gap-4">
+          <div className="flex grow flex-col gap-4">
             <Label>
               {intl.formatMessage({
                 id: 'transactions.field.operation.description',
@@ -93,7 +93,7 @@ export const OperationAccordion = ({
             </div>
           </div>
 
-          <div className="flex flex-grow flex-col gap-4">
+          <div className="flex grow flex-col gap-4">
             <Label>
               {intl.formatMessage({
                 id: 'transactions.field.operation.chartOfAccounts',
@@ -116,7 +116,7 @@ export const OperationAccordion = ({
                 })}
               </p>
               <div className="flex flex-row gap-4">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <Label>
                     {intl.formatMessage({
                       id: 'transactions.operations.metadata.key',
@@ -129,7 +129,7 @@ export const OperationAccordion = ({
                     </div>
                   ))}
                 </div>
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <Label>
                     {intl.formatMessage({
                       id: 'transactions.operations.metadata.value',

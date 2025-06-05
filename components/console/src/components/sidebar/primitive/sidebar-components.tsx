@@ -12,7 +12,7 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, SidebarHeaderProps>(
       ref={ref}
       data-collapsed={collapsed}
       className={cn(
-        'flex h-[60px] items-center border-b bg-white px-4 dark:bg-codGray-950',
+        'dark:bg-cod-gray-950 flex h-[60px] items-center border-b bg-white px-4',
         collapsed && 'justify-center p-0'
       )}
       {...props}
@@ -71,7 +71,7 @@ const SidebarGroupTitle = ({ collapsed, children }: SidebarGroupTitleProps) => {
 
   return (
     <div className="my-2 px-2">
-      <p className="text-xs font-semibold uppercase tracking-[1.1px] text-zinc-500">
+      <p className="text-xs font-semibold tracking-[1.1px] text-zinc-500 uppercase">
         {children}
       </p>
     </div>
@@ -87,7 +87,7 @@ const SidebarFooter = React.forwardRef<HTMLElement, SidebarFooterProps>(
     <nav
       ref={ref}
       className={cn(
-        'flex w-full justify-center border-t border-shadcn-200 bg-white p-4',
+        'border-shadcn-200 flex w-full justify-center border-t bg-white p-4',
         className
       )}
       {...props}

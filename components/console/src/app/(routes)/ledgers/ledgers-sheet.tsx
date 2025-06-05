@@ -19,7 +19,7 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateLedger, useUpdateLedger } from '@/client/ledgers'
 import { LedgerDto } from '@/core/application/dto/ledger-dto'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
@@ -160,14 +160,14 @@ export const LedgersSheet = ({
 
         <Form {...form}>
           <form
-            className="flex flex-grow flex-col"
+            className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
             <Tabs defaultValue="details" className="mt-0">
               <TabsList className="mb-8 px-0">
                 <TabsTrigger
                   value="details"
-                  className="focus:outline-none focus:ring-0"
+                  className="focus:ring-0 focus:outline-hidden"
                 >
                   {intl.formatMessage({
                     id: 'ledgers.sheet.tabs.details',
@@ -182,7 +182,7 @@ export const LedgersSheet = ({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <InputField
                     name="name"
                     label={intl.formatMessage({
@@ -194,7 +194,7 @@ export const LedgersSheet = ({
                     required
                   />
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'

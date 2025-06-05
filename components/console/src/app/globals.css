@@ -1,6 +1,167 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-sidebar: 5px 0px 15px -3px rgba(0, 0, 0, 0.05);
+  --shadow-data-table:
+    0px 1px 2px 0px rgba(0, 0, 0, 0.1), 0px 10px 20px 0px rgba(0, 0, 0, 0.05);
+  --shadow-sheet-bottom:
+    0px -1px 2px 0px rgba(0, 0, 0, 0.1), 0px -10px 20px 0px rgba(0, 0, 0, 0.05);
+  --shadow-drawer:
+    0px 4px 8px 0px rgba(0, 0, 0, 0.2), 0px -1px 16px 0px rgba(0, 0, 0, 0.1),
+    0px 0px 32px 0px rgba(0, 0, 0, 0.05);
+  --shadow-entity-box:
+    0px 10px 20px rgba(0, 0, 0, 0.05), 0px 1px 2px rgba(0, 0, 0, 0.1);
+
+  --color-sunglow-50: #fefbe8;
+  --color-sunglow-100: #fff8c2;
+  --color-sunglow-200: #ffed89;
+  --color-sunglow-300: #ffdc45;
+  --color-sunglow-400: #fdcb28;
+  --color-sunglow-500: #edac05;
+  --color-sunglow-600: #cc8402;
+  --color-sunglow-700: #a35d05;
+  --color-sunglow-800: #86490d;
+  --color-sunglow-900: #723c11;
+  --color-sunglow-950: #431e05;
+
+  --color-de-york-50: #f2fbf5;
+  --color-de-york-100: #e0f8e8;
+  --color-de-york-200: #c2f0d2;
+  --color-de-york-300: #74db9a;
+  --color-de-york-400: #5bcd86;
+  --color-de-york-500: #35b264;
+  --color-de-york-600: #26934f;
+  --color-de-york-700: #217441;
+  --color-de-york-800: #1f5c36;
+  --color-de-york-900: #1b4c2f;
+  --color-de-york-950: #0a2917;
+
+  --color-vivid-tangerine-50: #fef5f2;
+  --color-vivid-tangerine-100: #fee9e2;
+  --color-vivid-tangerine-200: #fed7ca;
+  --color-vivid-tangerine-300: #fdbaa4;
+  --color-vivid-tangerine-400: #faa589;
+  --color-vivid-tangerine-500: #f06e43;
+  --color-vivid-tangerine-600: #dd5325;
+  --color-vivid-tangerine-700: #ba421b;
+  --color-vivid-tangerine-800: #9a3a1a;
+  --color-vivid-tangerine-900: #80351c;
+  --color-vivid-tangerine-950: #45190a;
+
+  --color-cod-gray-50: #f6f5f5;
+  --color-cod-gray-100: #e9e4e4;
+  --color-cod-gray-200: #d5ccce;
+  --color-cod-gray-300: #b7a9ab;
+  --color-cod-gray-400: #927e81;
+  --color-cod-gray-500: #776366;
+  --color-cod-gray-600: #655557;
+  --color-cod-gray-700: #55494a;
+  --color-cod-gray-800: #4a4040;
+  --color-cod-gray-900: #403939;
+  --color-cod-gray-950: #070606;
+
+  --color-shadcn-100: #f4f4f5;
+  --color-shadcn-200: #e4e4e7;
+  --color-shadcn-300: #d4d4d8;
+  --color-shadcn-400: #a1a1aa;
+  --color-shadcn-500: #71717a;
+  --color-shadcn-600: #27272a;
+  --color-shadcn-700: #18181b;
+  --color-shadcn-800: #09090b;
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fill: fill 2s ease-out forwards;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+  @keyframes fill {
+    0% {
+      transform: scaleY(0);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+}
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 @layer base {
   :root {

@@ -34,7 +34,7 @@ export const UsersSheet = ({
         data-testid="ledgers-sheet"
         className="flex flex-col justify-between"
       >
-        <div className="flex flex-grow flex-col">
+        <div className="flex grow flex-col">
           {mode === 'create' && (
             <SheetHeader className="mb-8">
               <SheetTitle>

@@ -91,10 +91,10 @@ export const CreateUserForm = ({
   return (
     <Form {...form}>
       <form
-        className="flex flex-grow flex-col"
+        className="flex grow flex-col"
         onSubmit={form.handleSubmit(handleSubmit)}
       >
-        <div className="flex flex-grow flex-col gap-4">
+        <div className="flex grow flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <InputField
               name="firstName"
@@ -171,7 +171,7 @@ export const CreateUserForm = ({
             tooltip={intl.formatMessage({
               id: 'entity.user.password.tooltip',
               defaultMessage:
-                'Password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
+                'The password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.'
             })}
             control={form.control}
             disabled={isReadOnly}
@@ -201,7 +201,7 @@ export const CreateUserForm = ({
           </SelectField>
 
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-normal italic text-shadcn-400">
+            <p className="text-shadcn-400 text-xs font-normal italic">
               {intl.formatMessage({
                 id: 'common.requiredFields',
                 defaultMessage: '(*) required fields.'

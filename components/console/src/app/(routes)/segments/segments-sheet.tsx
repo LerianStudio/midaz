@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { segment } from '@/schema/segment'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
@@ -140,7 +140,7 @@ export const SegmentsSheet = ({
 
         <Form {...form}>
           <form
-            className="flex flex-grow flex-col"
+            className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
             <Tabs defaultValue="details" className="mt-0">
@@ -159,7 +159,7 @@ export const SegmentsSheet = ({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <InputField
                     name="name"
                     label={intl.formatMessage({
@@ -171,7 +171,7 @@ export const SegmentsSheet = ({
                     required
                   />
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'

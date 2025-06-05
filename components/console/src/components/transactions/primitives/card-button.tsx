@@ -19,7 +19,7 @@ export const CardButton = ({
 
   return (
     <div
-      className="group flex w-80 cursor-pointer flex-col gap-8 rounded-[8px] border border-zinc-200 bg-white p-6 transition-colors hover:border-accent hover:bg-accent"
+      className="group hover:border-accent hover:bg-accent flex w-80 cursor-pointer flex-col gap-8 rounded-[8px] border border-zinc-200 bg-white p-6 transition-colors"
       onClick={onClick}
     >
       <div className="flex flex-row justify-between text-zinc-400 transition-colors group-hover:text-zinc-800">

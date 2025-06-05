@@ -6,7 +6,7 @@ import {
   useDeletePortfolio,
   usePortfoliosWithAccounts
 } from '@/client/portfolios'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { useIntl } from 'react-intl'
 import React, { useEffect, useState } from 'react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'

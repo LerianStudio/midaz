@@ -29,7 +29,7 @@ const PopoverPanelFooter = (props: PopoverPanelProps) => {
 const PopoverPanel = (props: PopoverPanelProps) => {
   return (
     <div
-      className="flex h-full min-w-[160px] flex-1 flex-col gap-4 rounded-md border border-shadcn-200 p-4"
+      className="border-shadcn-200 flex h-full min-w-[160px] flex-1 flex-col gap-4 rounded-md border p-4"
       {...props}
     />
   )
@@ -59,7 +59,7 @@ const PopoverPanelLink = ({
       href={href}
       onClick={onClick}
       className={cn(
-        'flex w-[320px] flex-1 items-center justify-between rounded-md bg-white p-4 text-black outline-none hover:bg-shadcn-100',
+        'hover:bg-shadcn-100 flex w-[320px] flex-1 items-center justify-between rounded-md bg-white p-4 text-black outline-hidden',
         dense && 'h-10 flex-auto'
       )}
       {...others}

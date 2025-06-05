@@ -9,8 +9,6 @@ import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 
-const midazLogger = container.get(LoggerAggregator)
-
 export const GET = applyMiddleware(
   [
     loggerMiddleware({
