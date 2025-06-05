@@ -416,7 +416,7 @@ export const apiErrorMessages = defineMessages({
   '0090': {
     id: 'errors.midaz.transactionAmbiguousAccount',
     defaultMessage:
-      "Transaction can't use same account in sources and destinations"
+      "Transaction can't use same account in sources and destinations."
   },
   '0091': {
     id: 'errors.midaz.idCannotBeUsedAsParentId',
