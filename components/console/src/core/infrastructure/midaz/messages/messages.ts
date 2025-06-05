@@ -403,23 +403,20 @@ export const apiErrorMessages = defineMessages({
   },
   '0087': {
     id: 'errors.midaz.transactionRevertAlreadyExist',
-    defaultMessage:
-      'Transaction revert already exists. Please try again.'
+    defaultMessage: 'Transaction revert already exists. Please try again.'
   },
   '0088': {
     id: 'errors.midaz.transactionIsAlreadyReversal',
-    defaultMessage:
-      'Transaction is already a reversal. Please try again'
+    defaultMessage: 'Transaction is already a reversal. Please try again'
   },
   '0089': {
     id: 'errors.midaz.transactionCantBeReverted',
-    defaultMessage:
-      'Transaction can\'t be reverted. Please try again'
+    defaultMessage: "Transaction can't be reverted. Please try again"
   },
   '0090': {
     id: 'errors.midaz.transactionAmbiguousAccount',
     defaultMessage:
-      'Transaction can\'t use same account in sources and destinations'
+      "Transaction can't use same account in sources and destinations"
   },
   '0091': {
     id: 'errors.midaz.idCannotBeUsedAsParentId',
