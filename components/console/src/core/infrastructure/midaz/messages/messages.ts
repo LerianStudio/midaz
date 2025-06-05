@@ -399,7 +399,7 @@ export const apiErrorMessages = defineMessages({
   '0086': {
     id: 'errors.midaz.raceConditioningDetected',
     defaultMessage:
-      'A race condition was detected while processing your request. Please try again'
+      'A race condition was detected while processing your request. Please try again.'
   },
   '0087': {
     id: 'errors.midaz.transactionRevertAlreadyExist',
