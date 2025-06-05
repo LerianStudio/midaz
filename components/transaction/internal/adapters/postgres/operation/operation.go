@@ -29,10 +29,10 @@ type OperationPostgreSQLModel struct {
 	ChartOfAccounts       string           // Chart of accounts code
 	OrganizationID        string           // Organization ID
 	LedgerID              string           // Ledger ID
-	Route                 string           // Route
 	CreatedAt             time.Time        // Creation timestamp
 	UpdatedAt             time.Time        // Last update timestamp
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
+	Route                 string           // Route
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -229,10 +229,10 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		LedgerID:        t.LedgerID,
 		OrganizationID:  t.OrganizationID,
 		BalanceID:       t.BalanceID,
-		Route:           t.Route,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
+		Route:           t.Route,
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -268,10 +268,10 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		AccountAlias:          operation.AccountAlias,
 		BalanceID:             operation.BalanceID,
 		LedgerID:              operation.LedgerID,
-		Route:                 operation.Route,
 		OrganizationID:        operation.OrganizationID,
 		CreatedAt:             operation.CreatedAt,
 		UpdatedAt:             operation.UpdatedAt,
+		Route:                 operation.Route,
 	}
 
 	if operation.DeletedAt != nil {
@@ -381,6 +381,11 @@ type OperationLog struct {
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Route for the operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: string
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -398,6 +403,7 @@ func (o *Operation) ToLog() *OperationLog {
 		AccountID:       o.AccountID,
 		AccountAlias:    o.AccountAlias,
 		BalanceID:       o.BalanceID,
+		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
 	}
 }

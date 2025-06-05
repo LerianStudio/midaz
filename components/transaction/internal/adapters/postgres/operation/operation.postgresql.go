@@ -81,7 +81,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
 		record.ID,
 		record.TransactionID,
 		record.Description,
@@ -103,6 +103,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
+		record.Route,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -214,6 +215,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -299,6 +301,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -362,6 +365,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.CreatedAt,
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
+		&operation.Route,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -420,6 +424,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.CreatedAt,
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
+		&operation.Route,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -640,6 +645,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 

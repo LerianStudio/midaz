@@ -29,10 +29,10 @@ type TransactionPostgreSQLModel struct {
 	LedgerID                 string                     // Ledger ID
 	OrganizationID           string                     // Organization ID
 	Body                     libTransaction.Transaction // Transaction body containing detailed operation data
-	Route                    string                     // Route
 	CreatedAt                time.Time                  // Creation timestamp
 	UpdatedAt                time.Time                  // Last update timestamp
 	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
+	Route                    string                     // Route
 	Metadata                 map[string]any             // Additional custom attributes
 }
 
@@ -423,9 +423,9 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
 		Body:                     t.Body,
-		Route:                    t.Route,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
+		Route:                    t.Route,
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -456,9 +456,9 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
 		Body:                     transaction.Body,
-		Route:                    transaction.Route,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
+		Route:                    transaction.Route,
 	}
 
 	if transaction.DeletedAt != nil {
@@ -527,6 +527,7 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 		Code:                     t.Body.Code,
 		Pending:                  t.Body.Pending,
 		Metadata:                 t.Body.Metadata,
+		Route:                    t.Body.Route,
 		Send:                     send,
 	}
 
@@ -603,6 +604,11 @@ type CreateTransactionInflowInput struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Transaction route
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Send operation details including distribution only (no source)
 	// required: true
@@ -768,6 +774,7 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 		Code:                     c.Code,
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
+		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
@@ -807,6 +814,11 @@ type CreateTransactionOutflowInput struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Transaction route
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Send operation details including source only (no distribution)
 	// required: true
@@ -961,6 +973,7 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 		Code:                     c.Code,
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
+		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,

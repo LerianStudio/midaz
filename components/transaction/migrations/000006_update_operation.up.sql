@@ -13,3 +13,6 @@ ALTER TABLE operation
     DROP COLUMN IF EXISTS amount_scale,
     DROP COLUMN IF EXISTS balance_scale,
     DROP COLUMN IF EXISTS balance_scale_after;
+
+ALTER TABLE operation
+    ADD COLUMN IF NOT EXISTS route TEXT NULL;
