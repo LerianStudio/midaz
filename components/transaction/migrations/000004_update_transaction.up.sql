@@ -1,7 +1,7 @@
 BEGIN;
 
 ALTER TABLE transaction
-    ALTER COLUMN amount TYPE DECIMAL USING (amount / POWER(10, amount_scale::INTEGER))::NUMERIC;
+    ALTER COLUMN amount TYPE DECIMAL USING (amount / POWER(10, amount_scale::INTEGER))::DECIMAL;
 
 COMMIT;
 
