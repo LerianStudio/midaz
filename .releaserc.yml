@@ -50,14 +50,11 @@ plugins:
     message: "chore(release): Preparations for next release [skip ci]"
 
   - path: "@semantic-release/exec"
-    backmergeBranches:
-      - from: main 
-        to: develop
-    message: "chore(release): Preparations for next release [skip ci]"
 
 branches:
   - main
   - name: develop
     prerelease: beta
-  - name: hotfix/v2.2.1
-    range: 2.2.x
+  - name: hotfix/MDC-951
+    prerelease: false
+    channel: false
