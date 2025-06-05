@@ -23,8 +23,9 @@
     "docker-up": "npm run set-env && docker compose up -d",
     "prepare": "husky",
     "format": "prettier --write .",
+    "start:lighthouse": "start-server-and-test start http://localhost:8081 test:lighthouse",
     "lhci": "lhci autorun",
-    "test:lighthouse": "npm run lhci",
+    "test:lighthouse": "npx wait-on http://localhost:8081 --timeout 120000 --interval 5000 && npm run lhci",
     "format:check": "prettier --check ."
   },
   "dependencies": {
