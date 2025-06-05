@@ -1,3 +1,18 @@
+## [v2.3.0-beta.3] - 2025-06-05
+
+This release of Midaz introduces enhanced performance monitoring capabilities and streamlines setup processes, ensuring a more efficient and user-friendly experience.
+
+### ✨ Features  
+- **Lighthouse Configuration for Frontend**: We've added new configurations for Lighthouse, significantly boosting the performance monitoring and audit capabilities of your web applications. This enhancement allows developers to optimize for speed and accessibility, delivering a superior user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, providing users with a clear and comprehensive history of the software's evolution.
+  
+### 🔧 Maintenance
+- **Version Update in Configuration**: The `.env.example` file now reflects the latest version, v2.3.0. This update minimizes configuration errors during new installations, ensuring that setups are consistent and aligned with the latest release.
+
+By focusing on these updates, users can benefit from enhanced performance monitoring capabilities and a streamlined setup process, ensuring that they are using the most up-to-date and optimized version of the software.
+
 ## [v2.3.0-beta.2] - 2025-06-05
 
 This release focuses on streamlining the user experience by removing unnecessary classifications, updating configurations, and enhancing documentation to ensure clarity and consistency throughout the software.
