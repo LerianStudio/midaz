@@ -32,7 +32,7 @@ type OperationPostgreSQLModel struct {
 	CreatedAt             time.Time        // Creation timestamp
 	UpdatedAt             time.Time        // Last update timestamp
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
-	Route                 string           // Route
+	Route                 *string          // Route
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -232,7 +232,10 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
-		Route:           t.Route,
+	}
+
+	if t.Route != nil {
+		Operation.Route = *t.Route
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -271,7 +274,10 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		OrganizationID:        operation.OrganizationID,
 		CreatedAt:             operation.CreatedAt,
 		UpdatedAt:             operation.UpdatedAt,
-		Route:                 operation.Route,
+	}
+
+	if !libCommons.IsNilOrEmpty(&operation.Route) {
+		t.Route = &operation.Route
 	}
 
 	if operation.DeletedAt != nil {

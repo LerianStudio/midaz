@@ -688,6 +688,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Body:                     parserDSL,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
+		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
 
@@ -746,6 +747,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),
 					UpdatedAt:       time.Now(),
+					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
 			}

@@ -32,7 +32,7 @@ type TransactionPostgreSQLModel struct {
 	CreatedAt                time.Time                  // Creation timestamp
 	UpdatedAt                time.Time                  // Last update timestamp
 	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
-	Route                    string                     // Route
+	Route                    *string                    // Route
 	Metadata                 map[string]any             // Additional custom attributes
 }
 
@@ -425,7 +425,10 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
-		Route:                    t.Route,
+	}
+
+	if t.Route != nil {
+		transaction.Route = *t.Route
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -458,7 +461,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
-		Route:                    transaction.Route,
+	}
+
+	if !libCommons.IsNilOrEmpty(&transaction.Route) {
+		t.Route = &transaction.Route
 	}
 
 	if transaction.DeletedAt != nil {
