@@ -1,3 +1,23 @@
+## [v2.3.0-beta.2] - 2025-06-05
+
+This release focuses on streamlining the user experience by removing unnecessary classifications, updating configurations, and enhancing documentation to ensure clarity and consistency throughout the software.
+
+### ✨ Features  
+- **Streamlined User Interface**: We've removed deprecated types such as UserType, OrganizationType, PortfolioType, and SegmentType. This simplification reduces complexity, making the interface more intuitive and efficient for users.
+
+### 🔄 Changes
+- **Configuration Updates**: The software version has been updated to v2.2.1 in configuration files, ensuring users have access to the latest features and improvements. This update helps maintain consistency across environments.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been refreshed to provide a comprehensive overview of the latest changes, enhancing transparency and helping users track software evolution.
+- **Versioning in Documentation**: All documentation has been updated to reflect the new version, ensuring users have the most current information and guidance.
+
+### 🔧 Maintenance
+- **Environment Configuration**: The `.env.example` file has been updated to reflect the new version, which helps prevent configuration errors and ensures consistency across different environments.
+
+These updates collectively enhance the user experience by simplifying the system, ensuring up-to-date documentation, and maintaining configuration consistency. There are no breaking changes, so users can upgrade without concern for compatibility issues.
+
+
 ## [v2.3.0-beta.1] - 2025-06-04
 
 This major release introduces significant updates to enhance compatibility, performance, and user experience across the midaz platform. Key changes include breaking updates for React 19 and NextJS, new features for performance audits, and various improvements to stability and accessibility.
