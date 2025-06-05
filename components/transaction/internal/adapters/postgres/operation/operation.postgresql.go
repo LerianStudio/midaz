@@ -596,7 +596,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(2))}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if operationType != nil {
+	if !libCommons.IsNilOrEmpty(operationType) {
 		findAll = findAll.Where(squirrel.Expr("type = ?", *operationType))
 	}
 
