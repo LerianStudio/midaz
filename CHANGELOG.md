@@ -1,3 +1,21 @@
+## [v2.2.1] - 2025-06-05
+
+This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
+
+### 🐛 Bug Fixes
+- **Frontend**: Fixed a bug in the console version display, ensuring users have accurate version information for troubleshooting and support.
+- **Config**: Corrected handling of the parent organization ID. It now defaults to `undefined` when empty, preventing errors in organization mapping and form submissions.
+- **Auth**: Added the missing method attribute in the signin form, improving HTML semantics and form submission reliability.
+- **Database**: Enhanced account alias validation and error message formatting, providing clearer guidance and reducing input errors during transactions.
+- **Frontend**: Introduced new error messages to guide users when issues arise, enhancing the overall user experience.
+
+### 🔧 Maintenance
+- **Auth**: Reverted changes from a previous hotfix to maintain system stability and ensure the correct functionality of the authentication component.
+- **Release Management**: Updated the release process to support final releases from hotfix branches and corrected the retroactive release for version 2.2.1, ensuring a smoother versioning workflow.
+- **Auth**: Streamlined internal messaging infrastructure with updates to the `messages.ts` file, improving maintainability and future updates.
+
+This update consolidates improvements and bug fixes, enhancing the overall reliability and user experience of the software. Users are encouraged to upgrade to benefit from these enhancements.
+
 ## [v2.2.0] - 2025-05-29
 
 ### ✨ Features
