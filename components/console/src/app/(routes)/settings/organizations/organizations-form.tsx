@@ -53,7 +53,7 @@ const formSchema = z.object({
 
 const initialValues: OrganizationFormData = {
   id: '',
-  parentOrganizationId: undefined,
+  parentOrganizationId: '',
   legalName: '',
   doingBusinessAs: '',
   legalDocument: '',
