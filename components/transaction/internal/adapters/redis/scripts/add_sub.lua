@@ -204,11 +204,13 @@ local function main()
         return redis.error_reply("0018")
     end
 
+    local balanceEncoded = cjson.encode(balance)
+
     balance.Available = result
     balance.Version = balance.Version + 1
 
-    local balanceEncoded = cjson.encode(balance)
-    redis.call("SET", key, balanceEncoded, "EX", ttl)
+    local finalBalanceEncoded = cjson.encode(balance)
+    redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
 
     return balanceEncoded
 end
