@@ -1,3 +1,23 @@
+## [v2.2.1] - 2025-06-06
+
+This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
+
+### 🐛 Bug Fixes
+- **Database & Frontend**: Corrected the order of balance scale and on-hold fields in operation models, ensuring accurate data representation and consistency across components.
+- **Frontend**: Resolved a stability issue in the midaz console from version 2.2.0, enhancing user experience.
+- **Config**: Fixed handling of empty parent organization IDs, now correctly treated as `undefined`, preventing potential data errors.
+- **Frontend**: Addressed translation key issues to ensure all interface elements display the correct language strings.
+- **Auth**: Added a missing `method` attribute to the signin form, improving form functionality and HTML semantics.
+- **Database**: Enhanced account alias validation and improved error message formatting, providing clearer feedback to users and reducing input errors.
+- **Frontend**: Introduced new error messages, offering more informative feedback to users when issues occur.
+
+### 🔧 Maintenance
+- **Auth**: Reverted a previous merge related to the signin form method inclusion, maintaining codebase stability.
+- **Release Management**: Updated the CHANGELOG for improved documentation and adjusted processes to allow final releases from hotfix branches, increasing release process flexibility.
+- **Auth**: Updated the messages infrastructure for consistent communication and error handling across the authentication component.
+
+Each of these updates is designed to improve the system's reliability and user experience, ensuring that users can interact with the platform more effectively and with fewer disruptions.
+
 ## [v2.2.1] - 2025-06-05
 
 This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
