@@ -7,7 +7,7 @@ export type CreateSegmentDto = {
 
 export type UpdateSegmentDto = Partial<CreateSegmentDto>
 
-export type SegmentResponseDto = {
+export type SegmentDto = {
   id: string
   ledgerId: string
   organizationId: string

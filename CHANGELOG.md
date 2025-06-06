@@ -1,3 +1,54 @@
+## [v2.3.0-beta.4] - 2025-06-05
+
+This release of Midaz introduces significant enhancements to authentication and server processes, improving security and streamlining development workflows.
+
+### ✨ Features  
+- **Lighthouse Execution with Plugin Authentication**: Now, performance audits can be conducted under authenticated sessions. This ensures that performance metrics are accurate for authenticated pages, enhancing security and reliability in your performance insights.
+
+### 🔄 Changes
+- **Streamlined Server Initialization**: A new server start script has been configured to automate server setup. This reduces manual configuration steps, ensuring consistent environments across development stages and minimizing setup time for developers.
+- **Integrated Frontend Setup**: The frontend setup process is now more integrated with server scripts, automatically managing dependencies and configurations. This improvement reduces overhead and enhances the consistency of the development environment.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring all stakeholders have access to current project information for better communication and planning.
+
+Each of these changes is designed to enhance user experience, streamline development processes, and prioritize performance and security in the evolution of the Midaz project.
+
+## [v2.3.0-beta.3] - 2025-06-05
+
+This release of Midaz introduces enhanced performance monitoring capabilities and streamlines setup processes, ensuring a more efficient and user-friendly experience.
+
+### ✨ Features  
+- **Lighthouse Configuration for Frontend**: We've added new configurations for Lighthouse, significantly boosting the performance monitoring and audit capabilities of your web applications. This enhancement allows developers to optimize for speed and accessibility, delivering a superior user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, providing users with a clear and comprehensive history of the software's evolution.
+  
+### 🔧 Maintenance
+- **Version Update in Configuration**: The `.env.example` file now reflects the latest version, v2.3.0. This update minimizes configuration errors during new installations, ensuring that setups are consistent and aligned with the latest release.
+
+By focusing on these updates, users can benefit from enhanced performance monitoring capabilities and a streamlined setup process, ensuring that they are using the most up-to-date and optimized version of the software.
+
+## [v2.3.0-beta.2] - 2025-06-05
+
+This release focuses on streamlining the user experience by removing unnecessary classifications, updating configurations, and enhancing documentation to ensure clarity and consistency throughout the software.
+
+### ✨ Features  
+- **Streamlined User Interface**: We've removed deprecated types such as UserType, OrganizationType, PortfolioType, and SegmentType. This simplification reduces complexity, making the interface more intuitive and efficient for users.
+
+### 🔄 Changes
+- **Configuration Updates**: The software version has been updated to v2.2.1 in configuration files, ensuring users have access to the latest features and improvements. This update helps maintain consistency across environments.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been refreshed to provide a comprehensive overview of the latest changes, enhancing transparency and helping users track software evolution.
+- **Versioning in Documentation**: All documentation has been updated to reflect the new version, ensuring users have the most current information and guidance.
+
+### 🔧 Maintenance
+- **Environment Configuration**: The `.env.example` file has been updated to reflect the new version, which helps prevent configuration errors and ensures consistency across different environments.
+
+These updates collectively enhance the user experience by simplifying the system, ensuring up-to-date documentation, and maintaining configuration consistency. There are no breaking changes, so users can upgrade without concern for compatibility issues.
+
+
 ## [v2.3.0-beta.1] - 2025-06-04
 
 This major release introduces significant updates to enhance compatibility, performance, and user experience across the midaz platform. Key changes include breaking updates for React 19 and NextJS, new features for performance audits, and various improvements to stability and accessibility.

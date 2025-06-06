@@ -23,8 +23,9 @@
     "docker-up": "npm run set-env && docker compose up -d",
     "prepare": "husky",
     "format": "prettier --write .",
+    "start:lighthouse": "start-server-and-test start http://localhost:8081 test:lighthouse",
     "lhci": "lhci autorun",
-    "test:lighthouse": "npm run lhci",
+    "test:lighthouse": "npx wait-on http://localhost:8081 --timeout 120000 --interval 5000 && npm run lhci",
     "format:check": "prettier --check ."
   },
   "dependencies": {
@@ -146,6 +147,7 @@
     "prettier-plugin-tailwindcss": "^0.6.12",
     "semantic-release": "^24.2.5",
     "shx": "^0.4.0",
+    "start-server-and-test": "^2.0.12",
     "storybook": "^9.1.0-alpha.1",
     "tailwindcss": "^4.1.8",
     "ts-node": "^10.9.2",

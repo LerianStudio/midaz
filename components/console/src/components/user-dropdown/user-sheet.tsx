@@ -21,13 +21,13 @@ import { SelectItem } from '../ui/select'
 import { useListGroups } from '@/client/groups'
 import { user, passwordChange } from '@/schema/user'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
-import { UsersType } from '@/types/users-type'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
+import { UserDto } from '@/core/application/dto/user-dto'
 
 export type UserSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data: UsersType
+  data: UserDto
   onSuccess?: () => void
 }
 

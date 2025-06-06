@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import type { OrganizationsType } from '@/types/organizations-type'
 import { Card } from '@/components/card'
 import { Separator } from '@/components/ui/separator'
 import { CardContent } from '@/components/ui/card'
@@ -33,9 +32,10 @@ import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@/providers/permission-provider/enforce'
 import { PageFooter, PageFooterSection } from '@/components/page-footer'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 
 type OrganizationsViewProps = {
-  data?: OrganizationsType
+  data?: OrganizationDto
   onSuccess?: () => void
 }
 
@@ -75,7 +75,7 @@ const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   metadata: data?.metadata || initialValues.metadata
 })
 
-const parseInputData = (data?: OrganizationsType) =>
+const parseInputData = (data?: OrganizationDto) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
 export const parseCreateData = (data?: OrganizationFormData) => data

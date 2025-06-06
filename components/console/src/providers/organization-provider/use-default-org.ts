@@ -1,14 +1,14 @@
 'use client'
 
-import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import { getStorage } from '@/lib/storage'
 import { isNil } from 'lodash'
 import { useEffect, useState } from 'react'
 
 type UseDefaultOrgProps = {
-  organizations?: OrganizationResponseDto[]
-  current: OrganizationResponseDto
-  setCurrent: (organization: OrganizationResponseDto) => void
+  organizations?: OrganizationDto[]
+  current: OrganizationDto
+  setCurrent: (organization: OrganizationDto) => void
 }
 
 const storageKey = 'defaultOrg'

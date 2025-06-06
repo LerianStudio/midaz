@@ -1,4 +1,4 @@
-import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-query'
 
 export const useListOrganizations = ({ ...options }) => {
-  return useQuery<PaginationDto<OrganizationResponseDto>>({
+  return useQuery<PaginationDto<OrganizationDto>>({
     queryKey: ['organizations'],
     queryFn: getFetcher(`/api/organizations`),
     ...options
@@ -40,14 +40,14 @@ export const useGetOrganization = ({
 export const useCreateOrganization = ({
   onSuccess,
   ...options
-}: UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+}: UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: postFetcher(`/api/organizations`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
         queryKey: ['organizations']
       })
@@ -61,14 +61,14 @@ export const useUpdateOrganization = ({
   onSuccess,
   ...options
 }: UseGetOrganizationProps &
-  UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+  UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: patchFetcher(`/api/organizations/${organizationId}`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
         queryKey: ['organizations']
       })
@@ -80,14 +80,14 @@ export const useUpdateOrganization = ({
 export const useDeleteOrganization = ({
   onSuccess,
   ...options
-}: UseMutationOptions<OrganizationResponseDto, Error, unknown>) => {
+}: UseMutationOptions<OrganizationDto, Error, unknown>) => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: deleteFetcher(`/api/organizations`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
         queryKey: ['organizations']
       })
