@@ -171,6 +171,44 @@ Users are encouraged to review the breaking changes and major features to fully 
 ### 🔧 Maintenance
 - Update version in `.env.example` to v2.3.0 to reflect the latest release.
 
+## [v2.2.1] - 2025-06-06
+
+This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
+
+### 🐛 Bug Fixes
+- **Database & Frontend**: Corrected the order of balance scale and on-hold fields in operation models, ensuring accurate data representation and consistency across components.
+- **Frontend**: Resolved a stability issue in the midaz console from version 2.2.0, enhancing user experience.
+- **Config**: Fixed handling of empty parent organization IDs, now correctly treated as `undefined`, preventing potential data errors.
+- **Frontend**: Addressed translation key issues to ensure all interface elements display the correct language strings.
+- **Auth**: Added a missing `method` attribute to the signin form, improving form functionality and HTML semantics.
+- **Database**: Enhanced account alias validation and improved error message formatting, providing clearer feedback to users and reducing input errors.
+- **Frontend**: Introduced new error messages, offering more informative feedback to users when issues occur.
+
+### 🔧 Maintenance
+- **Auth**: Reverted a previous merge related to the signin form method inclusion, maintaining codebase stability.
+- **Release Management**: Updated the CHANGELOG for improved documentation and adjusted processes to allow final releases from hotfix branches, increasing release process flexibility.
+- **Auth**: Updated the messages infrastructure for consistent communication and error handling across the authentication component.
+
+Each of these updates is designed to improve the system's reliability and user experience, ensuring that users can interact with the platform more effectively and with fewer disruptions.
+
+## [v2.2.1] - 2025-06-05
+
+This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
+
+### 🐛 Bug Fixes
+- **Frontend**: Fixed a bug in the console version display, ensuring users have accurate version information for troubleshooting and support.
+- **Config**: Corrected handling of the parent organization ID. It now defaults to `undefined` when empty, preventing errors in organization mapping and form submissions.
+- **Auth**: Added the missing method attribute in the signin form, improving HTML semantics and form submission reliability.
+- **Database**: Enhanced account alias validation and error message formatting, providing clearer guidance and reducing input errors during transactions.
+- **Frontend**: Introduced new error messages to guide users when issues arise, enhancing the overall user experience.
+
+### 🔧 Maintenance
+- **Auth**: Reverted changes from a previous hotfix to maintain system stability and ensure the correct functionality of the authentication component.
+- **Release Management**: Updated the release process to support final releases from hotfix branches and corrected the retroactive release for version 2.2.1, ensuring a smoother versioning workflow.
+- **Auth**: Streamlined internal messaging infrastructure with updates to the `messages.ts` file, improving maintainability and future updates.
+
+This update consolidates improvements and bug fixes, enhancing the overall reliability and user experience of the software. Users are encouraged to upgrade to benefit from these enhancements.
+
 ## [v2.2.0] - 2025-05-29
 
 ### ✨ Features
