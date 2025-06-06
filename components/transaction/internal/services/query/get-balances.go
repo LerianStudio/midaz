@@ -53,7 +53,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if len(balances) > 1 {
-		newBalances, err := uc.GetAccountAndLockNew(ctx, organizationID, ledgerID, validate, balances)
+		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
 
@@ -123,60 +123,6 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
 func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance) ([]*mmodel.Balance, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
-	defer span.End()
-
-	newBalances := make([]*mmodel.Balance, 0)
-
-	for _, balance := range balances {
-		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
-
-		logger.Infof("Getting internal key: %s", internalKey)
-
-		for k, v := range validate.From {
-			if libTransaction.SplitAlias(k) == balance.Alias {
-				v.Operation = constant.DEBIT
-				b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, internalKey, v, *balance)
-				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
-
-					logger.Error("Failed to lock balance", err)
-
-					return nil, err
-				}
-
-				b.Alias = k
-
-				newBalances = append(newBalances, b)
-			}
-		}
-
-		for k, v := range validate.To {
-			if libTransaction.SplitAlias(k) == balance.Alias {
-				v.Operation = constant.CREDIT
-				b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, internalKey, v, *balance)
-				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
-
-					logger.Error("Failed to lock balance", err)
-
-					return nil, err
-				}
-
-				b.Alias = k
-
-				newBalances = append(newBalances, b)
-			}
-		}
-	}
-
-	return newBalances, nil
-}
-
-func (uc *UseCase) GetAccountAndLockNew(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance) ([]*mmodel.Balance, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
