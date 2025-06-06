@@ -48,7 +48,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				amount := operation.Amount{
-					Amount: &amt.Value,
+					Value: &amt.Value,
 				}
 
 				balanceAfter := operation.Balance{

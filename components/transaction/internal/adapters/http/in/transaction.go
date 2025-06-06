@@ -710,7 +710,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 				}
 
 				amount := operation.Amount{
-					Amount: &amt.Value,
+					Value: &amt.Value,
 				}
 
 				balanceAfter := operation.Balance{

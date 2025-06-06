@@ -65,12 +65,12 @@ type Amount struct {
 	// The amount value in the smallest unit of the asset (e.g., cents)
 	// example: 1500
 	// minimum: 0
-	Amount *decimal.Decimal `json:"amount" example:"1500" minimum:"0"`
+	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
 } // @name Amount
 
 // IsEmpty method that set empty or nil in fields
 func (a Amount) IsEmpty() bool {
-	return a.Amount == nil
+	return a.Value == nil
 }
 
 // Balance structure for marshaling/unmarshalling JSON.
@@ -200,7 +200,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	}
 
 	amount := Amount{
-		Amount: t.Amount,
+		Value: t.Amount,
 	}
 
 	balance := Balance{
@@ -260,7 +260,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		Type:                  operation.Type,
 		AssetCode:             operation.AssetCode,
 		ChartOfAccounts:       operation.ChartOfAccounts,
-		Amount:                operation.Amount.Amount,
+		Amount:                operation.Amount.Value,
 		OnHoldBalance:         operation.Balance.OnHold,
 		AvailableBalance:      operation.Balance.Available,
 		AvailableBalanceAfter: operation.BalanceAfter.Available,
