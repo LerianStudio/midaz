@@ -507,7 +507,7 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 				diffFields[key] = value
 			}
 		default:
-			if !reflect.DeepEqual(value, marshaledValue) && !isDecimalEqual(value, marshaledValue) {
+			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
 		}
@@ -530,8 +530,6 @@ func isDecimalEqual(a, b any) bool {
 		if err != nil {
 			return false
 		}
-	case float64:
-		decimalA = decimal.NewFromFloat(valA)
 	case decimal.Decimal:
 		decimalA = valA
 	default:
@@ -544,8 +542,6 @@ func isDecimalEqual(a, b any) bool {
 		if err != nil {
 			return false
 		}
-	case float64:
-		decimalB = decimal.NewFromFloat(valB)
 	case decimal.Decimal:
 		decimalB = valB
 	default:
