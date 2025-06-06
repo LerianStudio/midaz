@@ -3,6 +3,7 @@ package balance
 import (
 	"database/sql"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/shopspring/decimal"
 	"time"
 )
 
@@ -14,9 +15,8 @@ type BalancePostgreSQLModel struct {
 	AccountID      string
 	Alias          string
 	AssetCode      string
-	Available      int64
-	OnHold         int64
-	Scale          int64
+	Available      decimal.Decimal
+	OnHold         decimal.Decimal
 	Version        int64
 	AccountType    string
 	AllowSending   bool
@@ -37,7 +37,6 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		AssetCode:      balance.AssetCode,
 		Available:      balance.Available,
 		OnHold:         balance.OnHold,
-		Scale:          balance.Scale,
 		Version:        balance.Version,
 		AccountType:    balance.AccountType,
 		AllowSending:   balance.AllowSending,
@@ -63,7 +62,6 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 		AssetCode:      b.AssetCode,
 		Available:      b.Available,
 		OnHold:         b.OnHold,
-		Scale:          b.Scale,
 		Version:        b.Version,
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,

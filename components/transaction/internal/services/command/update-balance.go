@@ -31,7 +31,6 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.DEBIT,
 		}
 	}
@@ -40,7 +39,6 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.CREDIT,
 		}
 	}
@@ -77,7 +75,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.DEBIT,
 		}
 	}
@@ -86,7 +83,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.CREDIT,
 		}
 	}
@@ -96,7 +92,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	for _, balance := range balances {
 		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
 			libTransaction.Balance{
-				Scale:     balance.Scale,
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
 			},
@@ -112,7 +107,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		newBalances = append(newBalances, &mmodel.Balance{
 			ID:        balance.ID,
 			Alias:     balance.Alias,
-			Scale:     calculateBalances.Scale,
 			Available: calculateBalances.Available,
 			OnHold:    calculateBalances.OnHold,
 			Version:   balance.Version + 1,

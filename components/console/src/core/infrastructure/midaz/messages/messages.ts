@@ -390,5 +390,57 @@ export const apiErrorMessages = defineMessages({
     id: 'errors.midaz.duplicateIdempotencyKey',
     defaultMessage:
       'The idempotency key is already in use. Please provide a unique key and try again.'
+  },
+  '0085': {
+    id: 'errors.midaz.accountAliasNotFound',
+    defaultMessage:
+      'The provided account Alias does not exist in our records. Please verify the account Alias and try again.'
+  },
+  '0086': {
+    id: 'errors.midaz.raceConditioningDetected',
+    defaultMessage:
+      'A race condition was detected while processing your request. Please try again.'
+  },
+  '0087': {
+    id: 'errors.midaz.transactionRevertAlreadyExist',
+    defaultMessage: 'Transaction revert already exists. Please try again.'
+  },
+  '0088': {
+    id: 'errors.midaz.transactionIsAlreadyReversal',
+    defaultMessage: 'Transaction is already a reversal. Please try again.'
+  },
+  '0089': {
+    id: 'errors.midaz.transactionCantBeReverted',
+    defaultMessage: "Transaction can't be reverted. Please try again."
+  },
+  '0090': {
+    id: 'errors.midaz.transactionAmbiguousAccount',
+    defaultMessage:
+      "Transaction can't use same account in sources and destinations."
+  },
+  '0091': {
+    id: 'errors.midaz.idCannotBeUsedAsParentId',
+    defaultMessage:
+      'The provided ID cannot be used as the parent ID. Please choose a different one.'
+  },
+  '0093': {
+    id: 'errors.midaz.balanceCannotBeDeleted',
+    defaultMessage:
+      'Balance cannot be deleted because it still has funds in it.'
+  },
+  '0095': {
+    id: 'errors.midaz.messageBrokerUnavailable',
+    defaultMessage:
+      'The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.'
+  },
+  '0096': {
+    id: 'errors.midaz.invalidAccountAlias',
+    defaultMessage:
+      'The alias contains invalid characters. Please verify the alias value and try again.'
+  },
+  '0097': {
+    id: 'errors.midaz.overflowError',
+    defaultMessage:
+      'The request could not be completed due to an overflow. Please check the values, and try again.'
   }
 })

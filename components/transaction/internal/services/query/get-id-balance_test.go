@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
@@ -80,9 +81,8 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 		AccountID:      accountID.String(),
 		Alias:          "@user1",
 		AssetCode:      "USD",
-		Available:      1000,
-		OnHold:         200,
-		Scale:          2,
+		Available:      decimal.NewFromFloat(1000),
+		OnHold:         decimal.NewFromFloat(200),
 		Version:        1,
 		AccountType:    "checking",
 		AllowSending:   true,
@@ -142,9 +142,8 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 				AccountID:      accountID.String(),
 				Alias:          "@user1",
 				AssetCode:      "USD",
-				Available:      1000,
-				OnHold:         200,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(1000),
+				OnHold:         decimal.NewFromFloat(200),
 				Version:        1,
 				AccountType:    "checking",
 				AllowSending:   true,

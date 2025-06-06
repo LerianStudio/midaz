@@ -5,6 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 	"os"
 	"testing"
@@ -46,8 +47,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 	transactionID := uuid.New()
 
 	// Create int64 values for Amount and Scale
-	var amountValue int64 = 50
-	var scaleValue int64 = 2
+	var amountValue = decimal.NewFromInt(50)
 
 	// Create operations
 	operations := []*operation.Operation{
@@ -61,8 +61,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &amountValue,
-				Scale:  &scaleValue,
+				Value: &amountValue,
 			},
 			Metadata: map[string]interface{}{"key": "value"},
 		},
@@ -76,8 +75,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: &amountValue,
-				Scale:  &scaleValue,
+				Value: &amountValue,
 			},
 			Metadata: nil,
 		},

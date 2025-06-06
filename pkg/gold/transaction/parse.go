@@ -4,6 +4,7 @@ import (
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/pkg/gold/parser"
 	"github.com/antlr4-go/antlr/v4"
+	"github.com/shopspring/decimal"
 	"strconv"
 	"strings"
 )
@@ -111,17 +112,14 @@ func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableCon
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(libTransaction.Source)
 	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(libTransaction.Distribute)
 
-	value, _ := strconv.ParseInt(val, 10, 64)
-	scale, _ := strconv.ParseInt(scl, 10, 64)
+	value, _ := decimal.NewFromString(val)
 
 	return libTransaction.Send{
 		Asset:      asset,
 		Value:      value,
-		Scale:      scale,
 		Source:     source,
 		Distribute: distribute,
 	}
@@ -164,16 +162,13 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	from := ctx.UUID(1).GetText()
 	to := ctx.UUID(2).GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 
-	value, _ := strconv.ParseInt(val, 10, 64)
-	scale, _ := strconv.ParseInt(scl, 10, 64)
+	value, _ := decimal.NewFromString(val)
 
 	return libTransaction.Rate{
 		From:       from,
 		To:         to,
 		Value:      value,
-		Scale:      scale,
 		ExternalID: externalID,
 	}
 }
@@ -185,15 +180,12 @@ func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 
-	value, _ := strconv.ParseInt(val, 10, 64)
-	scale, _ := strconv.ParseInt(scl, 10, 64)
+	value, _ := decimal.NewFromString(val)
 
 	return libTransaction.Amount{
 		Asset: asset,
 		Value: value,
-		Scale: scale,
 	}
 }
 
@@ -257,14 +249,14 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	}
 
 	return libTransaction.FromTo{
-		Account:     account,
-		Amount:      &amount,
-		Share:       &share,
-		Remaining:   remaining,
-		Rate:        rate,
-		Description: description,
-		Metadata:    metadata,
-		IsFrom:      true,
+		AccountAlias: account,
+		Amount:       &amount,
+		Share:        &share,
+		Remaining:    remaining,
+		Rate:         rate,
+		Description:  description,
+		Metadata:     metadata,
+		IsFrom:       true,
 	}
 }
 
@@ -309,14 +301,14 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	}
 
 	return libTransaction.FromTo{
-		Account:     account,
-		Amount:      &amount,
-		Share:       &share,
-		Remaining:   remaining,
-		Rate:        rate,
-		Description: description,
-		Metadata:    metadata,
-		IsFrom:      false,
+		AccountAlias: account,
+		Amount:       &amount,
+		Share:        &share,
+		Remaining:    remaining,
+		Rate:         rate,
+		Description:  description,
+		Metadata:     metadata,
+		IsFrom:       false,
 	}
 }
 

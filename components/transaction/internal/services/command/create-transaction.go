@@ -45,7 +45,6 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		Template:                 t.ChartOfAccountsGroupName,
 		Status:                   status,
 		Amount:                   &t.Send.Value,
-		AmountScale:              &t.Send.Scale,
 		AssetCode:                t.Send.Asset,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Body:                     *t,

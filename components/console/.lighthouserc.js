@@ -1,8 +1,8 @@
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: 'npm run start', // comando para iniciar o servidor
-      url: ['http://localhost:8081'], // URL para executar o aplicativo
+      startServerCommand: 'npm run start', // Command to start the server
+      url: ['http://localhost:8081'], // URL to execute the Lighthouse audit
       numberOfRuns: 3
     },
     assert: {
