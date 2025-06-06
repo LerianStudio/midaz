@@ -178,6 +178,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 			logger.Error("Failed to lock balance", err)
+
 			return nil, err
 		}
 
