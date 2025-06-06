@@ -55,6 +55,6 @@ branches:
   - main
   - name: develop
     prerelease: beta
-  - name: hotfix/organization-id
+  - name: hotfix/MIDAZ-971
     prerelease: false
     channel: false

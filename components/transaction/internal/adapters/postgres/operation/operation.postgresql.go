@@ -204,8 +204,8 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.Amount,
 			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
+			&operation.BalanceScale,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
 			&operation.BalanceScaleAfter,
@@ -292,8 +292,8 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.Amount,
 			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
+			&operation.BalanceScale,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
 			&operation.BalanceScaleAfter,
@@ -358,8 +358,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.Amount,
 		&operation.AmountScale,
 		&operation.AvailableBalance,
-		&operation.BalanceScale,
 		&operation.OnHoldBalance,
+		&operation.BalanceScale,
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
 		&operation.BalanceScaleAfter,
@@ -419,8 +419,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.Amount,
 		&operation.AmountScale,
 		&operation.AvailableBalance,
-		&operation.BalanceScale,
 		&operation.OnHoldBalance,
+		&operation.BalanceScale,
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
 		&operation.BalanceScaleAfter,
@@ -606,7 +606,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(2))}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if operationType != nil {
+	if !libCommons.IsNilOrEmpty(operationType) {
 		findAll = findAll.Where(squirrel.Expr("type = ?", *operationType))
 	}
 
@@ -642,8 +642,8 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.Amount,
 			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
+			&operation.BalanceScale,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
 			&operation.BalanceScaleAfter,

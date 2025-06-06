@@ -18,8 +18,8 @@ type OperationPostgreSQLModel struct {
 	Amount                *int64         // Operation amount value
 	AmountScale           *int64         // Decimal places for amount
 	AvailableBalance      *int64         // Available balance before operation
-	BalanceScale          *int64         // Decimal places for balance
 	OnHoldBalance         *int64         // On-hold balance before operation
+	BalanceScale          *int64         // Decimal places for balance
 	AvailableBalanceAfter *int64         // Available balance after operation
 	OnHoldBalanceAfter    *int64         // On-hold balance after operation
 	BalanceScaleAfter     *int64         // Decimal places for balance after operation
