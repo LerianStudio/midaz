@@ -61,7 +61,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &amountValue,
+				Value: &amountValue,
 			},
 			Metadata: map[string]interface{}{"key": "value"},
 		},
@@ -75,7 +75,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: &amountValue,
+				Value: &amountValue,
 			},
 			Metadata: nil,
 		},

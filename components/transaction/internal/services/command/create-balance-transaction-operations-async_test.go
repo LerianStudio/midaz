@@ -456,7 +456,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
@@ -471,7 +471,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -616,7 +616,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
@@ -631,7 +631,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -767,7 +767,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
@@ -782,7 +782,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -923,7 +923,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: &Amount,
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}

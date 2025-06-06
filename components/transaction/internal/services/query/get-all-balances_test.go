@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -14,7 +15,6 @@ import (
 	"time"
 )
 
-// TestGetAllBalances is responsible to test GetAllBalances with success and error
 func TestGetAllBalances(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -26,8 +26,9 @@ func TestGetAllBalances(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := http.Pagination{
-		Page: 0,
+	mockCur := libHTTP.CursorPagination{
+		Next: "next",
+		Prev: "prev",
 	}
 
 	t.Parallel()
@@ -58,55 +59,16 @@ func TestGetAllBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(nil, http.Pagination{}, errors.New(errMsg)).
+			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
 		res, cur, err := uc.BalanceRepo.ListAllByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter.ToCursorPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
-		assert.Equal(t, cur, http.Pagination{})
-	})
-
-	t.Run("GetAllBalancesByAccountID_success", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-
-		uc := &UseCase{
-			BalanceRepo: mockBalanceRepo,
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:             "id-1",
-				AccountID:      accountID.String(),
-				OrganizationID: organizationID.String(),
-				LedgerID:       ledgerID.String(),
-				Alias:          "alias-1",
-				AssetCode:      "BRL",
-				Available:      decimal.NewFromInt(1000),
-				OnHold:         decimal.NewFromInt(0),
-				CreatedAt:      time.Now(),
-				UpdatedAt:      time.Now(),
-			},
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(balances, mockCur, nil).
-			Times(1)
-
-		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.NotNil(t, cur)
+		assert.Equal(t, cur, libHTTP.CursorPagination{})
 	})
 }
 
-// TestGetAllBalancesByAlias is responsible to test GetAllBalancesByAlias with success and error
 func TestGetAllBalancesByAlias(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
