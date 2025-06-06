@@ -503,6 +503,7 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 					continue
 				}
 			}
+
 			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
@@ -522,6 +523,7 @@ func isDecimalEqual(a, b any) bool {
 	}
 
 	var decimalA, decimalB decimal.Decimal
+
 	var err error
 
 	switch valA := a.(type) {

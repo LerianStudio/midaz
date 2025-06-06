@@ -241,6 +241,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
 		}
+
 		b.Available = decimalValue
 	case json.Number:
 		i, err := v.Int64()
@@ -271,6 +272,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
 		}
+		
 		b.OnHold = decimalValue
 	case json.Number:
 		i, err := v.Int64()
