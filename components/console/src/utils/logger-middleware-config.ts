@@ -1,4 +1,4 @@
-import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
 import { NextHandler } from '@/lib/middleware/types'
 import { NextRequest } from 'next/server'

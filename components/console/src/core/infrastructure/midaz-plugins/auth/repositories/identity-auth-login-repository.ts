@@ -1,4 +1,4 @@
-import { LoggerAggregator } from 'lib-logs'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import {
   AuthEntity,
   AuthResponseEntity,

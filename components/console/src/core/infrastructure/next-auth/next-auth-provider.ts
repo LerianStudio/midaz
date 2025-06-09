@@ -1,5 +1,5 @@
 import { AuthSessionDto } from '@/core/application/dto/auth-dto'
-import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 import {
   AuthLogin,
   AuthLoginUseCase

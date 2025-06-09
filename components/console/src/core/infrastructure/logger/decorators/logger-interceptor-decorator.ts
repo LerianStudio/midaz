@@ -1,5 +1,5 @@
 import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 
 export function LoggerInterceptor(): ClassDecorator {
   // If the environment is test, return the empty descriptor

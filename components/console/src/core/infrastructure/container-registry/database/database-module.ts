@@ -1,5 +1,5 @@
 import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
-import { LoggerAggregator } from 'lib-logs'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { DBConfig, MongoConfig } from '../../mongo/mongo-config'
 import { Container, ContainerModule } from '../../utils/di/container'
 import { MongoOrganizationAvatarRepository } from '../../mongo/repositories/mongo-organization-avatar-repository'

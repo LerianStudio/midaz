@@ -4,7 +4,7 @@ import {
   PinoLoggerRepository,
   LoggerAggregator,
   RequestIdRepository
-} from 'lib-logs'
+} from '@lerianstudio/lib-logs'
 
 export const LoggerModule = new ContainerModule((container: Container) => {
   container

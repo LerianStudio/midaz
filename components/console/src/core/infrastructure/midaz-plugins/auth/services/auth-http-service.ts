@@ -1,4 +1,4 @@
-import { LoggerAggregator, RequestIdRepository } from 'lib-logs'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
 import {

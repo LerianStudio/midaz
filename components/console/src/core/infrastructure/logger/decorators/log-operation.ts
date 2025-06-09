@@ -1,5 +1,5 @@
 import { inject } from 'inversify'
-import { LoggerAggregator } from 'lib-logs'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { snakeCase } from 'lodash'
 
 export function LogOperation(options: {
