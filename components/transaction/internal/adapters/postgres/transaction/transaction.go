@@ -481,6 +481,7 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 		Code:                     cti.Code,
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
+		Route:                    cti.Route,
 	}
 
 	if cti.Send != nil {
