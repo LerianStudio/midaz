@@ -25,11 +25,11 @@ import CheckApproveCircle from '/public/svg/approved-circle.svg'
 import { TransactionStatusBadge } from './transaction-status-badge'
 import { SkeletonTransactionDialog } from './skeleton-transaction-dialog'
 import CancelledCircle from '/public/svg/cancelled-circle.svg'
-import { truncateString } from '@/helpers'
 import dayjs from 'dayjs'
 import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TransactionDataTab } from './transaction-data-tab'
 import { useFormatAmount } from '@/hooks/use-format-amount'
+import { truncate } from 'lodash'
 
 export const TRANSACTION_DETAILS_TAB_VALUES = {
   SUMMARY: 'summary',
@@ -97,7 +97,7 @@ export default function TransactionDetailsPage() {
                 id: 'transactions.details.title',
                 defaultMessage: 'Transaction - {id}'
               },
-              { id: `${truncateString(transactionId, 13)}` }
+              { id: `${truncate(transactionId, { length: 16 })}` }
             )}
             subtitle={intl.formatMessage(
               {
