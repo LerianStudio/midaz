@@ -1,3 +1,35 @@
+## [v2.3.0-beta.6] - 2025-06-10
+
+This release of the midaz project brings significant enhancements to system stability, data precision, and user experience, with no breaking changes.
+
+### ✨ Features  
+- **Enhanced System Stability**: A new backend function, `GetAccountAndLock`, has been introduced to prevent potential deadlocks during account operations, improving overall system reliability.
+- **Improved Data Management**: A new CRUD route in the database enhances data handling capabilities, making database operations more efficient.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Corrected the operation amount field to ensure accurate transaction processing, reducing errors.
+- **Data Retrieval**: Resolved an issue where operations would not return if the operation type was unspecified, ensuring comprehensive data access.
+- **Sign-in Form Functionality**: Added a missing method attribute to the sign-in form, enhancing HTML semantics and form functionality.
+- **Language Consistency**: Fixed translation key issues to ensure accurate language display throughout the application.
+
+### ⚡ Performance
+- **Financial Calculations**: Transitioned monetary fields from BIGINT to DECIMAL in the database, improving precision and data integrity in financial operations.
+- **Optimized Data Handling**: Enhanced Redis balance operations and updated transaction models, boosting performance and efficiency.
+
+### 🔄 Changes
+- **Function Naming Consistency**: Renamed `GetAccountAndLockNew` to `GetAccountAndLock` for clearer and more consistent function naming.
+- **User Experience Improvements**: Enhanced account alias validation and improved error message formatting for transactions, providing a better user experience.
+
+### 📚 Documentation
+- **Updated Documentation**: Comprehensive updates across backend, frontend, and documentation components to reflect recent changes, ensuring users and developers have access to the latest information.
+
+### 🔧 Maintenance
+- **Database Schema Integrity**: Updated scripts to handle column changes correctly, maintaining database schema consistency.
+- **Configuration Best Practices**: Adjusted initial value handling for `parentOrganizationId` to `undefined`, aligning with best practices.
+- **Version Tracking**: Regular updates to the CHANGELOG and versioning files to ensure accurate project documentation.
+
+This release focuses on enhancing the stability, precision, and usability of the midaz project, offering a smoother and more reliable experience for all users.
+
 ## [v2.3.0-beta.5] - 2025-06-10
 
 This release focuses on enhancing the logging capabilities, optimizing code performance, and improving the overall maintainability of the midaz application. Users will experience more efficient logging and a cleaner, more streamlined interface.
