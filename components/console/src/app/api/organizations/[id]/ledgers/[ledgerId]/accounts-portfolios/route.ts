@@ -7,7 +7,7 @@ import {
 } from '@/core/application/use-cases/accounts-with-portfolios/fetch-accounts-with-portfolios-use-case'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 
 export const GET = applyMiddleware(
   [
