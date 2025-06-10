@@ -1,3 +1,22 @@
+## [v2.3.0-beta.5] - 2025-06-10
+
+This release focuses on enhancing the logging capabilities, optimizing code performance, and improving the overall maintainability of the midaz application. Users will experience more efficient logging and a cleaner, more streamlined interface.
+
+### ✨ Features  
+- **Logging System Overhaul**: We've implemented a new logging library that enhances the application's logging capabilities. This improvement offers more detailed and structured logs, aiding developers and system administrators in better managing and debugging the system.
+
+### ⚡ Performance
+- **Code Optimization**: Significant refactoring in the authentication and backend systems has been completed. This optimization streamlines code execution, potentially improving performance and maintainability without changing existing functionalities.
+- **Frontend Cleanup**: Removed unused code from the frontend, reducing clutter and slightly improving performance by eliminating unnecessary code paths.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect recent changes, providing users with a comprehensive history of modifications and enhancements.
+
+### 🔧 Maintenance
+- **Version Update**: Updated project version to v2.2.1 in configuration files, ensuring consistency across environments and documentation.
+
+This changelog communicates the key improvements and their benefits to users, focusing on enhanced logging, code optimization, and documentation updates. Each section is crafted to highlight the practical impact on user experience and system performance.
+
 ## [v2.3.0-beta.4] - 2025-06-05
 
 This release of Midaz introduces significant enhancements to authentication and server processes, improving security and streamlining development workflows.
