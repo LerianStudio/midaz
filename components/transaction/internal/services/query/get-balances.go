@@ -135,7 +135,6 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		balance     *mmodel.Balance
 		alias       string
 		amount      libTransaction.Amount
-		opType      string
 		internalKey string
 	}
 
@@ -145,24 +144,24 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
 
 		for k, v := range validate.From {
+			v.Operation = constant.DEBIT
 			if libTransaction.SplitAlias(k) == balance.Alias {
 				operations = append(operations, lockOperation{
 					balance:     balance,
 					alias:       k,
 					amount:      v,
-					opType:      constant.DEBIT,
 					internalKey: internalKey,
 				})
 			}
 		}
 
 		for k, v := range validate.To {
+			v.Operation = constant.CREDIT
 			if libTransaction.SplitAlias(k) == balance.Alias {
 				operations = append(operations, lockOperation{
 					balance:     balance,
 					alias:       k,
 					amount:      v,
-					opType:      constant.CREDIT,
 					internalKey: internalKey,
 				})
 			}
