@@ -190,6 +190,100 @@ Users are encouraged to review the breaking changes and major features to fully 
 ### 🔧 Maintenance
 - Update version in `.env.example` to v2.3.0 to reflect the latest release.
 
+## [v2.2.1] - 2025-06-06
+
+This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
+
+### 🐛 Bug Fixes
+- **Database & Frontend**: Corrected the order of balance scale and on-hold fields in operation models, ensuring accurate data representation and consistency across components.
+- **Frontend**: Resolved a stability issue in the midaz console from version 2.2.0, enhancing user experience.
+- **Config**: Fixed handling of empty parent organization IDs, now correctly treated as `undefined`, preventing potential data errors.
+- **Frontend**: Addressed translation key issues to ensure all interface elements display the correct language strings.
+- **Auth**: Added a missing `method` attribute to the signin form, improving form functionality and HTML semantics.
+- **Database**: Enhanced account alias validation and improved error message formatting, providing clearer feedback to users and reducing input errors.
+- **Frontend**: Introduced new error messages, offering more informative feedback to users when issues occur.
+
+### 🔧 Maintenance
+- **Auth**: Reverted a previous merge related to the signin form method inclusion, maintaining codebase stability.
+- **Release Management**: Updated the CHANGELOG for improved documentation and adjusted processes to allow final releases from hotfix branches, increasing release process flexibility.
+- **Auth**: Updated the messages infrastructure for consistent communication and error handling across the authentication component.
+
+Each of these updates is designed to improve the system's reliability and user experience, ensuring that users can interact with the platform more effectively and with fewer disruptions.
+
+## [v2.2.1] - 2025-06-05
+
+This release focuses on enhancing user experience with improved error messaging, localization support, and crucial bug fixes, ensuring a smoother and more reliable interaction with the software.
+
+### 🐛 Bug Fixes
+- **Frontend**: Fixed a bug in the console version display, ensuring users have accurate version information for troubleshooting and support.
+- **Config**: Corrected handling of the parent organization ID. It now defaults to `undefined` when empty, preventing errors in organization mapping and form submissions.
+- **Auth**: Added the missing method attribute in the signin form, improving HTML semantics and form submission reliability.
+- **Database**: Enhanced account alias validation and error message formatting, providing clearer guidance and reducing input errors during transactions.
+- **Frontend**: Introduced new error messages to guide users when issues arise, enhancing the overall user experience.
+
+### 🔧 Maintenance
+- **Auth**: Reverted changes from a previous hotfix to maintain system stability and ensure the correct functionality of the authentication component.
+- **Release Management**: Updated the release process to support final releases from hotfix branches and corrected the retroactive release for version 2.2.1, ensuring a smoother versioning workflow.
+- **Auth**: Streamlined internal messaging infrastructure with updates to the `messages.ts` file, improving maintainability and future updates.
+
+This update consolidates improvements and bug fixes, enhancing the overall reliability and user experience of the software. Users are encouraged to upgrade to benefit from these enhancements.
+
+## [v2.2.0] - 2025-05-29
+
+### ✨ Features
+- Implement comprehensive security hardening and UX improvements (#929)
+- Add authentication toggle support and remove external network dependencies
+- Implement account, segment, portfolio, asset, and ledger count functionalities with tests and API documentation
+- Enhance password and username validation with stricter rules and improved tooltips
+- Add inflow and outflow transaction endpoints to support external funding and withdrawal operations
+- Implement application management features
+- Add Node version management section to README
+- Implement multi-select on Users page
+- Add account alias column and improve external account UI
+- Implement dynamic version management
+- Create IdentityGroup, MidazPortfolio, MidazSegment, MidazAccount, MidazAsset, and MidazLedger mappers
+
+### 🐛 Bug Fixes
+- Rename environment variable for authentication enablement
+- Correct version environment variable for client-side access
+- Resolve inconsistency when deleting organizations
+- Reset form when creating new entity
+- Enhance performance by avoiding balance fetch for destination account
+- Display transaction sum with correct precision
+- Redirect users without a ledger to appropriate page
+- Update avatar file upload image handling and error validation
+- Implement organization avatar MongoDB model and error handling
+- Fix front-end issue preventing user redirection to sign-in page
+- Handle empty username fields and add authentication enabled environment variable
+- Resolve Prettier build problem
+- Improve transaction processing tracing, code quality, and idempotency
+- Handle 204 success responses
+
+### 🔄 Changes
+- Improve form behavior and data table display consistency
+- Update application configuration and localization settings
+- Improve form UX and fix read-only field handling
+- Set read-only on form fields based on user permissions
+- Add organization tooltip and update title translations in settings page
+- Main refactor of transaction details
+- Improve security alert formatting and translations
+- Adjust create and listing functionality
+
+### 🔧 Maintenance
+- Refactor: Improve type safety and form handling in organization form components
+- Prevent reinstalling golangci-lint if already installed
+- Standardize and optimize GitHub Actions workflows
+- Update workflows to use latest versions of dependencies and tools
+- Configure app_name_prefix input in build pipeline
+- Define GoReleaser version in pipeline flow
+- Clean dirty files before executing GoReleaser
+- Add RabbitMQ health check before retrieving balances
+
+### 📚 Documentation
+- Add API documentation for asset and ledger count functionalities
+- Update PR notifications with environment version
+- Update README with Node version management section
+
 ## [v2.2.0-beta.62] - 2025-05-29
 
 ### 🐛 Bug Fixes

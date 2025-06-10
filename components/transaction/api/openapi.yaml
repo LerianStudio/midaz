@@ -1749,17 +1749,9 @@ components:
             The amount value in the smallest unit of the asset (e.g., cents)
             example: 1500
             minimum: 0
-          example: 1500
+          example: 1500.0
           minimum: 0
-          type: integer
-        scale:
-          description: |-
-            Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
-            example: 2
-            minimum: 0
-          example: 2
-          minimum: 0
-          type: integer
+          type: number
       type: object
     AssetRate:
       description: AssetRate is a struct designed to store asset rate data. Represents
@@ -1893,28 +1885,20 @@ components:
       properties:
         available:
           description: |-
-            Amount available for transactions (in smallest unit of asset)
+            Amount available for transactions (in the smallest unit of asset)
             example: 1500
             minimum: 0
-          example: 1500
+          example: 1500.0
           minimum: 0
-          type: integer
+          type: number
         onHold:
           description: |-
-            Amount on hold and unavailable for transactions (in smallest unit of asset)
+            Amount on hold and unavailable for transactions (in the smallest unit of asset)
             example: 500
             minimum: 0
-          example: 500
+          example: 500.0
           minimum: 0
-          type: integer
-        scale:
-          description: |-
-            Decimal places for the balance (e.g., 2 for dollars/euros)
-            example: 2
-            minimum: 0
-          example: 2
-          minimum: 0
-          type: integer
+          type: number
       type: object
     CreateAssetRateInput:
       description: CreateAssetRateInput is the input payload to create an asset rate.
@@ -2083,29 +2067,26 @@ components:
         description: description
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
-          scale: 0
           source:
             from:
             - amount:
-                scale: 0
                 asset: asset
-                value: 6
+                value: 0.8008281904610115
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
               account: account
             - amount:
-                scale: 0
                 asset: asset
-                value: 6
+                value: 0.8008281904610115
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
               account: account
           asset: asset
-          value: 6
+          value: 6.027456183070403
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -2207,6 +2188,7 @@ components:
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
+        route: 00000000-0000-0000-0000-000000000000
         balance: '{}'
         balanceAfter: '{}'
         id: 00000000-0000-0000-0000-000000000000
@@ -2326,6 +2308,14 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        route:
+          description: |-
+            Route
+            example: 00000000-0000-0000-0000-000000000000
+            format: string
+          example: 00000000-0000-0000-0000-000000000000
+          format: string
+          type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -2411,7 +2401,7 @@ components:
         operations.
       example:
         template: Transaction template
-        amount: 1500
+        amount: 1500.0
         metadata:
           key: '{}'
         assetCode: BRL
@@ -2422,7 +2412,6 @@ components:
         - '@person1'
         chartOfAccountsGroupName: Chart of accounts group name
         parentTransactionId: 00000000-0000-0000-0000-000000000000
-        amountScale: 2
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
@@ -2442,6 +2431,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
@@ -2462,12 +2452,14 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
+        route: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
         status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
@@ -2477,17 +2469,9 @@ components:
             Transaction amount value in the smallest unit of the asset
             example: 1500
             minimum: 0
-          example: 1500
+          example: 1500.0
           minimum: 0
-          type: integer
-        amountScale:
-          description: |-
-            Decimal places for the transaction amount
-            example: 2
-            minimum: 0
-          example: 2
-          minimum: 0
-          type: integer
+          type: number
         assetCode:
           description: |-
             Asset code for the transaction
@@ -2582,6 +2566,14 @@ components:
             format: uuid
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        route:
+          description: |-
+            Route
+            example: 00000000-0000-0000-0000-000000000000
+            format: string
+          example: 00000000-0000-0000-0000-000000000000
+          format: string
           type: string
         source:
           description: |-
@@ -2731,11 +2723,10 @@ components:
         metadata:
           key: '{}'
         assetCode: USD
-        onHold: 500
+        onHold: 500.0
         allowReceiving: true
         accountType: creditCard
-        available: 1500
-        scale: 2
+        available: 1500.0
         allowSending: true
         version: 1
         ledgerId: 00000000-0000-0000-0000-000000000000
@@ -2798,9 +2789,9 @@ components:
             Amount available for transactions (in the smallest unit of the asset, e.g. cents)
             example: 1500
             minimum: 0
-          example: 1500
+          example: 1500.0
           minimum: 0
-          type: integer
+          type: number
         createdAt:
           description: |-
             Timestamp when the balance was created (RFC3339 format)
@@ -2845,9 +2836,9 @@ components:
             Amount currently on hold and unavailable for transactions
             example: 500
             minimum: 0
-          example: 500
+          example: 500.0
           minimum: 0
-          type: integer
+          type: number
         organizationId:
           description: |-
             Organization that owns this balance
@@ -2856,14 +2847,6 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
-        scale:
-          description: |-
-            Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)
-            example: 2
-            minimum: 0
-          example: 2
-          minimum: 0
-          type: integer
         updatedAt:
           description: |-
             Timestamp when the balance was last updated (RFC3339 format)
@@ -2896,11 +2879,10 @@ components:
         - metadata:
             key: '{}'
           assetCode: USD
-          onHold: 500
+          onHold: 500.0
           allowReceiving: true
           accountType: creditCard
-          available: 1500
-          scale: 2
+          available: 1500.0
           allowSending: true
           version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -2914,11 +2896,10 @@ components:
         - metadata:
             key: '{}'
           assetCode: USD
-          onHold: 500
+          onHold: 500.0
           allowReceiving: true
           accountType: creditCard
-          available: 1500
-          scale: 2
+          available: 1500.0
           allowSending: true
           version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
@@ -2969,6 +2950,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
@@ -2989,6 +2971,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
@@ -3077,7 +3060,7 @@ components:
         page: '{}'
         items:
         - template: Transaction template
-          amount: 1500
+          amount: 1500.0
           metadata:
             key: '{}'
           assetCode: BRL
@@ -3088,7 +3071,6 @@ components:
           - '@person1'
           chartOfAccountsGroupName: Chart of accounts group name
           parentTransactionId: 00000000-0000-0000-0000-000000000000
-          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -3108,6 +3090,7 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
@@ -3128,17 +3111,19 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - template: Transaction template
-          amount: 1500
+          amount: 1500.0
           metadata:
             key: '{}'
           assetCode: BRL
@@ -3149,7 +3134,6 @@ components:
           - '@person1'
           chartOfAccountsGroupName: Chart of accounts group name
           parentTransactionId: 00000000-0000-0000-0000-000000000000
-          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -3169,6 +3153,7 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
@@ -3189,12 +3174,14 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
@@ -3364,12 +3351,32 @@ components:
             required: true
           type: integer
       type: object
+    CreateTransactionOutflowSwaggerModel_send_source_amount:
+      description: |-
+        Amount details for the operation
+        required: true
+      example:
+        asset: asset
+        value: 0.8008281904610115
+      properties:
+        asset:
+          description: |-
+            Asset code
+            example: USD
+            required: true
+          type: string
+        value:
+          description: |-
+            Amount value in smallest unit
+            example: "100"
+            required: true
+          type: number
+      type: object
     CreateTransactionOutflowSwaggerModel_send_source_from:
       example:
         amount:
-          scale: 0
           asset: asset
-          value: 6
+          value: 0.8008281904610115
         metadata:
           key: '{}'
         chartOfAccounts: chartOfAccounts
@@ -3383,7 +3390,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -3409,18 +3416,16 @@ components:
       example:
         from:
         - amount:
-            scale: 0
             asset: asset
-            value: 6
+            value: 0.8008281904610115
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
           account: account
         - amount:
-            scale: 0
             asset: asset
-            value: 6
+            value: 0.8008281904610115
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
@@ -3440,29 +3445,26 @@ components:
         Send operation details including source only
         required: true
       example:
-        scale: 0
         source:
           from:
           - amount:
-              scale: 0
               asset: asset
-              value: 6
+              value: 0.8008281904610115
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
             account: account
           - amount:
-              scale: 0
               asset: asset
-              value: 6
+              value: 0.8008281904610115
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
             account: account
         asset: asset
-        value: 6
+        value: 6.027456183070403
       properties:
         asset:
           description: |-
@@ -3470,20 +3472,73 @@ components:
             example: USD
             required: true
           type: string
-        scale:
-          description: |-
-            Decimal places for the transaction amount
-            example: 2
-            required: true
-          type: integer
         source:
           $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source'
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset
+            example: "100"
+            required: true
+          type: number
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount
+    : description: |-
+        Amount details for the operation
+        required: true
+      properties:
+        asset:
+          description: |-
+            Asset code
+            example: USD
+            required: true
+          type: string
+        value:
+          description: |-
+            Amount value in smallest unit
             example: 100
             required: true
-          type: integer
+          type: number
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to
+    : properties:
+        account:
+          description: |-
+            Account identifier or alias
+            example: {{accountAlias}}
+            required: true
+          type: string
+        amount:
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+        chartOfAccounts:
+          description: |-
+            Chart of accounts code
+            example: FUNDING_CREDIT
+          type: string
+        description:
+          description: |-
+            Operation description
+            example: Credit Operation
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Additional metadata
+            example: {"operation": "funding", "type": "account"}
+          type: object
+      type: object
+    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
+    : description: |-
+        Destination accounts and amounts for the transaction
+        required: true
+      properties:
+        to:
+          description: |-
+            List of destination operations
+            required: true
+          items:
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to'
+          type: array
       type: object
     ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
     : properties:
@@ -3494,7 +3549,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -3538,13 +3593,7 @@ components:
             required: true
           type: string
         distribute:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
-        scale:
-          description: |-
-            Decimal places for the transaction amount
-            example: 2
-            required: true
-          type: integer
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute'
         source:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
         value:
@@ -3552,6 +3601,6 @@ components:
             Transaction amount value in the smallest unit of the asset
             example: 100
             required: true
-          type: integer
+          type: number
       type: object
 x-original-swagger-version: "2.0"

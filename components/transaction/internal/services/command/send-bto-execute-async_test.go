@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 	"os"
 	"testing"
@@ -53,15 +54,13 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		From: map[string]libTransaction.Amount{
 			"alias1": {
 				Asset: "USD",
-				Value: int64(50), // Value should be an int64
-				Scale: int64(2),  // Scale is an int64
+				Value: decimal.NewFromInt(50), // Value should be an int64
 			},
 		},
 		To: map[string]libTransaction.Amount{
 			"alias2": {
 				Asset: "EUR",
-				Value: int64(40), // Value should be an int64
-				Scale: int64(2),  // Scale is an int64
+				Value: decimal.NewFromInt(40), // Value should be an int64
 			},
 		},
 	}
@@ -73,10 +72,8 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          "alias1",
-			Available:      100,
-			OnHold:         0,
-			Scale:          2,
-			Version:        1,
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.NewFromInt(0),
 			AccountType:    "deposit",
 			AllowSending:   true,
 			AllowReceiving: true,
@@ -88,9 +85,8 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          "alias2",
-			Available:      200,
-			OnHold:         0,
-			Scale:          2,
+			Available:      decimal.NewFromInt(200),
+			OnHold:         decimal.NewFromInt(0),
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   true,

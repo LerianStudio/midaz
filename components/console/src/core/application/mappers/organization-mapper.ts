@@ -9,7 +9,8 @@ export class OrganizationMapper {
   public static toDomain(dto: CreateOrganizationDto): OrganizationEntity {
     return {
       legalName: dto.legalName!,
-      parentOrganizationId: dto.parentOrganizationId,
+      parentOrganizationId:
+        dto.parentOrganizationId !== '' ? dto.parentOrganizationId : undefined,
       doingBusinessAs: dto.doingBusinessAs!,
       legalDocument: dto.legalDocument!,
       address: dto.address!,

@@ -2253,15 +2253,9 @@ const docTemplate = `{
             "properties": {
                 "amount": {
                     "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
-                },
-                "scale": {
-                    "description": "Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 }
             }
         },
@@ -2354,22 +2348,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "available": {
-                    "description": "Amount available for transactions (in smallest unit of asset)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
                 },
                 "onHold": {
-                    "description": "Amount on hold and unavailable for transactions (in smallest unit of asset)\nexample: 500\nminimum: 0",
-                    "type": "integer",
+                    "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
+                    "type": "number",
                     "minimum": 0,
                     "example": 500
-                },
-                "scale": {
-                    "description": "Decimal places for the balance (e.g., 2 for dollars/euros)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 }
             }
         },
@@ -2560,10 +2548,6 @@ const docTemplate = `{
                             "description": "Asset code for the transaction\nexample: USD\nrequired: true",
                             "type": "string"
                         },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
-                        },
                         "source": {
                             "description": "Source accounts and amounts for the transaction\nrequired: true",
                             "type": "object",
@@ -2586,13 +2570,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100\"\nrequired: true",
+                                                        "type": "number"
                                                     }
                                                 }
                                             },
@@ -2615,8 +2595,8 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100\"\nrequired: true",
+                            "type": "number"
                         }
                     }
                 }
@@ -2762,6 +2742,12 @@ const docTemplate = `{
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "route": {
+                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "type": "string",
+                    "format": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "status": {
                     "description": "Operation status information",
                     "allOf": [
@@ -2839,15 +2825,9 @@ const docTemplate = `{
             "properties": {
                 "amount": {
                     "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
-                },
-                "amountScale": {
-                    "description": "Decimal places for the transaction amount\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 },
                 "assetCode": {
                     "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
@@ -2924,6 +2904,12 @@ const docTemplate = `{
                     "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "route": {
+                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "type": "string",
+                    "format": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "source": {
@@ -3063,13 +3049,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
                                                         "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "type": "number"
                                                     }
                                                 }
                                             },
@@ -3090,10 +3072,6 @@ const docTemplate = `{
                                     }
                                 }
                             }
-                        },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
                         },
                         "source": {
                             "description": "Source accounts and amounts for the transaction\nrequired: true",
@@ -3117,13 +3095,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
                                                         "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "type": "number"
                                                     }
                                                 }
                                             },
@@ -3147,7 +3121,7 @@ const docTemplate = `{
                         },
                         "value": {
                             "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "type": "number"
                         }
                     }
                 }
@@ -3194,7 +3168,7 @@ const docTemplate = `{
                 },
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
                 },
@@ -3229,7 +3203,7 @@ const docTemplate = `{
                 },
                 "onHold": {
                     "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 500
                 },
@@ -3238,12 +3212,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "scale": {
-                    "description": "Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 },
                 "updatedAt": {
                     "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",

@@ -81,20 +81,17 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
 		record.ID,
 		record.TransactionID,
 		record.Description,
 		record.Type,
 		record.AssetCode,
 		record.Amount,
-		record.AmountScale,
 		record.AvailableBalance,
 		record.OnHoldBalance,
-		record.BalanceScale,
 		record.AvailableBalanceAfter,
 		record.OnHoldBalanceAfter,
-		record.BalanceScaleAfter,
 		record.Status,
 		record.StatusDescription,
 		record.AccountID,
@@ -106,6 +103,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
+		record.Route,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -202,13 +200,10 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.Type,
 			&operation.AssetCode,
 			&operation.Amount,
-			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
-			&operation.BalanceScaleAfter,
 			&operation.Status,
 			&operation.StatusDescription,
 			&operation.AccountID,
@@ -220,6 +215,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -290,13 +286,10 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.Type,
 			&operation.AssetCode,
 			&operation.Amount,
-			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
-			&operation.BalanceScaleAfter,
 			&operation.Status,
 			&operation.StatusDescription,
 			&operation.AccountID,
@@ -308,6 +301,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -356,13 +350,10 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.Type,
 		&operation.AssetCode,
 		&operation.Amount,
-		&operation.AmountScale,
 		&operation.AvailableBalance,
-		&operation.BalanceScale,
 		&operation.OnHoldBalance,
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
-		&operation.BalanceScaleAfter,
 		&operation.Status,
 		&operation.StatusDescription,
 		&operation.AccountID,
@@ -374,6 +365,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.CreatedAt,
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
+		&operation.Route,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -417,13 +409,10 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.Type,
 		&operation.AssetCode,
 		&operation.Amount,
-		&operation.AmountScale,
 		&operation.AvailableBalance,
-		&operation.BalanceScale,
 		&operation.OnHoldBalance,
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
-		&operation.BalanceScaleAfter,
 		&operation.Status,
 		&operation.StatusDescription,
 		&operation.AccountID,
@@ -435,6 +424,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.CreatedAt,
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
+		&operation.Route,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -606,7 +596,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(2))}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if operationType != nil {
+	if !libCommons.IsNilOrEmpty(operationType) {
 		findAll = findAll.Where(squirrel.Expr("type = ?", *operationType))
 	}
 
@@ -640,13 +630,10 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.Type,
 			&operation.AssetCode,
 			&operation.Amount,
-			&operation.AmountScale,
 			&operation.AvailableBalance,
-			&operation.BalanceScale,
 			&operation.OnHoldBalance,
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
-			&operation.BalanceScaleAfter,
 			&operation.Status,
 			&operation.StatusDescription,
 			&operation.AccountID,
@@ -658,6 +645,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
+			&operation.Route,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
