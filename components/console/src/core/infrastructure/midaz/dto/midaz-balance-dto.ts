@@ -10,9 +10,8 @@ export type MidazBalanceDto = {
   accountId: string
   alias: string
   assetCode: string
-  available: number
-  onHold: number
-  scale: number
+  available: string
+  onHold: string
   version: number
   accountType: string
   allowSending: boolean
