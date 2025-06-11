@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"reflect"
+	"sort"
 )
 
 // GetBalances methods responsible to get balances from a database.
@@ -106,7 +107,6 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 				Alias:          alias,
 				Available:      b.Available,
 				OnHold:         b.OnHold,
-				Scale:          b.Scale,
 				Version:        b.Version,
 				AccountType:    b.AccountType,
 				AllowSending:   b.AllowSending == 1,
@@ -131,44 +131,58 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	newBalances := make([]*mmodel.Balance, 0)
 
+	type lockOperation struct {
+		balance     *mmodel.Balance
+		alias       string
+		amount      libTransaction.Amount
+		internalKey string
+	}
+
+	operations := make([]lockOperation, 0)
+
 	for _, balance := range balances {
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
 
-		logger.Infof("Getting internal key: %s", internalKey)
-
 		for k, v := range validate.From {
+			v.Operation = constant.DEBIT
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.DEBIT)
-				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
-
-					logger.Error("Failed to lock balance", err)
-
-					return nil, err
-				}
-
-				b.Alias = k
-
-				newBalances = append(newBalances, b)
+				operations = append(operations, lockOperation{
+					balance:     balance,
+					alias:       k,
+					amount:      v,
+					internalKey: internalKey,
+				})
 			}
 		}
 
 		for k, v := range validate.To {
+			v.Operation = constant.CREDIT
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, v, constant.CREDIT)
-				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
-
-					logger.Error("Failed to lock balance", err)
-
-					return nil, err
-				}
-
-				b.Alias = k
-
-				newBalances = append(newBalances, b)
+				operations = append(operations, lockOperation{
+					balance:     balance,
+					alias:       k,
+					amount:      v,
+					internalKey: internalKey,
+				})
 			}
 		}
+	}
+
+	sort.Slice(operations, func(i, j int) bool {
+		return operations[i].internalKey < operations[j].internalKey
+	})
+
+	for _, op := range operations {
+		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, op.amount, *op.balance)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+			logger.Error("Failed to lock balance", err)
+
+			return nil, err
+		}
+
+		b.Alias = op.alias
+		newBalances = append(newBalances, b)
 	}
 
 	return newBalances, nil

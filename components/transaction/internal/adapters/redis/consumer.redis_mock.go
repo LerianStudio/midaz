@@ -43,6 +43,21 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AddSumBalanceRedis mocks base method.
+func (m *MockRedisRepository) AddSumBalanceRedis(ctx context.Context, key string, amount transaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSumBalanceRedis", ctx, key, amount, balance)
+	ret0, _ := ret[0].(*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSumBalanceRedis indicates an expected call of AddSumBalanceRedis.
+func (mr *MockRedisRepositoryMockRecorder) AddSumBalanceRedis(ctx, key, amount, balance any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalanceRedis), ctx, key, amount, balance)
+}
+
 // Del mocks base method.
 func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
@@ -84,21 +99,6 @@ func (m *MockRedisRepository) Incr(ctx context.Context, key string) int64 {
 func (mr *MockRedisRepositoryMockRecorder) Incr(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), ctx, key)
-}
-
-// LockBalanceRedis mocks base method.
-func (m *MockRedisRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount transaction.Amount, operation string) (*mmodel.Balance, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockBalanceRedis", ctx, key, balance, amount, operation)
-	ret0, _ := ret[0].(*mmodel.Balance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockBalanceRedis indicates an expected call of LockBalanceRedis.
-func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(ctx, key, balance, amount, operation any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), ctx, key, balance, amount, operation)
 }
 
 // Set mocks base method.

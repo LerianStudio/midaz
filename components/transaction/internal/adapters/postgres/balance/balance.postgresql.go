@@ -82,7 +82,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		return err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
 		record.OrganizationID,
 		record.LedgerID,
@@ -91,7 +91,6 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		record.AssetCode,
 		record.Available,
 		record.OnHold,
-		record.Scale,
 		record.Version,
 		record.AccountType,
 		record.AllowSending,
@@ -171,7 +170,6 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -267,7 +265,6 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -378,7 +375,6 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -463,7 +459,6 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -555,7 +550,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -581,7 +575,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	for _, balance := range balances {
 		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
 			libTransaction.Balance{
-				Scale:     balance.Scale,
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
 			},
@@ -600,9 +593,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
 		args = append(args, calculateBalances.OnHold)
-
-		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, calculateBalances.Scale)
 
 		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
 		version := balance.Version + 1
@@ -694,9 +684,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.OnHold)
 
-		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.Scale)
-
 		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Version)
 
@@ -770,7 +757,6 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.AssetCode,
 		&balance.Available,
 		&balance.OnHold,
-		&balance.Scale,
 		&balance.Version,
 		&balance.AccountType,
 		&balance.AllowSending,

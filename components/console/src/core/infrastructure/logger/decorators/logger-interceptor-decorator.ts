@@ -1,8 +1,7 @@
 import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 
-export function ControllerLogger(): ClassDecorator {
+export function LoggerInterceptor(): ClassDecorator {
   // If the environment is test, return the empty descriptor
   if (process.env.NODE_ENV === 'test') {
     return (_target) => _target
@@ -22,18 +21,18 @@ export function ControllerLogger(): ClassDecorator {
       // Replace with wrapped method
       prototype[methodName] = async function (req: Request, ...args: any[]) {
         const loggerAggregator = container.get(LoggerAggregator)
-        const midazRequestContext: MidazRequestContext =
-          container.get<MidazRequestContext>(MidazRequestContext)
+        const requestIdRepository: RequestIdRepository =
+          container.get<RequestIdRepository>(RequestIdRepository)
 
-        // Clear any existing Midaz ID from the context
-        midazRequestContext.clearMidazId()
+        const traceId = requestIdRepository.generate()
+        requestIdRepository.set(traceId)
 
         // Execute the next middleware/handler within a logged context
         return loggerAggregator.runWithContext(
           `${target.name}.${methodName}`,
           req.method,
           {
-            midazId: midazRequestContext.getMidazId()
+            midazId: traceId
           },
           async () => {
             return await originalMethod.apply(this, [req, ...args])

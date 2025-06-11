@@ -578,7 +578,6 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 			newAlias = entries[i].SplitAlias()
 		}
 
-		entries[i].Account = newAlias
 		entries[i].AccountAlias = newAlias
 
 		result = append(result, entries[i])
@@ -684,12 +683,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Template:                 parserDSL.ChartOfAccountsGroupName,
 		Status:                   status,
 		Amount:                   &parserDSL.Send.Value,
-		AmountScale:              &parserDSL.Send.Scale,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
 		Body:                     parserDSL,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
+		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
 
@@ -697,13 +696,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
-					Scale:     &blc.Scale,
 				}
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
@@ -712,14 +710,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 				}
 
 				amount := operation.Amount{
-					Amount: &amt.Value,
-					Scale:  &amt.Scale,
+					Value: &amt.Value,
 				}
 
 				balanceAfter := operation.Balance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
-					Scale:     &bat.Scale,
 				}
 
 				descr := fromTo[i].Description
@@ -751,6 +747,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),
 					UpdatedAt:       time.Now(),
+					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
 			}
