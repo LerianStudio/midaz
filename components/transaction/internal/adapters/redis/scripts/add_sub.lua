@@ -169,20 +169,23 @@ end
 local function main()
     local ttl = 3600
     local key = KEYS[1]
-    local operation = ARGV[1]
 
-    local amount = ARGV[2]
+    local isPending = tonumber(ARGV[1])
+    local transactionStatus = ARGV[2]
+    local operation = ARGV[3]
+
+    local amount = ARGV[4]
 
     local balance = {
-        ID = ARGV[3],
-        Available = ARGV[4],
-        OnHold = ARGV[5],
-        Version = tonumber(ARGV[6]),
-        AccountType = ARGV[7],
-        AllowSending = tonumber(ARGV[8]),
-        AllowReceiving = tonumber(ARGV[9]),
-        AssetCode = ARGV[10],
-        AccountID = ARGV[11],
+        ID = ARGV[5],
+        Available = ARGV[6],
+        OnHold = ARGV[7],
+        Version = tonumber(ARGV[8]),
+        AccountType = ARGV[9],
+        AllowSending = tonumber(ARGV[10]),
+        AllowReceiving = tonumber(ARGV[11]),
+        AssetCode = ARGV[12],
+        AccountID = ARGV[13],
     }
 
     local current = redis.call("GET", key)
@@ -193,11 +196,29 @@ local function main()
         balance = cjson.decode(current)
     end
 
-    local result
-    if operation == "DEBIT" then
-        result = sub_decimal(balance.Available, amount)
+    local result = balance.Available
+    local resultOnHold = balance.OnHold
+
+    if isPending == 1 then
+        if operation == "DEBIT" and transactionStatus == "PENDING" then
+            result = sub_decimal(balance.Available, amount)
+            resultOnHold = add_decimal(balance.OnHold, amount)
+        elseif operation == "DEBIT" and transactionStatus == "CANCELED" then
+            resultOnHold = sub_decimal(balance.OnHold, amount)
+            result = add_decimal(balance.Available, amount)
+        elseif transactionStatus == "APPROVED" then
+            if operation == "DEBIT" then
+                resultOnHold = sub_decimal(balance.OnHold, amount)
+            else
+                result = add_decimal(balance.Available, amount)
+            end
+        end
     else
-        result = add_decimal(balance.Available, amount)
+        if operation == "DEBIT" then
+            result = sub_decimal(balance.Available, amount)
+        else
+            result = add_decimal(balance.Available, amount)
+        end
     end
 
     if startsWithMinus(result) and balance.AccountType ~= "external" then
@@ -206,6 +227,7 @@ local function main()
 
     local balanceEncoded = cjson.encode(balance)
 
+    balance.OnHold = resultOnHold
     balance.Available = result
     balance.Version = balance.Version + 1
 

@@ -56,13 +56,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	tran := t.Transaction
 	tran.Body = *t.ParseDSL
 
-	description := constant.APPROVED
-	status := transaction.Status{
-		Code:        description,
-		Description: &description,
-	}
+	if !t.Validate.Pending {
+		description := constant.APPROVED
+		status := transaction.Status{
+			Code:        description,
+			Description: &description,
+		}
 
-	tran.Status = status
+		tran.Status = status
+	}
 
 	_, err = uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {

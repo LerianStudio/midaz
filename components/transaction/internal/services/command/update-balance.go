@@ -94,8 +94,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			libTransaction.Balance{
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
-			},
-			fromTo[balance.Alias].Operation)
+			})
 
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)

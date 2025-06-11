@@ -15,7 +15,7 @@ import (
 )
 
 // GetBalances methods responsible to get balances from a database.
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
@@ -53,7 +53,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if len(balances) > 1 {
-		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
+		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, transactionStatus)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
 
@@ -122,7 +122,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -173,7 +173,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	})
 
 	for _, op := range operations {
-		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, op.amount, *op.balance)
+		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 			logger.Error("Failed to lock balance", err)
