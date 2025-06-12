@@ -198,17 +198,21 @@ local function main()
 
     local result = balance.Available
     local resultOnHold = balance.OnHold
+    local isFrom = false
 
     if isPending == 1 then
         if operation == "ON_HOLD" and transactionStatus == "PENDING" then
             result = sub_decimal(balance.Available, amount)
             resultOnHold = add_decimal(balance.OnHold, amount)
+            isFrom = true
         elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
             resultOnHold = sub_decimal(balance.OnHold, amount)
             result = add_decimal(balance.Available, amount)
+            isFrom = true
         elseif transactionStatus == "APPROVED" then
             if operation == "DEBIT" then
                 resultOnHold = sub_decimal(balance.OnHold, amount)
+                isFrom = true
             else
                 result = add_decimal(balance.Available, amount)
             end
@@ -219,6 +223,10 @@ local function main()
         else
             result = add_decimal(balance.Available, amount)
         end
+    end
+
+    if isPending == 1 and isFrom and balance.AccountType == "external" then
+         return redis.error_reply("0098")
     end
 
     if startsWithMinus(result) and balance.AccountType ~= "external" then
