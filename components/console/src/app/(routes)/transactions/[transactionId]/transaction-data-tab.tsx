@@ -23,7 +23,7 @@ import { ArrowRight } from 'lucide-react'
 import { OperationAccordion } from './operation-accordion'
 import { MetaAccordionTransactionDetails } from './meta-accordion-transaction-details'
 import { SectionTitle } from './primitives'
-import { useFormatAmount } from '@/hooks/use-format-amount'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 const initialValues = {
   description: '',
@@ -47,7 +47,7 @@ export const TransactionDataTab = ({
   onSuccess
 }: TransactionDataTabProps) => {
   const intl = useIntl()
-  const { formatAmount } = useFormatAmount()
+  const { formatNumber } = useFormatNumber()
   const { toast } = useToast()
   const { currentOrganization, currentLedger } = useOrganization()
 
@@ -109,7 +109,7 @@ export const TransactionDataTab = ({
         <div className="col-span-2 flex flex-col gap-12">
           <BasicInformationPaper
             chartOfAccountsGroupName={data?.chartOfAccountsGroupName}
-            value={formatAmount(data?.amount)}
+            value={formatNumber(data?.amount)}
             asset={data?.asset}
             control={form.control}
           />

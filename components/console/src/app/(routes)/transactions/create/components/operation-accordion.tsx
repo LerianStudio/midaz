@@ -116,7 +116,7 @@ export const OperationAccordion = ({
                     defaultMessage: 'Credit'
                   })}
             </p>
-            <p className="text-shadcn-400 text-xs">{values.account}</p>
+            <p className="text-shadcn-400 text-xs">{values.accountAlias}</p>
           </div>
           <div className="mr-4 flex flex-col items-end">
             <div className="flex flex-row items-center gap-4">

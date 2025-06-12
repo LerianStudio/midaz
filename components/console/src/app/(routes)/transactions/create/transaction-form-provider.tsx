@@ -109,7 +109,7 @@ export const TransactionProvider = ({
     if (fieldArray.fields.length === 0) {
       fieldArray.append({
         ...sourceInitialValues,
-        account: alias,
+        accountAlias: alias,
         value: formValues.value
       })
       addAccount(alias, account)
@@ -118,7 +118,8 @@ export const TransactionProvider = ({
 
     const index = fieldArray.fields.findIndex(
       (item) =>
-        (item as unknown as TransactionSourceFormSchema[0]).account === alias
+        (item as unknown as TransactionSourceFormSchema[0]).accountAlias ===
+        alias
     )
     if (index > -1) {
       addError('search', {
@@ -135,11 +136,11 @@ export const TransactionProvider = ({
 
     fieldArray.append({
       ...sourceInitialValues,
-      account: alias
+      accountAlias: alias
     })
     addAccount(alias, account)
   }
-
+  console.log('TransactionProvider', formValues)
   const removeSource = (
     fieldArray: UseFieldArrayReturn<any>,
     alias: string
@@ -150,7 +151,8 @@ export const TransactionProvider = ({
 
     const index = fieldArray.fields.findIndex(
       (item) =>
-        (item as unknown as TransactionSourceFormSchema[0]).account === alias
+        (item as unknown as TransactionSourceFormSchema[0]).accountAlias ===
+        alias
     )
 
     if (index > -1) {

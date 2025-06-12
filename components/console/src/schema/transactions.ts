@@ -10,7 +10,7 @@ const value = z.coerce
   .positive()
   .max(1000 * 1000 * 1000 * 1000)
 
-const account = z.string().min(1).max(255)
+const accountAlias = z.string().min(1).max(255)
 const percentage = z.number().min(0).max(100)
 const percentageOfPercentage = z.number().min(0).max(100)
 
@@ -20,7 +20,7 @@ const share = {
 }
 
 const source = {
-  account,
+  accountAlias,
   asset,
   value,
   description,
