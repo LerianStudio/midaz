@@ -226,6 +226,8 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
+			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
 		}
 
 		return nil, err
