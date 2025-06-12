@@ -72,29 +72,18 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	fromTo := make(map[string]libTransaction.Amount)
 	for k, v := range validate.From {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Operation: constant.DEBIT,
-		}
+		fromTo[k] = v
 	}
 
 	for k, v := range validate.To {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Operation: constant.CREDIT,
-		}
+		fromTo[k] = v
 	}
 
 	newBalances := make([]*mmodel.Balance, 0)
 
 	for _, balance := range balances {
-		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
-			libTransaction.Balance{
-				Available: balance.Available,
-				OnHold:    balance.OnHold,
-			})
+		balance.ConvertToLibBalance()
+		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)

@@ -2,7 +2,6 @@ package in
 
 import (
 	"reflect"
-	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -570,24 +569,23 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 // handleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat, pending bool, transactionType string) ([]libTransaction.FromTo, error) {
+func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
 	result := make([]libTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
-		if pending && entries[i].IsFrom && strings.Contains(entries[i].AccountAlias, constant.DefaultExternalAccountAliasPrefix) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, reflect.TypeOf(TransactionHandler{}).Name())
+		var newAlias string
+		if isConcat {
+			newAlias = entries[i].ConcatAlias(i)
+		} else {
+			newAlias = entries[i].SplitAlias()
 		}
 
-		if isConcat {
-			entries[i].AccountAlias = entries[i].ConcatAlias(i)
-		} else {
-			entries[i].AccountAlias = entries[i].SplitAlias()
-		}
+		entries[i].AccountAlias = newAlias
 
 		result = append(result, entries[i])
 	}
 
-	return result, nil
+	return result
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
@@ -604,19 +602,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var fromTo []libTransaction.FromTo
 
-	value, err := handler.handleAccountFields(parserDSL.Send.Source.From, true, parserDSL.Pending, constant.CREATED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
-
-	value, err = handler.handleAccountFields(parserDSL.Send.Distribute.To, true, parserDSL.Pending, constant.CREATED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.CREATED)
 	if err != nil {
@@ -686,19 +673,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		parentTransactionID = &value
 	}
 
-	value, err = handler.handleAccountFields(parserDSL.Send.Source.From, false, parserDSL.Pending, constant.CREATED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
-
-	value, err = handler.handleAccountFields(parserDSL.Send.Distribute.To, false, parserDSL.Pending, constant.CREATED)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 
 	tran := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
@@ -805,19 +781,7 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 
 	var fromTo []libTransaction.FromTo
 
-	value, err := handler.handleAccountFields(parserDSL.Send.Source.From, true, parserDSL.Pending, constant.PENDING)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
-
-	value, err = handler.handleAccountFields(parserDSL.Send.Distribute.To, true, parserDSL.Pending, constant.PENDING)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.PENDING)
 	if err != nil {
@@ -887,18 +851,6 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 		parentTransactionID = &value
 	}
 
-	value, err = handler.handleAccountFields(parserDSL.Send.Source.From, false, parserDSL.Pending, constant.PENDING)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, value...)
-
-	value, err = handler.handleAccountFields(parserDSL.Send.Distribute.To, false, parserDSL.Pending, constant.PENDING)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
 	tran := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
@@ -917,17 +869,18 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 		Metadata:                 parserDSL.Metadata,
 	}
 
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+
 	var operations []*operation.Operation
+
+	var preBalances []*mmodel.Balance
 
 	for _, blc := range balances {
 		for i := range fromTo {
 			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-				}
+				preBalances = append(preBalances, blc)
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
 				if er != nil {
@@ -936,6 +889,11 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 
 				amount := operation.Amount{
 					Value: &amt.Value,
+				}
+
+				balance := operation.Balance{
+					Available: &blc.Available,
+					OnHold:    &blc.OnHold,
 				}
 
 				balanceAfter := operation.Balance{
@@ -976,7 +934,7 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 

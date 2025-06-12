@@ -148,7 +148,8 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
-func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
+// CreateBTOSync func that create balance transaction operations syncronously
+func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)

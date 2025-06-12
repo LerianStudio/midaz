@@ -200,10 +200,10 @@ local function main()
     local resultOnHold = balance.OnHold
 
     if isPending == 1 then
-        if operation == "DEBIT" and transactionStatus == "PENDING" then
+        if operation == "ON_HOLD" and transactionStatus == "PENDING" then
             result = sub_decimal(balance.Available, amount)
             resultOnHold = add_decimal(balance.OnHold, amount)
-        elseif operation == "DEBIT" and transactionStatus == "CANCELED" then
+        elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
             resultOnHold = sub_decimal(balance.OnHold, amount)
             result = add_decimal(balance.Available, amount)
         elseif transactionStatus == "APPROVED" then
@@ -227,8 +227,8 @@ local function main()
 
     local balanceEncoded = cjson.encode(balance)
 
-    balance.OnHold = resultOnHold
     balance.Available = result
+    balance.OnHold = resultOnHold
     balance.Version = balance.Version + 1
 
     local finalBalanceEncoded = cjson.encode(balance)
