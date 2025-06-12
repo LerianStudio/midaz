@@ -61,8 +61,8 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
   return (
     <React.Fragment>
       <TableRow key={portfolio.id}>
-        <IdTableCell id={portfolio.original.id} />
         <TableCell>{portfolio.original.name}</TableCell>
+        <IdTableCell id={portfolio.original.id} />
         <TableCell>
           {intl.formatMessage(
             {
@@ -177,14 +177,14 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'common.name',
+                      defaultMessage: 'Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.name',
-                      defaultMessage: 'Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>

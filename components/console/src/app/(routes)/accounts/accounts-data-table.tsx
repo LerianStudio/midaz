@@ -76,8 +76,8 @@ const AccountRow: React.FC<AccountRowProps> = ({
 
   return (
     <TableRow key={account.id}>
-      <IdTableCell id={account.original.id} />
       <TableCell>{account.original.name}</TableCell>
+      <IdTableCell id={account.original.id} />
       <TableCell>{account.original.alias}</TableCell>
       <TableCell align="center">{account.original.assetCode}</TableCell>
       <MetadataTableCell align="center" metadata={account.original.metadata!} />
@@ -240,14 +240,14 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'accounts.field.name',
+                      defaultMessage: 'Account Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'accounts.field.name',
-                      defaultMessage: 'Account Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>

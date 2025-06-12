@@ -60,8 +60,8 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
 
   return (
     <TableRow key={segment.id}>
-      <IdTableCell id={segment.original.id} />
       <TableCell>{segment.original.name}</TableCell>
+      <IdTableCell id={segment.original.id} />
       <MetadataTableCell metadata={segment.original.metadata!} />
       <TableCell className="w-0" align="center">
         <DropdownMenu>
@@ -140,14 +140,14 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'common.name',
+                      defaultMessage: 'Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.name',
-                      defaultMessage: 'Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>

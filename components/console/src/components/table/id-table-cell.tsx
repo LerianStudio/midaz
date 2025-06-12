@@ -5,8 +5,8 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
-import { truncateString } from '@/helpers'
 import { useToast } from '@/hooks/use-toast'
+import { truncate } from 'lodash'
 import { useIntl } from 'react-intl'
 
 export type IdTableCellProps = {
@@ -16,8 +16,6 @@ export type IdTableCellProps = {
 export const IdTableCell = ({ id }: IdTableCellProps) => {
   const intl = useIntl()
   const { toast } = useToast()
-
-  const displayId = id && id.length > 12 ? `${truncateString(id, 12)}` : id
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(id!)
@@ -34,7 +32,9 @@ export const IdTableCell = ({ id }: IdTableCellProps) => {
       <TooltipProvider>
         <Tooltip delayDuration={300}>
           <TooltipTrigger onClick={handleCopyToClipboard}>
-            <p className="text-shadcn-600 underline">{displayId}</p>
+            <p className="text-shadcn-600 underline">
+              {truncate(id, { length: 16 })}
+            </p>
           </TooltipTrigger>
           <TooltipContent
             className="bg-shadcn-600 border-none"
