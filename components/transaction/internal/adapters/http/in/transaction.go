@@ -140,9 +140,11 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	parserDSL := input.OutflowFromDSL()
 	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
-	response := handler.createTransaction(c, logger, *parserDSL)
+	if parserDSL.Pending {
+		return handler.createPreTransaction(c, logger, *parserDSL)
+	}
 
-	return response
+	return handler.createTransaction(c, logger, *parserDSL)
 }
 
 // CreateTransactionDSL method that create transaction using DSL
