@@ -91,10 +91,10 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	destination := make([]string, 0)
 
 	for _, op := range operations {
-		if op.Type == constant.DEBIT {
-			source = append(source, op.AccountAlias)
-		} else {
+		if op.Type == constant.CREDIT {
 			destination = append(destination, op.AccountAlias)
+		} else {
+			source = append(source, op.AccountAlias)
 		}
 	}
 
