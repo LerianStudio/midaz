@@ -432,6 +432,35 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	return http.Created(c, tran)
 }
 
+// CancelTransaction method that cancel pre transaction created before
+//
+//	@Summary		Cancel a pre transaction
+//	@Description	Cancel a previously created pre transaction
+//	@Tags			Transactions
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Success		201				{object}	interface{}
+//	@Failure		400				{object}	interface{}
+//	@Failure		401				{object}	interface{}
+//	@Failure		404				{object}	interface{}
+//	@Failure		500				{object}	interface{}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [Post]
+func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.commit_transaction")
+	defer span.End()
+
+	return http.Created(c, logger)
+}
+
 // RevertTransaction method that revert transaction created before
 //
 //	@Summary		Revert a Transaction
