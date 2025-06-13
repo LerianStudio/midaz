@@ -61,6 +61,7 @@ type Config struct {
 	RabbitMQPortAMQP           string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQHealthCheckURL     string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers   int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch  int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
@@ -133,6 +134,7 @@ func InitServers() *Service {
 
 	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
+		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
 		Host:                   cfg.RabbitMQHost,
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,

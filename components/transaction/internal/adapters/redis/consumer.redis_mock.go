@@ -44,18 +44,18 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 }
 
 // AddSumBalanceRedis mocks base method.
-func (m *MockRedisRepository) AddSumBalanceRedis(ctx context.Context, key string, amount transaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
+func (m *MockRedisRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount transaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddSumBalanceRedis", ctx, key, amount, balance)
+	ret := m.ctrl.Call(m, "AddSumBalanceRedis", ctx, key, transactionStatus, pending, amount, balance)
 	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AddSumBalanceRedis indicates an expected call of AddSumBalanceRedis.
-func (mr *MockRedisRepositoryMockRecorder) AddSumBalanceRedis(ctx, key, amount, balance any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) AddSumBalanceRedis(ctx, key, transactionStatus, pending, amount, balance any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalanceRedis), ctx, key, amount, balance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalanceRedis), ctx, key, transactionStatus, pending, amount, balance)
 }
 
 // Del mocks base method.
