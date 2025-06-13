@@ -2251,7 +2251,7 @@ const docTemplate = `{
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
             "properties": {
-                "amount": {
+                "value": {
                     "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
                     "minimum": 0,
