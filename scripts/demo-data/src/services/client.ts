@@ -2,7 +2,7 @@
  * SDK client initialization and configuration
  */
 
-import { MidazClient, createClientConfigBuilder } from 'midaz-sdk/src';
+import { MidazClient, createClientConfigBuilder } from '@lerianstudio/midaz-sdk';
 import { GeneratorOptions } from '../types';
 
 /**
@@ -11,11 +11,13 @@ import { GeneratorOptions } from '../types';
 export function initializeClient(options: GeneratorOptions): MidazClient {
   const { baseUrl, onboardingPort, transactionPort, authToken, debug } = options;
 
-  // Create configuration builder with a dummy API key when auth is disabled
-  // This is necessary because the SDK requires either apiKey or authToken
-  const apiKey = authToken && authToken !== 'NONE' ? '' : 'dummy-api-key-for-dev';
+  // Create configuration builder with 'no-auth-key' for demo data generation
+  // This special key is accepted by the SDK for development/demo purposes
+  // Always use this key for demo data (must be at least 10 characters)
+  const apiKey = 'no-auth-key-demo';
 
   const configBuilder = createClientConfigBuilder(apiKey)
+    .withEnvironment('development')
     .withBaseUrls({
       onboarding: `${baseUrl}:${onboardingPort}`,
       transaction: `${baseUrl}:${transactionPort}`,

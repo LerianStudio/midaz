@@ -3,9 +3,7 @@
  */
 
 // Import removed: faker is now imported through faker-pt-br utility
-import { MidazClient, TransactionBatchOptions, createTransactionBatch } from 'midaz-sdk/src';
-import { CreateTransactionInput, Transaction } from 'midaz-sdk/src/models/transaction';
-import { workerPool } from 'midaz-sdk/src/util/concurrency/worker-pool';
+import { MidazClient, TransactionBatchOptions, createTransactionBatch, CreateTransactionInput, Transaction, workerPool } from '@lerianstudio/midaz-sdk';
 // Use string literals to match exactly what the API expects for status codes
 import {
   ACCOUNT_FORMATS,

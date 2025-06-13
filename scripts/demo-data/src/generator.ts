@@ -2,7 +2,7 @@
  * Main generator orchestration
  */
 
-import { MidazClient } from 'midaz-sdk/src';
+import { MidazClient } from '@lerianstudio/midaz-sdk';
 import { VOLUME_METRICS } from './config';
 import {
   AccountGenerator,

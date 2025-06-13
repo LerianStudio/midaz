@@ -114,34 +114,8 @@ detect_os
 check_dependencies
 
 # ============================================================================
-# SDK and Dependencies Setup
+# Dependencies Setup
 # ============================================================================
-
-# Check and handle SDK dependency
-SDK_PATH="$(pwd)/sdk-source"
-SDK_REPO="https://github.com/lerianstudio/midaz-sdk-typescript.git"
-
-# If SDK is not properly linked, try to get it
-if [ ! -d "$SDK_PATH/src" ]; then
-  log "Setting up Midaz SDK..."
-  
-  # Remove any partial installations
-  rm -rf "$SDK_PATH"
-  
-  # Clone from GitHub (develop branch)
-  log "Cloning SDK from GitHub: $SDK_REPO (develop branch)"
-  git clone -b develop "$SDK_REPO" "$SDK_PATH" || die "Failed to clone SDK repository"
-    
-  # Install SDK dependencies
-  log "Installing SDK dependencies..."
-  (cd "$SDK_PATH" && npm install) || die "Failed to install SDK dependencies"
-    
-  # Build the SDK
-  log "Building SDK..."
-  (cd "$SDK_PATH" && npm run build) || die "Failed to build SDK"
-  
-  log_success "SDK setup complete"
-fi
 
 # Check if node_modules exists and install dependencies if needed
 if [ ! -d "node_modules" ]; then
