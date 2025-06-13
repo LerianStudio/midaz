@@ -22,7 +22,6 @@ export class BalanceMapper {
       assetCode: entity.assetCode!,
       available: entity.available!,
       onHold: entity.onHold!,
-      scale: entity.scale!,
       allowSending: entity.allowSending!,
       allowReceiving: entity.allowReceiving!,
       createdAt: entity.createdAt!,

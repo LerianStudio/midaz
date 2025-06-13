@@ -28,8 +28,8 @@ import CancelledCircle from '/public/svg/cancelled-circle.svg'
 import dayjs from 'dayjs'
 import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TransactionDataTab } from './transaction-data-tab'
-import { useFormatAmount } from '@/hooks/use-format-amount'
 import { truncate } from 'lodash'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 export const TRANSACTION_DETAILS_TAB_VALUES = {
   SUMMARY: 'summary',
@@ -40,7 +40,7 @@ const DEFAULT_TAB_VALUE = TRANSACTION_DETAILS_TAB_VALUES.SUMMARY
 
 export default function TransactionDetailsPage() {
   const intl = useIntl()
-  const { formatAmount } = useFormatAmount()
+  const { formatNumber } = useFormatNumber()
   const { transactionId } = useParams<{
     transactionId: string
   }>()
@@ -146,7 +146,7 @@ export default function TransactionDetailsPage() {
               />
               <TransactionReceiptValue
                 asset={transaction.asset!}
-                value={formatAmount(transaction.amount)}
+                value={formatNumber(transaction.amount)}
               />
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
@@ -202,7 +202,7 @@ export default function TransactionDetailsPage() {
                   id: 'common.value',
                   defaultMessage: 'Value'
                 })}
-                value={`${transaction.asset} ${formatAmount(transaction.amount)}`}
+                value={`${transaction.asset} ${formatNumber(transaction.amount)}`}
               />
               <Separator orientation="horizontal" />
               {transaction.source?.map(
@@ -212,7 +212,7 @@ export default function TransactionDetailsPage() {
                     type="debit"
                     account={operation.accountAlias!}
                     asset={operation.asset}
-                    value={formatAmount(operation?.amount)}
+                    value={formatNumber(operation?.amount)}
                   />
                 )
               )}
@@ -223,7 +223,7 @@ export default function TransactionDetailsPage() {
                     type="credit"
                     account={operation.accountAlias!}
                     asset={operation.asset}
-                    value={formatAmount(operation?.amount)}
+                    value={formatNumber(operation?.amount)}
                   />
                 )
               )}

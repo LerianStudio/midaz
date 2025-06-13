@@ -4,7 +4,7 @@ import { transaction } from '@/schema/transactions'
 export const transactionSourceFormSchema = z
   .array(
     z.object({
-      account: transaction.source.account,
+      accountAlias: transaction.source.accountAlias,
       value: transaction.value,
       description: transaction.description.optional(),
       chartOfAccounts: transaction.chartOfAccounts.optional(),
@@ -41,7 +41,7 @@ export const initialValues = {
 }
 
 export const sourceInitialValues = {
-  account: '',
+  accountAlias: '',
   value: '',
   asset: '',
   description: '',
