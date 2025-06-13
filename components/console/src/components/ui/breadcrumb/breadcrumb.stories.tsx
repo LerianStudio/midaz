@@ -1,16 +1,14 @@
 import { Meta, StoryObj } from '@storybook/nextjs'
 import {
   Breadcrumb,
-  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbProps,
   BreadcrumbSeparator
 } from '.'
 
-const meta: Meta<BreadcrumbProps> = {
+const meta: Meta<typeof Breadcrumb> = {
   title: 'Primitives/Breadcrumb',
   component: Breadcrumb,
   argTypes: {
@@ -22,7 +20,7 @@ const meta: Meta<BreadcrumbProps> = {
 
 export default meta
 
-export const Primary: StoryObj<BreadcrumbProps> = {
+export const Primary: StoryObj<typeof Breadcrumb> = {
   render: (args) => (
     <Breadcrumb {...args}>
       <BreadcrumbList>

@@ -241,7 +241,7 @@
   }
 
   body {
-    @apply h-full overflow-y-auto bg-background text-foreground;
+    @apply bg-background text-foreground h-full overflow-y-auto;
     font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
   }
 }
