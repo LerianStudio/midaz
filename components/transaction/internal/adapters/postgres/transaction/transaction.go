@@ -327,11 +327,6 @@ type Transaction struct {
 	// maxLength: 256
 	Description string `json:"description" example:"Transaction description" maxLength:"256"`
 
-	// Template used to create this transaction
-	// example: Transaction template
-	// maxLength: 100
-	Template string `json:"template" example:"Transaction template" maxLength:"100"`
-
 	// Transaction status information
 	Status Status `json:"status"`
 
