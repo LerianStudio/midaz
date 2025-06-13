@@ -66,18 +66,18 @@ export class OptimizedGenerator {
   private getOptimalConcurrency(entityType: string): number {
     const baseConcurrency: Record<string, number> = {
       organizations: 5,
-      ledgers: 10,
-      assets: 20,
-      portfolios: 20,
-      segments: 20,
-      accounts: 50,
-      transactions: 100,
+      ledgers: 8,
+      assets: 15,
+      portfolios: 15,
+      segments: 15,
+      accounts: 30,
+      transactions: 20,  // Reduced from 100 to avoid circuit breaker issues
     };
 
     // Adjust based on volume size
     const volumeMultiplier = 
-      this.options.volume === 'large' ? 2 : 
-      this.options.volume === 'medium' ? 1.5 : 
+      this.options.volume === 'large' ? 1.5 :   // Reduced from 2
+      this.options.volume === 'medium' ? 1.2 :   // Reduced from 1.5
       1;
 
     // Use configured concurrency as a cap

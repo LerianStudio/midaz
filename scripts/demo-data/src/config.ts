@@ -92,7 +92,7 @@ export const PERSON_TYPE_DISTRIBUTION = {
 /**
  * Maximum concurrent operations
  */
-export const MAX_CONCURRENCY = 100;
+export const MAX_CONCURRENCY = 20;  // Reduced from 100 to avoid circuit breaker
 
 /**
  * Transaction transfer amounts by asset type
@@ -126,6 +126,7 @@ export const DEPOSIT_AMOUNTS = {
  */
 export const PROCESSING_DELAYS = {
   BETWEEN_DEPOSIT_AND_TRANSFER: 1000, // 1 second
+  BETWEEN_BATCHES: 100,               // 100ms between transaction batches
 };
 
 /**
@@ -133,18 +134,18 @@ export const PROCESSING_DELAYS = {
  */
 export const BATCH_PROCESSING_CONFIG = {
   DEPOSITS: {
-    maxRetries: 3,
+    maxRetries: 5,
     useEnhancedRecovery: true,
     stopOnError: false,
-    delayBetweenTransactions: 0,
-    maxConcurrentOperationsPerAsset: 100,
+    delayBetweenTransactions: 50,      // 50ms delay between transactions
+    maxConcurrentOperationsPerAsset: 10, // Reduced from 100
   },
   TRANSFERS: {
-    maxRetries: 3,
+    maxRetries: 5,
     useEnhancedRecovery: true,
     stopOnError: false,
-    delayBetweenTransactions: 0,
-    maxConcurrentOperationsPerAsset: 100,
+    delayBetweenTransactions: 50,      // 50ms delay between transactions
+    maxConcurrentOperationsPerAsset: 10, // Reduced from 100
   },
 };
 
