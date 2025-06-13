@@ -511,51 +511,51 @@ generate-docs:
 demo-data: demo-data-small
 
 demo-data-small:
-	$(call print_title,"Generating demo data with small volume (optimized)")
+	$(call print_title,Generating demo data with small volume - optimized)
 	@echo "Running optimized demo data generator with small volume..."
 	@cd scripts/demo-data && ./run-generator.sh small none --optimized
 	@echo "[ok] Demo data generated successfully with small volume"
 
 demo-data-medium:
-	$(call print_title,"Generating demo data with medium volume (optimized)")
+	$(call print_title,Generating demo data with medium volume - optimized)
 	@echo "Running optimized demo data generator with medium volume..."
 	@cd scripts/demo-data && ./run-generator.sh medium none --optimized
 	@echo "[ok] Demo data generated successfully with medium volume"
 
 demo-data-large:
-	$(call print_title,"Generating demo data with large volume (optimized)")
+	$(call print_title,Generating demo data with large volume - optimized)
 	@echo "Running optimized demo data generator with large volume..."
 	@cd scripts/demo-data && ./run-generator.sh large none --optimized
 	@echo "[ok] Demo data generated successfully with large volume"
 
 # Standard sequential versions (for comparison/debugging)
 demo-data-small-sequential:
-	$(call print_title,"Generating demo data with small volume (sequential)")
+	$(call print_title,Generating demo data with small volume - sequential)
 	@echo "Running sequential demo data generator with small volume..."
 	@cd scripts/demo-data && ./run-generator.sh small none
 	@echo "[ok] Demo data generated successfully with small volume (sequential)"
 
 demo-data-medium-sequential:
-	$(call print_title,"Generating demo data with medium volume (sequential)")
+	$(call print_title,Generating demo data with medium volume - sequential)
 	@echo "Running sequential demo data generator with medium volume..."
 	@cd scripts/demo-data && ./run-generator.sh medium none
 	@echo "[ok] Demo data generated successfully with medium volume (sequential)"
 
 demo-data-large-sequential:
-	$(call print_title,"Generating demo data with large volume (sequential)")
+	$(call print_title,Generating demo data with large volume - sequential)
 	@echo "Running sequential demo data generator with large volume..."
 	@cd scripts/demo-data && ./run-generator.sh large none
 	@echo "[ok] Demo data generated successfully with large volume (sequential)"
 
 # Custom process delay versions
 demo-data-small-fast:
-	$(call print_title,"Generating demo data with small volume (fast, no delays)")
+	$(call print_title,Generating demo data with small volume - fast no delays)
 	@echo "Running optimized demo data generator with no process delays..."
 	@cd scripts/demo-data && ./run-generator.sh small none --optimized --process-delay 0
 	@echo "[ok] Demo data generated successfully with small volume (fast)"
 
 demo-data-medium-fast:
-	$(call print_title,"Generating demo data with medium volume (fast, no delays)")
+	$(call print_title,Generating demo data with medium volume - fast no delays)
 	@echo "Running optimized demo data generator with no process delays..."
 	@cd scripts/demo-data && ./run-generator.sh medium none --optimized --process-delay 0
 	@echo "[ok] Demo data generated successfully with medium volume (fast)"
