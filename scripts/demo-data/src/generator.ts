@@ -61,6 +61,17 @@ export class Generator {
   }
 
   /**
+   * Add a delay between macro processes
+   */
+  private async addProcessDelay(processName: string): Promise<void> {
+    const delay = this.options.processDelay || 5;
+    if (delay > 0) {
+      this.logger.info(`Waiting ${delay} seconds for ${processName} to propagate through RabbitMQ/Redis...`);
+      await new Promise(resolve => setTimeout(resolve, delay * 1000));
+    }
+  }
+
+  /**
    * Run the generator with the provided options
    */
   public async run(): Promise<void> {
@@ -72,32 +83,45 @@ export class Generator {
 
       // Generate organizations
       const organizations = await this.organizationGenerator.generate(volumeMetrics.organizations);
+      await this.addProcessDelay('organizations');
 
-      // For each organization, generate ledgers and their nested entities
+      // For each organization, generate ledgers
       for (const org of organizations) {
-        this.logger.info(`Generating data for organization: ${org.id} (${org.legalName})`);
+        this.logger.info(`Generating ledgers for organization: ${org.id} (${org.legalName})`);
+        await this.ledgerGenerator.generate(volumeMetrics.ledgersPerOrg, org.id);
+      }
+      await this.addProcessDelay('ledgers');
 
-        // Generate ledgers for this organization
-        const ledgers = await this.ledgerGenerator.generate(volumeMetrics.ledgersPerOrg, org.id);
+      // For each organization, process its ledgers
+      for (const org of organizations) {
+        const ledgers = this.stateManager.getLedgerIds(org.id);
+        
+        // Generate assets, portfolios, and segments for all ledgers
+        for (const ledgerId of ledgers) {
+          this.logger.info(`Generating assets, portfolios, and segments for ledger: ${ledgerId}`);
+          await this.assetGenerator.generate(volumeMetrics.assetsPerLedger, ledgerId);
+          await this.portfolioGenerator.generate(volumeMetrics.portfoliosPerLedger, ledgerId);
+          await this.segmentGenerator.generate(volumeMetrics.segmentsPerLedger, ledgerId);
+        }
+      }
+      await this.addProcessDelay('assets, portfolios, and segments');
 
-        // For each ledger, generate assets, portfolios, segments, accounts, and transactions
-        for (const ledger of ledgers) {
-          this.logger.info(`Generating data for ledger: ${ledger.id} (${ledger.name})`);
+      // Generate accounts for all ledgers
+      for (const org of organizations) {
+        const ledgers = this.stateManager.getLedgerIds(org.id);
+        for (const ledgerId of ledgers) {
+          this.logger.info(`Generating accounts for ledger: ${ledgerId}`);
+          await this.accountGenerator.generate(volumeMetrics.accountsPerLedger, ledgerId);
+        }
+      }
+      await this.addProcessDelay('accounts');
 
-          // Generate assets for this ledger
-          await this.assetGenerator.generate(volumeMetrics.assetsPerLedger, ledger.id);
-
-          // Generate portfolios for this ledger
-          await this.portfolioGenerator.generate(volumeMetrics.portfoliosPerLedger, ledger.id);
-
-          // Generate segments for this ledger
-          await this.segmentGenerator.generate(volumeMetrics.segmentsPerLedger, ledger.id);
-
-          // Generate accounts for this ledger
-          await this.accountGenerator.generate(volumeMetrics.accountsPerLedger, ledger.id);
-
-          // Generate transactions for this ledger
-          await this.transactionGenerator.generate(volumeMetrics.transactionsPerAccount, ledger.id);
+      // Generate transactions for all ledgers
+      for (const org of organizations) {
+        const ledgers = this.stateManager.getLedgerIds(org.id);
+        for (const ledgerId of ledgers) {
+          this.logger.info(`Generating transactions for ledger: ${ledgerId}`);
+          await this.transactionGenerator.generate(volumeMetrics.transactionsPerAccount, ledgerId);
         }
       }
 

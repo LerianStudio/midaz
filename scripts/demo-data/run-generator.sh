@@ -227,8 +227,35 @@ if [ "$TEST_MODE" = true ] && [ -z "${TEST_RUN_GENERATOR:-}" ]; then
   exit 0
 fi
 
+# Collect all additional flags after the first two positional parameters
+ADDITIONAL_FLAGS=""
+arg_count=0
+for arg in "$@"; do
+  arg_count=$((arg_count + 1))
+  # Skip the first two positional parameters (volume and auth-token)
+  if [ $arg_count -gt 2 ]; then
+    ADDITIONAL_FLAGS="$ADDITIONAL_FLAGS $arg"
+    
+    # Log specific flags for visibility
+    case "$arg" in
+      --optimized|-O)
+        log "Using optimized parallel generator"
+        ;;
+      --process-delay*|-p*)
+        if [[ "$arg" == *"="* ]]; then
+          delay_value="${arg#*=}"
+        else
+          # Next arg should be the value, but we'll let the generator handle it
+          delay_value="(see next arg)"
+        fi
+        log "Process delay parameter detected: $arg"
+        ;;
+    esac
+  fi
+done
+
 # Otherwise run the actual generator
-if "$(pwd)/node_modules/.bin/ts-node" --project tsconfig-ts-node.json src/index.ts --volume "$VOLUME" --auth-token "$AUTH_TOKEN" ${TEST_MODE:+--test-mode}; then
+if "$(pwd)/node_modules/.bin/ts-node" --project tsconfig-ts-node.json src/index.ts --volume "$VOLUME" --auth-token "$AUTH_TOKEN" ${TEST_MODE:+--test-mode} $ADDITIONAL_FLAGS; then
   log_success "Demo data generation completed successfully!"
 else
   log_error "Demo data generation failed with exit code $?"

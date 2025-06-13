@@ -113,6 +113,14 @@ export class LedgerGenerator implements EntityGenerator<Ledger> {
   }
 
   /**
+   * Generate a single ledger (alias for generateOne for consistency)
+   * @param organizationId Parent organization ID
+   */
+  async generateSingle(organizationId: string): Promise<Ledger> {
+    return this.generateOne(organizationId);
+  }
+
+  /**
    * Check if a ledger exists
    * @param id Ledger ID to check
    * @param parentId Organization ID (optional)

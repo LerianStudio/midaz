@@ -36,6 +36,7 @@ export interface GeneratorOptions {
   debug: boolean;
   authToken?: string;
   seed?: number;
+  processDelay?: number; // Delay in seconds between macro processes (default: 5)
 }
 
 /**

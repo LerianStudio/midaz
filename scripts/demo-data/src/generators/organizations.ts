@@ -110,6 +110,13 @@ export class OrganizationGenerator implements EntityGenerator<Organization> {
   }
 
   /**
+   * Generate a single organization (alias for generateOne for consistency)
+   */
+  async generateSingle(): Promise<Organization> {
+    return this.generateOne();
+  }
+
+  /**
    * Check if an organization exists
    * @param id Organization ID to check
    */

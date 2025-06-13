@@ -526,6 +526,31 @@ demo-data-large:
 	@cd scripts/demo-data && ./run-generator.sh large none
 	@echo "[ok] Demo data generated successfully with large volume"
 
+# Optimized parallel versions
+demo-data-small-optimized:
+	$(call print_title,"Generating demo data with small volume (optimized)")
+	@echo "Running optimized demo data generator with small volume..."
+	@cd scripts/demo-data && ./run-generator.sh small none --optimized
+	@echo "[ok] Demo data generated successfully with small volume (optimized)"
+
+demo-data-medium-optimized:
+	$(call print_title,"Generating demo data with medium volume (optimized)")
+	@echo "Running optimized demo data generator with medium volume..."
+	@cd scripts/demo-data && ./run-generator.sh medium none --optimized
+	@echo "[ok] Demo data generated successfully with medium volume (optimized)"
+
+demo-data-large-optimized:
+	$(call print_title,"Generating demo data with large volume (optimized)")
+	@echo "Running optimized demo data generator with large volume..."
+	@cd scripts/demo-data && ./run-generator.sh large none --optimized
+	@echo "[ok] Demo data generated successfully with large volume (optimized)"
+
+demo-data-benchmark:
+	$(call print_title,"Benchmarking demo data generators")
+	@echo "Running benchmark comparison between standard and optimized generators..."
+	@cd scripts/demo-data && ./benchmark-generators.sh
+	@echo "[ok] Benchmark completed"
+
 #-------------------------------------------------------
 # Developer Helper Commands
 #-------------------------------------------------------

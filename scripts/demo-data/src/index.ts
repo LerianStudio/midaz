@@ -16,6 +16,7 @@ const faker = require('faker');
 // This works across different versions of faker
 require('faker/locale/pt_BR');
 import { Generator } from './generator';
+import { OptimizedGenerator } from './generator-optimized';
 import { DEFAULT_OPTIONS } from './config';
 import { VolumeSize } from './types';
 
@@ -70,6 +71,18 @@ async function main() {
         describe: 'Random seed for reproducible runs',
         type: 'number',
       },
+      optimized: {
+        alias: 'O',
+        describe: 'Use optimized parallel generator',
+        type: 'boolean',
+        default: false,
+      },
+      'process-delay': {
+        alias: 'p',
+        describe: 'Delay in seconds between macro processes',
+        type: 'number',
+        default: 5,
+      },
     })
     .usage('Usage: $0 [options]')
     .example('$0 --volume small', 'Generate a small amount of demo data')
@@ -108,6 +121,7 @@ async function main() {
     debug: argv.debug,
     authToken: argv['auth-token'],
     seed: argv.seed,
+    processDelay: argv['process-delay'],
   };
 
   console.log(`Starting Midaz demo data generator with volume: ${options.volume}`);
@@ -116,8 +130,14 @@ async function main() {
   );
 
   try {
+    // Choose generator based on optimized flag
+    const GeneratorClass = argv.optimized ? OptimizedGenerator : Generator;
+    const generatorType = argv.optimized ? 'optimized' : 'standard';
+    
+    console.log(`Using ${generatorType} generator...`);
+    
     // Run the generator
-    const generator = new Generator(options);
+    const generator = new GeneratorClass(options);
     await generator.run();
 
     console.log('Demo data generation completed successfully!');

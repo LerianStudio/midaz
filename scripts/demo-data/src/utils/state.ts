@@ -286,4 +286,44 @@ export class StateManager {
   public incrementRetryCount(): void {
     this.metrics.retries++;
   }
+
+  /**
+   * Get generation statistics
+   */
+  public getStatistics(): {
+    organizationCount: number;
+    ledgerCount: number;
+    assetCount: number;
+    portfolioCount: number;
+    segmentCount: number;
+    accountCount: number;
+    transactionCount: number;
+    errorCount: number;
+  } {
+    return {
+      organizationCount: this.metrics.totalOrganizations,
+      ledgerCount: this.metrics.totalLedgers,
+      assetCount: this.metrics.totalAssets,
+      portfolioCount: this.metrics.totalPortfolios,
+      segmentCount: this.metrics.totalSegments,
+      accountCount: this.metrics.totalAccounts,
+      transactionCount: this.metrics.totalTransactions,
+      errorCount: this.metrics.errors,
+    };
+  }
+
+  /**
+   * Get errors by entity type
+   */
+  public getErrorsByType(): Record<string, number> {
+    return {
+      organizations: this.metrics.organizationErrors || 0,
+      ledgers: this.metrics.ledgerErrors || 0,
+      assets: this.metrics.assetErrors || 0,
+      portfolios: this.metrics.portfolioErrors || 0,
+      segments: this.metrics.segmentErrors || 0,
+      accounts: this.metrics.accountErrors || 0,
+      transactions: this.metrics.transactionErrors || 0,
+    };
+  }
 }
