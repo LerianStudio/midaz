@@ -62,9 +62,11 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	parserDSL := input.FromDSL()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
-	response := handler.createTransaction(c, logger, *parserDSL)
+	if parserDSL.Pending {
+		return handler.createPreTransaction(c, logger, *parserDSL)
+	}
 
-	return response
+	return handler.createTransaction(c, logger, *parserDSL)
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
@@ -138,9 +140,11 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 	parserDSL := input.OutflowFromDSL()
 	logger.Infof("Request to create an transaction outflow with details: %#v", parserDSL)
 
-	response := handler.createTransaction(c, logger, *parserDSL)
+	if parserDSL.Pending {
+		return handler.createPreTransaction(c, logger, *parserDSL)
+	}
 
-	return response
+	return handler.createTransaction(c, logger, *parserDSL)
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -603,7 +607,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL)
+	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.CREATED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateDSL, "Failed to validate send source and distribute", err)
 
@@ -621,7 +625,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 	defer spanGetBalances.End()
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, constant.CREATED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
@@ -759,6 +763,180 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	tran.Operations = operations
 
 	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+
+	return http.Created(c, tran)
+}
+
+// createPreTransaction func that received struct from DSL parsed and create Pre Transaction
+func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
+	ctx := c.UserContext()
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
+
+	_, spanValidateDSL := tracer.Start(ctx, "handler.create_pre_transaction_validate_dsl")
+	defer spanValidateDSL.End()
+
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+
+	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.PENDING)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanValidateDSL, "Failed to validate send source and distribute", err)
+
+		logger.Error("Validation failed:", err.Error())
+
+		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		}
+
+		return http.WithError(c, err)
+	}
+
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
+	defer spanGetBalances.End()
+
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, constant.PENDING)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
+
+		logger.Errorf("Failed to get balances: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+	defer spanValidateBalances.End()
+
+	blcs := mmodel.ConvertBalancesToLibBalances(balances)
+
+	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
+
+		return http.WithError(c, err)
+	}
+
+	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	defer spanIdempotency.End()
+
+	ts, _ := libCommons.StructToJSONString(parserDSL)
+	hash := libCommons.HashSHA256(ts)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+
+	err = handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+
+		logger.Infof("Redis idempotency key: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	description := constant.PENDING
+	status := transaction.Status{
+		Code:        description,
+		Description: &description,
+	}
+
+	var parentTransactionID *string
+
+	if transactionID != uuid.Nil {
+		value := transactionID.String()
+		parentTransactionID = &value
+	}
+
+	tran := &transaction.Transaction{
+		ID:                       libCommons.GenerateUUIDv7().String(),
+		ParentTransactionID:      parentTransactionID,
+		OrganizationID:           organizationID.String(),
+		LedgerID:                 ledgerID.String(),
+		Description:              parserDSL.Description,
+		Template:                 parserDSL.ChartOfAccountsGroupName,
+		Status:                   status,
+		Amount:                   &parserDSL.Send.Value,
+		AssetCode:                parserDSL.Send.Asset,
+		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
+		Body:                     parserDSL,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
+		Route:                    parserDSL.Route,
+		Metadata:                 parserDSL.Metadata,
+	}
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+
+	var operations []*operation.Operation
+
+	var preBalances []*mmodel.Balance
+
+	for _, blc := range balances {
+		for i := range fromTo {
+			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
+				logger.Infof("Creating operation for account id: %s", blc.ID)
+
+				preBalances = append(preBalances, blc)
+
+				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
+				if er != nil {
+					logger.Errorf("Failed to validate balance: %v", er.Error())
+				}
+
+				amount := operation.Amount{
+					Value: &amt.Value,
+				}
+
+				balance := operation.Balance{
+					Available: &blc.Available,
+					OnHold:    &blc.OnHold,
+				}
+
+				balanceAfter := operation.Balance{
+					Available: &bat.Available,
+					OnHold:    &bat.OnHold,
+				}
+
+				descr := fromTo[i].Description
+				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
+					descr = parserDSL.Description
+				}
+
+				operations = append(operations, &operation.Operation{
+					ID:              libCommons.GenerateUUIDv7().String(),
+					TransactionID:   tran.ID,
+					Description:     descr,
+					Type:            constant.ONHOLD,
+					AssetCode:       parserDSL.Send.Asset,
+					ChartOfAccounts: fromTo[i].ChartOfAccounts,
+					Amount:          amount,
+					Balance:         balance,
+					BalanceAfter:    balanceAfter,
+					BalanceID:       blc.ID,
+					AccountID:       blc.AccountID,
+					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+					OrganizationID:  blc.OrganizationID,
+					LedgerID:        blc.LedgerID,
+					CreatedAt:       time.Now(),
+					UpdatedAt:       time.Now(),
+					Route:           fromTo[i].Route,
+					Metadata:        fromTo[i].Metadata,
+				})
+			}
+		}
+	}
+
+	tran.Source = validate.Sources
+	tran.Destination = validate.Destinations
+	tran.Operations = operations
+
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 

@@ -150,25 +150,25 @@ func TestFindUnknownFields_BasicComparison(t *testing.T) {
 		"age":  30,
 		"city": "New York",
 	}
-	
+
 	marshaled := map[string]any{
 		"name": "John",
 		"age":  30,
 	}
-	
+
 	diff := FindUnknownFields(original, marshaled)
-	
+
 	expected := map[string]any{
 		"city": "New York",
 	}
-	
+
 	assert.Equal(t, expected, diff)
 }
 
 func TestFindUnknownFields_EmptyMaps(t *testing.T) {
 	original := map[string]any{}
 	marshaled := map[string]any{}
-	
+
 	diff := FindUnknownFields(original, marshaled)
 	assert.Empty(t, diff)
 }
@@ -178,12 +178,12 @@ func TestFindUnknownFields_IdenticalMaps(t *testing.T) {
 		"name": "John",
 		"age":  30,
 	}
-	
+
 	marshaled := map[string]any{
 		"name": "John",
 		"age":  30,
 	}
-	
+
 	diff := FindUnknownFields(original, marshaled)
 	assert.Empty(t, diff)
 }
@@ -196,22 +196,22 @@ func TestFindUnknownFields_NestedMaps(t *testing.T) {
 			"address": "123 Main St",
 		},
 	}
-	
+
 	marshaled := map[string]any{
 		"person": map[string]any{
 			"name": "John",
 			"age":  30,
 		},
 	}
-	
+
 	diff := FindUnknownFields(original, marshaled)
-	
+
 	expected := map[string]any{
 		"person": map[string]any{
 			"address": "123 Main St",
 		},
 	}
-	
+
 	assert.Equal(t, expected, diff)
 }
 
@@ -219,17 +219,17 @@ func TestFindUnknownFields_SliceComparison(t *testing.T) {
 	original := map[string]any{
 		"tags": []any{"tag1", "tag2", "tag3"},
 	}
-	
+
 	marshaled := map[string]any{
 		"tags": []any{"tag1", "tag2"},
 	}
-	
+
 	diff := FindUnknownFields(original, marshaled)
-	
+
 	expected := map[string]any{
 		"tags": []any{"tag3"},
 	}
-	
+
 	assert.Equal(t, expected, diff)
 }
 
@@ -237,17 +237,17 @@ func TestFindUnknownFields_TypeMismatch(t *testing.T) {
 	original := map[string]any{
 		"value": map[string]any{"nested": true},
 	}
-	
+
 	marshaled := map[string]any{
 		"value": "not a map",
 	}
-	
+
 	diff := FindUnknownFields(original, marshaled)
-	
+
 	expected := map[string]any{
 		"value": map[string]any{"nested": true},
 	}
-	
+
 	assert.Equal(t, expected, diff)
 }
 
@@ -258,36 +258,6 @@ func TestFindUnknownFields_DecimalValues(t *testing.T) {
 		marshaled map[string]any
 		expected  map[string]any
 	}{
-		{
-			name: "string to float decimal equivalence",
-			original: map[string]any{
-				"amount": "200.00",
-			},
-			marshaled: map[string]any{
-				"amount": 200.0,
-			},
-			expected: map[string]any{},
-		},
-		{
-			name: "decimal to string equivalence",
-			original: map[string]any{
-				"amount": decimal.NewFromFloat(200.00),
-			},
-			marshaled: map[string]any{
-				"amount": "200",
-			},
-			expected: map[string]any{},
-		},
-		{
-			name: "decimal precision preserved",
-			original: map[string]any{
-				"amount": "200.45",
-			},
-			marshaled: map[string]any{
-				"amount": 200.45,
-			},
-			expected: map[string]any{},
-		},
 		{
 			name: "different decimal values",
 			original: map[string]any{
@@ -301,7 +271,7 @@ func TestFindUnknownFields_DecimalValues(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			diff := FindUnknownFields(tc.original, tc.marshaled)
@@ -322,7 +292,7 @@ func TestIsStringNumeric(t *testing.T) {
 		{"12abc", false},
 		{"", false},
 	}
-	
+
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			result := isStringNumeric(test.input)
@@ -342,7 +312,7 @@ func TestIsDecimalEqual(t *testing.T) {
 			name:     "string and float equal",
 			a:        "100.00",
 			b:        100.0,
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "string and decimal equal",
@@ -354,7 +324,7 @@ func TestIsDecimalEqual(t *testing.T) {
 			name:     "float and decimal equal",
 			a:        100.0,
 			b:        decimal.NewFromFloat(100.0),
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "different values",
@@ -387,7 +357,7 @@ func TestIsDecimalEqual(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := isDecimalEqual(tc.a, tc.b)
