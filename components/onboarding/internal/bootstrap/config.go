@@ -58,8 +58,8 @@ type Config struct {
 	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQKey             string `env:"RABBITMQ_KEY"`
 	RabbitMQHealthCheckURL  string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQKey             string `env:"RABBITMQ_KEY"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`

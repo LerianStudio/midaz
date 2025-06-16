@@ -61,10 +61,10 @@ type Config struct {
 	RabbitMQPortAMQP           string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQHealthCheckURL     string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers   int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch  int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL     string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	OtelServiceName            string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName            string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion         string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
