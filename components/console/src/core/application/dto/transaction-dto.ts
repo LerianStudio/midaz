@@ -7,9 +7,9 @@ export type AmountDto = {
 }
 
 export type CreateTransactionOperationDto = {
-  account: string
+  accountAlias: string
   asset: string
-  amount: AmountDto
+  amount: string
   description?: string
   chartOfAccounts?: string
   metadata: MetadataDto
@@ -18,7 +18,7 @@ export type CreateTransactionOperationDto = {
 export type CreateTransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
-  amount: AmountDto
+  amount: string
   asset: string
   source: CreateTransactionOperationDto[]
   destination: CreateTransactionOperationDto[]
@@ -30,9 +30,7 @@ export type UpdateTransactionDto = {
   metadata?: Record<string, unknown>
 }
 
-export type TransactionOperationDto = CreateTransactionOperationDto & {
-  accountAlias?: string
-}
+export type TransactionOperationDto = CreateTransactionOperationDto
 
 export type TransactionDto = {
   id: string
@@ -41,7 +39,7 @@ export type TransactionDto = {
   description?: string
   chartOfAccountsGroupName?: string
   status: StatusDto
-  amount: AmountDto
+  amount: string
   asset: string
   source: TransactionOperationDto[]
   destination: TransactionOperationDto[]

@@ -126,8 +126,8 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
   return (
     <React.Fragment>
       <TableRow key={ledger.id}>
-        <IdTableCell id={ledger.original.id} />
         <TableCell>{ledger.original.name}</TableCell>
+        <IdTableCell id={ledger.original.id} />
         <TableCell>{renderAssets()}</TableCell>
         <TableCell>
           {intl.formatMessage(
@@ -234,14 +234,14 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'entity.ledger.name',
+                      defaultMessage: 'Ledger Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.ledger.name',
-                      defaultMessage: 'Ledger Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>

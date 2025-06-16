@@ -1,5 +1,5 @@
 import { Meta, StoryObj } from '@storybook/nextjs'
-import { Avatar } from '.'
+import { Avatar, AvatarFallback, AvatarImage } from '.'
 
 const meta: Meta = {
   title: 'Primitives/Avatar',
@@ -20,22 +20,27 @@ const meta: Meta = {
 export default meta
 
 export const AvatarDefault: StoryObj = {
-  args: {
-    children: 'AvatarImage',
-    src: 'https://github.com/shadcn.png'
-  }
+  render: (args) => (
+    <Avatar {...args}>
+      <AvatarImage src="https://github.com/shadcn.png" />
+      <AvatarFallback>CN</AvatarFallback>
+    </Avatar>
+  )
 }
 
 export const AvatarImageDefault: StoryObj = {
-  args: {
-    children: 'AvatarImage',
-
-    src: 'https://github.com/shadcn.png'
-  }
+  render: (args) => (
+    <Avatar {...args}>
+      <AvatarImage src="https://github.com/shadcn.png" />
+      <AvatarFallback>CN</AvatarFallback>
+    </Avatar>
+  )
 }
 
 export const AvatarFallbackDefault: StoryObj = {
-  args: {
-    children: 'CN'
-  }
+  render: (args) => (
+    <Avatar {...args}>
+      <AvatarFallback>CN</AvatarFallback>
+    </Avatar>
+  )
 }

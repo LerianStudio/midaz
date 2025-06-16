@@ -1,9 +1,8 @@
 import { Meta, StoryObj } from '@storybook/nextjs'
-import { InputProps, Input } from '.'
-import { FormField } from '../form'
+import { Input } from '.'
 import { FormProvider, useForm } from 'react-hook-form'
 
-const meta: Meta<InputProps> = {
+const meta: Meta<typeof Input> = {
   title: 'Primitives/Input',
   component: Input,
   argTypes: {
@@ -20,7 +19,7 @@ const meta: Meta<InputProps> = {
 
 export default meta
 
-export const Default: StoryObj<InputProps> = {
+export const Default: StoryObj<typeof Input> = {
   args: {
     placeholder: 'Input'
   },

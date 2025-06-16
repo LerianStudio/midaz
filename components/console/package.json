@@ -31,7 +31,6 @@
   "dependencies": {
     "@formatjs/intl-localematcher": "^0.6.1",
     "@hookform/resolvers": "^5.0.1",
-    "@lerian/lib-commons-js": "^1.4.0",
     "@lerianstudio/lib-logs": "^1.1.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.201.1",
@@ -72,7 +71,6 @@
     "colorjs.io": "^0.5.2",
     "cookies-next": "^6.0.0",
     "dayjs": "^1.11.13",
-    "decimal.js-light": "^2.5.1",
     "dotenv": "^16.5.0",
     "framer-motion": "^12.15.0",
     "inversify": "^7.5.1",

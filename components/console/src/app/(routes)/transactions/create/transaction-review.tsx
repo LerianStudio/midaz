@@ -30,7 +30,6 @@ import {
   TransactionMode,
   useTransactionMode
 } from './hooks/use-transaction-mode'
-import { transactions as lib } from '@lerian/lib-commons-js'
 
 export const TransactionReview = () => {
   const intl = useIntl()
@@ -66,14 +65,14 @@ export const TransactionReview = () => {
 
   const parse = ({ value, ...values }: TransactionFormSchema) => ({
     ...values,
-    amount: lib.findScale(values.asset, Number(value), 0),
+    amount: value.toString(),
     source: values.source?.map(({ value, ...source }) => ({
       ...source,
-      amount: lib.findScale(values.asset, Number(value), 0)
+      amount: value.toString()
     })),
     destination: values.destination?.map(({ value, ...destination }) => ({
       ...destination,
-      amount: lib.findScale(values.asset, Number(value), 0)
+      amount: value.toString()
     }))
   })
 
@@ -159,8 +158,10 @@ export const TransactionReview = () => {
               })}
             />
             <TransactionReceiptSubjects
-              sources={values.source?.map((source) => source.account)}
-              destinations={values.destination?.map((source) => source.account)}
+              sources={values.source?.map((source) => source.accountAlias)}
+              destinations={values.destination?.map(
+                (source) => source.accountAlias
+              )}
             />
             {values.description && (
               <TransactionReceiptDescription>
@@ -179,7 +180,7 @@ export const TransactionReview = () => {
                 <div className="flex flex-col">
                   {values.source?.map((source, index) => (
                     <p key={index} className="underline">
-                      {source.account}
+                      {source.accountAlias}
                     </p>
                   ))}
                 </div>
@@ -194,7 +195,7 @@ export const TransactionReview = () => {
                 <div className="flex flex-col">
                   {values.destination?.map((destination, index) => (
                     <p key={index} className="underline">
-                      {destination.account}
+                      {destination.accountAlias}
                     </p>
                   ))}
                 </div>
@@ -212,7 +213,7 @@ export const TransactionReview = () => {
               <TransactionReceiptOperation
                 key={index}
                 type="debit"
-                account={source.account}
+                account={source.accountAlias}
                 asset={values.asset}
                 value={intl.formatNumber(source.value, {
                   roundingPriority: 'morePrecision'
@@ -223,7 +224,7 @@ export const TransactionReview = () => {
               <TransactionReceiptOperation
                 key={index}
                 type="credit"
-                account={destination.account}
+                account={destination.accountAlias}
                 asset={values.asset}
                 value={intl.formatNumber(destination.value, {
                   roundingPriority: 'morePrecision'

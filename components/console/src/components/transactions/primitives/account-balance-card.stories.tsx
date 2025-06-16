@@ -39,8 +39,8 @@ export const Primary: StoryObj = {
           <AccountBalanceCardDeleteButton />
         </AccountBalanceCardHeader>
         <AccountBalanceCardContent>
-          <AccountBalanceCardInfo assetCode="USD" value={999999999.0} />
-          <AccountBalanceCardInfo assetCode="BRL" value={10000.0} />
+          <AccountBalanceCardInfo assetCode="USD" value={'999999999.0'} />
+          <AccountBalanceCardInfo assetCode="BRL" value={'10000.0'} />
 
           <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton
@@ -64,7 +64,7 @@ export const Icon: StoryObj = {
           <AccountBalanceCardDeleteButton />
         </AccountBalanceCardHeader>
         <AccountBalanceCardContent>
-          <AccountBalanceCardInfo assetCode="USD" value={999999999.0} />
+          <AccountBalanceCardInfo assetCode="USD" value={'999999999.0'} />
 
           <Separator className="mt-3 mb-2" />
           <AccountBalanceCardUpdateButton

@@ -132,14 +132,14 @@ export const OrganizationsTabContent = () => {
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: `entity.organization.legalName`,
+                      defaultMessage: 'Legal Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: `entity.organization.legalName`,
-                      defaultMessage: 'Legal Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>
@@ -165,8 +165,8 @@ export const OrganizationsTabContent = () => {
               <TableBody>
                 {data.items.map((organization) => (
                   <TableRow key={organization.id}>
-                    <IdTableCell id={organization.id} />
                     <TableCell>{organization.legalName}</TableCell>
+                    <IdTableCell id={organization.id} />
                     <TableCell>{organization.doingBusinessAs}</TableCell>
                     <TableCell>{organization.legalDocument}</TableCell>
                     <TableCell align="center">

@@ -1,111 +1,80 @@
 import { renderHook } from '@testing-library/react'
-import Decimal from 'decimal.js-light'
 import { useFormatNumber } from './use-format-number'
 import { useLocale } from './use-locale'
+import { isNumericalString } from 'framer-motion'
 
-// Mock useLocale
-jest.mock('./use-locale', () => ({
-  useLocale: jest.fn()
-}))
+jest.mock('./use-locale')
+jest.mock('framer-motion')
+
+const mockUseLocale = useLocale as jest.MockedFunction<typeof useLocale>
+const mockIsNumericalString = isNumericalString as jest.MockedFunction<
+  typeof isNumericalString
+>
 
 describe('useFormatNumber', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('should use dot as separator for en-US locale', () => {
-    ;(useLocale as jest.Mock).mockReturnValue({ locale: 'en-US' })
-
-    const mockFormatToParts = jest.fn().mockReturnValue([
-      { type: 'integer', value: '1' },
-      { type: 'decimal', value: '.' },
-      { type: 'fraction', value: '1' }
-    ])
-
-    const originalIntl = global.Intl
-    global.Intl = {
-      ...originalIntl,
-      NumberFormat: jest.fn().mockImplementation(() => ({
-        formatToParts: mockFormatToParts
-      }))
-    } as any
+  it('should format number with default locale separators', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
+    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
-    expect(result.current.formatNumber(new Decimal('123.45'))).toBe('123.45')
 
-    global.Intl = originalIntl
+    expect(result.current.formatNumber('1234.56')).toBe('1,234.56')
   })
 
-  it('should use comma as separator for de-DE locale', () => {
-    ;(useLocale as jest.Mock).mockReturnValue({ locale: 'de-DE' })
-
-    const mockFormatToParts = jest.fn().mockReturnValue([
-      { type: 'integer', value: '1' },
-      { type: 'decimal', value: ',' },
-      { type: 'fraction', value: '1' }
-    ])
-
-    const originalIntl = global.Intl
-    global.Intl = {
-      ...originalIntl,
-      NumberFormat: jest.fn().mockImplementation(() => ({
-        formatToParts: mockFormatToParts
-      }))
-    } as any
+  it('should format number with different locale separators', () => {
+    mockUseLocale.mockReturnValue({ locale: 'de-DE' } as any)
+    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
-    expect(result.current.formatNumber(new Decimal('123.45'))).toBe('123,45')
 
-    global.Intl = originalIntl
+    expect(result.current.formatNumber('1234.56')).toBe('1.234,56')
   })
 
-  it('should use default separator when decimal part is not found', () => {
-    ;(useLocale as jest.Mock).mockReturnValue({ locale: 'en-US' })
-
-    const mockFormatToParts = jest
-      .fn()
-      .mockReturnValue([{ type: 'integer', value: '1' }])
-
-    const originalIntl = global.Intl
-    global.Intl = {
-      ...originalIntl,
-      NumberFormat: jest.fn().mockImplementation(() => ({
-        formatToParts: mockFormatToParts
-      }))
-    } as any
+  it('should return original value for non-string input', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
 
     const { result } = renderHook(() => useFormatNumber())
-    expect(result.current.formatNumber(new Decimal('123.45'))).toBe('123.45')
 
-    global.Intl = originalIntl
+    expect(result.current.formatNumber(123 as any)).toBe(123)
   })
 
-  it('should handle various number formats correctly', () => {
-    ;(useLocale as jest.Mock).mockReturnValue({ locale: 'en-US' })
-
-    const mockFormatToParts = jest.fn().mockReturnValue([
-      { type: 'integer', value: '1' },
-      { type: 'decimal', value: '.' },
-      { type: 'fraction', value: '1' }
-    ])
-
-    const originalIntl = global.Intl
-    global.Intl = {
-      ...originalIntl,
-      NumberFormat: jest.fn().mockImplementation(() => ({
-        formatToParts: mockFormatToParts
-      }))
-    } as any
+  it('should return original value for non-numerical string', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
+    mockIsNumericalString.mockReturnValue(false)
 
     const { result } = renderHook(() => useFormatNumber())
 
-    expect(result.current.formatNumber(new Decimal('0'))).toBe('0')
-    expect(result.current.formatNumber(new Decimal('123'))).toBe('123')
-    expect(result.current.formatNumber(new Decimal('0.123'))).toBe('0.123')
-    expect(result.current.formatNumber(new Decimal('1000000.123456'))).toBe(
-      '1000000.123456'
-    )
+    expect(result.current.formatNumber('abc')).toBe('abc')
+  })
 
-    global.Intl = originalIntl
+  it('should format integer without decimal part', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
+    mockIsNumericalString.mockReturnValue(true)
+
+    const { result } = renderHook(() => useFormatNumber())
+
+    expect(result.current.formatNumber('1234')).toBe('1,234')
+  })
+
+  it('should handle numbers with zero decimal', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
+    mockIsNumericalString.mockReturnValue(true)
+
+    const { result } = renderHook(() => useFormatNumber())
+
+    expect(result.current.formatNumber('1234.0')).toBe('1,234.0')
+  })
+
+  it('should handle small numbers without thousand separator', () => {
+    mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
+    mockIsNumericalString.mockReturnValue(true)
+
+    const { result } = renderHook(() => useFormatNumber())
+
+    expect(result.current.formatNumber('123.45')).toBe('123.45')
   })
 })

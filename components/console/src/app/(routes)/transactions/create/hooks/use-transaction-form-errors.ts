@@ -86,11 +86,11 @@ export const useTransactionFormErrors = (
     return sources
       .map((source) => {
         // External accounts has untrusted balances
-        if (source.account.includes(externalAccountAliasPrefix)) {
+        if (source.accountAlias.includes(externalAccountAliasPrefix)) {
           return false
         }
 
-        const account = accounts[source.account]
+        const account = accounts[source.accountAlias]
         if (!account) {
           return false
         }
@@ -100,13 +100,13 @@ export const useTransactionFormErrors = (
         )
 
         if (!balance) {
-          add(`source.${source.account}`, {
+          add(`source.${source.accountAlias}`, {
             message: intl.formatMessage(
               {
                 id: 'transactions.errors.insufficientFunds',
                 defaultMessage: 'Insufficient funds in {account} account'
               },
-              { account: source.account }
+              { account: source.accountAlias }
             ),
             metadata: {
               account
@@ -117,13 +117,13 @@ export const useTransactionFormErrors = (
         }
 
         if (Number(balance.available) < Number(source.value)) {
-          add(`source.${source.account}`, {
+          add(`source.${source.accountAlias}`, {
             message: intl.formatMessage(
               {
                 id: 'transactions.errors.insufficientFunds',
                 defaultMessage: 'Insufficient funds in {account} account'
               },
-              { account: source.account }
+              { account: source.accountAlias }
             ),
             metadata: {
               account
@@ -133,7 +133,7 @@ export const useTransactionFormErrors = (
           return true
         }
 
-        remove(`source.${source.account}`)
+        remove(`source.${source.accountAlias}`)
         setOpen(false)
         return false
       })

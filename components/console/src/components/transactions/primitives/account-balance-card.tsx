@@ -15,6 +15,7 @@ import { useIntl } from 'react-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTime } from '@/hooks/use-time'
 import dayjs from 'dayjs'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 const AccountBalanceCardContext = React.createContext<{ open?: boolean }>({
   open: false
@@ -139,7 +140,7 @@ AccountBalanceCardEmpty.displayName = 'AccountBalanceCardEmpty'
 export type AccountBalanceCardInfoProps =
   React.HtmlHTMLAttributes<HTMLDivElement> & {
     assetCode: string
-    value: number
+    value: string
   }
 
 export const AccountBalanceCardInfo = React.forwardRef<
@@ -147,6 +148,7 @@ export const AccountBalanceCardInfo = React.forwardRef<
   AccountBalanceCardInfoProps
 >(({ className, assetCode, value, children, ...props }, ref) => {
   const intl = useIntl()
+  const { formatNumber } = useFormatNumber()
 
   return (
     <div
@@ -158,7 +160,7 @@ export const AccountBalanceCardInfo = React.forwardRef<
       {...props}
     >
       <p>{assetCode}</p>
-      <p>{intl.formatNumber(value, { roundingPriority: 'morePrecision' })}</p>
+      <p>{formatNumber(value)}</p>
     </div>
   )
 })
