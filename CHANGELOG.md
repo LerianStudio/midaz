@@ -1,3 +1,21 @@
+## [v2.2.2] - 2025-06-16
+
+This release focuses on enhancing the reliability and stability of the midaz project, with key improvements in configuration management and documentation. Users will benefit from a more robust messaging infrastructure and streamlined development processes.
+
+### 🐛 Bug Fixes
+- **Improved Build Reliability**: Added `go.mod` and `go.sum` files to the project, resolving previous dependency management issues. This ensures consistent and reliable builds across different environments, reducing the likelihood of build failures and simplifying the development process.
+
+### 🔄 Changes
+- **Enhanced RabbitMQ Configuration**: Integrated new library features into the RabbitMQ configuration. This change enhances the system's capabilities, providing users with a more stable and feature-rich messaging infrastructure. It ensures that your message handling is more robust and reliable.
+
+### 📚 Documentation
+- **Updated Configuration Documentation**: Revised the documentation to reflect the latest changes in RabbitMQ configuration. This ensures that users have access to accurate and up-to-date information, facilitating easier setup and maintenance of the messaging system.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to include recent changes, ensuring transparency and keeping users informed about the latest updates and fixes. This supports better version tracking and communication with users.
+
+This changelog provides a clear and concise overview of the changes introduced in version 2.2.2, focusing on the benefits and impacts for users, while maintaining a professional and accessible tone.
+
 ## [v2.2.1] - 2025-06-06
 
 This release of midaz focuses on enhancing user experience and system reliability through various improvements and bug fixes, ensuring a more stable and intuitive interaction with the platform.
