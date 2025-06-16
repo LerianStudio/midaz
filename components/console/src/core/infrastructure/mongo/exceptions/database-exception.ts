@@ -98,3 +98,13 @@ export class ConstraintDatabaseException extends ApiException {
     this.name = 'ConstraintDatabaseException'
   }
 }
+
+export class NotFoundDatabaseException extends ApiException {
+  entity: string
+  constructor(message: string, entity: string) {
+    super('0004', 'Not Found Database Exception', message, HttpStatus.NOT_FOUND)
+
+    this.entity = entity
+    this.name = 'NotFoundDatabaseException'
+  }
+}
