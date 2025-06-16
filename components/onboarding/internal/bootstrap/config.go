@@ -59,7 +59,6 @@ type Config struct {
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
 	RabbitMQKey             string `env:"RABBITMQ_KEY"`
-	RabbitMQHealthCheckURL  string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -129,7 +128,6 @@ func InitServers() *Service {
 
 	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
 		Host:                   cfg.RabbitMQHost,
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
