@@ -659,13 +659,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
 	defer spanValidateDSL.End()
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
-	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
-	}
-
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateDSL, "Failed to validate send source and distribute", err)
@@ -733,8 +726,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		parentTransactionID = &value
 	}
 
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.PENDING {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
@@ -843,13 +840,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		return http.WithError(c, err)
 	}
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
-	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
-	}
-
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
@@ -913,8 +903,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Status = status
 	tran.UpdatedAt = time.Now()
 
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.CANCELED {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
