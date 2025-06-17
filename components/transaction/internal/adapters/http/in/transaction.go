@@ -232,11 +232,13 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	interface{}
-//	@Failure		400				{object}	interface{}
-//	@Failure		401				{object}	interface{}
-//	@Failure		404				{object}	interface{}
-//	@Failure		500				{object}	interface{}
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -274,11 +276,13 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	interface{}
-//	@Failure		400				{object}	interface{}
-//	@Failure		401				{object}	interface{}
-//	@Failure		404				{object}	interface{}
-//	@Failure		500				{object}	interface{}
+//	@Success		201				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [Post]
 func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()

@@ -4,7 +4,7 @@ definitions:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
     properties:
-      amount:
+      value:
         description: |-
           The amount value in the smallest unit of the asset (e.g., cents)
           example: 1500
@@ -249,11 +249,6 @@ definitions:
           Additional custom attributes
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
-      pending:
-        description: |-
-          Whether the transaction should be created in pending state
-          swagger:ignore
-        type: boolean
       send:
         description: |-
           Send operation details including distribution only
@@ -368,9 +363,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -813,14 +811,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/Status'
         description: Transaction status information
-      template:
-        description: |-
-          Template used to create this transaction
-          example: Transaction template
-          maxLength: 100
-        example: Transaction template
-        maxLength: 100
-        type: string
       updatedAt:
         description: |-
           Timestamp when the transaction was last updated
@@ -917,9 +907,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -1118,7 +1111,7 @@ definitions:
         type: string
       deletedAt:
         description: |-
-          Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
           example: null
           format: date-time
         example: "2021-01-01T00:00:00Z"
@@ -2260,6 +2253,68 @@ paths:
       summary: Update a Transaction
       tags:
       - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
+    post:
+      description: Cancel a previously created pre transaction
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid request or transaction cannot be reverted
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Transaction already has a parent transaction
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Cancel a pre transaction
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       description: Commit a previously created transaction
@@ -2293,19 +2348,32 @@ paths:
       responses:
         "201":
           description: Created
-          schema: {}
+          schema:
+            $ref: '#/definitions/Transaction'
         "400":
-          description: Bad Request
-          schema: {}
+          description: Invalid request or transaction cannot be reverted
+          schema:
+            $ref: '#/definitions/Error'
         "401":
-          description: Unauthorized
-          schema: {}
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
         "404":
-          description: Not Found
-          schema: {}
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Transaction already has a parent transaction
+          schema:
+            $ref: '#/definitions/Error'
         "500":
-          description: Internal Server Error
-          schema: {}
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Commit a Transaction
       tags:
       - Transactions
