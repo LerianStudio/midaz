@@ -15,8 +15,6 @@ export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   const intl = await getIntl()
   const logger = container.get<LoggerAggregator>(LoggerAggregator)
 
-  console.log('[API ERROR]', error)
-
   const errorMetadata = {
     errorType: error.constructor.name,
     originalMessage: error.message
