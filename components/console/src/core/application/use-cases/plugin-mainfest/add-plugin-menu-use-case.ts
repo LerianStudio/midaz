@@ -3,7 +3,6 @@ import { PluginManifestRepository } from '@/core/domain/repositories/plugin/plug
 import { ServiceDiscoveryRepository } from '@/core/domain/repositories/plugin/service-discovery-repository'
 import { LogOperation } from '@/core/infrastructure/logger/decorators'
 import { inject } from 'inversify'
-
 import { PluginManifestDto } from '@/core/infrastructure/midaz-plugins/plugin-service-discovery/dto/plugin-manifest-dto'
 import type { CreatePluginManifestDto } from '@/core/application/dto/plugin-manifest-dto'
 import { PluginManifestMapper } from '../../mappers/plugin-manifest-mapper'
@@ -14,10 +13,10 @@ export interface AddPluginMenu {
 
 export class AddPluginMenuUseCase implements AddPluginMenu {
   constructor(
-    @inject(PluginManifestRepository)
-    private readonly pluginMenuRepository: PluginManifestRepository,
     @inject(ServiceDiscoveryRepository)
-    private readonly serviceDiscoveryRepository: ServiceDiscoveryRepository
+    private readonly serviceDiscoveryRepository: ServiceDiscoveryRepository,
+    @inject(PluginManifestRepository)
+    private readonly pluginMenuRepository: PluginManifestRepository
   ) {}
 
   @LogOperation({ layer: 'application' })

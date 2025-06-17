@@ -140,7 +140,7 @@ export const TransactionProvider = ({
     })
     addAccount(alias, account)
   }
-  console.log('TransactionProvider', formValues)
+
   const removeSource = (
     fieldArray: UseFieldArrayReturn<any>,
     alias: string

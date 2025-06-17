@@ -547,6 +547,7 @@
   "error.database.unexpected": "Ocorreu um erro inesperado. Tente novamente mais tarde ou entre em contato com o suporte.",
   "error.database.validationFailed": "A validação falhou. Verifique e tente novamente.",
   "error.database.notFound": "{entity} não encontrado. Verifique e tente novamente.",
+  "error.database.duplicatedMenu": "Menu já registrado. Verifique e tente novamente.",
   "ledgers.assets.sheet.edit.description.readonly": "Visualize os campos do ativo em modo de leitura.",
   "ledgers.portfolio.sheet.edit.description.readonly": "Visualize os campos do portfólio em modo de leitura.",
   "ledgers.segments.sheet.edit.description.readonly": "Visualize os campos do segmento em modo de leitura.",

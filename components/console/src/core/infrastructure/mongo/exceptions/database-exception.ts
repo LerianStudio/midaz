@@ -108,3 +108,15 @@ export class NotFoundDatabaseException extends ApiException {
     this.name = 'NotFoundDatabaseException'
   }
 }
+
+export class DuplicatedKeyError extends ApiException {
+  constructor(message: string) {
+    super(
+      '0005',
+      'Duplicated Key Database Exception',
+      message,
+      HttpStatus.BAD_REQUEST
+    )
+    this.name = 'DuplicatedKeyError'
+  }
+}

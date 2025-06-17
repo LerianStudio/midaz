@@ -9,18 +9,25 @@ import { HttpService } from '@/lib/http'
 export class PluginServiceDiscoveryRepository
   implements ServiceDiscoveryRepository
 {
+  private baseUrl: string = process.env.NGINX_BASE_PATH as string
+
   constructor(
     @inject(PluginManifestHttpService)
     private readonly httpService: HttpService
   ) {}
 
-  async fetchPluginManifest(
-    pluginManifestUrl: string
-  ): Promise<PluginManifestEntity> {
-    const response =
-      await this.httpService.get<PluginManifestEntity>(pluginManifestUrl)
+  async fetchPluginManifest(pluginHost: string): Promise<PluginManifestEntity> {
+    let pluginUrl = ''
+    if (process.env.NODE_ENV === 'development') {
+      pluginUrl = `${pluginHost}/api/manifest`
+    } else {
+      pluginUrl = `${this.baseUrl}/${pluginHost}/api/manifest`
+    }
+
+    const response = await this.httpService.get<PluginManifestEntity>(pluginUrl)
 
     const manifestEntity = PluginManifestMapper.toEntity(response)
+
     return manifestEntity
   }
 }

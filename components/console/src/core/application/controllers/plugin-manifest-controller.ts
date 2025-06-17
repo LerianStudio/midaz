@@ -1,29 +1,32 @@
 import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
 import { Controller } from '@/lib/http/server/decorators/controller-decorator'
-import { injectable, inject } from 'inversify'
+import { inject, injectable } from 'inversify'
 import { NextResponse } from 'next/server'
-import { AddPluginMenuUseCase } from '../use-cases/plugin-mainfest/add-plugin-menu-use-case'
-import { apiErrorHandler } from '@/app/api/utils/api-error-handler'
+import {
+  type AddPluginMenu,
+  AddPluginMenuUseCase
+} from '../use-cases/plugin-mainfest/add-plugin-menu-use-case'
+import z from 'zod'
+import { ValidateZod } from '@/lib/zod/decorators/validate-zod'
+
+const AddPluginManifestSchema = z.object({
+  host: z.string().url()
+})
 
 @injectable()
 @LoggerInterceptor()
 @Controller()
-export class PluginMenuController {
+export class PluginManifestController {
   constructor(
     @inject(AddPluginMenuUseCase)
-    private readonly addPluginMenuUseCase: AddPluginMenuUseCase
+    private readonly addPluginMenuUseCase: AddPluginMenu
   ) {}
 
+  @ValidateZod(AddPluginManifestSchema)
   async addPluginManifest(request: Request) {
-    try {
-      const body = await request.json()
-      const pluginMenu = await this.addPluginMenuUseCase.execute(body)
+    const body = await request.json()
+    const pluginMenu = await this.addPluginMenuUseCase.execute(body)
 
-      return NextResponse.json(pluginMenu)
-    } catch (error: any) {
-      const { message, status } = await apiErrorHandler(error)
-
-      return NextResponse.json({ message }, { status })
-    }
+    return NextResponse.json(pluginMenu)
   }
 }

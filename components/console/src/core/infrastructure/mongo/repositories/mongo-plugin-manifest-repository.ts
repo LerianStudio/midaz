@@ -27,16 +27,17 @@ export class MongoPluginManifestRepository
     pluginMenu: PluginManifestEntity
   ): Promise<PluginManifestEntity> {
     try {
-      const pluginMenuDocument = new this.model(pluginMenu)
+      const result = await this.model.create(pluginMenu)
+      const pluginMenuEntity = MongoPluginMenuMapper.toEntity(result)
 
-      return pluginMenuDocument.save()
+      return pluginMenuEntity
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginMenuRepository.create', {
         error,
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -62,7 +63,7 @@ export class MongoPluginManifestRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -75,7 +76,7 @@ export class MongoPluginManifestRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -96,7 +97,7 @@ export class MongoPluginManifestRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -115,7 +116,7 @@ export class MongoPluginManifestRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 }

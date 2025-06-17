@@ -9,6 +9,7 @@ import mongoose, { MongooseError } from 'mongoose'
 import { IntlShape } from 'react-intl'
 import {
   DatabaseException,
+  DuplicatedKeyError,
   InvalidObjectDatabaseException,
   NotFoundDatabaseException,
   ValidationFailedDatabaseException
@@ -26,6 +27,10 @@ export async function handleDatabaseError(error: unknown): Promise<void> {
 
   if (error instanceof mongoose.Error) {
     throw mapMongooseError(error, intl)
+  }
+
+  if (error!.constructor.name === 'MongoServerError') {
+    throw mapMongoServerError(error as MongoServerError, intl)
   }
 
   if (error instanceof DatabaseException) {
@@ -87,7 +92,32 @@ function mapDatabaseException(
     return new NotFoundDatabaseException(message, error.entity)
   }
 
-  return error
+  return unexpectedDatabaseError(intl)
+}
+
+/**
+ * Maps MongoDB-specific errors to domain-specific exceptions
+ * @param error - The MongoDB error to map
+ * @param intl - Internationalization service for localized error messages
+ * @returns A domain-specific database exception
+ * @private
+ * @description Routes different types of MongoDB errors to their specific handlers
+ */
+function mapMongoServerError(
+  error: MongoServerError,
+  intl: IntlShape
+): DatabaseException {
+  switch (error.code) {
+    case 11000:
+      return new DuplicatedKeyError(
+        intl.formatMessage({
+          id: 'error.database.duplicatedMenu',
+          defaultMessage: 'Menu already registered'
+        })
+      )
+    default:
+      throw unexpectedDatabaseError(intl)
+  }
 }
 
 /**
