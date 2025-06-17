@@ -989,6 +989,7 @@ func (handler *TransactionHandler) createPreTransaction(c *fiber.Ctx, logger lib
 	return http.Created(c, tran)
 }
 
+// commitOrCancelTransaction func that is responsible to commit or cancel transaction.
 func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logger libLog.Logger, tran *transaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
