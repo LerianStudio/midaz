@@ -868,17 +868,17 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		return http.WithError(c, err)
 	}
 
-	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
-	defer spanValidateBalances.End()
-
-	blcs := mmodel.ConvertBalancesToLibBalances(balances)
-
-	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
-
-		return http.WithError(c, err)
-	}
+	//_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+	//defer spanValidateBalances.End()
+	//
+	//blcs := mmodel.ConvertBalancesToLibBalances(balances)
+	//
+	//err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
+	//if err != nil {
+	//	libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
+	//
+	//	return http.WithError(c, err)
+	//}
 
 	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 	defer spanIdempotency.End()
@@ -908,7 +908,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-	
+
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
