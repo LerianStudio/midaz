@@ -42,7 +42,6 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
 		Description:              t.Description,
-		Template:                 t.ChartOfAccountsGroupName,
 		Status:                   status,
 		Amount:                   &t.Send.Value,
 		AssetCode:                t.Send.Asset,
