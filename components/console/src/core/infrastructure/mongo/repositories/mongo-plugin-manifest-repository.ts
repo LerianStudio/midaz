@@ -32,7 +32,7 @@ export class MongoPluginManifestRepository
 
       return pluginMenuEntity
     } catch (error) {
-      this.logger.error('[ERROR] - MongoPluginMenuRepository.create', {
+      this.logger.error('[ERROR] - MongoPluginManifestRepository.create', {
         error,
         context: 'mongo'
       })
@@ -43,7 +43,7 @@ export class MongoPluginManifestRepository
 
   async update(
     pluginMenuId: string,
-    pluginMenu: PluginManifestEntity
+    pluginMenu: Partial<PluginManifestEntity>
   ): Promise<PluginManifestEntity> {
     try {
       const pluginMenuDocument = await this.model.findById(pluginMenuId)
@@ -54,11 +54,12 @@ export class MongoPluginManifestRepository
           'Plugin Menu'
         )
       }
-      pluginMenuDocument.set(pluginMenu)
+
+      pluginMenuDocument.set({ ...pluginMenu })
 
       return pluginMenuDocument.save()
     } catch (error) {
-      this.logger.error('[ERROR] - MongoPluginMenuRepository.update', {
+      this.logger.error('[ERROR] - Mongo.update', {
         error,
         context: 'mongo'
       })
@@ -71,7 +72,7 @@ export class MongoPluginManifestRepository
     try {
       await this.model.findByIdAndDelete(pluginMenuId)
     } catch (error) {
-      this.logger.error('[ERROR] - MongoPluginMenuRepository.delete', {
+      this.logger.error('[ERROR] - MongoPluginManifestRepository.delete', {
         error,
         context: 'mongo'
       })
@@ -92,7 +93,7 @@ export class MongoPluginManifestRepository
 
       return pluginMenuEntity
     } catch (error) {
-      this.logger.error('[ERROR] - MongoPluginMenuRepository.fetchById', {
+      this.logger.error('[ERROR] - MongoPluginManifestRepository.fetchById', {
         error,
         context: 'mongo'
       })
@@ -111,7 +112,7 @@ export class MongoPluginManifestRepository
 
       return pluginMenuEntities
     } catch (error) {
-      this.logger.error('[ERROR] - MongoPluginMenuRepository.fetchAll', {
+      this.logger.error('[ERROR] - MongoPluginManifestRepository.fetchAll', {
         error,
         context: 'mongo'
       })

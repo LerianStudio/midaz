@@ -1,9 +1,12 @@
 import { PluginManifestEntity } from '@/core/domain/entities/plugin-manifest-entity'
+import { PluginManifestDocument } from '../models/plugin-manifest'
 
 export class MongoPluginMenuMapper {
-  static toEntity(pluginMenuDocument: any): PluginManifestEntity {
+  static toEntity(
+    pluginMenuDocument: PluginManifestDocument
+  ): PluginManifestEntity {
     return {
-      id: pluginMenuDocument._id.toString(),
+      id: pluginMenuDocument.id,
       name: pluginMenuDocument.name,
       title: pluginMenuDocument.title,
       description: pluginMenuDocument.description,
