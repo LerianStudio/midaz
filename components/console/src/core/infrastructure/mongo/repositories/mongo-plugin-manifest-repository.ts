@@ -23,13 +23,13 @@ export class MongoPluginManifestRepository
   }
 
   async create(
-    pluginMenu: PluginManifestEntity
+    pluginManifest: PluginManifestEntity
   ): Promise<PluginManifestEntity> {
     try {
-      const result = await this.model.create(pluginMenu)
-      const pluginMenuEntity = MongoPluginManifestMapper.toEntity(result)
+      const result = await this.model.create(pluginManifest)
+      const pluginManifestEntity = MongoPluginManifestMapper.toEntity(result)
 
-      return pluginMenuEntity
+      return pluginManifestEntity
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginManifestRepository.create', {
         error,
@@ -56,7 +56,10 @@ export class MongoPluginManifestRepository
 
       pluginManifestDocument.set({ ...pluginManifest })
 
-      return pluginManifestDocument.save()
+      const result = await pluginManifestDocument.save()
+      const pluginManifestEntity = MongoPluginManifestMapper.toEntity(result)
+
+      return pluginManifestEntity
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginManifestRepository.update', {
         error,
