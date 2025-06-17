@@ -80,7 +80,7 @@ export class AccountGenerator implements EntityGenerator<Account> {
   ): Promise<AccountBatchResult> {
     // Set default options
     const {
-      concurrency = 50,
+      concurrency = 3, // Reduced from 50 to avoid circuit breaker
       maxRetries = 3,
       delayBetweenAccounts = 100,
       stopOnError = false,
@@ -330,10 +330,9 @@ export class AccountGenerator implements EntityGenerator<Account> {
       });
     }
 
-    // Calculate optimal concurrency
+    // Calculate optimal concurrency - reduced to avoid circuit breaker
     const concurrencyLevel = Math.min(
-      Math.max(2, Math.floor(MAX_CONCURRENCY / 2)), // Use half of max concurrency to avoid rate limits
-      10, // Never exceed 10 concurrent operations
+      3, // Maximum 3 concurrent operations to avoid circuit breaker
       accountInputs.length // Don't exceed actual number of accounts
     );
 

@@ -19,6 +19,7 @@ import { Logger } from '../services/logger';
 // Import any types we need from types.ts
 import { generateAmount } from '../utils/faker-pt-br';
 import { StateManager } from '../utils/state';
+import { AdaptiveRateLimiter } from '../utils/adaptive-rate-limiter';
 
 /**
  * Account interface for transaction processing
@@ -57,11 +58,14 @@ export class TransactionGenerator {
   private logger: Logger;
   private client: MidazClient;
   private stateManager: StateManager;
+  private adaptiveRateLimiter: AdaptiveRateLimiter;
 
   constructor(client: MidazClient, logger: Logger) {
     this.client = client;
     this.logger = logger;
     this.stateManager = StateManager.getInstance();
+    // Initialize adaptive rate limiter with conservative initial concurrency
+    this.adaptiveRateLimiter = new AdaptiveRateLimiter(logger, 2, MAX_CONCURRENCY);
   }
 
   /**
@@ -191,7 +195,7 @@ export class TransactionGenerator {
         }
       },
       {
-        concurrency: Math.min(MAX_CONCURRENCY, 100), // Use up to 10 concurrent requests
+        concurrency: Math.min(5, MAX_CONCURRENCY), // Reduced to 5 concurrent requests to avoid circuit breaker
         preserveOrder: true, // Keep results in same order as inputs
         continueOnError: true, // Continue even if some requests fail
       }
@@ -292,12 +296,13 @@ export class TransactionGenerator {
       if (accountsWithSameAsset.length === 0) continue;
 
       try {
-        // Calculate optimal concurrency based on batch size
+        // Use adaptive rate limiter to determine concurrency
         const concurrencyLevel = Math.min(
-          Math.max(2, Math.floor(MAX_CONCURRENCY / depositAccountsByAsset.size)), // Divide concurrency among asset types
-          10, // Never exceed 10 concurrent operations per asset type
+          this.adaptiveRateLimiter.getConcurrency(),
           accountsWithSameAsset.length // Don't exceed actual number of accounts
         );
+        
+        this.logger.debug(`Using adaptive concurrency level: ${concurrencyLevel} for ${assetCode} deposits`);
 
         // Prepare batch options with progress tracking
         const batchOptions: TransactionBatchOptions = {
@@ -315,6 +320,9 @@ export class TransactionGenerator {
           },
           onTransactionSuccess: (tx: any, index: number, result: any) => {
             depositSuccessCount++;
+            
+            // Record success for adaptive rate limiting
+            this.adaptiveRateLimiter.recordSuccess();
 
             // Find the account this transaction was for
             const accountData = accountsWithSameAsset[index];
@@ -353,6 +361,11 @@ export class TransactionGenerator {
               // Handle primitive error values
               errorMessage = String(error);
             }
+            
+            // Record failure for adaptive rate limiting
+            this.adaptiveRateLimiter.recordFailure(
+              error instanceof Error ? error : new Error(errorMessage)
+            );
             
             this.logger.error(
               `Failed to create deposit for account ${accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
@@ -457,6 +470,12 @@ export class TransactionGenerator {
             this.stateManager.incrementErrorCount('transaction');
           });
         }
+      }
+
+      // Add delay between asset type batches to avoid overwhelming the server
+      if (depositAccountsByAsset.size > 1) {
+        this.logger.debug(`Waiting 500ms before processing next asset type...`);
+        await this.wait(500);
       }
     }
 
@@ -602,11 +621,13 @@ export class TransactionGenerator {
         if (transferBatch.length === 0) continue;
 
         try {
-          // Calculate optimal concurrency
+          // Use adaptive rate limiter for transfers too
           const concurrencyLevel = Math.min(
-            5, // Lower concurrency for transfers to avoid rate limits
+            this.adaptiveRateLimiter.getConcurrency(),
             transferBatch.length
           );
+          
+          this.logger.debug(`Using adaptive concurrency level: ${concurrencyLevel} for transfers`);
 
           // Prepare batch options
           const batchOptions: TransactionBatchOptions = {
@@ -624,6 +645,9 @@ export class TransactionGenerator {
             },
             onTransactionSuccess: (tx: any, index: number, result: any) => {
               transferSuccessCount++;
+              
+              // Record success for adaptive rate limiting
+              this.adaptiveRateLimiter.recordSuccess();
 
               // Store the transaction
               this.stateManager.addTransactionId(ledgerId, result.id);
@@ -656,6 +680,11 @@ export class TransactionGenerator {
                 // Handle primitive error values
                 errorMessage = String(error);
               }
+              
+              // Record failure for adaptive rate limiting
+              this.adaptiveRateLimiter.recordFailure(
+                error instanceof Error ? error : new Error(errorMessage)
+              );
               
               this.logger.error(
                 `Failed to create transfer for account ${sourceAccount.accountAlias} in ledger ${ledgerId}: ${errorMessage}`,
@@ -701,11 +730,22 @@ export class TransactionGenerator {
           );
           this.stateManager.incrementErrorCount('transaction');
         }
+
+        // Add a small delay between processing different accounts to avoid overwhelming the server
+        await this.wait(200);
       }
     }
 
     this.logger.info(
       `Completed peer-to-peer transactions: ${transferSuccessCount} transfers created`
+    );
+    
+    // Log adaptive rate limiter stats
+    const rateLimiterStats = this.adaptiveRateLimiter.getStats();
+    this.logger.info(
+      `Adaptive rate limiter final stats: Concurrency=${rateLimiterStats.currentConcurrency}, ` +
+      `Consecutive successes=${rateLimiterStats.consecutiveSuccesses}, ` +
+      `Consecutive failures=${rateLimiterStats.consecutiveFailures}`
     );
 
     // Return all transactions created (deposits + transfers)

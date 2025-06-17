@@ -46,6 +46,10 @@ export class OptimizedGenerator {
       `Initialized Midaz client connecting to ${options.baseUrl}:${options.onboardingPort} and ${options.baseUrl}:${options.transactionPort}`
     );
 
+    // Warm up the connection pool to prevent initial connection failures
+    this.logger.debug('Warming up connection pool...');
+    this.warmupConnectionPool();
+
     // Get state manager
     this.stateManager = StateManager.getInstance();
     this.stateManager.reset();
@@ -93,6 +97,27 @@ export class OptimizedGenerator {
     if (delay > 0) {
       this.logger.info(`Waiting ${delay} seconds for ${processName} to propagate through RabbitMQ/Redis...`);
       await new Promise(resolve => setTimeout(resolve, delay * 1000));
+    }
+  }
+
+  /**
+   * Warm up the connection pool by making a few initial requests
+   */
+  private async warmupConnectionPool(): Promise<void> {
+    try {
+      // Make a few lightweight requests to establish connections
+      const warmupPromises = [];
+      for (let i = 0; i < 3; i++) {
+        warmupPromises.push(
+          this.client.entities.organizations.listOrganizations({ limit: 1 })
+            .catch(() => {}) // Ignore errors during warmup
+        );
+      }
+      await Promise.all(warmupPromises);
+      this.logger.debug('Connection pool warmed up');
+    } catch (error) {
+      // Warmup errors are not critical
+      this.logger.debug('Connection pool warmup completed with some errors');
     }
   }
 
@@ -254,20 +279,20 @@ export class OptimizedGenerator {
     // Wait for accounts to propagate
     await this.addProcessDelay('accounts');
 
-    // Process all ledgers' transactions
-    this.logger.info('Generating transactions for all ledgers...');
-    await workerPool(
-      ledgers,
-      async (ledger, index) => {
-        this.logger.debug(`Processing transactions for ledger ${index + 1}/${ledgers.length}: ${ledger.name}`);
-        await this.generateTransactionsForLedger(ledger.id, volumeMetrics.transactionsPerAccount);
-        this.logger.progress('Ledgers fully processed', index + 1, ledgers.length);
-      },
-      { 
-        concurrency,
-        continueOnError: true 
+    // Process all ledgers' transactions - SEQUENTIALLY to avoid overwhelming the server
+    this.logger.info('Generating transactions for all ledgers (sequentially to avoid circuit breaker)...');
+    for (let index = 0; index < ledgers.length; index++) {
+      const ledger = ledgers[index];
+      this.logger.info(`Processing transactions for ledger ${index + 1}/${ledgers.length}: ${ledger.name}`);
+      await this.generateTransactionsForLedger(ledger.id, volumeMetrics.transactionsPerAccount);
+      this.logger.progress('Ledgers fully processed', index + 1, ledgers.length);
+      
+      // Add delay between ledgers to allow server to process
+      if (index < ledgers.length - 1) {
+        this.logger.debug('Waiting 2 seconds before processing next ledger...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
-    );
+    }
   }
 
   /**
