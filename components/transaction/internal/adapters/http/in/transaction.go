@@ -1080,7 +1080,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.UpdatedAt = time.Now()
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+	if transactionStatus != constant.CANCELED {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+	}
 
 	var operations []*operation.Operation
 
