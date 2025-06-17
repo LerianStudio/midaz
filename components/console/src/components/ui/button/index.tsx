@@ -62,68 +62,58 @@ const iconVariants = cva('', {
   }
 })
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean
-  icon?: React.ReactNode
-  iconPlacement?: 'start' | 'end' | 'far-end'
-  fullWidth?: boolean
-  readOnly?: boolean
-}
-
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      variant,
-      size,
-      asChild = false,
-      icon,
-      iconPlacement = 'start',
-      fullWidth,
-      readOnly,
-      ...props
-    },
-    ref
-  ) => {
-    const Comp = asChild ? Slot : 'button'
-
-    return (
-      <Comp
-        className={cn(
-          buttonVariants({ variant, size, className }),
-          {
-            'w-full': fullWidth
-          },
-          readOnly && [
-            'data-read-only:cursor-default',
-            'data-read-only:select-text',
-            'data-read-only:bg-zinc-100',
-            'data-read-only:opacity-50',
-            'data-read-only:focus:outline-hidden',
-            'data-read-only:focus:ring-0'
-          ]
-        )}
-        data-read-only={readOnly ? '' : undefined}
-        ref={ref}
-        {...props}
-      >
-        {icon && iconPlacement === 'start' && (
-          <span className={cn(iconVariants({ position: iconPlacement }))}>
-            {icon}
-          </span>
-        )}
-        {props.children}
-        {icon && iconPlacement !== 'start' && (
-          <span className={cn(iconVariants({ position: iconPlacement }))}>
-            {icon}
-          </span>
-        )}
-      </Comp>
-    )
+export type ButtonProps = React.ComponentProps<'button'> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  } & {
+    icon?: React.ReactNode
+    iconPlacement?: 'start' | 'end' | 'far-end'
+    fullWidth?: boolean
+    readOnly?: boolean
   }
-)
-Button.displayName = 'Button'
+
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  icon,
+  iconPlacement = 'start',
+  fullWidth = false,
+  readOnly = false,
+  ...props
+}: ButtonProps) {
+  const Comp = asChild ? Slot : 'button'
+
+  return (
+    <Comp
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        {
+          'w-full': fullWidth
+        },
+        {
+          'data-read-only:cursor-default data-read-only:bg-zinc-100 data-read-only:opacity-50 data-read-only:select-text data-read-only:focus:ring-0 data-read-only:focus:outline-hidden':
+            readOnly
+        }
+      )}
+      data-read-only={readOnly ? '' : undefined}
+      data-slot="button"
+      {...props}
+    >
+      {icon && iconPlacement === 'start' && (
+        <span className={cn(iconVariants({ position: iconPlacement }))}>
+          {icon}
+        </span>
+      )}
+      {props.children}
+      {icon && iconPlacement !== 'start' && (
+        <span className={cn(iconVariants({ position: iconPlacement }))}>
+          {icon}
+        </span>
+      )}
+    </Comp>
+  )
+}
 
 export { Button, buttonVariants }

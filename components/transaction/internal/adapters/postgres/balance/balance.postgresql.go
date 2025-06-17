@@ -577,8 +577,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			libTransaction.Balance{
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
-			},
-			fromTo[balance.Alias].Operation)
+			})
 
 		if err != nil {
 			return err

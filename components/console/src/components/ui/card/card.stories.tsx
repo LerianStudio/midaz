@@ -2,7 +2,6 @@ import { Meta, StoryObj } from '@storybook/nextjs'
 import {
   Card,
   CardTitle,
-  CardProps,
   CardHeader,
   CardDescription,
   CardContent,
@@ -10,7 +9,7 @@ import {
 } from '.'
 import { Button } from '../button'
 
-const meta: Meta<CardProps> = {
+const meta: Meta<typeof Card> = {
   title: 'Primitives/Card',
   component: Card,
   argTypes: {
@@ -23,7 +22,7 @@ const meta: Meta<CardProps> = {
 
 export default meta
 
-export const Primary: StoryObj<CardProps> = {
+export const Primary: StoryObj<typeof Card> = {
   render: (args) => (
     <Card className="w-[350px]" {...args}>
       <CardHeader>

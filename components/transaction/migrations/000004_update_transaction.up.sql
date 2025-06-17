@@ -9,4 +9,7 @@ ALTER TABLE transaction
     DROP COLUMN IF EXISTS amount_scale;
 
 ALTER TABLE transaction
+    DROP COLUMN IF EXISTS template;
+
+ALTER TABLE transaction
     ADD COLUMN IF NOT EXISTS route TEXT NULL;

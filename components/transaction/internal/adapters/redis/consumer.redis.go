@@ -29,7 +29,7 @@ type RedisRepository interface {
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	AddSumBalanceRedis(ctx context.Context, key string, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -169,7 +169,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
-func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key string, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
+func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
@@ -195,7 +195,14 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key s
 		allowReceiving = 1
 	}
 
+	isPending := 0
+	if pending {
+		isPending = 1
+	}
+
 	args := []any{
+		isPending,
+		transactionStatus,
 		amount.Operation,
 		amount.Value.String(),
 		balance.ID,
@@ -219,6 +226,8 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key s
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
+			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
 		}
 
 		return nil, err

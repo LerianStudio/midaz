@@ -84,7 +84,7 @@ type Balance struct {
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+	// Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
 	// example: null
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`

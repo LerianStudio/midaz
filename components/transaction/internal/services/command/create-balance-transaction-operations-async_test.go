@@ -1140,5 +1140,5 @@ func TestCreateBTOAsync(t *testing.T) {
 		AnyTimes()
 
 	// Call the method - this should not panic
-	uc.CreateBTOAsync(ctx, queue)
+	uc.CreateBTOSync(ctx, queue)
 }

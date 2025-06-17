@@ -10,6 +10,11 @@ import { Form } from '../ui/form'
 const meta: Meta = {
   title: 'Components/EntityBox',
   component: EntityBox.Root,
+  parameters: {
+    backgrounds: {
+      default: 'Light'
+    }
+  },
   argTypes: {}
 }
 
