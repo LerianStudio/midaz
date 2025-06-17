@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/trace"
 	"reflect"
 	"time"
 )
@@ -48,41 +49,20 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
-	defer spanCreateTransaction.End()
+	tran, err := uc.CreateOrUpdateTransaction(ctxProcessBalances, logger, tracer, t)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to create or update transaction", err)
+		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
-	logger.Infof("Trying to create new transaction")
-
-	tran := t.Transaction
-	tran.Body = *t.ParseDSL
-
-	if !t.Validate.Pending {
-		description := constant.APPROVED
-		status := transaction.Status{
-			Code:        description,
-			Description: &description,
-		}
-
-		tran.Status = status
+		return err
 	}
 
-	_, err = uc.TransactionRepo.Create(ctx, tran)
+	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
+	defer spanCreateMetadata.End()
+
+	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
-
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			logger.Infof("Transaction already exists: %v", tran.ID)
-		} else {
-			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
-
-			return err
-		}
-	}
-
-	err = uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create metadata on transaction", err)
+		libOpentelemetry.HandleSpanError(&spanCreateMetadata, "Failed to create metadata on transaction", err)
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
 		return err
@@ -119,6 +99,52 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// CreateOrUpdateTransaction func that is responsible to create or update a transaction.
+func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
+	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	defer spanCreateTransaction.End()
+
+	logger.Infof("Trying to create new transaction")
+
+	tran := t.Transaction
+	tran.Body = *t.ParseDSL
+
+	if tran.Status.Code == constant.CREATED {
+		description := constant.APPROVED
+		status := transaction.Status{
+			Code:        description,
+			Description: &description,
+		}
+
+		tran.Status = status
+	}
+
+	_, err := uc.TransactionRepo.Create(ctx, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+				_, err = uc.UpdateTransactionStatus(ctx, tran)
+				if err != nil {
+					logger.Errorf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
+
+					return nil, err
+				}
+			}
+
+			logger.Infof("Transaction already exists: %v", tran.ID)
+		} else {
+			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
+
+			return nil, err
+		}
+	}
+
+	return tran, nil
 }
 
 // CreateMetadataAsync func that create metadata into operations
