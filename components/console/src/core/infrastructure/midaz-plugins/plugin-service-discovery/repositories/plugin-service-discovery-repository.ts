@@ -18,6 +18,7 @@ export class PluginServiceDiscoveryRepository
 
   async fetchPluginManifest(pluginHost: string): Promise<PluginManifestEntity> {
     let pluginUrl = ''
+
     if (process.env.NODE_ENV === 'development') {
       pluginUrl = `${pluginHost}/api/manifest`
     } else {

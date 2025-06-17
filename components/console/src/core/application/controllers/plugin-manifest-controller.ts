@@ -10,7 +10,7 @@ import z from 'zod'
 import { ValidateZod } from '@/lib/zod/decorators/validate-zod'
 
 const AddPluginManifestSchema = z.object({
-  host: z.string().url()
+  host: z.string().min(5).max(255)
 })
 
 @injectable()

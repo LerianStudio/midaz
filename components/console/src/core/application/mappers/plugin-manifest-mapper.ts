@@ -6,6 +6,7 @@ export class PluginManifestMapper {
     pluginManifest: PluginManifestEntity
   ): PluginManifestDto {
     return {
+      id: pluginManifest.id!,
       name: pluginManifest.name,
       title: pluginManifest.title,
       description: pluginManifest.description,

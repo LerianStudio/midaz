@@ -3,6 +3,7 @@ export type CreatePluginManifestDto = {
 }
 
 export type PluginManifestDto = {
+  id: string
   name: string
   title: string
   description: string
