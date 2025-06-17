@@ -249,7 +249,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
-	pendingTran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
 
@@ -258,8 +258,8 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	parserDSL := pendingTran.Body
-	if !parserDSL.Pending {
+	parserDSL := tran.Body
+	if !parserDSL.Pending && tran.Status.Code != constant.PENDING {
 		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 
 		libOpentelemetry.HandleSpanError(&span, "Transaction is not pending", err)
@@ -274,7 +274,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.PENDING)
+	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, constant.APPROVED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
 
@@ -335,29 +335,8 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 		Description: &description,
 	}
 
-	var parentTransactionID *string
-
-	if transactionID != uuid.Nil {
-		value := transactionID.String()
-		parentTransactionID = &value
-	}
-
-	tran := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
-		ParentTransactionID:      parentTransactionID,
-		OrganizationID:           organizationID.String(),
-		LedgerID:                 ledgerID.String(),
-		Description:              parserDSL.Description,
-		Status:                   status,
-		Amount:                   &parserDSL.Send.Value,
-		AssetCode:                parserDSL.Send.Asset,
-		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		Body:                     parserDSL,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
-		Route:                    parserDSL.Route,
-		Metadata:                 parserDSL.Metadata,
-	}
+	tran.Status = status
+	tran.UpdatedAt = time.Now()
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
