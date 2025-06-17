@@ -3,24 +3,23 @@ import { PluginManifestRepository } from '@/core/domain/repositories/plugin/plug
 import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { inject } from 'inversify'
 import { handleDatabaseError } from '../../utils/database-error-handler'
-import { MongoPluginMenuMapper } from '../mappers/mongo-plugin-menu-mapper'
-import PluginMenu from '../models/plugin-manifest'
-import { DBConfig } from '../mongo-config'
-import { NotFoundApiException } from '@/lib/http'
 import { NotFoundDatabaseException } from '../exceptions/database-exception'
+import { MongoPluginManifestMapper } from '../mappers/mongo-plugin-manifest-mapper'
+import PluginManifest from '../models/plugin-manifest'
+import { DBConfig } from '../mongo-config'
 
 export class MongoPluginManifestRepository
-  implements PluginManifestRepository<typeof PluginMenu>
+  implements PluginManifestRepository<typeof PluginManifest>
 {
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
     @inject(DBConfig)
-    private readonly mongoConfig: DBConfig<typeof PluginMenu>
+    private readonly mongoConfig: DBConfig<typeof PluginManifest>
   ) {}
 
-  public get model(): typeof PluginMenu {
-    return PluginMenu
+  public get model(): typeof PluginManifest {
+    return PluginManifest
   }
 
   async create(
@@ -28,7 +27,7 @@ export class MongoPluginManifestRepository
   ): Promise<PluginManifestEntity> {
     try {
       const result = await this.model.create(pluginMenu)
-      const pluginMenuEntity = MongoPluginMenuMapper.toEntity(result)
+      const pluginMenuEntity = MongoPluginManifestMapper.toEntity(result)
 
       return pluginMenuEntity
     } catch (error) {
@@ -42,24 +41,24 @@ export class MongoPluginManifestRepository
   }
 
   async update(
-    pluginMenuId: string,
-    pluginMenu: Partial<PluginManifestEntity>
+    pluginManifestId: string,
+    pluginManifest: Partial<PluginManifestEntity>
   ): Promise<PluginManifestEntity> {
     try {
-      const pluginMenuDocument = await this.model.findById(pluginMenuId)
+      const pluginManifestDocument = await this.model.findById(pluginManifestId)
 
-      if (!pluginMenuDocument) {
+      if (!pluginManifestDocument) {
         throw new NotFoundDatabaseException(
-          'Plugin menu not found',
-          'Plugin Menu'
+          'Plugin manifest not found',
+          'Plugin Manifest'
         )
       }
 
-      pluginMenuDocument.set({ ...pluginMenu })
+      pluginManifestDocument.set({ ...pluginManifest })
 
-      return pluginMenuDocument.save()
+      return pluginManifestDocument.save()
     } catch (error) {
-      this.logger.error('[ERROR] - Mongo.update', {
+      this.logger.error('[ERROR] - MongoPluginManifestRepository.update', {
         error,
         context: 'mongo'
       })
@@ -68,9 +67,9 @@ export class MongoPluginManifestRepository
     }
   }
 
-  async delete(pluginMenuId: string): Promise<void> {
+  async delete(pluginManifestId: string): Promise<void> {
     try {
-      await this.model.findByIdAndDelete(pluginMenuId)
+      await this.model.findByIdAndDelete(pluginManifestId)
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginManifestRepository.delete', {
         error,
@@ -82,16 +81,16 @@ export class MongoPluginManifestRepository
   }
 
   async fetchById(
-    pluginMenuId: string
+    pluginManifestId: string
   ): Promise<PluginManifestEntity | undefined> {
     try {
-      const pluginMenuDocument = await this.model.findById(pluginMenuId)
+      const pluginManifestDocument = await this.model.findById(pluginManifestId)
 
-      const pluginMenuEntity = pluginMenuDocument
-        ? MongoPluginMenuMapper.toEntity(pluginMenuDocument)
+      const pluginManifestEntity = pluginManifestDocument
+        ? MongoPluginManifestMapper.toEntity(pluginManifestDocument)
         : undefined
 
-      return pluginMenuEntity
+      return pluginManifestEntity
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginManifestRepository.fetchById', {
         error,
@@ -104,13 +103,13 @@ export class MongoPluginManifestRepository
 
   async fetchAll(): Promise<PluginManifestEntity[]> {
     try {
-      const pluginMenuDocuments = await this.model.find()
+      const pluginManifestDocuments = await this.model.find()
 
-      const pluginMenuEntities = pluginMenuDocuments.map(
-        MongoPluginMenuMapper.toEntity
+      const pluginManifestEntities = pluginManifestDocuments.map(
+        MongoPluginManifestMapper.toEntity
       )
 
-      return pluginMenuEntities
+      return pluginManifestEntities
     } catch (error) {
       this.logger.error('[ERROR] - MongoPluginManifestRepository.fetchAll', {
         error,
