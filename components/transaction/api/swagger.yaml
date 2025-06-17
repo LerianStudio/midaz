@@ -249,11 +249,6 @@ definitions:
           Additional custom attributes
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
-      pending:
-        description: |-
-          Whether the transaction should be created in pending state
-          swagger:ignore
-        type: boolean
       send:
         description: |-
           Send operation details including distribution only
@@ -368,9 +363,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -917,9 +915,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -1118,7 +1119,7 @@ definitions:
         type: string
       deletedAt:
         description: |-
-          Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
           example: null
           format: date-time
         example: "2021-01-01T00:00:00Z"

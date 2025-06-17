@@ -1918,11 +1918,6 @@ components:
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
           additionalProperties: {}
-        pending:
-          description: |-
-            Whether the transaction should be created in pending state
-            swagger:ignore
-          type: boolean
         send:
           description: |-
             Send operation details including distribution only
@@ -2038,8 +2033,11 @@ components:
         pending:
           description: |-
             Whether the transaction should be created in pending state
-            swagger:ignore
+            example: true
+            swagger: type boolean
           type: boolean
+          default: false
+          example: true
         send:
           description: |-
             Send operation details including source only
@@ -2572,8 +2570,11 @@ components:
         pending:
           description: |-
             Whether the transaction should be created in pending state
-            swagger:ignore
+            example: true
+            swagger: type boolean
           type: boolean
+          default: false
+          example: true
         send:
           description: |-
             Send operation details including source and distribution
@@ -2768,7 +2769,7 @@ components:
           example: '2021-01-01T00:00:00Z'
         deletedAt:
           description: |-
-            Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+            Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
             example: null
             format: date-time
           type: string

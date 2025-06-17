@@ -2441,10 +2441,6 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
-                },
                 "send": {
                     "description": "Send operation details including distribution only\nrequired: true",
                     "type": "object",
@@ -2537,8 +2533,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source only\nrequired: true",
@@ -3016,8 +3014,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source and distribution\nrequired: true",
@@ -3179,7 +3179,7 @@ const docTemplate = `{
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
+                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
