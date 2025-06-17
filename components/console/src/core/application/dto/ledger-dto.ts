@@ -1,5 +1,5 @@
-import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { MetadataDto } from './metadata-dto'
+import { AssetDto } from './asset-dto'
 
 export type CreateLedgerDto = {
   name: string
@@ -16,5 +16,5 @@ export type LedgerDto = {
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
-  assets?: AssetEntity[]
+  assets?: AssetDto[]
 }

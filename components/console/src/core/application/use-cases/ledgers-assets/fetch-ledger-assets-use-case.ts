@@ -49,8 +49,8 @@ export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
           await this.assetRepository.fetchAll(
             organizationId,
             ledger.id!,
-            limit,
-            page
+            100,
+            1
           )
 
         const ledgerAssets: LedgerDto = {
