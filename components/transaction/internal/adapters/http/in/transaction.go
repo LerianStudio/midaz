@@ -841,7 +841,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	defer span.End()
 
 	parserDSL := tran.Body
-	if !parserDSL.Pending && tran.Status.Code != constant.PENDING {
+
+	if tran.Status.Code != constant.PENDING {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 
 		libOpentelemetry.HandleSpanError(&span, "Transaction is not pending", err)
