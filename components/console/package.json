@@ -109,7 +109,6 @@
     "@semantic-release/release-notes-generator": "^14.0.3",
     "@storybook/addon-docs": "^9.1.0-alpha.1",
     "@storybook/addon-links": "^9.1.0-alpha.1",
-    "@storybook/addon-onboarding": "^9.1.0-alpha.1",
     "@storybook/addon-styling-webpack": "^1.0.1",
     "@storybook/nextjs": "^9.1.0-alpha.1",
     "@tailwindcss/postcss": "^4.1.8",
