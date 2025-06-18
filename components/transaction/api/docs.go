@@ -1975,6 +1975,98 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
+            "post": {
+                "description": "Cancel a previously created pre transaction",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Cancel a pre transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or transaction cannot be reverted",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
                 "description": "Commit a previously created transaction",
@@ -2024,23 +2116,45 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
-                        "schema": {}
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
                     },
                     "400": {
-                        "description": "Bad Request",
-                        "schema": {}
+                        "description": "Invalid request or transaction cannot be reverted",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "401": {
-                        "description": "Unauthorized",
-                        "schema": {}
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "404": {
-                        "description": "Not Found",
-                        "schema": {}
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "500": {
-                        "description": "Internal Server Error",
-                        "schema": {}
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -2251,7 +2365,7 @@ const docTemplate = `{
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
             "properties": {
-                "amount": {
+                "value": {
                     "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
                     "minimum": 0,
@@ -2441,10 +2555,6 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
-                },
                 "send": {
                     "description": "Send operation details including distribution only\nrequired: true",
                     "type": "object",
@@ -2537,8 +2647,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source only\nrequired: true",
@@ -2930,12 +3042,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "template": {
-                    "description": "Template used to create this transaction\nexample: Transaction template\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "Transaction template"
-                },
                 "updatedAt": {
                     "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
@@ -3016,8 +3122,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source and distribution\nrequired: true",
@@ -3179,7 +3287,7 @@ const docTemplate = `{
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
+                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"

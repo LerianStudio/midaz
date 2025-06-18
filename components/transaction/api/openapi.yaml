@@ -1505,6 +1505,85 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
+    post:
+      description: Cancel a previously created pre transaction
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request or transaction cannot be reverted
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction already has a parent transaction
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Cancel a pre transaction
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       description: Commit a previously created transaction
@@ -1543,32 +1622,44 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/Transaction'
           description: Created
         "400":
           content:
             application/json:
               schema:
-                type: object
-          description: Bad Request
+                $ref: '#/components/schemas/Error'
+          description: Invalid request or transaction cannot be reverted
         "401":
           content:
             application/json:
               schema:
-                type: object
-          description: Unauthorized
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
         "404":
           content:
             application/json:
               schema:
-                type: object
-          description: Not Found
+                $ref: '#/components/schemas/Error'
+          description: Transaction not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction already has a parent transaction
         "500":
           content:
             application/json:
               schema:
-                type: object
-          description: Internal Server Error
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
       summary: Commit a Transaction
       tags:
       - Transactions
@@ -1744,7 +1835,7 @@ components:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
       properties:
-        amount:
+        value:
           description: |-
             The amount value in the smallest unit of the asset (e.g., cents)
             example: 1500
@@ -1995,7 +2086,6 @@ components:
         metadata:
           key: '{}'
         code: code
-        pending: true
         description: description
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
@@ -2048,11 +2138,6 @@ components:
             Additional custom attributes
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
-        pending:
-          description: |-
-            Whether the transaction should be created in pending state
-            swagger:ignore
-          type: boolean
         send:
           $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
       type: object
@@ -2114,9 +2199,12 @@ components:
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
         pending:
+          default: false
           description: |-
             Whether the transaction should be created in pending state
-            swagger:ignore
+            example: true
+            swagger: type boolean
+          example: true
           type: boolean
         send:
           $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
@@ -2400,7 +2488,6 @@ components:
         balances, including details about the transaction's status, amounts, and related
         operations.
       example:
-        template: Transaction template
         amount: 1500.0
         metadata:
           key: '{}'
@@ -2589,14 +2676,6 @@ components:
           - $ref: '#/components/schemas/Status'
           description: Transaction status information
           type: object
-        template:
-          description: |-
-            Template used to create this transaction
-            example: Transaction template
-            maxLength: 100
-          example: Transaction template
-          maxLength: 100
-          type: string
         updatedAt:
           description: |-
             Timestamp when the transaction was last updated
@@ -2707,9 +2786,12 @@ components:
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
         pending:
+          default: false
           description: |-
             Whether the transaction should be created in pending state
-            swagger:ignore
+            example: true
+            swagger: type boolean
+          example: true
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
@@ -2802,7 +2884,7 @@ components:
           type: string
         deletedAt:
           description: |-
-            Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+            Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
             example: null
             format: date-time
           example: 2021-01-01T00:00:00Z
@@ -3059,8 +3141,7 @@ components:
         limit: 0
         page: '{}'
         items:
-        - template: Transaction template
-          amount: 1500.0
+        - amount: 1500.0
           metadata:
             key: '{}'
           assetCode: BRL
@@ -3122,8 +3203,7 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - template: Transaction template
-          amount: 1500.0
+        - amount: 1500.0
           metadata:
             key: '{}'
           assetCode: BRL
