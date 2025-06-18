@@ -1,3 +1,4 @@
+// 🔧 trigger:frontend-ruleset-validation
 import path from 'path'
 import readYamlFile from 'read-yaml-file'
 import type {
