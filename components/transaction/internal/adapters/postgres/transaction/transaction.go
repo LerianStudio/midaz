@@ -18,22 +18,22 @@ import (
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string                     // Unique identifier (UUID format)
-	ParentTransactionID      *string                    // Parent transaction ID (for reversals or child transactions)
-	Description              string                     // Human-readable description
-	Status                   string                     // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription        *string                    // Status description
-	Amount                   *decimal.Decimal           // Transaction amount value
-	AssetCode                string                     // Asset code for the transaction
-	ChartOfAccountsGroupName string                     // Chart of accounts group name for accounting
-	LedgerID                 string                     // Ledger ID
-	OrganizationID           string                     // Organization ID
-	Body                     libTransaction.Transaction // Transaction body containing detailed operation data
-	CreatedAt                time.Time                  // Creation timestamp
-	UpdatedAt                time.Time                  // Last update timestamp
-	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
-	Route                    *string                    // Route
-	Metadata                 map[string]any             // Additional custom attributes
+	ID                       string                      // Unique identifier (UUID format)
+	ParentTransactionID      *string                     // Parent transaction ID (for reversals or child transactions)
+	Description              string                      // Human-readable description
+	Status                   string                      // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                     // Status description
+	Amount                   *decimal.Decimal            // Transaction amount value
+	AssetCode                string                      // Asset code for the transaction
+	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
+	LedgerID                 string                      // Ledger ID
+	OrganizationID           string                      // Organization ID
+	Body                     *libTransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                   // Creation timestamp
+	UpdatedAt                time.Time                   // Last update timestamp
+	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
+	Route                    *string                     // Route
+	Metadata                 map[string]any              // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -418,9 +418,12 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
-		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
+	}
+
+	if t.Body != nil && !t.Body.IsEmpty() {
+		transaction.Body = *t.Body
 	}
 
 	if t.Route != nil {
@@ -453,9 +456,12 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
-		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
+	}
+
+	if !transaction.Body.IsEmpty() {
+		t.Body = &transaction.Body
 	}
 
 	if !libCommons.IsNilOrEmpty(&transaction.Route) {

@@ -766,7 +766,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		Body:                     libTransaction.Transaction{},
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,
@@ -966,7 +965,6 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		}
 	}
 
-	tran.Body = libTransaction.Transaction{}
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
