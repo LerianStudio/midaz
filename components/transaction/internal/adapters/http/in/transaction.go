@@ -380,6 +380,16 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	if tran.Status.Code != constant.APPROVED {
+		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanError(&span, "Transaction CantRevert Transaction", err)
+
+		logger.Errorf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err)
+
+		return http.WithError(c, err)
+	}
+
 	transactionReverted := tran.TransactionRevert()
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
