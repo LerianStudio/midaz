@@ -15,7 +15,7 @@ ALTER TABLE transaction
     ADD COLUMN IF NOT EXISTS route TEXT NULL;
 
 ALTER TABLE transaction 
-    ALTER COLUMN IF EXISTS body DROP NOT NULL;
+    ALTER COLUMN body DROP NOT NULL;
 
 UPDATE transaction
     SET body = NULL;
