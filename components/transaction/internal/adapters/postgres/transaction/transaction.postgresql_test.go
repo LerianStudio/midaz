@@ -33,7 +33,6 @@ or containerized PostgreSQL database.
 
 // Compile-time interface check
 var (
-	_ Repository = (*mockRepository)(nil)
 	_ Repository = (*TransactionPostgreSQLRepository)(nil)
 )
 

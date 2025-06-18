@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	constant "github.com/LerianStudio/lib-commons/commons/constants"
 	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/shopspring/decimal"
 	"time"
@@ -492,43 +493,60 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 // TransactionRevert is a func that revert transaction
 func (t Transaction) TransactionRevert() libTransaction.Transaction {
 	froms := make([]libTransaction.FromTo, 0)
-
-	for _, to := range t.Body.Send.Distribute.To {
-		to.IsFrom = true
-		froms = append(froms, to)
-	}
-
-	newSource := libTransaction.Source{
-		From:      froms,
-		Remaining: t.Body.Send.Distribute.Remaining,
-	}
-
 	tos := make([]libTransaction.FromTo, 0)
 
-	for _, from := range t.Body.Send.Source.From {
-		from.IsFrom = false
-		tos = append(tos, from)
-	}
+	for _, op := range t.Operations {
+		switch op.Type {
+		case constant.CREDIT:
+			from := libTransaction.FromTo{
+				IsFrom:       true,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
 
-	newDistribute := libTransaction.Distribute{
-		To:        tos,
-		Remaining: t.Body.Send.Source.Remaining,
+			froms = append(froms, from)
+		case constant.DEBIT:
+			to := libTransaction.FromTo{
+				IsFrom:       false,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
+
+			tos = append(tos, to)
+		}
 	}
 
 	send := libTransaction.Send{
-		Asset:      t.Body.Send.Asset,
-		Value:      t.Body.Send.Value,
-		Source:     newSource,
-		Distribute: newDistribute,
+		Asset: t.AssetCode,
+		Value: *t.Amount,
+		Source: libTransaction.Source{
+			From: froms,
+		},
+		Distribute: libTransaction.Distribute{
+			To: tos,
+		},
 	}
 
 	transaction := libTransaction.Transaction{
-		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
-		Description:              t.Body.Description,
-		Code:                     t.Body.Code,
-		Pending:                  t.Body.Pending,
-		Metadata:                 t.Body.Metadata,
-		Route:                    t.Body.Route,
+		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
+		Description:              t.Description,
+		Pending:                  false,
+		Metadata:                 t.Metadata,
+		Route:                    t.Route,
 		Send:                     send,
 	}
 

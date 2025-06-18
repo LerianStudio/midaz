@@ -361,7 +361,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
 
@@ -756,7 +756,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		Body:                     parserDSL,
+		Body:                     libTransaction.Transaction{},
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,
@@ -956,6 +956,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		}
 	}
 
+	tran.Body = libTransaction.Transaction{}
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations

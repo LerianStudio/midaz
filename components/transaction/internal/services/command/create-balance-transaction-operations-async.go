@@ -109,9 +109,9 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
-	tran.Body = *t.ParseDSL
 
-	if tran.Status.Code == constant.CREATED {
+	switch tran.Status.Code {
+	case constant.CREATED:
 		description := constant.APPROVED
 		status := transaction.Status{
 			Code:        description,
@@ -119,6 +119,8 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		}
 
 		tran.Status = status
+	case constant.PENDING:
+		tran.Body = *t.ParseDSL
 	}
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)
