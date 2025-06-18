@@ -5,11 +5,6 @@ import { PageHeader } from '@/components/page-header'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
 import ConfirmationDialog from '@/components/confirmation-dialog'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  useReactTable
-} from '@tanstack/react-table'
 import { LedgersDataTable } from './ledgers-data-table'
 import { LedgersSheet } from './ledgers-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
@@ -27,7 +22,6 @@ const Page = () => {
   const [total, setTotal] = React.useState(0)
   const { currentOrganization, currentLedger, setLedger } = useOrganization()
   const { toast } = useToast()
-  const [columnFilters, setColumnFilters] = React.useState<any>([])
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
   })
@@ -93,39 +87,8 @@ const Page = () => {
     }
   })
 
-  const table = useReactTable({
-    data: ledgers?.items!,
-    columns: [
-      { accessorKey: 'id' },
-      { accessorKey: 'name' },
-      { accessorKey: 'assets' },
-      { accessorKey: 'metadata' },
-      { accessorKey: 'status' },
-      { accessorKey: 'actions' }
-    ],
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    state: {
-      columnFilters
-    }
-  })
-
-  const breadcrumbPaths = getBreadcrumbPaths([
-    {
-      name: currentOrganization.legalName
-    },
-    {
-      name: intl.formatMessage({
-        id: `ledgers.title`,
-        defaultMessage: 'Ledgers'
-      })
-    }
-  ])
-
   const ledgersProps = {
     ledgers,
-    table,
     handleDialogOpen,
     handleCreate,
     handleEdit,
@@ -137,7 +100,19 @@ const Page = () => {
 
   return (
     <React.Fragment>
-      <Breadcrumb paths={breadcrumbPaths} />
+      <Breadcrumb
+        paths={getBreadcrumbPaths([
+          {
+            name: currentOrganization.legalName
+          },
+          {
+            name: intl.formatMessage({
+              id: `ledgers.title`,
+              defaultMessage: 'Ledgers'
+            })
+          }
+        ])}
+      />
 
       <PageHeader.Root>
         <PageHeader.Wrapper>

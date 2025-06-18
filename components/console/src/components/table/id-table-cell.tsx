@@ -1,4 +1,8 @@
-import { TableCell } from '@/components/ui/table'
+import {
+  TableCell,
+  TableCellAction,
+  TableCellWrapper
+} from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
@@ -7,6 +11,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
 import { truncate } from 'lodash'
+import { Copy } from 'lucide-react'
 import { useIntl } from 'react-intl'
 
 export type IdTableCellProps = {
@@ -28,28 +33,18 @@ export const IdTableCell = ({ id }: IdTableCellProps) => {
   }
 
   return (
-    <TableCell>
-      <TooltipProvider>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger onClick={handleCopyToClipboard}>
-            <p className="text-shadcn-600 underline">
-              {truncate(id, { length: 16 })}
-            </p>
-          </TooltipTrigger>
-          <TooltipContent
-            className="bg-shadcn-600 border-none"
-            arrowPadding={0}
-          >
-            <p className="text-shadcn-400">{id}</p>
-            <p className="text-center text-white">
-              {intl.formatMessage({
-                id: 'ledgers.columnsTable.tooltipCopyText',
-                defaultMessage: 'Click to copy'
-              })}
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+    <TableCell onClick={handleCopyToClipboard}>
+      <TableCellWrapper>
+        <TooltipProvider>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger>{truncate(id, { length: 16 })}</TooltipTrigger>
+            <TooltipContent>{id}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TableCellAction>
+          <Copy className="size-3.5" />
+        </TableCellAction>
+      </TableCellWrapper>
     </TableCell>
   )
 }
