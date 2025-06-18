@@ -11,7 +11,7 @@ import {
   LibraryBig
 } from 'lucide-react'
 
-import * as LuIcons from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
 import { OrganizationSwitcher } from '../organization-switcher'
 import { useIntl } from 'react-intl'
 import {
@@ -26,7 +26,7 @@ import {
 } from './primitive'
 import { Separator } from '../ui/separator'
 import { useOrganization } from '@/providers/organization-provider'
-import { usePluginMenus } from '@/client/plugin-menu'
+import { useGetPluginMenus } from '@/client/plugin-menu'
 import { PluginManifestDto } from '@/core/application/dto/plugin-manifest-dto'
 
 export const Sidebar = () => {
@@ -34,7 +34,7 @@ export const Sidebar = () => {
   const { isCollapsed } = useSidebar()
   const [isMobileWidth, setIsMobileWidth] = React.useState(false)
   const { currentLedger } = useOrganization()
-  const { data } = usePluginMenus()
+  const { data } = useGetPluginMenus()
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -141,10 +141,14 @@ export const Sidebar = () => {
               Plugins
             </SidebarGroupTitle>
             {data.map((plugin: PluginManifestDto) => {
+              if (!plugin.enabled) {
+                return
+              }
+
               const Icon =
-                (LuIcons as unknown as Record<string, React.ElementType>)[
+                (LucideIcons as unknown as Record<string, React.ElementType>)[
                   plugin.icon
-                ] || LuIcons.Landmark
+                ] || LucideIcons.Landmark
               return (
                 <SidebarItem
                   key={plugin.name}
