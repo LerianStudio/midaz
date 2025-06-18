@@ -9,7 +9,8 @@ import { container } from '@/core/infrastructure/container-registry/container-re
  */
 export function getController(controller: any, method: (c: any) => any) {
   return async (...args: any) => {
-    const controllerInstance: typeof controller = container.get(controller)
+    const controllerInstance: typeof controller =
+      await container.getAsync(controller)
 
     return method(controllerInstance).bind(controllerInstance)(...args)
   }

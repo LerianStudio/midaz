@@ -9,7 +9,9 @@ import mongoose, { MongooseError } from 'mongoose'
 import { IntlShape } from 'react-intl'
 import {
   DatabaseException,
+  DuplicatedKeyError,
   InvalidObjectDatabaseException,
+  NotFoundDatabaseException,
   ValidationFailedDatabaseException
 } from '../mongo/exceptions/database-exception'
 
@@ -24,8 +26,15 @@ export async function handleDatabaseError(error: unknown): Promise<void> {
   const intl = await getIntl()
 
   if (error instanceof mongoose.Error) {
-    const mapped = mapMongooseError(error, intl)
-    throw mapped
+    throw mapMongooseError(error, intl)
+  }
+
+  if (error!.constructor.name === 'MongoServerError') {
+    throw mapMongoServerError(error as MongoServerError, intl)
+  }
+
+  if (error instanceof DatabaseException) {
+    throw mapDatabaseException(error, intl)
   }
 
   throw unexpectedDatabaseError(intl)
@@ -54,6 +63,60 @@ function mapMongooseError(
 
     default:
       return unexpectedDatabaseError(intl)
+  }
+}
+
+/**
+ * Maps database-specific errors to domain-specific exceptions
+ * @param error - The database error to map
+ * @param intl - Internationalization service for localized error messages
+ * @returns A domain-specific database exception
+ * @private
+ * @description Routes different types of database errors to their specific handlers
+ */
+function mapDatabaseException(
+  error: DatabaseException,
+  intl: IntlShape
+): DatabaseException {
+  if (error instanceof NotFoundDatabaseException) {
+    const message = intl.formatMessage(
+      {
+        id: 'error.database.notFound',
+        defaultMessage: 'Not found'
+      },
+      {
+        entity: error.entity
+      }
+    )
+
+    return new NotFoundDatabaseException(message, error.entity)
+  }
+
+  return unexpectedDatabaseError(intl)
+}
+
+/**
+ * Maps MongoDB-specific errors to domain-specific exceptions
+ * @param error - The MongoDB error to map
+ * @param intl - Internationalization service for localized error messages
+ * @returns A domain-specific database exception
+ * @private
+ * @description Routes different types of MongoDB errors to their specific handlers
+ */
+function mapMongoServerError(
+  error: MongoServerError,
+  intl: IntlShape
+): DatabaseException {
+  switch (error.code) {
+    case 11000:
+      return new DuplicatedKeyError(
+        intl.formatMessage({
+          id: 'error.database.duplicatedMenu',
+          defaultMessage: 'Menu already registered'
+        })
+      )
+    default:
+      throw unexpectedDatabaseError(intl)
   }
 }
 

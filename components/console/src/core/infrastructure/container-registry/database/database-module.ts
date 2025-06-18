@@ -4,6 +4,8 @@ import { DBConfig, MongoConfig } from '../../mongo/mongo-config'
 import { Container, ContainerModule } from '../../utils/di/container'
 import { MongoOrganizationAvatarRepository } from '../../mongo/repositories/mongo-organization-avatar-repository'
 import { ResolutionContext } from 'inversify'
+import { PluginManifestRepository } from '@/core/domain/repositories/plugin/plugin-manifest-repository'
+import { MongoPluginManifestRepository } from '../../mongo/repositories/mongo-plugin-manifest-repository'
 
 export const DatabaseModule = new ContainerModule((container: Container) => {
   container
@@ -24,5 +26,8 @@ export const DatabaseModule = new ContainerModule((container: Container) => {
     .inSingletonScope()
   container
     .bind<OrganizationAvatarRepository>(OrganizationAvatarRepository)
-    .to(MongoOrganizationAvatarRepository)
+    .to(MongoOrganizationAvatarRepository),
+    container
+      .bind<PluginManifestRepository>(PluginManifestRepository)
+      .to(MongoPluginManifestRepository)
 })

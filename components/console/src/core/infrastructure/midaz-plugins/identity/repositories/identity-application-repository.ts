@@ -4,6 +4,7 @@ import { inject, injectable } from 'inversify'
 import { IdentityApplicationDto } from '../dto/identity-application-dto'
 import { IdentityApplicationMapper } from '../mappers/identity-application-mapper'
 import { IdentityHttpService } from '../services/identity-http-service'
+import { HttpService } from '@/lib/http'
 
 @injectable()
 export class IdentityApplicationRepository implements ApplicationRepository {
@@ -11,7 +12,7 @@ export class IdentityApplicationRepository implements ApplicationRepository {
 
   constructor(
     @inject(IdentityHttpService)
-    private readonly httpService: IdentityHttpService
+    private readonly httpService: HttpService
   ) {}
 
   async fetchAll(): Promise<ApplicationEntity[]> {

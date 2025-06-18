@@ -64,7 +64,7 @@ export class MongoOrganizationAvatarRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -90,7 +90,7 @@ export class MongoOrganizationAvatarRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -111,7 +111,7 @@ export class MongoOrganizationAvatarRepository
         context: 'mongo'
       })
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -145,7 +145,7 @@ export class MongoOrganizationAvatarRepository
         }
       )
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 
@@ -175,7 +175,7 @@ export class MongoOrganizationAvatarRepository
         }
       )
 
-      throw handleDatabaseError(error)
+      throw await handleDatabaseError(error)
     }
   }
 }

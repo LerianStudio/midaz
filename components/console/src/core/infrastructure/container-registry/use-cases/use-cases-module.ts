@@ -8,6 +8,8 @@ import { GroupUseCaseModule } from './group-module'
 import { LedgerUseCaseModule } from './ledger-module'
 import { OnboardingUseCaseModule } from './onboarding-module'
 import { OrganizationUseCaseModule } from './organization-module'
+import { PluginManifestModule } from './plugin-manifest-module'
+import { PluginMenuModule } from './plugin-menu-module'
 import { PortfolioUseCaseModule } from './portfolios-module'
 import { SegmentUseCaseModule } from './segment-module'
 import { TransactionUseCaseModule } from './transactions-module'
@@ -27,4 +29,6 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(TransactionUseCaseModule)
   container.load(GroupUseCaseModule)
   container.load(ApplicationModule)
+  container.load(PluginMenuModule)
+  container.load(PluginManifestModule)
 })
