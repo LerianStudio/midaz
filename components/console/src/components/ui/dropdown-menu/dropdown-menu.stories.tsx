@@ -4,7 +4,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuItemIcon,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuSeparator,
@@ -14,22 +13,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '.'
-import {
-  Cloud,
-  CreditCard,
-  Github,
-  Keyboard,
-  LifeBuoy,
-  LogOut,
-  Mail,
-  MessageSquare,
-  Plus,
-  PlusCircle,
-  Settings,
-  User,
-  UserPlus,
-  Users
-} from 'lucide-react'
 import { Button } from '../button'
 import { DropdownMenuProps } from '@radix-ui/react-dropdown-menu'
 
@@ -48,128 +31,52 @@ export const Primary: Story = {
       <DropdownMenuTrigger asChild>
         <Button variant="outline">Open</Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
+      <DropdownMenuContent className="w-56" align="start">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <User />
-            </DropdownMenuItemIcon>
-            <span>Profile</span>
+            Profile
             <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
           </DropdownMenuItem>
-
           <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <CreditCard />
-            </DropdownMenuItemIcon>
-            <span>Billing</span>
+            Billing
             <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
           </DropdownMenuItem>
-
           <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <Settings />
-            </DropdownMenuItemIcon>
-            <span>Settings</span>
+            Settings
             <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
           </DropdownMenuItem>
-
           <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <Keyboard />
-            </DropdownMenuItemIcon>
-            <span>Keyboard shortcuts</span>
+            Keyboard shortcuts
             <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-
         <DropdownMenuSeparator />
-
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <Users />
-            </DropdownMenuItemIcon>
-            <span>Team</span>
-          </DropdownMenuItem>
-
+          <DropdownMenuItem>Team</DropdownMenuItem>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <DropdownMenuItemIcon>
-                <UserPlus />
-              </DropdownMenuItemIcon>
-              <span>Invite users</span>
-            </DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
-                <DropdownMenuItem>
-                  <DropdownMenuItemIcon>
-                    <Mail />
-                  </DropdownMenuItemIcon>
-                  <span>Email</span>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem>
-                  <DropdownMenuItemIcon>
-                    <MessageSquare />
-                  </DropdownMenuItemIcon>
-                  <span>Message</span>
-                </DropdownMenuItem>
-
+                <DropdownMenuItem>Email</DropdownMenuItem>
+                <DropdownMenuItem>Message</DropdownMenuItem>
                 <DropdownMenuSeparator />
-
-                <DropdownMenuItem>
-                  <DropdownMenuItemIcon>
-                    <PlusCircle />
-                  </DropdownMenuItemIcon>
-                  <span>More...</span>
-                </DropdownMenuItem>
+                <DropdownMenuItem>More...</DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>
-
           <DropdownMenuItem>
-            <DropdownMenuItemIcon>
-              <Plus />
-            </DropdownMenuItemIcon>
-            <span>New Team</span>
+            New Team
             <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-
         <DropdownMenuSeparator />
-
-        <DropdownMenuItem>
-          <DropdownMenuItemIcon>
-            <Github />
-          </DropdownMenuItemIcon>
-          <span>GitHub</span>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem>
-          <DropdownMenuItemIcon>
-            <LifeBuoy />
-          </DropdownMenuItemIcon>
-          <span>Support</span>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem disabled>
-          <DropdownMenuItemIcon>
-            <Cloud />
-          </DropdownMenuItemIcon>
-          <span>API</span>
-        </DropdownMenuItem>
-
+        <DropdownMenuItem>GitHub</DropdownMenuItem>
+        <DropdownMenuItem>Support</DropdownMenuItem>
+        <DropdownMenuItem disabled>API</DropdownMenuItem>
         <DropdownMenuSeparator />
-
         <DropdownMenuItem>
-          <DropdownMenuItemIcon>
-            <LogOut />
-          </DropdownMenuItemIcon>
-          <span>Log out</span>
+          Log out
           <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>

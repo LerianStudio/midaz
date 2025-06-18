@@ -866,6 +866,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Alias",
 			Message:    "The alias contains invalid characters. Please verify the alias value and try again.",
 		},
+		constant.ErrOnHoldExternalAccount: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOnHoldExternalAccount.Error(),
+			Title:      "Invalid Pending Transaction",
+			Message:    "External accounts cannot be used for pending transactions in source operations. Please check the accounts and try again.",
+		},
+		constant.ErrCommitTransactionNotPending: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCommitTransactionNotPending.Error(),
+			Title:      "Invalid Transaction Status",
+			Message:    "The transaction status does not allow the requested action. Please check the transaction status.",
+		},
 		constant.ErrOverFlowInt64: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrOverFlowInt64.Error(),

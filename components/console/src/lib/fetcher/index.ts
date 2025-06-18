@@ -5,6 +5,7 @@ import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-
 import { signOut } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { createQueryString } from '../search'
+import { AuthApiException } from '@/core/infrastructure/midaz-plugins/auth/exceptions/auth-exceptions'
 
 export const getFetcher = (url: string) => {
   return async () => {
@@ -80,6 +81,9 @@ export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
     // Only log errors when not in test environment
     if (process.env.NODE_ENV !== 'test') {
       console.error('Server Fetcher Error', error)
+    }
+    if (error instanceof AuthApiException) {
+      redirect('/signout')
     }
     if (error instanceof MidazApiException && error.code === '0042') {
       redirect('/signout')

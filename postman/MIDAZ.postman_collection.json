@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "764d4659-03f6-4732-8973-75951f56a21e",
+      "_postman_id": "e906d10e-df42-4066-aed4-400ee081c6e6",
       "event": []
     },
     {
@@ -13731,6 +13731,129 @@
                 }
               }
             }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel a pre transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{transactionUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel",
+              "host": [
+                "{{transactionUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "transactions",
+                "{{transactionId}}",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "{{transactionId}}",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Cancel a previously created pre transaction"
           },
           "response": [],
           "event": [

@@ -9,7 +9,6 @@ const config: StorybookConfig = {
   staticDirs: ['../public'],
 
   addons: [
-    '@storybook/addon-onboarding',
     '@storybook/addon-links',
     '@chromatic-com/storybook',
     '@storybook/addon-styling-webpack',

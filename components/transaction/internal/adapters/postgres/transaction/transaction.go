@@ -20,7 +20,6 @@ type TransactionPostgreSQLModel struct {
 	ID                       string                     // Unique identifier (UUID format)
 	ParentTransactionID      *string                    // Parent transaction ID (for reversals or child transactions)
 	Description              string                     // Human-readable description
-	Template                 string                     // Template used to create this transaction
 	Status                   string                     // Status code (e.g., "ACTIVE", "PENDING")
 	StatusDescription        *string                    // Status description
 	Amount                   *decimal.Decimal           // Transaction amount value
@@ -78,8 +77,9 @@ type CreateTransactionInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -171,8 +171,9 @@ type CreateTransactionSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -326,11 +327,6 @@ type Transaction struct {
 	// maxLength: 256
 	Description string `json:"description" example:"Transaction description" maxLength:"256"`
 
-	// Template used to create this transaction
-	// example: Transaction template
-	// maxLength: 100
-	Template string `json:"template" example:"Transaction template" maxLength:"100"`
-
 	// Transaction status information
 	Status Status `json:"status"`
 
@@ -415,7 +411,6 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
 		Description:              t.Description,
-		Template:                 t.Template,
 		Status:                   status,
 		Amount:                   t.Amount,
 		AssetCode:                t.AssetCode,
@@ -450,7 +445,6 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
-		Template:                 transaction.Template,
 		Status:                   transaction.Status.Code,
 		StatusDescription:        transaction.Status.Description,
 		Amount:                   transaction.Amount,
@@ -603,10 +597,6 @@ type CreateTransactionInflowInput struct {
 	// maxLength: 100
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
-	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
-
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
@@ -687,10 +677,6 @@ type CreateTransactionInflowSwaggerModel struct {
 	// example: TR12345
 	// maxLength: 100
 	Code string `json:"code,omitempty"`
-
-	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -779,7 +765,6 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
-		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
 		Route:                    c.Route,
 		Send: libTransaction.Send{
@@ -814,8 +799,9 @@ type CreateTransactionOutflowInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -898,8 +884,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}

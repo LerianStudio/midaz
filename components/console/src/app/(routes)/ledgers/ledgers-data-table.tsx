@@ -11,14 +11,7 @@ import {
 } from '@/components/ui/table'
 import { EmptyResource } from '@/components/empty-resource'
 import { Button } from '@/components/ui/button'
-import { MoreVertical, HelpCircle } from 'lucide-react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip'
-import { Arrow } from '@radix-ui/react-tooltip'
+import { MoreVertical, RefreshCw, Check } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,28 +23,31 @@ import { isNil } from 'lodash'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
-import { Table as ReactTableType } from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  useReactTable
+} from '@tanstack/react-table'
 import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { AssetsSheet } from '../assets/assets-sheet'
 import { IdTableCell } from '@/components/table/id-table-cell'
-
-type LedgersTableProps = {
-  ledgers: PaginationDto<LedgerDto> | undefined
-  table: ReactTableType<LedgerDto>
-  handleDialogOpen: (id: string, name: string) => void
-  handleCreate: () => void
-  handleEdit: (ledger: LedgerDto) => void
-  refetch: () => void
-  form: UseFormReturn<any>
-  total: number
-  pagination: PaginationProps
-}
+import { useOrganization } from '@/providers/organization-provider'
+import { cn } from '@/lib/utils'
+import { AssetTableCell } from './asset-table-cell'
+import { NameTableCell } from '@/components/table/name-table-cell'
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent
+} from '@/components/ui/tooltip'
 
 type LedgerRowProps = {
   ledger: { id: string; original: LedgerDto }
+  active?: boolean
   handleDialogOpen: (id: string, name: string) => void
   handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
@@ -59,88 +55,69 @@ type LedgerRowProps = {
 
 const LedgerRow: React.FC<LedgerRowProps> = ({
   ledger,
+  active,
   handleDialogOpen,
   handleEdit,
   refetch
 }) => {
   const intl = useIntl()
-  const metadataCount = Object.entries(ledger.original.metadata || []).length
-  const assetsItems = ledger.original.assets || []
+  const { setLedger } = useOrganization()
   const { handleCreate, sheetProps } = useCreateUpdateSheet<any>()
-
-  const renderAssets = () => {
-    if (assetsItems.length === 1) {
-      return <p>{assetsItems[0].code}</p>
-    }
-
-    if (assetsItems.length > 1) {
-      return (
-        <div className="flex items-center gap-1">
-          <p>
-            {intl.formatMessage(
-              {
-                id: 'ledgers.assets.count',
-                defaultMessage: '{count} assets'
-              },
-              { count: assetsItems.length }
-            )}
-          </p>
-          <TooltipProvider>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild className="flex self-end">
-                <span className="cursor-pointer">
-                  <HelpCircle size={16} />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80">
-                <p className="text-shadcn-400">
-                  {assetsItems.map((asset) => asset.code).join(', ')}
-                </p>
-                <Arrow height={8} width={15} />
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      )
-    }
-
-    return (
-      <Button
-        variant="link"
-        className="h-fit px-0 py-0"
-        onClick={(e) => {
-          e.stopPropagation()
-          handleCreate()
-        }}
-      >
-        <p className="text-shadcn-600 underline">
-          {intl.formatMessage({
-            id: 'common.add',
-            defaultMessage: 'Add'
-          })}
-        </p>
-      </Button>
-    )
-  }
 
   return (
     <React.Fragment>
-      <TableRow key={ledger.id}>
-        <TableCell>{ledger.original.name}</TableCell>
-        <IdTableCell id={ledger.original.id} />
-        <TableCell>{renderAssets()}</TableCell>
+      <TableRow key={ledger.id} active={active}>
         <TableCell>
-          {intl.formatMessage(
-            {
-              id: 'common.table.metadata',
-              defaultMessage:
-                '{number, plural, =0 {-} one {# record} other {# records}}'
-            },
-            {
-              number: metadataCount
-            }
+          {active && (
+            <div className="flex size-8 items-center justify-center">
+              <Check className="text-shadcn-500 size-4" />
+            </div>
+          )}
+          {!active && (
+            <TooltipProvider>
+              <Tooltip delayDuration={500}>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="size-8 p-0"
+                    variant="outline"
+                    onClick={() => setLedger(ledger.original)}
+                  >
+                    <RefreshCw className="size-3 shrink-0" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {intl.formatMessage({
+                    id: `ledgers.useLedger`,
+                    defaultMessage: 'Switch to this ledger'
+                  })}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </TableCell>
+        <NameTableCell
+          className={cn({ 'font-semibold text-neutral-700': active })}
+          name={
+            active
+              ? intl.formatMessage(
+                  {
+                    id: 'ledgers.current.name',
+                    defaultMessage: '{name} <b>(current)</b>'
+                  },
+                  {
+                    name: ledger.original.name,
+                    b: (chunks) => <i>{chunks}</i>
+                  }
+                )
+              : ledger.original.name
+          }
+          onClick={() => handleEdit(ledger.original)}
+        />
+        <IdTableCell id={ledger.original.id} />
+        <AssetTableCell
+          assets={ledger.original.assets || []}
+          onCreate={handleCreate}
+        />
         <TableCell className="w-0">
           <div className="flex justify-end">
             <DropdownMenu>
@@ -161,14 +138,24 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
                   })}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {!active && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => setLedger(ledger.original)}
+                    >
+                      {intl.formatMessage({
+                        id: `ledgers.useLedger`,
+                        defaultMessage: 'Switch to this ledger'
+                      })}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   data-testid="delete"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleDialogOpen(
-                      ledger.original.id || '',
-                      ledger.original.name || ''
-                    )
+                    handleDialogOpen(ledger.original.id!, ledger.original.name!)
                   }}
                 >
                   {intl.formatMessage({
@@ -191,12 +178,23 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
   )
 }
 
+type LedgersTableProps = {
+  ledgers: PaginationDto<LedgerDto> | undefined
+  handleDialogOpen: (id: string, name: string) => void
+  handleCreate: () => void
+  handleEdit: (ledger: LedgerDto) => void
+  refetch: () => void
+  form: UseFormReturn<any>
+  total: number
+  pagination: PaginationProps
+}
+
 export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
   const intl = useIntl()
+  const { currentLedger } = useOrganization()
 
   const {
     ledgers,
-    table,
     handleDialogOpen,
     handleCreate,
     handleEdit,
@@ -205,6 +203,25 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     pagination,
     total
   } = props
+
+  // Filter out the current ledger from the list of ledgers
+  const items = React.useMemo(
+    () =>
+      ledgers?.items?.filter((ledger) => ledger.id !== currentLedger.id) ?? [],
+    [ledgers?.items, currentLedger.id]
+  )
+
+  const table = useReactTable({
+    data: items,
+    columns: [
+      { accessorKey: 'name' },
+      { accessorKey: 'id' },
+      { accessorKey: 'assets' },
+      { accessorKey: 'actions' }
+    ],
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel()
+  })
 
   return (
     <FormProvider {...form}>
@@ -232,6 +249,7 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-0" />
                   <TableHead>
                     {intl.formatMessage({
                       id: 'entity.ledger.name',
@@ -250,12 +268,6 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                       defaultMessage: 'Assets'
                     })}
                   </TableHead>
-                  <TableHead>
-                    {intl.formatMessage({
-                      id: 'common.metadata',
-                      defaultMessage: 'Metadata'
-                    })}
-                  </TableHead>
                   <TableHead className="w-0">
                     {intl.formatMessage({
                       id: 'common.actions',
@@ -265,6 +277,15 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {currentLedger && (
+                  <LedgerRow
+                    active
+                    ledger={{ id: '1', original: currentLedger }}
+                    handleDialogOpen={handleDialogOpen}
+                    handleEdit={handleEdit}
+                    refetch={refetch}
+                  />
+                )}
                 {table.getRowModel().rows.map((ledger) => (
                   <LedgerRow
                     key={ledger.id}
@@ -288,10 +309,8 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                   'Showing {count} {number, plural, =0 {ledgers} one {ledger} other {ledgers}}.'
               },
               {
-                number: ledgers?.items?.length,
-                count: (
-                  <span className="font-bold">{ledgers?.items?.length}</span>
-                )
+                number: items?.length,
+                count: <span className="font-bold">{items?.length}</span>
               }
             )}
           </EntityDataTable.FooterText>

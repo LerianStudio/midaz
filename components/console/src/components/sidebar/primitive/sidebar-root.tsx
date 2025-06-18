@@ -1,14 +1,13 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { useSidebar } from './sidebar-provider'
 
 const sidebarVariants = {
   opened: {
     width: 'auto',
     transition: {
-      duration: 0.1,
-      ease: 'easeInOut'
+      duration: 0.1
     }
   },
   closed: {

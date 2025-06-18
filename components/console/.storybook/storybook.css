@@ -1,3 +1,7 @@
+:root {
+  --font-inter: 'Inter', sans-serif;
+}
+
 .light {
-    background-color: #f4f4f5;
+  background-color: #f4f4f5 !important;
 }

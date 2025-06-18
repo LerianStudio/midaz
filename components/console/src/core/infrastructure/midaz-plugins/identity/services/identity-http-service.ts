@@ -31,8 +31,7 @@ export class IdentityHttpService extends HttpService {
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
       const session = await getServerSession(nextAuthOptions)
-      const { access_token } = session?.user
-      headers.Authorization = `Bearer ${access_token}`
+      headers.Authorization = `Bearer ${session?.user?.access_token}`
     }
 
     return { headers }
