@@ -1,6 +1,6 @@
 # Demo Data Generator Makefile
 
-.PHONY: build test clean fmt vet lint cross-compile help
+.PHONY: build test clean fmt vet lint cross-compile integration-test e2e-test help
 
 # Build variables
 BINARY_NAME=demo-data
@@ -35,6 +35,26 @@ test-coverage:
 	@echo "Running tests with coverage..."
 	@go test -v -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
+
+# Run integration tests
+integration-test:
+	@echo "Running integration tests..."
+	@go test -v -tags=integration ./tests/integration/...
+
+# Run end-to-end tests
+e2e-test:
+	@echo "Running end-to-end tests..."
+	@go test -v ./tests/integration/mt001/e2e_test.go
+
+# Run cross-platform tests
+cross-platform-test:
+	@echo "Running cross-platform build tests..."
+	@./tests/integration/mt001/cross_platform_test.sh
+
+# Run performance benchmarks
+benchmark:
+	@echo "Running performance benchmarks..."
+	@go test -v -bench=. -benchmem ./tests/integration/mt001/performance_test.go
 
 # Format code
 fmt:
@@ -104,6 +124,13 @@ clean:
 # Run all quality checks
 quality: fmt vet lint security vuln-check test
 
+# Run comprehensive test suite
+test-all: test integration-test e2e-test benchmark
+
+# Run MT-001 validation suite
+validate-mt001: quality integration-test cross-platform-test
+	@echo "MT-001 validation complete!"
+
 # Development workflow
 dev: deps quality build
 	@echo "Development build complete!"
@@ -115,20 +142,26 @@ prod: deps quality build-prod cross-compile
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  build         - Build the application"
-	@echo "  build-prod    - Build optimized production binary"
-	@echo "  test          - Run tests"
-	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  fmt           - Format code"
-	@echo "  vet           - Run go vet"
-	@echo "  lint          - Run golangci-lint"
-	@echo "  security      - Run security scan with gosec"
-	@echo "  vuln-check    - Run vulnerability check"
-	@echo "  cross-compile - Build for multiple platforms"
-	@echo "  deps          - Download and tidy dependencies"
-	@echo "  install-tools - Install development tools"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  quality       - Run all quality checks"
-	@echo "  dev           - Full development workflow"
-	@echo "  prod          - Full production workflow"
-	@echo "  help          - Show this help message"
+	@echo "  build              - Build the application"
+	@echo "  build-prod         - Build optimized production binary"
+	@echo "  test               - Run unit tests"
+	@echo "  test-coverage      - Run tests with coverage report"
+	@echo "  integration-test   - Run integration tests"
+	@echo "  e2e-test           - Run end-to-end tests"
+	@echo "  cross-platform-test- Run cross-platform build tests"
+	@echo "  benchmark          - Run performance benchmarks"
+	@echo "  test-all           - Run all test suites"
+	@echo "  fmt                - Format code"
+	@echo "  vet                - Run go vet"
+	@echo "  lint               - Run golangci-lint"
+	@echo "  security           - Run security scan with gosec"
+	@echo "  vuln-check         - Run vulnerability check"
+	@echo "  cross-compile      - Build for multiple platforms"
+	@echo "  deps               - Download and tidy dependencies"
+	@echo "  install-tools      - Install development tools"
+	@echo "  clean              - Clean build artifacts"
+	@echo "  quality            - Run all quality checks"
+	@echo "  validate-mt001     - Run MT-001 validation suite"
+	@echo "  dev                - Full development workflow"
+	@echo "  prod               - Full production workflow"
+	@echo "  help               - Show this help message"

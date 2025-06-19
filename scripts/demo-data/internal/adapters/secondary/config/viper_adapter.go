@@ -3,9 +3,11 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 
 	"demo-data/internal/domain/entities"
@@ -27,12 +29,13 @@ func NewViperConfigAdapter() ports.ConfigurationPort {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	// Set up file configuration
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-	v.AddConfigPath("./configs")
-	v.AddConfigPath("$HOME/.demo-data")
+	// Set up .env file configuration
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
+	v.AddConfigPath(".")      // Current directory
+	v.AddConfigPath("./")     // Current directory (alternative)
+	v.AddConfigPath("../")    // Parent directory
+	v.AddConfigPath("../../") // Grandparent directory (for tests)
 
 	return &ViperConfigAdapter{
 		viper:     v,
@@ -42,18 +45,36 @@ func NewViperConfigAdapter() ports.ConfigurationPort {
 
 // Load loads configuration from all sources (files, environment, defaults)
 func (a *ViperConfigAdapter) Load(ctx context.Context) (*entities.Configuration, error) {
-	config := entities.NewConfiguration()
+	// Load .env file if it exists (optional)
+	// Try multiple possible locations for .env file
+	envPaths := []string{
+		".env",
+		"../.env",
+		"../../.env",
+	}
+
+	for _, path := range envPaths {
+		if _, err := os.Stat(path); err == nil {
+			if err := godotenv.Load(path); err != nil {
+				return nil, fmt.Errorf("error loading .env file from %s: %w", path, err)
+			}
+
+			break // Successfully loaded, stop trying other paths
+		}
+	}
+
+	// Set default values in viper FIRST
+	a.setDefaults()
 
 	// Try to read config file (optional)
 	if err := a.viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-		// Config file not found is OK, we'll use environment variables and defaults
 	}
 
-	// Set default values in viper
-	a.setDefaults()
+	// Create empty configuration for unmarshaling (don't use NewConfiguration with pre-set values)
+	config := &entities.Configuration{}
 
 	// Unmarshal into configuration struct
 	if err := a.viper.Unmarshal(config); err != nil {
@@ -97,6 +118,7 @@ func (a *ViperConfigAdapter) GetAPIEndpoints() []string {
 // setDefaults sets default values in viper
 func (a *ViperConfigAdapter) setDefaults() {
 	a.viper.SetDefault("api_base_url", "https://api.midaz.io")
+	a.viper.SetDefault("auth_token", "") // Important: auth token has no default but needs to be declared
 	a.viper.SetDefault("timeout_duration", "30s")
 	a.viper.SetDefault("debug", false)
 	a.viper.SetDefault("log_level", "info")

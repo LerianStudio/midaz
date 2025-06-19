@@ -10,6 +10,7 @@ import (
 // LogGenerationProgress logs progress with structured fields for data generation operations
 func LogGenerationProgress(logger Logger, entityType string, current, total int, duration time.Duration) {
 	progressPercent := float64(current) / float64(total) * 100
+
 	var ratePerSecond float64
 	if duration.Seconds() > 0 {
 		ratePerSecond = float64(current) / duration.Seconds()
@@ -134,6 +135,7 @@ func getErrorType(err error) string {
 
 	// Check for common error patterns
 	errStr := err.Error()
+
 	switch {
 	case containsAny(errStr, "timeout", "deadline exceeded"):
 		return "timeout"
@@ -161,5 +163,6 @@ func containsAny(s string, substrings ...string) bool {
 			}
 		}
 	}
+
 	return false
 }

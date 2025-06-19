@@ -57,6 +57,10 @@ and command-line flags.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Skip configuration loading for version command
+			if cmd.Name() == "version" {
+				return nil
+			}
 			return a.loadConfiguration(cmd)
 		},
 	}
@@ -102,7 +106,8 @@ func (a *CLIAdapter) loadConfiguration(cmd *cobra.Command) error {
 	if err := configPort.Validate(ctx, config); err != nil {
 		// For validation errors, show helpful message
 		red := color.New(color.FgRed)
-		red.Printf("❌ Configuration validation failed: %v\n", err)
+		_, _ = red.Printf("❌ Configuration validation failed: %v\n", err)
+
 		return err
 	}
 
@@ -114,11 +119,12 @@ func (a *CLIAdapter) loadConfiguration(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to create logger from configuration: %w", err)
 	}
+
 	a.container.SetLogger(logger)
 
 	// Log configuration loaded event
-	if logger := a.container.GetLogger(); logger != nil {
-		logger.Debug("Configuration loaded and validated",
+	if currentLogger := a.container.GetLogger(); currentLogger != nil {
+		currentLogger.Debug("Configuration loaded and validated",
 			"source", "cli",
 			"api_url", config.APIBaseURL,
 			"debug", config.Debug,
@@ -130,7 +136,7 @@ func (a *CLIAdapter) loadConfiguration(cmd *cobra.Command) error {
 }
 
 // applyFlagOverrides applies command-line flag values to configuration
-func (a *CLIAdapter) applyFlagOverrides(cmd *cobra.Command, config interface{}) error {
+func (a *CLIAdapter) applyFlagOverrides(cmd *cobra.Command, config any) error {
 	// Type assert to the actual configuration type
 	cfg, ok := config.(*entities.Configuration)
 	if !ok {
