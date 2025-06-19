@@ -26,12 +26,7 @@ func MapError(err error) error {
 	}
 
 	// Check if it's already a domain error
-	switch err {
-	case entities.ErrEntityNotFound,
-		entities.ErrValidationFailed,
-		entities.ErrAuthenticationFailed,
-		entities.ErrRateLimitExceeded,
-		entities.ErrConfigurationInvalid:
+	if isDomainError(err) {
 		return err
 	}
 
@@ -40,25 +35,83 @@ func MapError(err error) error {
 		return mapHTTPError(httpErr)
 	}
 
-	// Check for common error patterns in error message
+	// Map based on error message patterns
+	return mapErrorMessage(err)
+}
+
+// isDomainError checks if the error is already a domain error
+func isDomainError(err error) bool {
+	switch err {
+	case entities.ErrEntityNotFound,
+		entities.ErrValidationFailed,
+		entities.ErrAuthenticationFailed,
+		entities.ErrRateLimitExceeded,
+		entities.ErrConfigurationInvalid:
+		return true
+	default:
+		return false
+	}
+}
+
+// mapErrorMessage maps errors based on message content
+func mapErrorMessage(err error) error {
 	errMsg := strings.ToLower(err.Error())
 
-	switch {
-	case strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "404"):
+	if isNotFoundError(errMsg) {
 		return entities.ErrEntityNotFound
-	case strings.Contains(errMsg, "validation") || strings.Contains(errMsg, "invalid") || strings.Contains(errMsg, "400"):
-		return entities.ErrValidationFailed
-	case strings.Contains(errMsg, "unauthorized") || strings.Contains(errMsg, "401") || strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "403"):
-		return entities.ErrAuthenticationFailed
-	case strings.Contains(errMsg, "rate limit") || strings.Contains(errMsg, "429"):
-		return entities.ErrRateLimitExceeded
-	case strings.Contains(errMsg, "timeout"):
-		return errors.New("request timeout")
-	case strings.Contains(errMsg, "connection"):
-		return errors.New("connection error")
-	default:
-		return err
 	}
+
+	if isValidationError(errMsg) {
+		return entities.ErrValidationFailed
+	}
+
+	if isAuthError(errMsg) {
+		return entities.ErrAuthenticationFailed
+	}
+
+	if isRateLimitError(errMsg) {
+		return entities.ErrRateLimitExceeded
+	}
+
+	if isTimeoutError(errMsg) {
+		return errors.New("request timeout")
+	}
+
+	if isConnectionError(errMsg) {
+		return errors.New("connection error")
+	}
+
+	return err
+}
+
+// Error checking helper functions
+func isNotFoundError(msg string) bool {
+	return strings.Contains(msg, "not found") || strings.Contains(msg, "404")
+}
+
+func isValidationError(msg string) bool {
+	return strings.Contains(msg, "validation") ||
+		strings.Contains(msg, "invalid") ||
+		strings.Contains(msg, "400")
+}
+
+func isAuthError(msg string) bool {
+	return strings.Contains(msg, "unauthorized") ||
+		strings.Contains(msg, "401") ||
+		strings.Contains(msg, "forbidden") ||
+		strings.Contains(msg, "403")
+}
+
+func isRateLimitError(msg string) bool {
+	return strings.Contains(msg, "rate limit") || strings.Contains(msg, "429")
+}
+
+func isTimeoutError(msg string) bool {
+	return strings.Contains(msg, "timeout")
+}
+
+func isConnectionError(msg string) bool {
+	return strings.Contains(msg, "connection")
 }
 
 // mapHTTPError maps HTTP status codes to domain errors
@@ -100,6 +153,7 @@ func IsRetryableError(err error) bool {
 
 	// Check error message patterns
 	errMsg := strings.ToLower(err.Error())
+
 	return strings.Contains(errMsg, "timeout") ||
 		strings.Contains(errMsg, "connection") ||
 		strings.Contains(errMsg, "temporary") ||

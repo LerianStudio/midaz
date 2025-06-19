@@ -29,13 +29,13 @@ func (a *CLIAdapter) newVersionCommand() *cobra.Command {
 }
 
 // runVersionCommand executes the version command
-func (a *CLIAdapter) runVersionCommand(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) runVersionCommand(_ *cobra.Command, _ []string) error {
 	cyan := color.New(color.FgCyan, color.Bold)
 	green := color.New(color.FgGreen)
 	blue := color.New(color.FgBlue)
 
 	// Header
-	cyan.Println("📊 Demo Data Generator")
+	_, _ = cyan.Println("📊 Demo Data Generator")
 	fmt.Println()
 
 	// Version information
@@ -47,9 +47,9 @@ func (a *CLIAdapter) runVersionCommand(cmd *cobra.Command, args []string) error 
 
 	// Additional information
 	fmt.Println()
-	blue.Println("🏗️  Architecture: Hexagonal (Ports & Adapters)")
-	blue.Println("🔧 Configuration: Viper + Environment Variables")
-	blue.Println("⚡ CLI Framework: Cobra")
+	_, _ = blue.Println("🏗️  Architecture: Hexagonal (Ports & Adapters)")
+	_, _ = blue.Println("🔧 Configuration: Viper + Environment Variables")
+	_, _ = blue.Println("⚡ CLI Framework: Cobra")
 
 	fmt.Println()
 	fmt.Printf("For more information, visit: %s\n",

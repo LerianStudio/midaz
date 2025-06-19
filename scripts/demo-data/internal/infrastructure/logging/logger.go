@@ -44,6 +44,7 @@ func NewLogger(development bool, level string) (Logger, error) {
 	if err != nil {
 		logLevel = zapcore.InfoLevel
 	}
+
 	config.Level = zap.NewAtomicLevelAt(logLevel)
 
 	// Build logger
@@ -96,6 +97,7 @@ func (l *ZapLogger) With(fields ...any) Logger {
 func (l *ZapLogger) WithContext(ctx context.Context) Logger {
 	// Extract context values and add them as fields
 	fields := extractContextFields(ctx)
+
 	return &ZapLogger{
 		logger: l.logger.With(fields...),
 	}

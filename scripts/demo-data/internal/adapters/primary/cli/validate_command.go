@@ -32,8 +32,7 @@ Use this command to troubleshoot configuration issues before running data genera
 }
 
 // runValidateCommand executes the validate command
-func (a *CLIAdapter) runValidateCommand(cmd *cobra.Command, args []string) error {
-
+func (a *CLIAdapter) runValidateCommand(_ *cobra.Command, _ []string) error {
 	green := color.New(color.FgGreen)
 	red := color.New(color.FgRed)
 	yellow := color.New(color.FgYellow)
@@ -45,15 +44,16 @@ func (a *CLIAdapter) runValidateCommand(cmd *cobra.Command, args []string) error
 	// Configuration is already loaded and validated in PersistentPreRunE
 	config := a.container.GetConfiguration()
 	if config == nil {
-		red.Println("❌ Configuration not loaded")
+		_, _ = red.Println("❌ Configuration not loaded")
 		return fmt.Errorf("configuration not available")
 	}
 
-	green.Println("✅ Configuration loaded and validated successfully")
+	_, _ = green.Println("✅ Configuration loaded and validated successfully")
 	fmt.Println()
 
 	// Display configuration summary
-	cyan.Println("📋 Configuration Summary:")
+	_, _ = cyan.Println("📋 Configuration Summary:")
+
 	fmt.Printf("  API URL:           %s\n", config.APIBaseURL)
 	fmt.Printf("  Debug Mode:        %v\n", config.Debug)
 	fmt.Printf("  Log Level:         %s\n", config.LogLevel)
@@ -62,8 +62,8 @@ func (a *CLIAdapter) runValidateCommand(cmd *cobra.Command, args []string) error
 	// Check authentication token
 	if config.AuthToken != "" {
 		tokenLen := len(config.AuthToken)
-		maskedToken := config.AuthToken[:min(4, tokenLen)] + strings.Repeat("*", max(0, tokenLen-8)) +
-			config.AuthToken[max(4, tokenLen-4):]
+		maskedToken := config.AuthToken[:minInt(4, tokenLen)] + strings.Repeat("*", maxInt(0, tokenLen-8)) +
+			config.AuthToken[maxInt(4, tokenLen-4):]
 		fmt.Printf("  Auth Token:        %s %s\n",
 			green.Sprint("✅"),
 			maskedToken)
@@ -76,7 +76,7 @@ func (a *CLIAdapter) runValidateCommand(cmd *cobra.Command, args []string) error
 	fmt.Println()
 
 	// Display volume configuration
-	cyan.Println("📊 Volume Configuration:")
+	_, _ = cyan.Println("📊 Volume Configuration:")
 	fmt.Println("  Small Volume:")
 	fmt.Printf("    Organizations:      %d\n", config.VolumeConfig.Small.Organizations)
 	fmt.Printf("    Ledgers per Org:    %d\n", config.VolumeConfig.Small.LedgersPerOrg)
@@ -98,13 +98,14 @@ func (a *CLIAdapter) runValidateCommand(cmd *cobra.Command, args []string) error
 	fmt.Println()
 
 	// Calculate estimated entity counts
-	cyan.Println("🧮 Estimated Entity Counts:")
+	_, _ = cyan.Println("🧮 Estimated Entity Counts:")
+
 	a.displayEstimatedCounts("Small", config.VolumeConfig.Small)
 	a.displayEstimatedCounts("Medium", config.VolumeConfig.Medium)
 	a.displayEstimatedCounts("Large", config.VolumeConfig.Large)
 
 	fmt.Println()
-	green.Println("🎉 Configuration validation completed successfully!")
+	_, _ = green.Println("🎉 Configuration validation completed successfully!")
 
 	return nil
 }
@@ -133,23 +134,27 @@ func formatNumber(n int) string {
 	if n < 1000 {
 		return fmt.Sprintf("%d", n)
 	}
+
 	if n < 1000000 {
 		return fmt.Sprintf("%.1fK", float64(n)/1000)
 	}
+
 	return fmt.Sprintf("%.1fM", float64(n)/1000000)
 }
 
 // Helper functions for string manipulation
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
+
 	return b
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
+
 	return b
 }
