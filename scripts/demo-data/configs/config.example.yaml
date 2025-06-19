@@ -1,0 +1,40 @@
+# Demo Data Generator Configuration Example
+# Copy this file to config.yaml and modify as needed
+
+# Midaz API Configuration
+api_base_url: "https://api.midaz.io"
+auth_token: "your-auth-token-here"
+timeout_duration: "30s"
+
+# Application Settings
+debug: false
+log_level: "info"  # debug, info, warn, error
+
+# Volume Configuration for Data Generation
+volume_config:
+  small:
+    organizations: 2
+    ledgers_per_org: 2
+    assets_per_ledger: 3
+    portfolios_per_ledger: 2
+    segments_per_ledger: 2
+    accounts_per_ledger: 100
+    transactions_per_account: 20
+
+  medium:
+    organizations: 5
+    ledgers_per_org: 3
+    assets_per_ledger: 5
+    portfolios_per_ledger: 3
+    segments_per_ledger: 4
+    accounts_per_ledger: 500
+    transactions_per_account: 50
+
+  large:
+    organizations: 10
+    ledgers_per_org: 5
+    assets_per_ledger: 8
+    portfolios_per_ledger: 5
+    segments_per_ledger: 6
+    accounts_per_ledger: 1000
+    transactions_per_account: 100
