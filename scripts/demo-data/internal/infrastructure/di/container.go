@@ -6,6 +6,7 @@ import (
 	"demo-data/internal/adapters/secondary/sdk"
 	"demo-data/internal/domain/entities"
 	"demo-data/internal/domain/ports"
+	"demo-data/internal/infrastructure/logging"
 )
 
 // Container provides dependency injection for the application
@@ -13,11 +14,15 @@ type Container struct {
 	configurationPort ports.ConfigurationPort
 	configuration     *entities.Configuration
 	midazClientPort   ports.MidazClientPort
+	logger            logging.Logger
+	loggerFactory     *logging.LoggerFactory
 }
 
 // NewContainer creates a new dependency injection container
 func NewContainer() *Container {
-	return &Container{}
+	return &Container{
+		loggerFactory: logging.NewLoggerFactory(),
+	}
 }
 
 // SetConfigurationPort sets the configuration port implementation
@@ -61,4 +66,24 @@ func (c *Container) GetMidazClientPort() (ports.MidazClientPort, error) {
 // SetMidazClientPort sets the Midaz client port implementation
 func (c *Container) SetMidazClientPort(port ports.MidazClientPort) {
 	c.midazClientPort = port
+}
+
+// SetLogger sets the logger implementation
+func (c *Container) SetLogger(logger logging.Logger) {
+	c.logger = logger
+}
+
+// GetLogger returns the logger implementation
+func (c *Container) GetLogger() logging.Logger {
+	return c.logger
+}
+
+// CreateLoggerFromConfig creates a logger from the current configuration
+func (c *Container) CreateLoggerFromConfig(config *entities.Configuration) (logging.Logger, error) {
+	return c.loggerFactory.CreateLogger(config)
+}
+
+// GetLoggerFactory returns the logger factory
+func (c *Container) GetLoggerFactory() *logging.LoggerFactory {
+	return c.loggerFactory
 }

@@ -109,6 +109,23 @@ func (a *CLIAdapter) loadConfiguration(cmd *cobra.Command) error {
 	// Store configuration in container
 	a.container.SetConfiguration(config)
 
+	// Recreate logger with proper configuration
+	logger, err := a.container.CreateLoggerFromConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create logger from configuration: %w", err)
+	}
+	a.container.SetLogger(logger)
+
+	// Log configuration loaded event
+	if logger := a.container.GetLogger(); logger != nil {
+		logger.Debug("Configuration loaded and validated",
+			"source", "cli",
+			"api_url", config.APIBaseURL,
+			"debug", config.Debug,
+			"log_level", config.LogLevel,
+		)
+	}
+
 	return nil
 }
 
