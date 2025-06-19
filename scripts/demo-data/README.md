@@ -1,241 +1,150 @@
-# Midaz Demo Data Generator
+# Demo Data Generator
 
-A realistic data generator for the Midaz platform using Faker.js and the TypeScript SDK. This tool creates hierarchical financial data with Brazilian-specific attributes following the standard entity relationships:
+A comprehensive demo data generator for the Midaz financial ledger system following Hexagonal Architecture principles.
 
-`Organizations → Ledgers → Assets → Portfolios → Segments → Accounts → Transactions`
+## Overview
 
-## Features
+This tool generates realistic financial data hierarchies including organizations, ledgers, assets, portfolios, segments, accounts, and transactions for testing and demonstration purposes.
 
-- Generates realistic Brazilian financial data (70% PF / 30% PJ with valid CPF/CNPJ)
-- Supports configurable volume sizes (small, medium, large)
-- Uses standard Midaz SDK methods for all API interactions
-- Maintains relationship integrity between entities
-- Supports idempotent execution (safe to run multiple times)
-- Includes exponential backoff retry for transient errors
-- Comprehensive logging and metrics
-- Configurable randomness with seed support for reproducible runs
-- **Optimized parallel generator** with 50%+ performance improvement
-- Configurable delays between processes for RabbitMQ/Redis propagation
+## Architecture
 
-## Implementation Details
+The project follows Hexagonal Architecture (Ports and Adapters) pattern:
 
-### Error Handling
+```
+demo-data/
+├── cmd/demo-data/           # Application entry point
+├── internal/
+│   ├── domain/              # Core business logic
+│   │   ├── entities/        # Domain entities
+│   │   ├── services/        # Domain services
+│   │   └── ports/           # Interfaces (ports)
+│   ├── adapters/            # External adapters
+│   │   ├── primary/         # Inbound adapters (CLI, HTTP)
+│   │   └── secondary/       # Outbound adapters (SDK, Config)
+│   └── infrastructure/      # Infrastructure concerns
+│       ├── logging/         # Logging implementation
+│       ├── metrics/         # Metrics collection
+│       └── di/              # Dependency injection
+├── pkg/                     # Public packages
+├── tests/                   # Test files
+└── docs/                    # Documentation
+```
 
-The generator implements robust error handling to manage API interactions with the Midaz services:
+## Prerequisites
 
-- Exponential backoff retry for transient network errors
-- Proper handling of validation errors from the Onboarding and Transaction services
-- Recognition of specific error types returned by Midaz APIs (EntityNotFoundError, ValidationError, EntityConflictError, etc.)
+- Go 1.22 or later
+- Make (for build automation)
+- Access to Midaz API endpoints
 
-### State Management
+## Development Setup
 
-A singleton `StateManager` class keeps track of all generated entities and their relationships.
+1. **Install development tools:**
+   ```bash
+   make install-tools
+   ```
 
-### Performance Optimization
+2. **Download dependencies:**
+   ```bash
+   make deps
+   ```
 
-The optimized generator (`--optimized` flag) provides significant performance improvements:
+3. **Build the application:**
+   ```bash
+   make build
+   ```
 
-- **Parallel Processing**: Entities at the same dependency level are created in parallel
-- **Smart Batching**: Operations are batched for optimal throughput
-- **Process Delays**: Configurable delays between macro processes ensure proper message propagation through RabbitMQ/Redis
-- **Performance**: ~50% faster than sequential generation
+4. **Run quality checks:**
+   ```bash
+   make quality
+   ```
 
-#### Process Delay Configuration
+## Building
 
-The `--process-delay` parameter controls the delay (in seconds) between major generation phases:
-- Default: 5 seconds (recommended for production)
-- 0 seconds: No delays (fastest, but may cause issues with message propagation)
-- 2-3 seconds: Good balance for most scenarios
-- Higher values: Use if experiencing data consistency issues
+### Development Build
+```bash
+make dev
+```
 
-## Setup
+### Production Build
+```bash
+make prod
+```
 
-1. Install dependencies:
+### Cross-Platform Build
+```bash
+make cross-compile
+```
+
+## Testing
 
 ```bash
-cd scripts/demo-data
-npm install
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
 ```
 
-2. Build the project:
+## Quality Assurance
+
+The project includes comprehensive quality checks:
 
 ```bash
-npm run build
+# Format code
+make fmt
+
+# Static analysis
+make vet
+
+# Linting
+make lint
+
+# Security scan
+make security
+
+# Vulnerability check
+make vuln-check
+
+# All quality checks
+make quality
 ```
 
-## Usage
+## Configuration
 
-### Using Makefile Targets
+The application supports multiple configuration sources:
 
-The simplest way to run the data generator is using the provided Makefile targets:
+1. Environment variables (prefix: `DEMO_DATA_`)
+2. Configuration files (YAML/JSON)
+3. Command-line flags
+4. Default values
 
-```bash
-# Generate a small volume of data (default)
-make generate
+### Environment Variables
 
-# Generate a specific volume size
-make generate-small
-make generate-medium
-make generate-large
+- `DEMO_DATA_API_BASE_URL` - Midaz API base URL
+- `DEMO_DATA_AUTH_TOKEN` - Authentication token
+- `DEMO_DATA_DEBUG` - Enable debug mode
+- `DEMO_DATA_LOG_LEVEL` - Log level (debug, info, warn, error)
 
-# Build the project first then generate data
-make build generate
-```
+## Project Status
 
-### Using the Shell Script
+This is the foundation setup (MT-001) which includes:
 
-You can also use the provided shell script directly:
+- ✅ Hexagonal Architecture structure
+- ✅ Build system with Makefile
+- ✅ Basic domain interfaces
+- ✅ Dependency injection container
+- 🚧 Configuration system (next phase)
+- 🚧 SDK integration (next phase)
+- 🚧 CLI framework (next phase)
+- 🚧 Data generation (future phases)
 
-```bash
-# Make the script executable if needed
-chmod +x run-generator.sh
+## Contributing
 
-# Run with a specific volume size
-./run-generator.sh small
-./run-generator.sh medium
-./run-generator.sh large
-```
+1. Follow Go conventions and project style
+2. Run quality checks before committing
+3. Ensure tests pass
+4. Update documentation as needed
 
-### CLI Options
+## License
 
-```
-Usage: npm run generate -- [options]
-
-Options:
-  --volume, -v <size>             Data volume size (small, medium, large) (default: "small")
-  --base-url, -u <url>            API base URL (default: "http://localhost")
-  --onboarding-port, -o <port>    Onboarding service port (default: 3000)
-  --transaction-port, -t <port>   Transaction service port (default: 3001)
-  --concurrency, -c <level>       Concurrency level (default: 10)
-  --optimized, -O                 Use optimized parallel generator
-  --process-delay, -p <seconds>   Delay between macro processes (default: 5)
-  --debug, -d                     Enable debug mode (default: false)
-  --auth-token, -a <token>        Authentication token
-  --seed, -s <value>              Random seed for reproducible runs
-  --help, -h                      Display help
-```
-
-### Examples
-
-Generate a small dataset (default):
-
-```bash
-npm run generate
-```
-
-Generate a medium dataset:
-
-```bash
-npm run generate -- --volume medium
-```
-
-Generate a large dataset with debug information:
-
-```bash
-npm run generate -- --volume large --debug
-```
-
-Use specific API endpoints:
-
-```bash
-npm run generate -- --base-url http://api.example.com --onboarding-port 8080 --transaction-port 8081
-```
-
-Use with authentication token:
-
-```bash
-npm run generate -- --auth-token "your-auth-token"
-```
-
-Generate reproducible data using a seed:
-
-```bash
-npm run generate -- --seed 12345
-```
-
-Use optimized parallel generator with custom process delay:
-
-```bash
-npm run generate -- --optimized --process-delay 3
-```
-
-Generate large dataset with optimized generator and no delays:
-
-```bash
-npm run generate -- --volume large --optimized --process-delay 0
-```
-
-### Makefile Integration
-
-The generator is integrated into the main Midaz Makefile and can be run using:
-
-```bash
-# From the project root
-make generate-demo-data VOLUME=medium
-```
-
-Available options:
-
-- `VOLUME`: Data volume size (small, medium, large)
-- `BASE_URL`: API base URL
-- `ONBOARDING_PORT`: Onboarding service port
-- `TRANSACTION_PORT`: Transaction service port
-- `CONCURRENCY`: Concurrency level
-- `DEBUG`: Enable debug mode (true/false)
-- `AUTH_TOKEN`: Authentication token
-
-## Data Schema
-
-### Data Volume Metrics
-
-| Entity Type   | Small | Medium | Large |
-|---------------|-------|--------|-------|
-| Organizations | 2     | 5      | 10    |
-| Ledgers/Org   | 2     | 3      | 5     |
-| Assets/Ledger | 3     | 5      | 8     |
-| Portfolios    | 2     | 3      | 5     |
-| Segments      | 2     | 4      | 6     |
-| Accounts      | 10    | 50     | 100   |
-| Tx/Account    | 5     | 10     | 20    |
-
-### Generated Data
-
-- **Organizations**: Mix of individuals (PF, 70%) and companies (PJ, 30%)
-  - Valid CPF/CNPJ numbers
-  - Brazilian addresses
-  - Realistic company and individual names
-
-- **Accounts**: Various types (deposit, savings, loans, marketplace, creditCard, external)
-  - Linked to portfolios and segments
-  - Unique aliases for identification
-
-- **Transactions**: Transfer operations between accounts
-  - Realistic BRL amounts
-  - Metadata with transaction types and descriptions
-  - Automatic deposit handling for accounts with insufficient balance
-
-## Development
-
-### Project Structure
-
-```
-/scripts/demo-data/
-├── src/
-│   ├── generators/       # Entity generators
-│   ├── services/         # SDK client and utilities
-│   ├── utils/            # Helper functions
-│   ├── generator.ts      # Main orchestration
-│   ├── config.ts         # Configuration settings
-│   ├── types.ts          # Type definitions
-│   └── index.ts          # CLI entry point
-├── dist/                 # Compiled JavaScript
-└── README.md             # Documentation
-```
-
-### Adding New Features
-
-To add new entity types or customize data generation:
-
-1. Add new generator implementations in `src/generators/`
-2. Update volume metrics in `src/config.ts`
-3. Modify the main orchestration in `src/generator.ts`
+This project is part of the Midaz ecosystem.
