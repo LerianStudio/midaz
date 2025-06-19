@@ -18,7 +18,6 @@ func TestPackageImports(t *testing.T) {
 
 	t.Run("domain ports can be imported", func(t *testing.T) {
 		var _ ports.ConfigurationPort = nil
-		_ = ports.Configuration{}
 	})
 
 	t.Run("dependency injection container works", func(t *testing.T) {
@@ -84,11 +83,11 @@ func TestContainerDependencyInjection(t *testing.T) {
 // mockConfigurationPort is a mock implementation for testing
 type mockConfigurationPort struct{}
 
-func (m *mockConfigurationPort) Load(ctx context.Context) (*ports.Configuration, error) {
+func (m *mockConfigurationPort) Load(ctx context.Context) (*entities.Configuration, error) {
 	return nil, nil
 }
 
-func (m *mockConfigurationPort) Validate(ctx context.Context, config *ports.Configuration) error {
+func (m *mockConfigurationPort) Validate(ctx context.Context, config *entities.Configuration) error {
 	return nil
 }
 
