@@ -1,6 +1,9 @@
 package di
 
 import (
+	"fmt"
+
+	"demo-data/internal/adapters/secondary/sdk"
 	"demo-data/internal/domain/entities"
 	"demo-data/internal/domain/ports"
 )
@@ -9,6 +12,7 @@ import (
 type Container struct {
 	configurationPort ports.ConfigurationPort
 	configuration     *entities.Configuration
+	midazClientPort   ports.MidazClientPort
 }
 
 // NewContainer creates a new dependency injection container
@@ -34,4 +38,27 @@ func (c *Container) SetConfiguration(config *entities.Configuration) {
 // GetConfiguration returns the loaded configuration
 func (c *Container) GetConfiguration() *entities.Configuration {
 	return c.configuration
+}
+
+// GetMidazClientPort returns the Midaz client port, creating it if necessary
+func (c *Container) GetMidazClientPort() (ports.MidazClientPort, error) {
+	if c.midazClientPort == nil {
+		if c.configuration == nil {
+			return nil, fmt.Errorf("configuration is required to create Midaz client")
+		}
+
+		client, err := sdk.NewMidazClientAdapter(c.configuration)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Midaz client: %w", err)
+		}
+
+		c.midazClientPort = client
+	}
+
+	return c.midazClientPort, nil
+}
+
+// SetMidazClientPort sets the Midaz client port implementation
+func (c *Container) SetMidazClientPort(port ports.MidazClientPort) {
+	c.midazClientPort = port
 }

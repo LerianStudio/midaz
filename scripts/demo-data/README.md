@@ -169,7 +169,7 @@ Current implementation status:
 
 - ✅ **ST-MT-001-001**: Hexagonal Architecture foundation
 - ✅ **ST-MT-001-002**: Configuration system with Viper
-- 🚧 **ST-MT-001-003**: SDK integration (next phase)
+- ✅ **ST-MT-001-003**: SDK integration with mock client
 - 🚧 **ST-MT-001-004**: CLI framework (next phase)
 - 🚧 **ST-MT-001-005**: Logging infrastructure (next phase)
 - 🚧 **ST-MT-001-006**: Integration testing (next phase)
