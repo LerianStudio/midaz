@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Popover, PopoverContent, PopoverTrigger } from '../popover'
 import React from 'react'
 import { Button } from '../button'

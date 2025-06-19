@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth v1.14.1
-	github.com/LerianStudio/lib-commons v1.16.0
+	github.com/LerianStudio/lib-commons v1.17.0-beta.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -25,6 +25,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.10.0
 	github.com/rodaine/table v1.3.0
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.4

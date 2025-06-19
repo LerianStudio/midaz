@@ -56,13 +56,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	tran := t.Transaction
 	tran.Body = *t.ParseDSL
 
-	description := constant.APPROVED
-	status := transaction.Status{
-		Code:        description,
-		Description: &description,
-	}
+	if !t.Validate.Pending {
+		description := constant.APPROVED
+		status := transaction.Status{
+			Code:        description,
+			Description: &description,
+		}
 
-	tran.Status = status
+		tran.Status = status
+	}
 
 	_, err = uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
@@ -146,7 +148,8 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
-func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
+// CreateBTOSync func that create balance transaction operations synchronously
+func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)

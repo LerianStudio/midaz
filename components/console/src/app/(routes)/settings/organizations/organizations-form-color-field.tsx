@@ -37,7 +37,7 @@ const ColorInput = React.forwardRef<HTMLInputElement, ColorInputProps>(
             <PopoverTrigger asChild>
               <div
                 className={cn(
-                  'h-9 w-9 flex-shrink-0 rounded-md border border-zinc-300',
+                  'h-9 w-9 shrink-0 rounded-md border border-zinc-300',
                   !readOnly ? 'cursor-pointer hover:border-zinc-400' : ''
                 )}
                 style={{

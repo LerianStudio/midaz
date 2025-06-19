@@ -29,11 +29,11 @@ export const MetadataPreview = ({
     return (
       <div key={index} className="mt-2 flex items-center gap-5">
         <div className="flex flex-1 gap-2">
-          <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
+          <div className="bg-shadcn-100 flex h-9 flex-1 items-center rounded-md px-2">
             {key}
           </div>
 
-          <div className="flex h-9 flex-1 items-center rounded-md bg-shadcn-100 px-2">
+          <div className="bg-shadcn-100 flex h-9 flex-1 items-center rounded-md px-2">
             {value as any}
           </div>
         </div>
@@ -44,7 +44,7 @@ export const MetadataPreview = ({
               e.preventDefault()
               onRemoveMetadata?.(key)
             }}
-            className="group h-9 w-9 rounded-full border border-shadcn-200 bg-white hover:border-none"
+            className="group border-shadcn-200 h-9 w-9 rounded-full border bg-white hover:border-none"
           >
             <Trash
               size={16}

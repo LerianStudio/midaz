@@ -24,7 +24,7 @@ export const InfoTitle = ({
     </h1>
 
     <div className="flex items-center gap-2">
-      <p className="text-sm font-medium text-shadcn-400">{subtitle}</p>
+      <p className="text-shadcn-400 text-sm font-medium">{subtitle}</p>
       {children}
     </div>
   </div>

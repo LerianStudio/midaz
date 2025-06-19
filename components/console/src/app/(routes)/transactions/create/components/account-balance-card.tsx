@@ -100,7 +100,7 @@ export const AccountBalanceCard = ({
           <AccountBalanceCardEmpty />
         )}
 
-        <Separator className="mb-2 mt-3" />
+        <Separator className="mt-3 mb-2" />
         <AccountBalanceCardUpdateButton
           loading={loading}
           timestamp={dataUpdatedAt}

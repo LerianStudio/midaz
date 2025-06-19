@@ -4,22 +4,14 @@ definitions:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
     properties:
-      amount:
+      value:
         description: |-
           The amount value in the smallest unit of the asset (e.g., cents)
           example: 1500
           minimum: 0
         example: 1500
         minimum: 0
-        type: integer
-      scale:
-        description: |-
-          Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)
-          example: 2
-          minimum: 0
-        example: 2
-        minimum: 0
-        type: integer
+        type: number
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
@@ -137,28 +129,20 @@ definitions:
     properties:
       available:
         description: |-
-          Amount available for transactions (in smallest unit of asset)
+          Amount available for transactions (in the smallest unit of asset)
           example: 1500
           minimum: 0
         example: 1500
         minimum: 0
-        type: integer
+        type: number
       onHold:
         description: |-
-          Amount on hold and unavailable for transactions (in smallest unit of asset)
+          Amount on hold and unavailable for transactions (in the smallest unit of asset)
           example: 500
           minimum: 0
         example: 500
         minimum: 0
-        type: integer
-      scale:
-        description: |-
-          Decimal places for the balance (e.g., 2 for dollars/euros)
-          example: 2
-          minimum: 0
-        example: 2
-        minimum: 0
-        type: integer
+        type: number
     type: object
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
@@ -265,11 +249,6 @@ definitions:
           Additional custom attributes
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
-      pending:
-        description: |-
-          Whether the transaction should be created in pending state
-          swagger:ignore
-        type: boolean
       send:
         description: |-
           Send operation details including distribution only
@@ -384,9 +363,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -399,12 +381,6 @@ definitions:
               example: USD
               required: true
             type: string
-          scale:
-            description: |-
-              Decimal places for the transaction amount
-              example: 2
-              required: true
-            type: integer
           source:
             description: |-
               Source accounts and amounts for the transaction
@@ -433,18 +409,12 @@ definitions:
                             example: USD
                             required: true
                           type: string
-                        scale:
-                          description: |-
-                            Decimal places
-                            example: 2
-                            required: true
-                          type: integer
                         value:
                           description: |-
                             Amount value in smallest unit
-                            example: 100
+                            example: "100"
                             required: true
-                          type: integer
+                          type: number
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -468,9 +438,9 @@ definitions:
           value:
             description: |-
               Transaction amount value in the smallest unit of the asset
-              example: 100
+              example: "100"
               required: true
-            type: integer
+            type: number
         type: object
     type: object
   Error:
@@ -634,6 +604,14 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
+      route:
+        description: |-
+          Route
+          example: 00000000-0000-0000-0000-000000000000
+          format: string
+        example: 00000000-0000-0000-0000-000000000000
+        format: string
+        type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -717,15 +695,7 @@ definitions:
           minimum: 0
         example: 1500
         minimum: 0
-        type: integer
-      amountScale:
-        description: |-
-          Decimal places for the transaction amount
-          example: 2
-          minimum: 0
-        example: 2
-        minimum: 0
-        type: integer
+        type: number
       assetCode:
         description: |-
           Asset code for the transaction
@@ -819,6 +789,14 @@ definitions:
           format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
+        type: string
+      route:
+        description: |-
+          Route
+          example: 00000000-0000-0000-0000-000000000000
+          format: string
+        example: 00000000-0000-0000-0000-000000000000
+        format: string
         type: string
       source:
         description: |-
@@ -937,9 +915,12 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}
         type: object
       pending:
+        default: false
         description: |-
           Whether the transaction should be created in pending state
-          swagger:ignore
+          example: true
+          swagger: type boolean
+        example: true
         type: boolean
       send:
         description: |-
@@ -980,18 +961,12 @@ definitions:
                             example: USD
                             required: true
                           type: string
-                        scale:
-                          description: |-
-                            Decimal places
-                            example: 2
-                            required: true
-                          type: integer
                         value:
                           description: |-
                             Amount value in smallest unit
                             example: 100
                             required: true
-                          type: integer
+                          type: number
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -1012,12 +987,6 @@ definitions:
                   type: object
                 type: array
             type: object
-          scale:
-            description: |-
-              Decimal places for the transaction amount
-              example: 2
-              required: true
-            type: integer
           source:
             description: |-
               Source accounts and amounts for the transaction
@@ -1046,18 +1015,12 @@ definitions:
                             example: USD
                             required: true
                           type: string
-                        scale:
-                          description: |-
-                            Decimal places
-                            example: 2
-                            required: true
-                          type: integer
                         value:
                           description: |-
                             Amount value in smallest unit
                             example: 100
                             required: true
-                          type: integer
+                          type: number
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -1083,7 +1046,7 @@ definitions:
               Transaction amount value in the smallest unit of the asset
               example: 100
               required: true
-            type: integer
+            type: number
         type: object
     type: object
   mmodel.Balance:
@@ -1145,7 +1108,7 @@ definitions:
           minimum: 0
         example: 1500
         minimum: 0
-        type: integer
+        type: number
       createdAt:
         description: |-
           Timestamp when the balance was created (RFC3339 format)
@@ -1156,7 +1119,7 @@ definitions:
         type: string
       deletedAt:
         description: |-
-          Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)
+          Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
           example: null
           format: date-time
         example: "2021-01-01T00:00:00Z"
@@ -1191,7 +1154,7 @@ definitions:
           minimum: 0
         example: 500
         minimum: 0
-        type: integer
+        type: number
       organizationId:
         description: |-
           Organization that owns this balance
@@ -1200,14 +1163,6 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
-      scale:
-        description: |-
-          Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)
-          example: 2
-          minimum: 0
-        example: 2
-        minimum: 0
-        type: integer
       updatedAt:
         description: |-
           Timestamp when the balance was last updated (RFC3339 format)

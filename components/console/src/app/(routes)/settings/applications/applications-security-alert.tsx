@@ -18,7 +18,7 @@ export const ApplicationsSecurityAlert = () => {
         })}
       </AlertTitle>
       <AlertDescription className="text-sm text-yellow-800 opacity-70">
-        <ul className="ml-5 mt-2 list-disc space-y-1">
+        <ul className="mt-2 ml-5 list-disc space-y-1">
           <li className="font-bold">
             {intl.formatMessage({
               id: 'applications.security.doNotShare',

@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '.'
 import { TabsProps } from '@radix-ui/react-tabs'
 

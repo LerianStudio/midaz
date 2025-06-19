@@ -102,7 +102,7 @@ const SignInPage = () => {
             })}
           </h1>
 
-          <p className="pt-4 text-sm text-shadcn-400">
+          <p className="text-shadcn-400 pt-4 text-sm">
             {intl.formatMessage({
               id: 'signIn.descriptionLogin',
               defaultMessage: 'Enter your email and password to continue.'

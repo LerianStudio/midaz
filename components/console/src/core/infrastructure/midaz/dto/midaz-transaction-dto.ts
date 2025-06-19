@@ -1,11 +1,6 @@
 import { MidazMetadataDto } from './midaz-metadata-dto'
 import { MidazStatusDto } from './midaz-status-dto'
 
-type MidazAmountDto = {
-  amount: number
-  scale: number
-}
-
 type MidazBalanceDto = {
   available: number
   onHold: number
@@ -13,10 +8,9 @@ type MidazBalanceDto = {
 }
 
 type MidazCreateSourceDto = {
-  account: string
+  accountAlias: string
   amount: {
-    value: number
-    scale: number
+    value: string
     asset: string
   }
   share?: {
@@ -33,8 +27,7 @@ export type MidazCreateTransactionDto = {
   chartOfAccountsGroupName?: string
   send: {
     asset: string
-    value: number
-    scale: number
+    value: string
     source: {
       from: MidazCreateSourceDto[]
     }
@@ -59,7 +52,9 @@ export type OperationDto = {
   type: string
   assetCode: string
   chartOfAccounts?: string
-  amount: MidazAmountDto
+  amount: {
+    value: string
+  }
   balance: MidazBalanceDto
   balanceAfter: MidazBalanceDto
   status: MidazStatusDto
@@ -81,8 +76,7 @@ export type MidazTransactionDto = {
   type: string
   template: string
   status: MidazStatusDto
-  amount: number
-  amountScale: number
+  amount: string
   assetCode: string
   chartOfAccountsGroupName?: string
   source: string[]

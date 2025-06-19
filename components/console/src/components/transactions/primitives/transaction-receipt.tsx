@@ -15,7 +15,7 @@ export const TransactionReceipt = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'relative flex flex-col gap-4 bg-white py-8 shadow-sm',
+      'relative flex flex-col gap-4 bg-white py-8 shadow-xs',
       {
         'items-center rounded-lg': type === 'main',
         'rounded-t-lg': type === 'ticket'
@@ -54,7 +54,7 @@ export const TransactionReceiptDescription = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-row items-center gap-2 text-xs text-shadcn-400',
+      'text-shadcn-400 flex flex-row items-center gap-2 text-xs',
       className
     )}
     {...props}
@@ -71,7 +71,7 @@ export const TransactionReceiptAction = forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('absolute right-6 top-6', className)}
+    className={cn('absolute top-6 right-6', className)}
     {...props}
   />
 ))
@@ -123,7 +123,7 @@ export const TransactionReceiptItem = forwardRef<
       )}
       {...props}
     >
-      <p className="flex-grow">{label}</p>
+      <p className="grow">{label}</p>
       {!showNone && value}
       {showNone &&
         (!isNil(value) && value !== ''
@@ -158,7 +158,7 @@ export const TransactionReceiptOperation = forwardRef<
       {...props}
     >
       <div className="flex w-full flex-row px-8 text-xs font-normal text-zinc-700">
-        <p className="flex-grow">
+        <p className="grow">
           {type === 'debit'
             ? intl.formatMessage({
                 id: 'common.debit',
@@ -192,7 +192,7 @@ export const TransactionReceiptTicket = forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('ticket h-8 bg-white shadow-sm', className)}
+    className={cn('ticket h-8 bg-white shadow-xs', className)}
     {...props}
   />
 ))

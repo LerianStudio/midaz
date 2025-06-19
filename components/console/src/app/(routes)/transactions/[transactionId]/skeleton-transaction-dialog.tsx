@@ -43,7 +43,7 @@ export const SkeletonTransactionDialog = () => {
               </div>
             ))}
           </div>
-          <Skeleton className="h-[1px] w-full bg-zinc-200" />
+          <Skeleton className="h-px w-full bg-zinc-200" />
           {[1, 2].map((i) => (
             <div key={i} className="space-y-2">
               <Skeleton className="h-6 w-[150px] bg-zinc-200" />

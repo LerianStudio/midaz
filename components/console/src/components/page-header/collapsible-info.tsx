@@ -24,7 +24,7 @@ export const CollapsibleInfo = ({
         <h1 className="text-xl font-bold text-[#3f3f46]">{question}</h1>
 
         <div className="flex items-center gap-3">
-          <p className="text-sm font-medium leading-none text-shadcn-500">
+          <p className="text-shadcn-500 text-sm leading-none font-medium">
             {answer}
           </p>
 
@@ -33,7 +33,7 @@ export const CollapsibleInfo = ({
               target="_blank"
               rel="noopener noreferrer"
               href={href}
-              className="justify-start text-sm font-medium text-shadcn-600 underline underline-offset-4"
+              className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
             >
               {seeMore}
             </a>

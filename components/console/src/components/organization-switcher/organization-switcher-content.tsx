@@ -12,20 +12,20 @@ import {
   PopoverPanelLink,
   PopoverPanelTitle
 } from './popover-panel'
-import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import React from 'react'
 import LerianLogo from '@/svg/lerian-logo.svg'
 
 export type OrganizationSwitcherProps = {
-  currentOrganization: OrganizationResponseDto
-  data: OrganizationResponseDto[]
+  currentOrganization: OrganizationDto
+  data: OrganizationDto[]
   status: 'active' | 'inactive'
   image: string
   alt: string
 }
 
 export type OrganizationSwitcherContentProps = OrganizationSwitcherProps & {
-  onChange?: (organization: OrganizationResponseDto) => void
+  onChange?: (organization: OrganizationDto) => void
   onClose: () => void
 }
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { useDeleteAsset, useListAssets } from '@/client/assets'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import {

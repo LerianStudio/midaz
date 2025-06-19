@@ -4,7 +4,6 @@ import {
   postFetcher,
   patchFetcher
 } from '@/lib/fetcher'
-import { CreateUserType } from '@/types/users-type'
 import {
   keepPreviousData,
   useMutation,
@@ -24,7 +23,7 @@ type UseUpdateUserProps = {
 type UsePasswordProps = UseUpdateUserProps
 
 export const useCreateUser = ({ ...options }) => {
-  return useMutation<unknown, Error, CreateUserType>({
+  return useMutation<unknown, Error, unknown>({
     mutationKey: ['users'],
     mutationFn: postFetcher(`/api/identity/users`),
     ...options

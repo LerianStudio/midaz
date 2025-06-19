@@ -1,5 +1,5 @@
 import React from 'react'
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { EntityBox } from '.'
 import { Button } from '../ui/button'
 import { useForm } from 'react-hook-form'
@@ -10,6 +10,11 @@ import { Form } from '../ui/form'
 const meta: Meta = {
   title: 'Components/EntityBox',
   component: EntityBox.Root,
+  parameters: {
+    backgrounds: {
+      default: 'Light'
+    }
+  },
   argTypes: {}
 }
 

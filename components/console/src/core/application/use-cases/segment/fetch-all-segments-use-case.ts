@@ -1,6 +1,6 @@
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { PaginationDto } from '../../dto/pagination-dto'
-import { SegmentResponseDto } from '../../dto/segment-dto'
+import { SegmentDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
@@ -11,7 +11,7 @@ export interface FetchAllSegments {
     ledgerId: string,
     limit: number,
     page: number
-  ) => Promise<PaginationDto<SegmentResponseDto>>
+  ) => Promise<PaginationDto<SegmentDto>>
 }
 
 @injectable()
@@ -27,7 +27,7 @@ export class FetchAllSegmentsUseCase implements FetchAllSegments {
     ledgerId: string,
     limit: number,
     page: number
-  ): Promise<PaginationDto<SegmentResponseDto>> {
+  ): Promise<PaginationDto<SegmentDto>> {
     const segmentsResult = await this.segmentRepository.fetchAll(
       organizationId,
       ledgerId,

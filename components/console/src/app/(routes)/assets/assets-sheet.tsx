@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
 import React from 'react'
@@ -20,13 +20,13 @@ import { LoadingButton } from '@/components/ui/loading-button'
 import { assets } from '@/schema/assets'
 import { SelectItem } from '@/components/ui/select'
 import { useCreateAsset, useUpdateAsset } from '@/client/assets'
-import { AssetType } from '@/types/assets-type'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { Enforce } from '@/providers/permission-provider/enforce'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { AssetDto } from '@/core/application/dto/asset-dto'
 
 export type AssetsSheetProps = DialogProps & {
   ledgerId: string
@@ -68,7 +68,7 @@ export const AssetsSheet = ({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id!,
     onSuccess: (data: unknown) => {
-      const formData = data as AssetType
+      const formData = data as AssetDto
       onSuccess?.()
       onOpenChange?.(false)
       toast({
@@ -169,7 +169,7 @@ export const AssetsSheet = ({
 
         <Form {...form}>
           <form
-            className="flex flex-grow flex-col"
+            className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
             <Tabs defaultValue="details" className="mt-0">
@@ -188,7 +188,7 @@ export const AssetsSheet = ({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <SelectField
                     name="type"
                     label={intl.formatMessage({
@@ -264,7 +264,7 @@ export const AssetsSheet = ({
                     />
                   )}
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'

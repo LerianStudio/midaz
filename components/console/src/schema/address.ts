@@ -15,7 +15,7 @@ const zipCode = z.coerce
 
 const city = z.string().min(1).max(255)
 
-const state = z.string().min(1).max(5)
+const state = z.string().max(5).nullable().optional()
 
 const country = z.string().min(1).max(5)
 

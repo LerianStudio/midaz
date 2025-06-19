@@ -8,7 +8,7 @@ export const PageRoot = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex h-full min-h-screen w-full overflow-y-auto bg-background text-foreground',
+      'bg-background text-foreground flex h-full min-h-screen w-full overflow-y-auto',
       className
     )}
     {...props}
@@ -23,7 +23,7 @@ export const PageView = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex min-h-full w-full flex-col overflow-y-auto bg-shadcn-100',
+      'bg-shadcn-100 flex min-h-full w-full flex-col overflow-y-auto',
       className
     )}
     {...props}

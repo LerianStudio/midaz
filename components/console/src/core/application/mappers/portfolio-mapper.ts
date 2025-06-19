@@ -1,5 +1,5 @@
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
-import { CreatePortfolioDto, PortfolioResponseDto } from '../dto/portfolio-dto'
+import { CreatePortfolioDto, PortfolioDto } from '../dto/portfolio-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
 import { AccountMapper } from './account-mapper'
@@ -16,9 +16,7 @@ export class PortfolioMapper {
     }
   }
 
-  public static toResponseDto(
-    portfolio: PortfolioEntity
-  ): PortfolioResponseDto {
+  public static toResponseDto(portfolio: PortfolioEntity): PortfolioDto {
     return {
       id: portfolio.id!,
       entityId: portfolio.entityId!,
@@ -34,14 +32,14 @@ export class PortfolioMapper {
 
   public static toPaginationResponseDto(
     result: PaginationEntity<PortfolioEntity>
-  ): PaginationEntity<PortfolioResponseDto> {
+  ): PaginationEntity<PortfolioDto> {
     return PaginationMapper.toResponseDto(result, PortfolioMapper.toResponseDto)
   }
 
   public static toDtoWithAccounts(
     portfolio: PortfolioEntity,
     accounts: AccountEntity[]
-  ): PortfolioResponseDto {
+  ): PortfolioDto {
     return {
       ...PortfolioMapper.toResponseDto(portfolio),
       accounts: accounts.map(AccountMapper.toDto)

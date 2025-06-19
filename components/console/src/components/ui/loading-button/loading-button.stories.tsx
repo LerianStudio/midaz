@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { LoadingButton, LoadingButtonProps } from '.'
 import { Users } from 'lucide-react'
 import React from 'react'

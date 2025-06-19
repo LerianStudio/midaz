@@ -26,7 +26,7 @@ export const CustomCardHeader = ({
         {title}
 
         {Icon && (
-          <Icon className={cn('h-6 w-6 text-shadcn-400', iconClassName)} />
+          <Icon className={cn('text-shadcn-400 h-6 w-6', iconClassName)} />
         )}
       </CardTitle>
     </CardHeader>

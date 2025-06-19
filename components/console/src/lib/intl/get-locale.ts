@@ -8,9 +8,9 @@ import { getIntlConfig } from './get-intl-config'
  * If fails, returns the i18n default locale value
  * @returns locale
  */
-export function getLocale() {
+export async function getLocale() {
   const config = getIntlConfig()
-  const systemLocales = getAcceptLanguage()
+  const systemLocales = await getAcceptLanguage()
 
   if (!systemLocales) {
     return config.defaultLocale

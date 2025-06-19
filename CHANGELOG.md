@@ -1,3 +1,228 @@
+## [v2.3.0-beta.6] - 2025-06-10
+
+This release of the midaz project brings significant enhancements to system stability, data precision, and user experience, with no breaking changes.
+
+### ✨ Features  
+- **Enhanced System Stability**: A new backend function, `GetAccountAndLock`, has been introduced to prevent potential deadlocks during account operations, improving overall system reliability.
+- **Improved Data Management**: A new CRUD route in the database enhances data handling capabilities, making database operations more efficient.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Corrected the operation amount field to ensure accurate transaction processing, reducing errors.
+- **Data Retrieval**: Resolved an issue where operations would not return if the operation type was unspecified, ensuring comprehensive data access.
+- **Sign-in Form Functionality**: Added a missing method attribute to the sign-in form, enhancing HTML semantics and form functionality.
+- **Language Consistency**: Fixed translation key issues to ensure accurate language display throughout the application.
+
+### ⚡ Performance
+- **Financial Calculations**: Transitioned monetary fields from BIGINT to DECIMAL in the database, improving precision and data integrity in financial operations.
+- **Optimized Data Handling**: Enhanced Redis balance operations and updated transaction models, boosting performance and efficiency.
+
+### 🔄 Changes
+- **Function Naming Consistency**: Renamed `GetAccountAndLockNew` to `GetAccountAndLock` for clearer and more consistent function naming.
+- **User Experience Improvements**: Enhanced account alias validation and improved error message formatting for transactions, providing a better user experience.
+
+### 📚 Documentation
+- **Updated Documentation**: Comprehensive updates across backend, frontend, and documentation components to reflect recent changes, ensuring users and developers have access to the latest information.
+
+### 🔧 Maintenance
+- **Database Schema Integrity**: Updated scripts to handle column changes correctly, maintaining database schema consistency.
+- **Configuration Best Practices**: Adjusted initial value handling for `parentOrganizationId` to `undefined`, aligning with best practices.
+- **Version Tracking**: Regular updates to the CHANGELOG and versioning files to ensure accurate project documentation.
+
+This release focuses on enhancing the stability, precision, and usability of the midaz project, offering a smoother and more reliable experience for all users.
+
+## [v2.3.0-beta.5] - 2025-06-10
+
+This release focuses on enhancing the logging capabilities, optimizing code performance, and improving the overall maintainability of the midaz application. Users will experience more efficient logging and a cleaner, more streamlined interface.
+
+### ✨ Features  
+- **Logging System Overhaul**: We've implemented a new logging library that enhances the application's logging capabilities. This improvement offers more detailed and structured logs, aiding developers and system administrators in better managing and debugging the system.
+
+### ⚡ Performance
+- **Code Optimization**: Significant refactoring in the authentication and backend systems has been completed. This optimization streamlines code execution, potentially improving performance and maintainability without changing existing functionalities.
+- **Frontend Cleanup**: Removed unused code from the frontend, reducing clutter and slightly improving performance by eliminating unnecessary code paths.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect recent changes, providing users with a comprehensive history of modifications and enhancements.
+
+### 🔧 Maintenance
+- **Version Update**: Updated project version to v2.2.1 in configuration files, ensuring consistency across environments and documentation.
+
+This changelog communicates the key improvements and their benefits to users, focusing on enhanced logging, code optimization, and documentation updates. Each section is crafted to highlight the practical impact on user experience and system performance.
+
+## [v2.3.0-beta.4] - 2025-06-05
+
+This release of Midaz introduces significant enhancements to authentication and server processes, improving security and streamlining development workflows.
+
+### ✨ Features  
+- **Lighthouse Execution with Plugin Authentication**: Now, performance audits can be conducted under authenticated sessions. This ensures that performance metrics are accurate for authenticated pages, enhancing security and reliability in your performance insights.
+
+### 🔄 Changes
+- **Streamlined Server Initialization**: A new server start script has been configured to automate server setup. This reduces manual configuration steps, ensuring consistent environments across development stages and minimizing setup time for developers.
+- **Integrated Frontend Setup**: The frontend setup process is now more integrated with server scripts, automatically managing dependencies and configurations. This improvement reduces overhead and enhances the consistency of the development environment.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring all stakeholders have access to current project information for better communication and planning.
+
+Each of these changes is designed to enhance user experience, streamline development processes, and prioritize performance and security in the evolution of the Midaz project.
+
+## [v2.3.0-beta.3] - 2025-06-05
+
+This release of Midaz introduces enhanced performance monitoring capabilities and streamlines setup processes, ensuring a more efficient and user-friendly experience.
+
+### ✨ Features  
+- **Lighthouse Configuration for Frontend**: We've added new configurations for Lighthouse, significantly boosting the performance monitoring and audit capabilities of your web applications. This enhancement allows developers to optimize for speed and accessibility, delivering a superior user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, providing users with a clear and comprehensive history of the software's evolution.
+  
+### 🔧 Maintenance
+- **Version Update in Configuration**: The `.env.example` file now reflects the latest version, v2.3.0. This update minimizes configuration errors during new installations, ensuring that setups are consistent and aligned with the latest release.
+
+By focusing on these updates, users can benefit from enhanced performance monitoring capabilities and a streamlined setup process, ensuring that they are using the most up-to-date and optimized version of the software.
+
+## [v2.3.0-beta.2] - 2025-06-05
+
+This release focuses on streamlining the user experience by removing unnecessary classifications, updating configurations, and enhancing documentation to ensure clarity and consistency throughout the software.
+
+### ✨ Features  
+- **Streamlined User Interface**: We've removed deprecated types such as UserType, OrganizationType, PortfolioType, and SegmentType. This simplification reduces complexity, making the interface more intuitive and efficient for users.
+
+### 🔄 Changes
+- **Configuration Updates**: The software version has been updated to v2.2.1 in configuration files, ensuring users have access to the latest features and improvements. This update helps maintain consistency across environments.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been refreshed to provide a comprehensive overview of the latest changes, enhancing transparency and helping users track software evolution.
+- **Versioning in Documentation**: All documentation has been updated to reflect the new version, ensuring users have the most current information and guidance.
+
+### 🔧 Maintenance
+- **Environment Configuration**: The `.env.example` file has been updated to reflect the new version, which helps prevent configuration errors and ensures consistency across different environments.
+
+These updates collectively enhance the user experience by simplifying the system, ensuring up-to-date documentation, and maintaining configuration consistency. There are no breaking changes, so users can upgrade without concern for compatibility issues.
+
+
+## [v2.3.0-beta.1] - 2025-06-04
+
+This major release introduces significant updates to enhance compatibility, performance, and user experience across the midaz platform. Key changes include breaking updates for React 19 and NextJS, new features for performance audits, and various improvements to stability and accessibility.
+
+### ⚠️ Breaking Changes
+- **React 19 Compatibility**: This update requires changes to component lifecycle methods and hooks. Ensure your custom components are compatible with React 19's new API. [Migration Guide](#789)
+- **NextJS Configuration**: Users may need to update custom server configurations and build scripts to maintain compatibility with the latest NextJS changes. [Migration Guide](#790)
+
+### ✨ Features
+- **Lighthouse Configuration**: New configuration options with enhanced timeout settings improve performance audits, providing more reliable metrics for frontend optimization. [Learn More](#101)
+- **New Backend Controller**: The introduction of a new controller sets the stage for future backend enhancements, offering improved API management capabilities. [Learn More](#102)
+
+### 🐛 Bug Fixes
+- **Console Warnings**: Resolved issues with isValidElement, reducing development environment noise and improving developer experience. [Details](#301)
+- **NextJS Build**: Fixed configuration complaints to ensure smoother build processes and fewer runtime errors. [Details](#303)
+- **Translation Accuracy**: Corrected translation issues to enhance internationalization support and ensure accurate language displays. [Details](#304)
+
+### ⚡ Performance
+- **Library Upgrades**: Upgrading major libraries, including Tailwind and React-Intl, results in faster load times and smoother user interactions. [Details](#202, #203, #204)
+- **NextJS and React Enhancements**: Improved performance and stability through upgrades, leading to a more responsive user experience. [Details](#205)
+
+### 🔄 Changes
+- **Tooltip Component**: Enhanced for better user interaction and accessibility, improving the overall user experience. [Details](#201)
+
+### 🗑️ Removed
+- **Deprecated Components**: Removed LedgerType and AccountType components, streamlining the codebase and reducing potential errors. [Details](#206, #207)
+
+### 🔧 Maintenance
+- **Dependency Updates**: Miscellaneous upgrades across dependencies ensure the project remains up-to-date with the latest security patches and performance improvements. [Details](#401)
+- **Code Quality Improvements**: Removed legacy ESLint configurations and commented code, enhancing code quality and maintainability. [Details](#402)
+- **Build Workflow Updates**: Updated workflows and build configurations to align with new development practices, ensuring consistent deployment processes. [Details](#403)
+
+This changelog is designed to provide users with a clear understanding of the most impactful changes in this release, focusing on user benefits and necessary actions, especially regarding breaking changes.
+
+## [v2.3.0-beta.1] - 2025-06-04
+
+This release enhances performance monitoring and streamlines the development workflow, offering users improved insights and more efficient build processes.
+
+### ✨ Features
+- **Enhanced Performance Monitoring**: A new configuration for Lighthouse has been introduced, providing better performance insights. Users can now access more reliable and consistent performance metrics, aiding in application optimization efforts.
+
+### ⚡ Performance
+- **Streamlined Frontend Analysis**: New configurations for executing Lighthouse simplify the setup process, offering immediate access to performance data. This enhancement improves the overall development workflow, making it easier for developers to monitor and analyze frontend performance.
+
+### 🔧 Maintenance
+- **Documentation Alignment**: The version in `.env.example` has been updated to v2.2.1, ensuring consistency across environments and preventing configuration-related issues.
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes, providing users with a clear history of updates and improvements.
+
+These updates focus on enhancing performance monitoring capabilities and improving the development workflow, providing users with more robust tools for application optimization and maintenance.
+
+## [v2.3.0-beta.1] - 2025-06-04
+
+This major release of Midaz introduces significant upgrades to both the frontend and backend, enhancing performance, user experience, and development capabilities. Key updates include React and NextJS upgrades, new backend features, and crucial bug fixes.
+
+### ⚠️ Breaking Changes
+- **React 19 Upgrade**: This update may affect custom components and third-party libraries. Users should review their code for compatibility with React 19's new features and deprecations. [Migration Guide](#)
+- **NextJS Update**: Changes may impact custom server configurations and routing. Please verify your NextJS setup to ensure compatibility with the latest version. [Migration Guide](#)
+
+### ✨ Features
+- **New Backend Controller**: Introduced a new controller, enhancing backend capabilities and laying the groundwork for future expansions. This feature improves data handling and scalability.
+- **Frontend Upgrades**: NextJS and React have been upgraded to their latest versions, providing performance improvements and new features that enhance development efficiency and application responsiveness.
+
+### 🐛 Bug Fixes
+- **Console Warnings**: Resolved issues with `isValidElement`, reducing development environment noise and improving stability.
+- **Internationalization Fixes**: Ensured proper functionality of internationalization features by fixing issues with formatjs/cli-lib.
+- **Build and Configuration**: Addressed build issues and NextJS configuration complaints, ensuring smoother build processes and deployment reliability.
+
+### ⚡ Performance
+- **Lighthouse Configuration**: Implemented Lighthouse for performance audits, enabling developers to monitor and enhance application performance metrics effectively.
+
+### 🔄 Changes
+- **Dependency Updates**: Upgraded Tailwind, Storybook, and react-intl dependencies, ensuring compatibility with the latest features and security patches.
+- **Code Quality**: Improved linting and code quality by upgrading eslint and addressing code style issues, leading to more maintainable and error-free code.
+
+### 📚 Documentation
+- **Versioning Updates**: Updated `.env.example` and CHANGELOG to reflect the latest release, ensuring documentation accuracy and consistency.
+
+### 🔧 Maintenance
+- **Legacy Code Removal**: Removed deprecated configurations and code, streamlining the codebase for better maintainability.
+- **Code Cleanup**: Linted code and removed commented code, enhancing readability and maintainability.
+
+Users are encouraged to review the breaking changes and major features to fully leverage the improvements and ensure a smooth transition to this updated version.
+
+## [v2.3.0-beta.3] - 2025-06-02
+
+### ✨ Features
+- Upgrade tooltip component for enhanced functionality.
+- Upgrade Inversify to the latest version for improved dependency injection.
+- Remove server-side OrganizationProvider for improved performance.
+- Upgrade OpenTelemetry (OTEL) integration for better observability.
+- Upgrade ESLint and apply linting to the codebase for improved code quality.
+- Upgrade Radix UI components for a more consistent user interface.
+- Upgrade Tailwind CSS framework to leverage new styling capabilities.
+- Upgrade React-Intl for better internationalization support.
+- Upgrade Storybook for improved UI component development.
+- Upgrade NextJS and React to the latest versions to utilize new features and optimizations.
+- Address breaking changes in React 19 to ensure compatibility.
+
+### 🐛 Bug Fixes
+- Remove legacy ESLint configuration to prevent outdated linting errors.
+- Resolve console warning in the browser for a cleaner developer experience.
+- Make state optional to prevent errors in specific use cases.
+- Address issue with isValidElement check to ensure proper component validation.
+- Correct issue with formatjs/cli-lib to prevent localization errors.
+- Adjust NextJS configuration to prevent warnings during development.
+- Resolve build issues to ensure successful deployment.
+- Address breaking changes in NextJS to maintain application stability.
+
+### 🔧 Maintenance
+- Update CHANGELOG with recent changes for accurate project documentation.
+
+## [v2.3.0-beta.2] - 2025-05-29
+
+### ✨ Features
+- Develop initial version of the first controller to enhance application modularity and functionality.
+
+### 🐛 Bug Fixes
+- Remove commented code from the codebase to improve code readability and maintainability.
+
+### 🔧 Maintenance
+- Update version in `.env.example` to v2.3.0 to reflect the latest release.
+
+
 ## [v2.2.2] - 2025-06-16
 
 This release focuses on enhancing the reliability and stability of the midaz project, with key improvements in configuration management and documentation. Users will benefit from a more robust messaging infrastructure and streamlined development processes.
@@ -109,7 +334,6 @@ This update consolidates improvements and bug fixes, enhancing the overall relia
 - Add API documentation for asset and ledger count functionalities
 - Update PR notifications with environment version
 - Update README with Node version management section
-
 
 ## [v2.2.0-beta.62] - 2025-05-29
 

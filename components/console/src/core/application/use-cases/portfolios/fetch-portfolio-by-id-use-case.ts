@@ -1,6 +1,6 @@
 import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
-import { PortfolioResponseDto } from '../../dto/portfolio-dto'
+import { PortfolioDto } from '../../dto/portfolio-dto'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
@@ -9,7 +9,7 @@ export interface FetchPortfolioById {
     organizationId: string,
     ledgerId: string,
     portfolioId: string
-  ) => Promise<PortfolioResponseDto>
+  ) => Promise<PortfolioDto>
 }
 
 @injectable()
@@ -24,7 +24,7 @@ export class FetchPortfolioByIdUseCase implements FetchPortfolioById {
     organizationId: string,
     ledgerId: string,
     portfolioId: string
-  ): Promise<PortfolioResponseDto> {
+  ): Promise<PortfolioDto> {
     const portfolio = await this.portfolioRepository.fetchById(
       organizationId,
       ledgerId,

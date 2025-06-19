@@ -32,7 +32,7 @@ export const OperationSum = ({
   const divergent = Number(value) !== total
 
   return (
-    <div className="mb-5 mt-3 flex flex-row items-center justify-end gap-4 px-16 text-xs font-medium text-zinc-500">
+    <div className="mt-3 mb-5 flex flex-row items-center justify-end gap-4 px-16 text-xs font-medium text-zinc-500">
       <p>{label}</p>
       <p>{asset}</p>
       <TooltipProvider>
@@ -40,7 +40,7 @@ export const OperationSum = ({
           <TooltipTrigger asChild>
             <div
               className={cn(
-                'flex h-8 flex-row items-center rounded-[6px] border border-zinc-200 py-2 pl-2 pr-3 shadow-sm',
+                'flex h-8 flex-row items-center rounded-[6px] border border-zinc-200 py-2 pr-3 pl-2 shadow-xs',
                 {
                   'bg-zinc-200 shadow-none': divergent
                 }

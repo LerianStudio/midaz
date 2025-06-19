@@ -13,7 +13,7 @@ import {
   StepperItemNumber,
   StepperItemText
 } from '@/components/ui/stepper'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { useSearchParams } from '@/lib/search'
 import { ledger } from '@/schema/ledger'
 import { zodResolver } from '@hookform/resolvers/zod'

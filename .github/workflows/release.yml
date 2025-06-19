@@ -5,7 +5,7 @@ on:
     branches:
       - develop
       - main
-      - hotfix/v*
+      - hotfix/*
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
@@ -119,6 +119,18 @@ jobs:
       # Install semantic-release plugins
     - name: Install missing plugin @semantic-release/exec
       run: npm install --save-dev @semantic-release/exec
+      
+      # Dynamically sets the semantic-release config file path based on the branch type.
+      # If the branch is a hotfix (refs/heads/hotfix/*), use `.releaserc.hotfix`;
+      # otherwise, use the default `.releaserc` file.
+    - name: Set releaserc path based on branch
+      id: releaserc
+      run: |
+        if [[ "${GITHUB_REF}" == refs/heads/hotfix/* ]]; then
+          echo "path=.releaserc.hotfix" >> $GITHUB_OUTPUT
+        else
+          echo "path=.releaserc" >> $GITHUB_OUTPUT
+        fi
 
     # Run semantic-release to determine version and create release
     - name: Semantic Release
@@ -127,6 +139,7 @@ jobs:
       with:
         ci: false
         semantic_version: 23.0.8
+        config_file: ${{ steps.releaserc.outputs.path }}
         extra_plugins: |
           conventional-changelog-conventionalcommits@v7.0.2
           @saithodev/semantic-release-backmerge

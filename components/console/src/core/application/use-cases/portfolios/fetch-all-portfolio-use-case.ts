@@ -1,7 +1,7 @@
 import { PaginationDto } from '../../dto/pagination-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
-import { PortfolioResponseDto } from '../../dto/portfolio-dto'
+import { PortfolioDto } from '../../dto/portfolio-dto'
 import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
@@ -13,7 +13,7 @@ export interface FetchAllPortfolios {
     ledgerId: string,
     limit: number,
     page: number
-  ) => Promise<PaginationDto<PortfolioResponseDto>>
+  ) => Promise<PaginationDto<PortfolioDto>>
 }
 
 @injectable()
@@ -29,7 +29,7 @@ export class FetchAllPortfoliosUseCase implements FetchAllPortfolios {
     ledgerId: string,
     limit: number,
     page: number
-  ): Promise<PaginationDto<PortfolioResponseDto>> {
+  ): Promise<PaginationDto<PortfolioDto>> {
     const portfoliosResult: PaginationEntity<PortfolioEntity> =
       await this.portfolioRepository.fetchAll(
         organizationId,

@@ -1,8 +1,8 @@
 import { UserEntity } from '@/core/domain/entities/user-entity'
-import { CreateUserDto, UpdateUserDto, UserResponseDto } from '../dto/user-dto'
+import { CreateUserDto, UpdateUserDto, UserDto } from '../dto/user-dto'
 
 export class UserMapper {
-  public static toDto(user: UserEntity): UserResponseDto {
+  public static toDto(user: UserEntity): UserDto {
     return {
       id: user.id!,
       firstName: user.firstName,

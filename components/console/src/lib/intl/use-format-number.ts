@@ -1,6 +1,6 @@
 import React from 'react'
-import Decimal from 'decimal.js-light'
 import { useLocale } from './use-locale'
+import { isNumericalString } from 'framer-motion'
 
 export function useFormatNumber() {
   const { locale } = useLocale()
@@ -13,8 +13,31 @@ export function useFormatNumber() {
     [locale]
   )
 
+  const thousandSeparator = React.useMemo(
+    () =>
+      Intl.NumberFormat(locale)
+        .formatToParts(1000)
+        .find((part) => part.type === 'group')?.value ?? ',',
+    [locale]
+  )
+
   const formatNumber = React.useCallback(
-    (value: Decimal) => value.toString().replaceAll('.', separator),
+    (value: string) => {
+      if (typeof value !== 'string') {
+        return value
+      }
+
+      if (!isNumericalString(value)) {
+        return value
+      }
+
+      const [integer, decimal] = value.split('.')
+
+      return (
+        integer.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator) +
+        (decimal ? separator + decimal : '')
+      )
+    },
     [separator]
   )
 

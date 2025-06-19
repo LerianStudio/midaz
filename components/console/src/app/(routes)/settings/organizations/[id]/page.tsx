@@ -1,5 +1,6 @@
 'use client'
 
+import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
@@ -10,7 +11,8 @@ import { OrganizationsForm } from '../organizations-form'
 import { NotFoundContent } from '@/components/not-found-content'
 import { useToast } from '@/hooks/use-toast'
 
-const Page = ({ params }: { params: { id: string } }) => {
+const Page = (props: { params: Promise<{ id: string }> }) => {
+  const params = use(props.params)
   const router = useRouter()
   const intl = useIntl()
   const organizationId = params.id

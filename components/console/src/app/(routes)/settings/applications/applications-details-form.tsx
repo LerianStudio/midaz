@@ -42,7 +42,7 @@ export const ApplicationDetailsForm = ({
   })
 
   return (
-    <div className="flex flex-grow flex-col">
+    <div className="flex grow flex-col">
       <Form {...form}>
         <form
           id="application-details-form"

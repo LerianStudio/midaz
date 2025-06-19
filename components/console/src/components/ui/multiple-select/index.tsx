@@ -27,7 +27,7 @@ type MultipleSelectContextType = React.HtmlHTMLAttributes<HTMLInputElement> & {
   addOption: (option: Record<string, string>) => void
 
   /** Component References */
-  inputRef: React.RefObject<HTMLInputElement>
+  inputRef: React.RefObject<HTMLInputElement | null>
 }
 
 const MultipleSelectContext = React.createContext<MultipleSelectContextType>({
@@ -79,21 +79,21 @@ export const MultipleSelectTrigger = React.forwardRef<
     <div
       ref={_ref}
       className={cn(
-        'flex flex-row rounded-md border border-[#C7C7C7] bg-background text-sm ring-offset-background placeholder:text-shadcn-400 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0 focus-visible:outline-none dark:border-inherit md:text-sm [&>span]:line-clamp-1',
+        'bg-background ring-offset-background placeholder:text-shadcn-400 focus:ring-ring flex flex-row rounded-md border border-[#C7C7C7] text-sm focus:ring-2 focus:ring-offset-0 focus:outline-hidden focus-visible:outline-hidden md:text-sm dark:border-inherit [&>span]:line-clamp-1',
         {
           'h-9': value.length === 0,
           'min-h-9': value.length > 0,
           'cursor-text': !disabled && !readOnly && value.length !== 0,
-          'cursor-not-allowed bg-shadcn-100 opacity-50': disabled
+          'bg-shadcn-100 cursor-not-allowed opacity-50': disabled
         },
         readOnly && [
-          'data-[read-only]:cursor-default',
-          'data-[read-only]:select-text',
-          'data-[read-only]:bg-zinc-100',
-          'data-[read-only]:opacity-50',
-          'data-[read-only]:pointer-events-none',
-          'data-[read-only]:focus:outline-none',
-          'data-[read-only]:focus:ring-0'
+          'data-read-only:cursor-default',
+          'data-read-only:select-text',
+          'data-read-only:bg-zinc-100',
+          'data-read-only:opacity-50',
+          'data-read-only:pointer-events-none',
+          'data-read-only:focus:outline-hidden',
+          'data-read-only:focus:ring-0'
         ],
         className
       )}
@@ -114,14 +114,14 @@ export const MultipleSelectTrigger = React.forwardRef<
         setOpen(!open)
       }}
     >
-      <div className="flex flex-grow flex-wrap gap-1 px-3 py-2">{children}</div>
+      <div className="flex grow flex-wrap gap-1 px-3 py-2">{children}</div>
       <div className="flex flex-1 items-center justify-end">
         <button
           type="button"
           className={cn((disabled || readOnly || value.length < 1) && 'hidden')}
         >
           <X
-            className="mx-2 h-4 cursor-pointer text-muted-foreground"
+            className="text-muted-foreground mx-2 h-4 cursor-pointer"
             onClick={(event) => {
               event.stopPropagation()
               handleClear()
@@ -166,19 +166,19 @@ export const MultipleSelectValue = React.forwardRef<
             key={value}
             variant="secondary"
             className={cn(
-              'data-[disabled]:bg-muted-foreground data-[fixed]:bg-muted-foreground data-[disabled]:text-muted data-[fixed]:text-muted data-[disabled]:hover:bg-muted-foreground data-[fixed]:hover:bg-muted-foreground'
+              'data-disabled:bg-muted-foreground data-fixed:bg-muted-foreground data-disabled:text-muted data-fixed:text-muted data-disabled:hover:bg-muted-foreground data-fixed:hover:bg-muted-foreground'
             )}
           >
             {showValue ? value : options[value]}
             <button
               type="button"
               className={cn(
-                'ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                'ring-offset-background focus:ring-ring ml-1 rounded-full outline-hidden focus:ring-2 focus:ring-offset-2',
                 disabled && 'hidden'
               )}
             >
               <X
-                className="h-3 w-3 text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground h-3 w-3"
                 onClick={(event) => {
                   event.stopPropagation()
                   handleChange(value)
@@ -192,7 +192,7 @@ export const MultipleSelectValue = React.forwardRef<
         ref={inputRef}
         disabled={disabled}
         className={cn(
-          'focus:outline-hidden bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
+          'placeholder:text-muted-foreground bg-transparent outline-hidden focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 disabled:placeholder:opacity-0',
           className
         )}
       />
@@ -249,7 +249,10 @@ export const MultipleSelectContent = React.forwardRef<
     // and when the children change.
     React.useEffect(() => {
       React.Children.forEach(React.Children.toArray(children), (child) => {
-        if (React.isValidElement(child) && child.props.value) {
+        if (
+          React.isValidElement<{ value: string; children: string }>(child) &&
+          child.props.value
+        ) {
           addOption({ [child.props.value]: child.props.children as string })
         }
       })
@@ -264,7 +267,7 @@ export const MultipleSelectContent = React.forwardRef<
         <CommandPrimitive.List
           ref={ref}
           className={cn(
-            'absolute top-1 z-50 max-h-96 w-full min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in',
+            'bg-popover text-popover-foreground animate-in absolute top-1 z-50 max-h-96 w-full min-w-32 overflow-x-hidden overflow-y-auto rounded-md border shadow-md outline-hidden',
             position === 'popper' &&
               'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
             className
@@ -313,7 +316,7 @@ export const MultipleSelectItem = React.forwardRef<
       ref={ref}
       value={value}
       className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 dark:data-[selected='true']:bg-accent dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground dark:data-[selected='true']:bg-accent relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         className
       )}
       {...props}

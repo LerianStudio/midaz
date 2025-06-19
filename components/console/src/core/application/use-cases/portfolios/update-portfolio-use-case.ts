@@ -2,7 +2,7 @@ import { PortfolioRepository } from '@/core/domain/repositories/portfolio-reposi
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
 import {
   CreatePortfolioDto,
-  PortfolioResponseDto,
+  PortfolioDto,
   UpdatePortfolioDto
 } from '../../dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
@@ -15,7 +15,7 @@ export interface UpdatePortfolio {
     ledgerId: string,
     portfolioId: string,
     portfolio: Partial<UpdatePortfolioDto>
-  ) => Promise<PortfolioResponseDto>
+  ) => Promise<PortfolioDto>
 }
 
 @injectable()
@@ -31,7 +31,7 @@ export class UpdatePortfolioUseCase implements UpdatePortfolio {
     ledgerId: string,
     portfolioId: string,
     portfolio: Partial<UpdatePortfolioDto>
-  ): Promise<PortfolioResponseDto> {
+  ): Promise<PortfolioDto> {
     const portfolioEntity: Partial<PortfolioEntity> = PortfolioMapper.toDomain(
       portfolio as CreatePortfolioDto
     )

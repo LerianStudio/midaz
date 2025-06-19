@@ -1,4 +1,5 @@
 import { MetadataDto } from './metadata-dto'
+import { type PortfolioDto } from './portfolio-dto'
 import { SearchParamDto } from './request-dto'
 
 export type AccountSearchParamDto = SearchParamDto & {
@@ -36,6 +37,7 @@ export interface AccountDto {
   segmentId: string
   allowSending?: boolean
   allowReceiving?: boolean
+  portfolio?: PortfolioDto
   metadata: MetadataDto
   createdAt: Date
   updatedAt: Date

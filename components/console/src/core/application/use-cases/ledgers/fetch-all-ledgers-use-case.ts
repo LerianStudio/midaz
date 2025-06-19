@@ -1,5 +1,5 @@
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { LedgerResponseDto } from '../../dto/ledger-dto'
+import { LedgerDto } from '../../dto/ledger-dto'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { PaginationDto } from '../../dto/pagination-dto'
@@ -12,7 +12,7 @@ export interface FetchAllLedgers {
     organizationId: string,
     limit: number,
     page: number
-  ) => Promise<PaginationEntity<LedgerResponseDto>>
+  ) => Promise<PaginationEntity<LedgerDto>>
 }
 
 @injectable()
@@ -27,7 +27,7 @@ export class FetchAllLedgersUseCase implements FetchAllLedgers {
     organizationId: string,
     limit: number,
     page: number
-  ): Promise<PaginationDto<LedgerResponseDto>> {
+  ): Promise<PaginationDto<LedgerDto>> {
     const ledgersResult: PaginationEntity<LedgerEntity> =
       await this.ledgerRepository.fetchAll(organizationId, limit, page)
 

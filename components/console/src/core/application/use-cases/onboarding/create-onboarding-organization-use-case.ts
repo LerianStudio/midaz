@@ -1,7 +1,7 @@
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import type {
   CreateOrganizationDto,
-  OrganizationResponseDto
+  OrganizationDto
 } from '../../dto/organization-dto'
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
@@ -15,9 +15,7 @@ import { IntlShape } from 'react-intl'
 import { getIntl } from '@/lib/intl'
 
 export interface CreateOnboardingOrganization {
-  execute: (
-    organization: CreateOrganizationDto
-  ) => Promise<OrganizationResponseDto>
+  execute: (organization: CreateOrganizationDto) => Promise<OrganizationDto>
 }
 
 @injectable()
@@ -34,7 +32,7 @@ export class CreateOnboardingOrganizationUseCase
   @LogOperation({ layer: 'application' })
   async execute(
     organizationData: CreateOrganizationDto
-  ): Promise<OrganizationResponseDto> {
+  ): Promise<OrganizationDto> {
     const intl = await getIntl()
 
     const organizationCreated: OrganizationEntity =
@@ -47,7 +45,7 @@ export class CreateOnboardingOrganizationUseCase
         organizationData.avatar
       )
 
-    const organizationResponseDto: OrganizationResponseDto =
+    const organizationResponseDto: OrganizationDto =
       OrganizationMapper.toResponseDto(
         organizationCreated,
         organizationAvatarCreated?.avatar

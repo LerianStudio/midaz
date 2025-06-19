@@ -6,7 +6,7 @@
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 import { OrganizationAvatarRepository } from '@/core/domain/repositories/organization-avatar-repository'
 import { inject, injectable } from 'inversify'
-import { LoggerAggregator } from '../../logger/logger-aggregator'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { handleDatabaseError } from '../../utils/database-error-handler'
 import { OrganizationAvatarMapper } from '../mappers/mongo-organization-avatar-mapper'
 import OrganizationAvatar from '../models/organization-avatar'

@@ -1,7 +1,7 @@
 import { SegmentEntity } from '@/core/domain/entities/segment-entity'
 import {
   CreateSegmentDto,
-  SegmentResponseDto,
+  SegmentDto,
   UpdateSegmentDto
 } from '../dto/segment-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -15,7 +15,7 @@ export class SegmentMapper {
     }
   }
 
-  static toResponseDto(segment: SegmentEntity): SegmentResponseDto {
+  static toResponseDto(segment: SegmentEntity): SegmentDto {
     return {
       id: segment.id!,
       organizationId: segment.organizationId!,
@@ -30,7 +30,7 @@ export class SegmentMapper {
 
   static toPaginationResponseDto(
     result: PaginationEntity<SegmentEntity>
-  ): PaginationEntity<SegmentResponseDto> {
+  ): PaginationEntity<SegmentDto> {
     return PaginationMapper.toResponseDto(result, SegmentMapper.toResponseDto)
   }
 }

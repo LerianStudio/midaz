@@ -11,9 +11,9 @@ import {
 import { NextResponse, NextRequest } from 'next/server'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 
-const midazLogger = container.get(LoggerAggregator)
+const midazLogger: LoggerAggregator = container.get(LoggerAggregator)
 
 export const GET = applyMiddleware(
   [

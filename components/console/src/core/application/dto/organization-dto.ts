@@ -20,7 +20,7 @@ export type UpdateOrganizationDto = {
   metadata?: MetadataDto
 }
 
-export type OrganizationResponseDto = {
+export type OrganizationDto = {
   id: string
   legalName: string
   parentOrganizationId?: string

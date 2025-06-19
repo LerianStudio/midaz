@@ -27,7 +27,6 @@ export class MidazBalanceMapper {
       assetCode: balance.assetCode,
       available: balance.available,
       onHold: balance.onHold,
-      scale: balance.scale,
       allowSending: balance.allowSending,
       allowReceiving: balance.allowReceiving,
       createdAt: balance.createdAt,

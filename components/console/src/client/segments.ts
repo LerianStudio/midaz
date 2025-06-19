@@ -1,4 +1,5 @@
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
 import {
   deleteFetcher,
   getPaginatedFetcher,
@@ -6,7 +7,6 @@ import {
   postFetcher
 } from '@/lib/fetcher'
 import { PaginationRequest } from '@/types/pagination-request-type'
-import { SegmentType } from '@/types/segment-type'
 import {
   keepPreviousData,
   useMutation,
@@ -45,7 +45,7 @@ export const useListSegments = ({
   page,
   ...options
 }: UseListSegmentsProps) => {
-  return useQuery<PaginationDto<SegmentType>>({
+  return useQuery<PaginationDto<SegmentDto>>({
     queryKey: [organizationId, ledgerId, limit, page],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments`,

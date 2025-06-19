@@ -1,7 +1,7 @@
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import type {
   UpdateLedgerDto,
-  LedgerResponseDto,
+  LedgerDto,
   CreateLedgerDto
 } from '../../dto/ledger-dto'
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
@@ -14,7 +14,7 @@ export interface UpdateLedger {
     organizationId: string,
     ledgerId: string,
     ledger: UpdateLedgerDto
-  ) => Promise<LedgerResponseDto>
+  ) => Promise<LedgerDto>
 }
 
 @injectable()
@@ -29,7 +29,7 @@ export class UpdateLedgerUseCase implements UpdateLedger {
     organizationId: string,
     ledgerId: string,
     ledger: UpdateLedgerDto
-  ): Promise<LedgerResponseDto> {
+  ): Promise<LedgerDto> {
     const ledgerEntity: Partial<LedgerEntity> = LedgerMapper.toDomain(
       ledger as CreateLedgerDto
     )

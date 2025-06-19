@@ -28,10 +28,9 @@ import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet
 import { UsersSheet } from './users-sheet'
 import { useDeleteUser, useListUsers } from '@/client/users'
 import { Skeleton } from '@/components/ui/skeleton'
-import { UserResponseDto } from '@/core/application/dto/user-dto'
+import { UserDto } from '@/core/application/dto/user-dto'
 import { useSession } from 'next-auth/react'
 import { useToast } from '@/hooks/use-toast'
-import { UsersType } from '@/types/users-type'
 
 export const UsersTabContent = () => {
   const intl = useIntl()
@@ -39,7 +38,7 @@ export const UsersTabContent = () => {
   const { data: users, refetch, isLoading } = useListUsers({})
   const { toast } = useToast()
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<UsersType>({
+    useCreateUpdateSheet<UserDto>({
       enableRouting: true
     })
 
@@ -141,7 +140,7 @@ export const UsersTabContent = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users?.map((user: UserResponseDto) => (
+                {users?.map((user: UserDto) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       {user.firstName || user.lastName ? (

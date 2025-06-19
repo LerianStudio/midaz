@@ -1,5 +1,4 @@
-import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
 import {
@@ -20,8 +19,8 @@ export class AuthHttpService extends HttpService {
   constructor(
     @inject(LoggerAggregator)
     private readonly logger: LoggerAggregator,
-    @inject(MidazRequestContext)
-    private readonly midazRequestContext: MidazRequestContext,
+    @inject(RequestIdRepository)
+    private readonly requestIdRepository: RequestIdRepository,
     @inject(OtelTracerProvider)
     private readonly otelTracerProvider: OtelTracerProvider
   ) {
@@ -33,7 +32,7 @@ export class AuthHttpService extends HttpService {
   async login<T>(url: string, options: FetchModuleOptions): Promise<T> {
     const headers = {
       'Content-Type': 'application/json',
-      'X-Request-Id': this.midazRequestContext.getMidazId()
+      'X-Request-Id': this.requestIdRepository.get()!
     }
 
     return await this.request<T>(
@@ -44,7 +43,7 @@ export class AuthHttpService extends HttpService {
   protected async createDefaults() {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Request-Id': this.midazRequestContext.getMidazId()
+      'X-Request-Id': this.requestIdRepository.get()!
     }
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {

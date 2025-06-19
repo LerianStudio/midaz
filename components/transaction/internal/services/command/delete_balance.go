@@ -27,7 +27,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		return err
 	}
 
-	if balance != nil && (balance.Available != 0 || balance.OnHold != 0) {
+	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantDeleted, "DeleteBalance")
 		libOpentelemetry.HandleSpanError(&span, "Balance cannot be deleted because it still has funds in it.", err)
 		logger.Errorf("Error deleting balance: %v", err)

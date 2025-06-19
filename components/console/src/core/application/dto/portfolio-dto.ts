@@ -1,4 +1,4 @@
-import { AccountDto } from './account-dto'
+import { type AccountDto } from './account-dto'
 import { MetadataDto } from './metadata-dto'
 
 export type CreatePortfolioDto = {
@@ -14,7 +14,7 @@ export type UpdatePortfolioDto = {
   metadata?: MetadataDto
 }
 
-export type PortfolioResponseDto = {
+export type PortfolioDto = {
   id: string
   ledgerId: string
   organizationId: string

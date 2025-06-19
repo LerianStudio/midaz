@@ -15,6 +15,7 @@ import { useIntl } from 'react-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTime } from '@/hooks/use-time'
 import dayjs from 'dayjs'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 const AccountBalanceCardContext = React.createContext<{ open?: boolean }>({
   open: false
@@ -78,7 +79,7 @@ export const AccountBalanceCardDeleteButton = React.forwardRef<
   <Button
     ref={ref}
     variant="plain"
-    className={cn('absolute right-3 top-3 h-8 w-8 p-0', className)}
+    className={cn('absolute top-3 right-3 h-8 w-8 p-0', className)}
     {...props}
   >
     <Trash className="h-4 w-4 text-zinc-600" />
@@ -93,7 +94,7 @@ export const AccountBalanceCardContent = React.forwardRef<
   <CollapsibleContent
     ref={ref}
     className={cn(
-      'overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden',
       className
     )}
     {...props}
@@ -122,7 +123,7 @@ export const AccountBalanceCardEmpty = React.forwardRef<
     <p
       ref={ref}
       className={cn(
-        'mt-3 text-center text-sm font-normal text-shadcn-500',
+        'text-shadcn-500 mt-3 text-center text-sm font-normal',
         className
       )}
       {...props}
@@ -139,7 +140,7 @@ AccountBalanceCardEmpty.displayName = 'AccountBalanceCardEmpty'
 export type AccountBalanceCardInfoProps =
   React.HtmlHTMLAttributes<HTMLDivElement> & {
     assetCode: string
-    value: number
+    value: string
   }
 
 export const AccountBalanceCardInfo = React.forwardRef<
@@ -147,18 +148,19 @@ export const AccountBalanceCardInfo = React.forwardRef<
   AccountBalanceCardInfoProps
 >(({ className, assetCode, value, children, ...props }, ref) => {
   const intl = useIntl()
+  const { formatNumber } = useFormatNumber()
 
   return (
     <div
       ref={ref}
       className={cn(
-        'mt-3 flex flex-row items-center justify-between text-sm font-normal text-shadcn-500',
+        'text-shadcn-500 mt-3 flex flex-row items-center justify-between text-sm font-normal',
         className
       )}
       {...props}
     >
       <p>{assetCode}</p>
-      <p>{intl.formatNumber(value, { roundingPriority: 'morePrecision' })}</p>
+      <p>{formatNumber(value)}</p>
     </div>
   )
 })
@@ -184,7 +186,7 @@ export const AccountBalanceCardUpdateButton = React.forwardRef<
 
   return (
     <div className="mb-3 flex flex-row items-center justify-end gap-2">
-      <p className="text-xs font-medium text-shadcn-500">
+      <p className="text-shadcn-500 text-xs font-medium">
         {loading &&
           intl.formatMessage({
             id: 'common.updating',

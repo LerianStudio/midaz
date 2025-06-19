@@ -11,7 +11,7 @@ export type CreateAssetDto = {
 
 export type UpdateAssetDto = Omit<Partial<CreateAssetDto>, 'type' | 'code'>
 
-export type AssetResponseDto = {
+export type AssetDto = {
   id: string
   organizationId: string
   ledgerId: string

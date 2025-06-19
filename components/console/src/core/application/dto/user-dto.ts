@@ -9,7 +9,7 @@ export type CreateUserDto = {
 
 export type UpdateUserDto = Omit<Partial<CreateUserDto>, 'password'>
 
-export type UserResponseDto = {
+export type UserDto = {
   id: string
   firstName: string
   lastName: string

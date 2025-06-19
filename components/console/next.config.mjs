@@ -64,29 +64,26 @@ const nextConfig = {
     return config
   },
 
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      'pino',
-      'pino-pretty',
-      '@opentelemetry/instrumentation',
-      '@opentelemetry/api',
-      '@opentelemetry/api-logs',
-      '@opentelemetry/exporter-logs-otlp-http',
-      '@opentelemetry/exporter-metrics-otlp-http',
-      '@opentelemetry/exporter-trace-otlp-http',
-      '@opentelemetry/instrumentation',
-      '@opentelemetry/instrumentation-http',
-      '@opentelemetry/instrumentation-pino',
-      '@opentelemetry/instrumentation-runtime-node',
-      '@opentelemetry/resources',
-      '@opentelemetry/sdk-logs',
-      '@opentelemetry/sdk-metrics',
-      '@opentelemetry/sdk-node',
-      '@opentelemetry/sdk-trace-base',
-      '@opentelemetry/instrumentation-undici'
-    ]
-  }
+  serverExternalPackages: [
+    'pino',
+    'pino-pretty',
+    '@opentelemetry/instrumentation',
+    '@opentelemetry/api',
+    '@opentelemetry/api-logs',
+    '@opentelemetry/exporter-logs-otlp-http',
+    '@opentelemetry/exporter-metrics-otlp-http',
+    '@opentelemetry/exporter-trace-otlp-http',
+    '@opentelemetry/instrumentation',
+    '@opentelemetry/instrumentation-http',
+    '@opentelemetry/instrumentation-pino',
+    '@opentelemetry/instrumentation-runtime-node',
+    '@opentelemetry/resources',
+    '@opentelemetry/sdk-logs',
+    '@opentelemetry/sdk-metrics',
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/sdk-trace-base',
+    '@opentelemetry/instrumentation-undici'
+  ]
 }
 
 export default nextConfig

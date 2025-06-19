@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import React from 'react'
 import {
   Autocomplete,
@@ -53,7 +53,7 @@ const Component = (args: any) => {
         </AutocompleteTrigger>
         <AutocompleteContent>
           <AutocompleteEmpty>
-            <p className="text-sm text-muted-foreground">No frameworks found</p>
+            <p className="text-muted-foreground text-sm">No frameworks found</p>
           </AutocompleteEmpty>
           <AutocompleteGroup>
             {frameworks.map((framework) => (

@@ -12,7 +12,7 @@ import {
   AutocompleteValue
 } from '@/components/ui/autocomplete'
 import { Paper } from '@/components/ui/paper'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
 import React, { useState } from 'react'
@@ -153,7 +153,7 @@ export const AccountSearchField = ({
           />
 
           <Button
-            className="h-9 w-9 self-end rounded-full bg-shadcn-600 disabled:bg-shadcn-200"
+            className="bg-shadcn-600 disabled:bg-shadcn-200 h-9 w-9 self-end rounded-full"
             onClick={handleSubmit}
             disabled={loading || !selected}
           >

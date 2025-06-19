@@ -137,12 +137,14 @@ help:
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo "Demo Data Commands:"
-	@echo "  make demo-data                   - Generate demo data with small volume"
-	@echo "  make demo-data-medium            - Generate demo data with medium volume"
-	@echo "  make demo-data-large             - Generate demo data with large volume"
-	@echo "  make demo-data-test              - Run simplified tests for demo data generator"
-	@echo "  make demo-data-test-full         - Run full Jest tests for demo data generator"
-	@echo "  make demo-data-test-mode         - Test demo data generator in test mode"
+	@echo "  make demo-data                   - Generate demo data with small volume (optimized)"
+	@echo "  make demo-data-medium            - Generate demo data with medium volume (optimized)"
+	@echo "  make demo-data-large             - Generate demo data with large volume (optimized)"
+	@echo "  make demo-data-small-fast        - Generate small volume with no process delays"
+	@echo "  make demo-data-medium-fast       - Generate medium volume with no process delays"
+	@echo "  make demo-data-small-sequential  - Generate small volume using sequential generator"
+	@echo "  make demo-data-medium-sequential - Generate medium volume using sequential generator"
+	@echo "  make demo-data-large-sequential  - Generate large volume using sequential generator"
 	@echo ""
 	@echo ""
 
@@ -509,22 +511,54 @@ generate-docs:
 demo-data: demo-data-small
 
 demo-data-small:
-	$(call print_title,"Generating demo data with small volume")
-	@echo "Running demo data generator with small volume..."
-	@cd scripts/demo-data && ./run-generator.sh small none
+	$(call print_title,Generating demo data with small volume - optimized)
+	@echo "Running optimized demo data generator with small volume..."
+	@cd scripts/demo-data && ./run-generator.sh small none --optimized
 	@echo "[ok] Demo data generated successfully with small volume"
 
 demo-data-medium:
-	$(call print_title,"Generating demo data with medium volume")
-	@echo "Running demo data generator with medium volume..."
-	@cd scripts/demo-data && ./run-generator.sh medium none
+	$(call print_title,Generating demo data with medium volume - optimized)
+	@echo "Running optimized demo data generator with medium volume..."
+	@cd scripts/demo-data && ./run-generator.sh medium none --optimized
 	@echo "[ok] Demo data generated successfully with medium volume"
 
 demo-data-large:
-	$(call print_title,"Generating demo data with large volume")
-	@echo "Running demo data generator with large volume..."
-	@cd scripts/demo-data && ./run-generator.sh large none
+	$(call print_title,Generating demo data with large volume - optimized)
+	@echo "Running optimized demo data generator with large volume..."
+	@cd scripts/demo-data && ./run-generator.sh large none --optimized
 	@echo "[ok] Demo data generated successfully with large volume"
+
+# Standard sequential versions (for comparison/debugging)
+demo-data-small-sequential:
+	$(call print_title,Generating demo data with small volume - sequential)
+	@echo "Running sequential demo data generator with small volume..."
+	@cd scripts/demo-data && ./run-generator.sh small none
+	@echo "[ok] Demo data generated successfully with small volume (sequential)"
+
+demo-data-medium-sequential:
+	$(call print_title,Generating demo data with medium volume - sequential)
+	@echo "Running sequential demo data generator with medium volume..."
+	@cd scripts/demo-data && ./run-generator.sh medium none
+	@echo "[ok] Demo data generated successfully with medium volume (sequential)"
+
+demo-data-large-sequential:
+	$(call print_title,Generating demo data with large volume - sequential)
+	@echo "Running sequential demo data generator with large volume..."
+	@cd scripts/demo-data && ./run-generator.sh large none
+	@echo "[ok] Demo data generated successfully with large volume (sequential)"
+
+# Custom process delay versions
+demo-data-small-fast:
+	$(call print_title,Generating demo data with small volume - fast no delays)
+	@echo "Running optimized demo data generator with no process delays..."
+	@cd scripts/demo-data && ./run-generator.sh small none --optimized --process-delay 0
+	@echo "[ok] Demo data generated successfully with small volume (fast)"
+
+demo-data-medium-fast:
+	$(call print_title,Generating demo data with medium volume - fast no delays)
+	@echo "Running optimized demo data generator with no process delays..."
+	@cd scripts/demo-data && ./run-generator.sh medium none --optimized --process-delay 0
+	@echo "[ok] Demo data generated successfully with medium volume (fast)"
 
 #-------------------------------------------------------
 # Developer Helper Commands

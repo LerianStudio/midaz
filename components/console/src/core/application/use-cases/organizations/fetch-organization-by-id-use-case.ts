@@ -2,11 +2,11 @@ import { OrganizationAvatarRepository } from '@/core/domain/repositories/organiz
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
-import { OrganizationResponseDto } from '../../dto/organization-dto'
+import { OrganizationDto } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 
 export interface FetchOrganizationById {
-  execute: (organizationId: string) => Promise<OrganizationResponseDto>
+  execute: (organizationId: string) => Promise<OrganizationDto>
 }
 
 @injectable()
@@ -19,14 +19,14 @@ export class FetchOrganizationByIdUseCase implements FetchOrganizationById {
   ) {}
 
   @LogOperation({ layer: 'application' })
-  async execute(organizationId: string): Promise<OrganizationResponseDto> {
+  async execute(organizationId: string): Promise<OrganizationDto> {
     const organizationEntity =
       await this.organizationRepository.fetchById(organizationId)
 
     const organizationAvatarEntity =
       await this.organizationAvatarRepository.fetchById(organizationId)
 
-    const organizationResponseDto: OrganizationResponseDto =
+    const organizationResponseDto: OrganizationDto =
       OrganizationMapper.toResponseDto(
         organizationEntity,
         organizationAvatarEntity?.avatar

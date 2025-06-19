@@ -1,16 +1,13 @@
 import { AuthSessionDto } from '@/core/application/dto/auth-dto'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
 import {
   AuthLogin,
   AuthLoginUseCase
 } from '@/core/application/use-cases/auth/auth-login-use-case'
 import { AuthEntity } from '@/core/domain/entities/auth-entity'
-import { LoggerRepository } from '@/core/domain/repositories/logger-repository'
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { log } from 'console'
 import { container } from '../container-registry/container-registry'
-import { MidazRequestContext } from '../logger/decorators/midaz-id'
 
 export const nextAuthOptions: NextAuthOptions = {
   session: {
@@ -44,9 +41,9 @@ export const nextAuthOptions: NextAuthOptions = {
       type: 'credentials',
 
       async authorize(credentials, req) {
-        const midazLogger = container.get(LoggerAggregator)
-        const midazRequestContext: MidazRequestContext =
-          container.get<MidazRequestContext>(MidazRequestContext)
+        const midazLogger = container.get<LoggerAggregator>(LoggerAggregator)
+        const requestIdRepository: RequestIdRepository =
+          container.get<RequestIdRepository>(RequestIdRepository)
         try {
           const authResponse = await midazLogger.runWithContext(
             'authLogin',
@@ -54,7 +51,7 @@ export const nextAuthOptions: NextAuthOptions = {
             {
               operationName: 'next-auth-provider',
               action: 'authorize',
-              midazId: midazRequestContext.getMidazId()
+              midazId: requestIdRepository.get()
             },
             async () => {
               const authLoginUseCase: AuthLogin =

@@ -31,7 +31,7 @@ import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet
 import { EntityDataTable } from '@/components/entity-data-table'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { Table as ReactTableType } from '@tanstack/react-table'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { LedgerDto } from '@/core/application/dto/ledger-dto'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
@@ -39,11 +39,11 @@ import { AssetsSheet } from '../assets/assets-sheet'
 import { IdTableCell } from '@/components/table/id-table-cell'
 
 type LedgersTableProps = {
-  ledgers: PaginationDto<LedgerResponseDto> | undefined
-  table: ReactTableType<LedgerResponseDto>
+  ledgers: PaginationDto<LedgerDto> | undefined
+  table: ReactTableType<LedgerDto>
   handleDialogOpen: (id: string, name: string) => void
   handleCreate: () => void
-  handleEdit: (ledger: LedgerResponseDto) => void
+  handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
   form: UseFormReturn<any>
   total: number
@@ -51,9 +51,9 @@ type LedgersTableProps = {
 }
 
 type LedgerRowProps = {
-  ledger: { id: string; original: LedgerResponseDto }
+  ledger: { id: string; original: LedgerDto }
   handleDialogOpen: (id: string, name: string) => void
-  handleEdit: (ledger: LedgerResponseDto) => void
+  handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
 }
 
@@ -126,8 +126,8 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
   return (
     <React.Fragment>
       <TableRow key={ledger.id}>
-        <IdTableCell id={ledger.original.id} />
         <TableCell>{ledger.original.name}</TableCell>
+        <IdTableCell id={ledger.original.id} />
         <TableCell>{renderAssets()}</TableCell>
         <TableCell>
           {intl.formatMessage(
@@ -234,14 +234,14 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'entity.ledger.name',
+                      defaultMessage: 'Ledger Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.ledger.name',
-                      defaultMessage: 'Ledger Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>

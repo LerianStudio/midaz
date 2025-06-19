@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import {
   PopoverPanel,
   PopoverPanelActions,
@@ -24,7 +24,7 @@ export default meta
 
 export const Primary: StoryObj<PopoverPanelProps> = {
   render: (args) => (
-    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none">
+    <div className="bg-popover text-popover-foreground z-50 flex w-[530px] gap-4 rounded-md border p-4 shadow-md outline-hidden">
       <PopoverPanel {...args}>
         <PopoverPanelTitle>
           Midaz
@@ -63,7 +63,7 @@ export const Primary: StoryObj<PopoverPanelProps> = {
 
 export const Dense: StoryObj<PopoverPanelProps> = {
   render: (args) => (
-    <div className="z-50 flex w-[530px] gap-4 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none">
+    <div className="bg-popover text-popover-foreground z-50 flex w-[530px] gap-4 rounded-md border p-4 shadow-md outline-hidden">
       <PopoverPanel {...args}>
         <PopoverPanelTitle>
           Midaz

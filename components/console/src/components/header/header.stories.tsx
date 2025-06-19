@@ -1,5 +1,5 @@
 import React from 'react'
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Header, StaticHeader } from '.'
 
 const meta: Meta = {

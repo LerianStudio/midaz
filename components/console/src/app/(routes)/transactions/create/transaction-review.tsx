@@ -21,7 +21,7 @@ import { useTransactionForm } from './transaction-form-provider'
 import { useIntl } from 'react-intl'
 import { Separator } from '@/components/ui/separator'
 import { useCreateTransaction } from '@/client/transactions'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -30,7 +30,6 @@ import {
   TransactionMode,
   useTransactionMode
 } from './hooks/use-transaction-mode'
-import { transactions as lib } from '@lerian/lib-commons-js'
 
 export const TransactionReview = () => {
   const intl = useIntl()
@@ -66,14 +65,14 @@ export const TransactionReview = () => {
 
   const parse = ({ value, ...values }: TransactionFormSchema) => ({
     ...values,
-    amount: lib.findScale(values.asset, Number(value), 0),
+    amount: value.toString(),
     source: values.source?.map(({ value, ...source }) => ({
       ...source,
-      amount: lib.findScale(values.asset, Number(value), 0)
+      amount: value.toString()
     })),
     destination: values.destination?.map(({ value, ...destination }) => ({
       ...destination,
-      amount: lib.findScale(values.asset, Number(value), 0)
+      amount: value.toString()
     }))
   })
 
@@ -89,7 +88,7 @@ export const TransactionReview = () => {
 
   return (
     <div className="px-24 py-8">
-      <h6 className="mb-4 text-sm font-medium text-shadcn-400">
+      <h6 className="text-shadcn-400 mb-4 text-sm font-medium">
         {mode === TransactionMode.SIMPLE &&
           intl.formatMessage({
             id: 'transactions.create.mode.simple',
@@ -125,7 +124,7 @@ export const TransactionReview = () => {
               })}
             </p>
           </div>
-          <p className="flex-grow py-2 text-center text-sm font-medium text-zinc-500">
+          <p className="grow py-2 text-center text-sm font-medium text-zinc-500">
             {intl.formatMessage({
               id: 'transactions.create.review.description',
               defaultMessage:
@@ -142,7 +141,7 @@ export const TransactionReview = () => {
           <TransactionReceipt className="mb-2 py-5">
             {mode === 'simple' && (
               <GitCompare
-                className="h-9 w-9 rotate-90 -scale-x-100 text-zinc-400"
+                className="h-9 w-9 -scale-x-100 rotate-90 text-zinc-400"
                 strokeWidth={1}
               />
             )}
@@ -159,8 +158,10 @@ export const TransactionReview = () => {
               })}
             />
             <TransactionReceiptSubjects
-              sources={values.source?.map((source) => source.account)}
-              destinations={values.destination?.map((source) => source.account)}
+              sources={values.source?.map((source) => source.accountAlias)}
+              destinations={values.destination?.map(
+                (source) => source.accountAlias
+              )}
             />
             {values.description && (
               <TransactionReceiptDescription>
@@ -179,7 +180,7 @@ export const TransactionReview = () => {
                 <div className="flex flex-col">
                   {values.source?.map((source, index) => (
                     <p key={index} className="underline">
-                      {source.account}
+                      {source.accountAlias}
                     </p>
                   ))}
                 </div>
@@ -194,7 +195,7 @@ export const TransactionReview = () => {
                 <div className="flex flex-col">
                   {values.destination?.map((destination, index) => (
                     <p key={index} className="underline">
-                      {destination.account}
+                      {destination.accountAlias}
                     </p>
                   ))}
                 </div>
@@ -212,7 +213,7 @@ export const TransactionReview = () => {
               <TransactionReceiptOperation
                 key={index}
                 type="debit"
-                account={source.account}
+                account={source.accountAlias}
                 asset={values.asset}
                 value={intl.formatNumber(source.value, {
                   roundingPriority: 'morePrecision'
@@ -223,7 +224,7 @@ export const TransactionReview = () => {
               <TransactionReceiptOperation
                 key={index}
                 type="credit"
-                account={destination.account}
+                account={destination.accountAlias}
                 asset={values.asset}
                 value={intl.formatNumber(destination.value, {
                   roundingPriority: 'morePrecision'

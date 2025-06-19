@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Button } from '../button'
 import { HTMLAttributes } from 'react'
 import { Stepper, StepperItem, StepperItemNumber, StepperItemText } from '.'

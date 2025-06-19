@@ -21,13 +21,13 @@ import { SelectItem } from '../ui/select'
 import { useListGroups } from '@/client/groups'
 import { user, passwordChange } from '@/schema/user'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
-import { UsersType } from '@/types/users-type'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
+import { UserDto } from '@/core/application/dto/user-dto'
 
 export type UserSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data: UsersType
+  data: UserDto
   onSuccess?: () => void
 }
 
@@ -144,7 +144,7 @@ export const UserSheet = ({
         data-testid="user-sheet"
         className="flex flex-col justify-between"
       >
-        <div className="flex flex-grow flex-col">
+        <div className="flex grow flex-col">
           {mode === 'edit' && (
             <SheetHeader>
               <SheetTitle>
@@ -254,7 +254,7 @@ export const UserSheet = ({
                       ))}
                     </SelectField>
 
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'

@@ -3,7 +3,7 @@ import { useClickAway } from './use-click-away'
 import React from 'react'
 
 describe('useClickAway', () => {
-  let ref: React.RefObject<HTMLElement>
+  let ref: React.RefObject<HTMLElement | null>
   let onClickAway: jest.Mock
 
   beforeEach(() => {

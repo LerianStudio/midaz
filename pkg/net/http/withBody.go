@@ -12,6 +12,7 @@ import (
 	en2 "github.com/go-playground/validator/translations/en"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gopkg.in/go-playground/validator.v9"
 	"reflect"
 	"regexp"
@@ -76,7 +77,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
-	diffFields := findUnknownFields(originalMap, marshaledMap)
+	diffFields := FindUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
 		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
@@ -459,8 +460,10 @@ func parseMetadata(s any, originalMap map[string]any) {
 	}
 }
 
-// findUnknownFields finds fields that are present in the original map but not in the marshaled map.
-func findUnknownFields(original, marshaled map[string]any) map[string]any {
+// FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
+//
+//nolint:gocognit,gocyclo
+func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
 	numKinds := libCommons.GetMapNumKinds()
@@ -472,21 +475,18 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 
 		marshaledValue, ok := marshaled[key]
 		if !ok {
-			// If the key is not present in the marshaled map, marking as difference
 			diffFields[key] = value
 			continue
 		}
 
-		// Check for nested structures and direct value comparison
 		switch originalValue := value.(type) {
 		case map[string]any:
 			if marshaledMap, ok := marshaledValue.(map[string]any); ok {
-				nestedDiff := findUnknownFields(originalValue, marshaledMap)
+				nestedDiff := FindUnknownFields(originalValue, marshaledMap)
 				if len(nestedDiff) > 0 {
 					diffFields[key] = nestedDiff
 				}
 			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				// If types mismatch (map vs non-map), marking as difference
 				diffFields[key] = value
 			}
 
@@ -497,12 +497,19 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 					diffFields[key] = arrayDiff
 				}
 			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				// If types mismatch (slice vs non-slice), marking as difference
 				diffFields[key] = value
 			}
+		case string:
+			if isStringNumeric(originalValue) {
+				if isDecimalEqual(originalValue, marshaledValue) {
+					continue
+				}
+			}
 
+			if !reflect.DeepEqual(value, marshaledValue) {
+				diffFields[key] = value
+			}
 		default:
-			// Using reflect.DeepEqual for simple types (strings, ints, etc.)
 			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
@@ -510,6 +517,47 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 	}
 
 	return diffFields
+}
+
+func isDecimalEqual(a, b any) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	var decimalA, decimalB decimal.Decimal
+
+	var err error
+
+	switch valA := a.(type) {
+	case string:
+		decimalA, err = decimal.NewFromString(valA)
+		if err != nil {
+			return false
+		}
+	case decimal.Decimal:
+		decimalA = valA
+	default:
+		return false
+	}
+
+	switch valB := b.(type) {
+	case string:
+		decimalB, err = decimal.NewFromString(valB)
+		if err != nil {
+			return false
+		}
+	case decimal.Decimal:
+		decimalB = valB
+	default:
+		return false
+	}
+
+	return decimalA.Equal(decimalB)
+}
+
+func isStringNumeric(s string) bool {
+	_, err := decimal.NewFromString(s)
+	return err == nil
 }
 
 // compareSlices compares two slices and returns differences.
@@ -526,7 +574,7 @@ func compareSlices(original, marshaled []any) []any {
 			// Compare individual items at the same index
 			if originalMap, ok := item.(map[string]any); ok {
 				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
-					nestedDiff := findUnknownFields(originalMap, marshaledMap)
+					nestedDiff := FindUnknownFields(originalMap, marshaledMap)
 					if len(nestedDiff) > 0 {
 						diff = append(diff, nestedDiff)
 					}

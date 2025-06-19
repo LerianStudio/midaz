@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Button } from '../ui/button'
 import React from 'react'
 import { EmptyResource, EmptyResourceProps } from '.'

@@ -1,5 +1,5 @@
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
-import { OrganizationResponseDto } from '../../dto/organization-dto'
+import { OrganizationDto } from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -13,7 +13,7 @@ export interface FetchAllOrganizations {
   execute: (
     limit: number,
     page: number
-  ) => Promise<PaginationDto<OrganizationResponseDto>>
+  ) => Promise<PaginationDto<OrganizationDto>>
 }
 
 @injectable()
@@ -29,7 +29,7 @@ export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
   async execute(
     limit: number,
     page: number
-  ): Promise<PaginationDto<OrganizationResponseDto>> {
+  ): Promise<PaginationDto<OrganizationDto>> {
     const organizationsResult: PaginationEntity<OrganizationEntity> =
       await this.organizationRepository.fetchAll(limit, page)
 

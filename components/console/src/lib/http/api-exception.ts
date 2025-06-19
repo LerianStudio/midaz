@@ -25,6 +25,12 @@ export class BadRequestApiException extends ApiException {
   }
 }
 
+export class ValidationApiException extends ApiException {
+  constructor(message: string) {
+    super('0007', 'Validation Error', message, HttpStatus.BAD_REQUEST)
+  }
+}
+
 export class UnauthorizedApiException extends ApiException {
   constructor(message: string = 'Unauthorized') {
     super('0001', 'Unauthorized', message, HttpStatus.UNAUTHORIZED)

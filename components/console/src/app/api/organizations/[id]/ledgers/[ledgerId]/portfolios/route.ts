@@ -11,7 +11,7 @@ import {
 import { NextRequest, NextResponse } from 'next/server'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 
 const createPortfolioUseCase: CreatePortfolio = container.get<CreatePortfolio>(
   CreatePortfolioUseCase
@@ -20,7 +20,8 @@ const createPortfolioUseCase: CreatePortfolio = container.get<CreatePortfolio>(
 const fetchAllPortfoliosUseCase: FetchAllPortfolios =
   container.get<FetchAllPortfolios>(FetchAllPortfoliosUseCase)
 
-const midazLogger = container.get(LoggerAggregator)
+const midazLogger: LoggerAggregator = container.get(LoggerAggregator)
+
 interface PortfolioParams {
   id: string
   ledgerId: string
