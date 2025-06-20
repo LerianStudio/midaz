@@ -7,6 +7,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -109,9 +110,10 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
-	tran.Body = *t.ParseDSL
+	tran.Body = libTransaction.Transaction{}
 
-	if tran.Status.Code == constant.CREATED {
+	switch tran.Status.Code {
+	case constant.CREATED:
 		description := constant.APPROVED
 		status := transaction.Status{
 			Code:        description,
@@ -119,6 +121,8 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		}
 
 		tran.Status = status
+	case constant.PENDING:
+		tran.Body = *t.ParseDSL
 	}
 
 	_, err := uc.TransactionRepo.Create(ctx, tran)

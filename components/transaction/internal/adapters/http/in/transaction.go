@@ -361,7 +361,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
 
@@ -376,6 +376,16 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Transaction Has Already Parent Transaction", err)
 
 		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
+
+		return http.WithError(c, err)
+	}
+
+	if tran.Status.Code != constant.APPROVED {
+		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanError(&span, "Transaction CantRevert Transaction", err)
+
+		logger.Errorf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -756,7 +766,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		Body:                     parserDSL,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,

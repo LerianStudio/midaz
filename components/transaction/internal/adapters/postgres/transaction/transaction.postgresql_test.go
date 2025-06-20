@@ -4,15 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"testing"
-	"time"
-
 	"github.com/DATA-DOG/go-sqlmock"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
 )
 
 /*
@@ -33,7 +33,6 @@ or containerized PostgreSQL database.
 
 // Compile-time interface check
 var (
-	_ Repository = (*mockRepository)(nil)
 	_ Repository = (*TransactionPostgreSQLRepository)(nil)
 )
 
@@ -330,6 +329,67 @@ func (r *mockRepository) Delete(ctx context.Context, organizationID, ledgerID, i
 	}
 
 	return nil
+}
+
+func (r *mockRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+
+	return 10, nil
+}
+
+func (r *mockRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+
+	row := r.db.QueryRowContext(
+		ctx,
+		"SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
+		organizationID, ledgerID, id,
+	)
+
+	var transaction Transaction
+	var parentTransactionID, statusDescription, amount, amountScale, chartOfAccountsGroupName, body, deletedAt sql.NullString
+
+	err := row.Scan(
+		&transaction.ID,
+		&parentTransactionID,
+		&transaction.Description,
+		&transaction.Status.Code,
+		&statusDescription,
+		&amount,
+		&amountScale,
+		&transaction.AssetCode,
+		&chartOfAccountsGroupName,
+		&transaction.LedgerID,
+		&transaction.OrganizationID,
+		&body,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+		&deletedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("transaction not found")
+		}
+		return nil, err
+	}
+
+	op := &operation.Operation{
+		ID:             uuid.New().String(),
+		TransactionID:  transaction.ID,
+		Type:           "DEBIT",
+		AssetCode:      transaction.AssetCode,
+		AccountID:      uuid.New().String(),
+		LedgerID:       transaction.LedgerID,
+		OrganizationID: transaction.OrganizationID,
+	}
+
+	transaction.Operations = append(transaction.Operations, op)
+
+	return &transaction, nil
 }
 
 // setupMockDB creates a new mock database and repository
@@ -779,6 +839,92 @@ func TestTransactionRepository_Delete(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestTransactionRepository_FindWithOperations(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupRepo     func() *mockRepository
+		orgID         uuid.UUID
+		ledgerID      uuid.UUID
+		transactionID uuid.UUID
+		expectedError bool
+	}{
+		{
+			name: "successful retrieval",
+			setupRepo: func() *mockRepository {
+				repo, mock := setupMockDB(t)
+
+				rows := sqlmock.NewRows([]string{
+					"id", "parent_transaction_id", "description", "status", "status_description",
+					"amount", "amount_scale", "asset_code", "chart_of_accounts_group_name",
+					"ledger_id", "organization_id", "body", "created_at", "updated_at", "deleted_at",
+				}).AddRow(
+					uuid.New().String(), nil, "Test Transaction", "COMPLETED", nil,
+					nil, nil, "USD", nil,
+					uuid.New().String(), uuid.New().String(), nil, time.Now(), time.Now(), nil,
+				)
+
+				mock.ExpectQuery(`SELECT \* FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
+					WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WillReturnRows(rows)
+
+				return repo
+			},
+			orgID:         uuid.New(),
+			ledgerID:      uuid.New(),
+			transactionID: uuid.New(),
+			expectedError: false,
+		},
+		{
+			name: "transaction not found",
+			setupRepo: func() *mockRepository {
+				repo, mock := setupMockDB(t)
+
+				mock.ExpectQuery(`SELECT \* FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
+					WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WillReturnError(sql.ErrNoRows)
+
+				return repo
+			},
+			orgID:         uuid.New(),
+			ledgerID:      uuid.New(),
+			transactionID: uuid.New(),
+			expectedError: true,
+		},
+		{
+			name: "database error",
+			setupRepo: func() *mockRepository {
+				return setupErrorDB()
+			},
+			orgID:         uuid.New(),
+			ledgerID:      uuid.New(),
+			transactionID: uuid.New(),
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := tc.setupRepo()
+			ctx := context.Background()
+
+			transaction, err := repo.FindWithOperations(ctx, tc.orgID, tc.ledgerID, tc.transactionID)
+
+			if tc.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, transaction)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, transaction)
+				assert.NotEmpty(t, transaction.ID)
+				assert.NotEmpty(t, transaction.Operations)
+				assert.Equal(t, 1, len(transaction.Operations))
+				assert.Equal(t, transaction.ID, transaction.Operations[0].TransactionID)
+				assert.Equal(t, transaction.AssetCode, transaction.Operations[0].AssetCode)
 			}
 		})
 	}

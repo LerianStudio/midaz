@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	constant "github.com/LerianStudio/lib-commons/commons/constants"
 	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/shopspring/decimal"
 	"time"
@@ -17,22 +18,22 @@ import (
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string                     // Unique identifier (UUID format)
-	ParentTransactionID      *string                    // Parent transaction ID (for reversals or child transactions)
-	Description              string                     // Human-readable description
-	Status                   string                     // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription        *string                    // Status description
-	Amount                   *decimal.Decimal           // Transaction amount value
-	AssetCode                string                     // Asset code for the transaction
-	ChartOfAccountsGroupName string                     // Chart of accounts group name for accounting
-	LedgerID                 string                     // Ledger ID
-	OrganizationID           string                     // Organization ID
-	Body                     libTransaction.Transaction // Transaction body containing detailed operation data
-	CreatedAt                time.Time                  // Creation timestamp
-	UpdatedAt                time.Time                  // Last update timestamp
-	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
-	Route                    *string                    // Route
-	Metadata                 map[string]any             // Additional custom attributes
+	ID                       string                      // Unique identifier (UUID format)
+	ParentTransactionID      *string                     // Parent transaction ID (for reversals or child transactions)
+	Description              string                      // Human-readable description
+	Status                   string                      // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                     // Status description
+	Amount                   *decimal.Decimal            // Transaction amount value
+	AssetCode                string                      // Asset code for the transaction
+	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
+	LedgerID                 string                      // Ledger ID
+	OrganizationID           string                      // Organization ID
+	Body                     *libTransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                   // Creation timestamp
+	UpdatedAt                time.Time                   // Last update timestamp
+	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
+	Route                    *string                     // Route
+	Metadata                 map[string]any              // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -417,9 +418,12 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
-		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
+	}
+
+	if t.Body != nil && !t.Body.IsEmpty() {
+		transaction.Body = *t.Body
 	}
 
 	if t.Route != nil {
@@ -452,9 +456,12 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
-		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
+	}
+
+	if !transaction.Body.IsEmpty() {
+		t.Body = &transaction.Body
 	}
 
 	if !libCommons.IsNilOrEmpty(&transaction.Route) {
@@ -492,43 +499,60 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 // TransactionRevert is a func that revert transaction
 func (t Transaction) TransactionRevert() libTransaction.Transaction {
 	froms := make([]libTransaction.FromTo, 0)
-
-	for _, to := range t.Body.Send.Distribute.To {
-		to.IsFrom = true
-		froms = append(froms, to)
-	}
-
-	newSource := libTransaction.Source{
-		From:      froms,
-		Remaining: t.Body.Send.Distribute.Remaining,
-	}
-
 	tos := make([]libTransaction.FromTo, 0)
 
-	for _, from := range t.Body.Send.Source.From {
-		from.IsFrom = false
-		tos = append(tos, from)
-	}
+	for _, op := range t.Operations {
+		switch op.Type {
+		case constant.CREDIT:
+			from := libTransaction.FromTo{
+				IsFrom:       true,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
 
-	newDistribute := libTransaction.Distribute{
-		To:        tos,
-		Remaining: t.Body.Send.Source.Remaining,
+			froms = append(froms, from)
+		case constant.DEBIT:
+			to := libTransaction.FromTo{
+				IsFrom:       false,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
+
+			tos = append(tos, to)
+		}
 	}
 
 	send := libTransaction.Send{
-		Asset:      t.Body.Send.Asset,
-		Value:      t.Body.Send.Value,
-		Source:     newSource,
-		Distribute: newDistribute,
+		Asset: t.AssetCode,
+		Value: *t.Amount,
+		Source: libTransaction.Source{
+			From: froms,
+		},
+		Distribute: libTransaction.Distribute{
+			To: tos,
+		},
 	}
 
 	transaction := libTransaction.Transaction{
-		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
-		Description:              t.Body.Description,
-		Code:                     t.Body.Code,
-		Pending:                  t.Body.Pending,
-		Metadata:                 t.Body.Metadata,
-		Route:                    t.Body.Route,
+		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
+		Description:              t.Description,
+		Pending:                  false,
+		Metadata:                 t.Metadata,
+		Route:                    t.Route,
 		Send:                     send,
 	}
 
