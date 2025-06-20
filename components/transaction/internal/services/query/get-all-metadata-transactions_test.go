@@ -159,7 +159,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	}
 
 	// Call the method under test
-	result, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
+	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
 
 	// Assertions
 	assert.NoError(t, err)
