@@ -392,6 +392,86 @@ func (r *mockRepository) FindWithOperations(ctx context.Context, organizationID,
 	return &transaction, nil
 }
 
+func (r *mockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+	if r.err != nil {
+		return nil, libHTTP.CursorPagination{}, r.err
+	}
+
+	transactions := []*Transaction{
+		{
+			ID:             organizationID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status: Status{
+				Code: "APPROVED",
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Operations: []*operation.Operation{
+				{
+					ID:             uuid.New().String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					TransactionID:  uuid.New().String(),
+					AccountID:      uuid.New().String(),
+					Type:           "CREDIT",
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				},
+				{
+					ID:             uuid.New().String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					TransactionID:  uuid.New().String(),
+					AccountID:      uuid.New().String(),
+					Type:           "DEBIT",
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				},
+			},
+		},
+		{
+			ID:             uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status: Status{
+				Code: "PENDING",
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Operations: []*operation.Operation{
+				{
+					ID:             uuid.New().String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					TransactionID:  uuid.New().String(),
+					AccountID:      uuid.New().String(),
+					Type:           "CREDIT",
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				},
+				{
+					ID:             uuid.New().String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					TransactionID:  uuid.New().String(),
+					AccountID:      uuid.New().String(),
+					Type:           "DEBIT",
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				},
+			},
+		},
+	}
+
+	pagination := libHTTP.CursorPagination{
+		Next: "",
+		Prev: "",
+	}
+
+	return transactions, pagination, nil
+}
+
 // setupMockDB creates a new mock database and repository
 func setupMockDB(t *testing.T) (*mockRepository, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
@@ -928,4 +1008,53 @@ func TestTransactionRepository_FindWithOperations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTransactionRepository_FindOrListAllWithOperations(t *testing.T) {
+	t.Run("should return transactions with operations", func(t *testing.T) {
+		repo, _ := setupMockDB(t)
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionIDs := []uuid.UUID{uuid.New()}
+		filter := http.Pagination{}
+
+		transactions, pagination, err := repo.FindOrListAllWithOperations(context.Background(), organizationID, ledgerID, transactionIDs, filter)
+
+		require.NoError(t, err)
+		assert.Len(t, transactions, 2)
+		assert.Equal(t, "", pagination.Next)
+		assert.Equal(t, "", pagination.Prev)
+
+		for _, tx := range transactions {
+			assert.NotNil(t, tx.ID)
+			assert.Equal(t, organizationID.String(), tx.OrganizationID)
+			assert.Equal(t, ledgerID.String(), tx.LedgerID)
+			assert.NotEmpty(t, tx.Status.Code)
+			assert.NotEmpty(t, tx.Operations)
+
+			for _, op := range tx.Operations {
+				assert.NotNil(t, op.ID)
+				assert.Equal(t, organizationID.String(), op.OrganizationID)
+				assert.Equal(t, ledgerID.String(), op.LedgerID)
+				assert.NotNil(t, op.TransactionID)
+				assert.NotNil(t, op.AccountID)
+				assert.NotEmpty(t, op.Type)
+			}
+		}
+	})
+
+	t.Run("should return error when db returns error", func(t *testing.T) {
+		repo := setupErrorDB()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionIDs := []uuid.UUID{uuid.New()}
+		filter := http.Pagination{}
+
+		transactions, pagination, err := repo.FindOrListAllWithOperations(context.Background(), organizationID, ledgerID, transactionIDs, filter)
+
+		require.Error(t, err)
+		assert.Empty(t, transactions)
+		assert.Equal(t, "", pagination.Next)
+		assert.Equal(t, "", pagination.Prev)
+	})
 }

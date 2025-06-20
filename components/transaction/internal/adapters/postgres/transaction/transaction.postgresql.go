@@ -29,11 +29,12 @@ type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
-	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 }
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
@@ -675,4 +676,171 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	newTransaction.Operations = operations
 
 	return newTransaction, nil
+}
+
+// FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
+func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_or_list_all_with_operations")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	decodedCursor := libHTTP.Cursor{}
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	subQuery := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	if len(ids) > 0 {
+		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
+	}
+
+	subQuery, orderDirection = libHTTP.ApplyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)
+
+	findAll := squirrel.
+		Select("*").
+		FromSelect(subQuery, "t").
+		LeftJoin("operation o ON t.id = o.transaction_id").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	transactions := make([]*Transaction, 0)
+	transactionsMap := make(map[uuid.UUID]*Transaction)
+
+	for rows.Next() {
+		tran := &TransactionPostgreSQLModel{}
+
+		op := operation.OperationPostgreSQLModel{}
+
+		var body *string
+
+		if err := rows.Scan(
+			&tran.ID,
+			&tran.ParentTransactionID,
+			&tran.Description,
+			&tran.Status,
+			&tran.StatusDescription,
+			&tran.Amount,
+			&tran.AssetCode,
+			&tran.ChartOfAccountsGroupName,
+			&tran.LedgerID,
+			&tran.OrganizationID,
+			&body,
+			&tran.CreatedAt,
+			&tran.UpdatedAt,
+			&tran.DeletedAt,
+			&tran.Route,
+			&op.ID,
+			&op.TransactionID,
+			&op.Description,
+			&op.Type,
+			&op.AssetCode,
+			&op.Amount,
+			&op.AvailableBalance,
+			&op.OnHoldBalance,
+			&op.AvailableBalanceAfter,
+			&op.OnHoldBalanceAfter,
+			&op.Status,
+			&op.StatusDescription,
+			&op.AccountID,
+			&op.AccountAlias,
+			&op.BalanceID,
+			&op.ChartOfAccounts,
+			&op.OrganizationID,
+			&op.LedgerID,
+			&op.CreatedAt,
+			&op.UpdatedAt,
+			&op.DeletedAt,
+			&op.Route,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			err = json.Unmarshal([]byte(*body), &tran.Body)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal body", err)
+
+				return nil, libHTTP.CursorPagination{}, err
+			}
+		}
+
+		t, exists := transactionsMap[uuid.MustParse(tran.ID)]
+		if !exists {
+			t = tran.ToEntity()
+
+			t.Operations = append(t.Operations, op.ToEntity())
+			transactionsMap[t.IDtoUUID()] = t
+		} else {
+			t.Operations = append(t.Operations, op.ToEntity())
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	for _, t := range transactionsMap {
+		transactions = append(transactions, t)
+	}
+
+	hasPagination := len(transactions) > filter.Limit
+
+	transactions = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit, orderDirection)
+
+	cur := libHTTP.CursorPagination{}
+	if len(transactions) > 0 {
+		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	return transactions, cur, nil
 }

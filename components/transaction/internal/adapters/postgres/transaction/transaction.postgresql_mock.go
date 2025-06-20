@@ -118,6 +118,22 @@ func (mr *MockRepositoryMockRecorder) FindByParentID(ctx, organizationID, ledger
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByParentID", reflect.TypeOf((*MockRepository)(nil).FindByParentID), ctx, organizationID, ledgerID, parentID)
 }
 
+// FindOrListAllWithOperations mocks base method.
+func (m *MockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http0.Pagination) ([]*Transaction, http.CursorPagination, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrListAllWithOperations", ctx, organizationID, ledgerID, ids, filter)
+	ret0, _ := ret[0].([]*Transaction)
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FindOrListAllWithOperations indicates an expected call of FindOrListAllWithOperations.
+func (mr *MockRepositoryMockRecorder) FindOrListAllWithOperations(ctx, organizationID, ledgerID, ids, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrListAllWithOperations", reflect.TypeOf((*MockRepository)(nil).FindOrListAllWithOperations), ctx, organizationID, ledgerID, ids, filter)
+}
+
 // FindWithOperations mocks base method.
 func (m *MockRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	m.ctrl.T.Helper()

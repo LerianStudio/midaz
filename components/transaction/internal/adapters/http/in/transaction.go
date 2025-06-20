@@ -596,7 +596,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 			return http.WithError(c, err)
 		}
 
-		trans, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
+		trans, cur, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Transactions by metadata", err)
 
@@ -608,6 +608,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 		logger.Infof("Successfully retrieved all Transactions by metadata")
 
 		pagination.SetItems(trans)
+		pagination.SetCursor(cur.Next, cur.Prev)
 
 		return http.OK(c, pagination)
 	}
