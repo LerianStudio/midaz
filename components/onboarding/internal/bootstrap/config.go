@@ -67,9 +67,11 @@ type Config struct {
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
 	RedisHost               string `env:"REDIS_HOST"`
-	RedisPort               string `env:"REDIS_PORT"`
-	RedisUser               string `env:"REDIS_USER"`
+	RedisMasterName         string `env:"REDIS_MASTER_NAME" default:""`
+	RedisTLS                bool   `env:"REDIS_TLS" default:"false"`
 	RedisPassword           string `env:"REDIS_PASSWORD"`
+	RedisDB                 int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol           int    `env:"REDIS_DB" default:"3"`
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                string `env:"PLUGIN_AUTH_HOST"`
 }
@@ -137,15 +139,15 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
-	redisSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
-
 	redisConnection := &libRedis.RedisConnection{
-		Addr:     redisSource,
-		User:     cfg.RedisUser,
-		Password: cfg.RedisPassword,
-		DB:       0,
-		Protocol: 3,
-		Logger:   logger,
+		Address:    []string{cfg.RedisHost},
+		Password:   cfg.RedisPassword,
+		DB:         cfg.RedisDB,
+		Protocol:   cfg.RedisProtocol,
+		MasterName: cfg.RedisMasterName,
+		Logger:     logger,
+		UseTLS:     cfg.RedisTLS,
+		TLSConfig:  nil, //TODO implement
 	}
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
