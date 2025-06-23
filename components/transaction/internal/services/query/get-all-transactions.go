@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	logger.Infof("Retrieving transactions")
 
-	trans, cur, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo", err)
 
@@ -53,15 +53,24 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		}
 
 		for i := range trans {
-			if data, ok := metadataMap[trans[i].ID]; ok {
-				trans[i].Metadata = data
+			source := make([]string, 0)
+
+			destination := make([]string, 0)
+
+			for _, op := range trans[i].Operations {
+				switch op.Type {
+				case constant.DEBIT:
+					source = append(source, op.AccountAlias)
+				case constant.CREDIT:
+					destination = append(destination, op.AccountAlias)
+				}
 			}
 
-			trans[i], err = uc.GetOperationsByTransaction(ctx, organizationID, ledgerID, trans[i], filter)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to get operations to transaction by id", err)
+			trans[i].Source = source
+			trans[i].Destination = destination
 
-				return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			if data, ok := metadataMap[trans[i].ID]; ok {
+				trans[i].Metadata = data
 			}
 		}
 	}
@@ -91,14 +100,13 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	destination := make([]string, 0)
 
 	for _, op := range operations {
-		if op.Type == constant.CREDIT {
-			destination = append(destination, op.AccountAlias)
-		} else {
+		switch op.Type {
+		case constant.DEBIT:
 			source = append(source, op.AccountAlias)
+		case constant.CREDIT:
+			destination = append(destination, op.AccountAlias)
 		}
 	}
-
-	span.End()
 
 	tran.Source = source
 	tran.Destination = destination
