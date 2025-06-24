@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - chore/newman_e2e_tests
-    tags-ignore:
-      - "**"
 
 jobs:
   midaz-e2e-tests:
@@ -16,13 +14,11 @@ jobs:
 
       - name: Generate Swagger and update Postman collection
         run: |
-          cd midaz
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
           go install github.com/swaggo/swag/cmd/swag@latest
           swag --version
           make tidy
           make generate-docs
-          cd ..
 
       - uses: actions/setup-node@v2
         with:
