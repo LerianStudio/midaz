@@ -12,9 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: false
+
       - name: Generate Swagger and update Postman collection
         run: |
-          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
           go install github.com/swaggo/swag/cmd/swag@latest
           swag --version
           make tidy
