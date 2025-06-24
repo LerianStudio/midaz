@@ -20,6 +20,8 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	"strings"
+	"time"
 )
 
 const ApplicationName = "transaction"
@@ -73,10 +75,17 @@ type Config struct {
 	EnableTelemetry            bool   `env:"ENABLE_TELEMETRY"`
 	RedisHost                  string `env:"REDIS_HOST"`
 	RedisMasterName            string `env:"REDIS_MASTER_NAME" default:""`
-	RedisTLS                   bool   `env:"REDIS_TLS" default:"false"`
 	RedisPassword              string `env:"REDIS_PASSWORD"`
 	RedisDB                    int    `env:"REDIS_DB" default:"0"`
 	RedisProtocol              int    `env:"REDIS_DB" default:"3"`
+	RedisTLS                   bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACertPath            string `env:"REDIS_CA_CERT_PATH"`
+	RedisClientCertPath        string `env:"REDIS_CLIENT_CERT_PATH"`
+	RedisClientKeyPath         string `env:"REDIS_CLIENT_KEY_PATH"`
+	RedisUseIAM                bool   `env:"REDIS_USE_IAM" default:"false"`
+	RedisServiceAccount        string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	RedisTokenLifeTime         int    `env:"REDIS_TOKEN_LIFETIME" default:"1"`
+	RedisTokenRefreshDuration  int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"5"`
 	AuthEnabled                bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                   string `env:"PLUGIN_AUTH_HOST"`
 }
@@ -146,15 +155,23 @@ func InitServers() *Service {
 	}
 
 	redisConnection := &libRedis.RedisConnection{
-		Address:   []string{cfg.RedisHost},
-		Password:  cfg.RedisPassword,
-		DB:        cfg.RedisDB,
-		Protocol:  cfg.RedisProtocol,
-		MasterName: cfg.RedisMasterName,
-		Logger:    logger,
-		UseTLS:    cfg.RedisTLS,
-		TLSConfig: nil, //TODO implement
+		Address:            strings.Split(cfg.RedisHost, ","),
+		Password:           cfg.RedisPassword,
+		DB:                 cfg.RedisDB,
+		Protocol:           cfg.RedisProtocol,
+		MasterName:         cfg.RedisMasterName,
+		UseTLS:             cfg.RedisTLS,
+		CACertPath:         &cfg.RedisCACertPath,
+		ClientCertPath:     &cfg.RedisClientCertPath,
+		ClientKeyPath:      &cfg.RedisClientKeyPath,
+		UseIAMAuth:         cfg.RedisUseIAM,
+		ServiceAccountName: cfg.RedisServiceAccount,
+		TokenLifeTime:      time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+		RefreshDuration:    time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		Logger:             logger,
 	}
+
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
@@ -165,8 +182,6 @@ func InitServers() *Service {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-
-	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,

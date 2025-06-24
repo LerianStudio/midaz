@@ -23,7 +23,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		key = hash
 	}
 
-	internalKey := libCommons.InternalKey(organizationID, ledgerID, key)
+	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {

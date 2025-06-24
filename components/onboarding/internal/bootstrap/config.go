@@ -147,8 +147,9 @@ func InitServers() *Service {
 		MasterName: cfg.RedisMasterName,
 		Logger:     logger,
 		UseTLS:     cfg.RedisTLS,
-		TLSConfig:  nil, //TODO implement
 	}
+
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
@@ -160,8 +161,6 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-
-	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
