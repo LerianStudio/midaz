@@ -107,4 +107,5 @@ var (
 	ErrOverFlowInt64                            = errors.New("0097")
 	ErrOnHoldExternalAccount                    = errors.New("0098")
 	ErrCommitTransactionNotPending              = errors.New("0099")
+	ErrOperationRouteTitleAlreadyExists         = errors.New("0100")
 )

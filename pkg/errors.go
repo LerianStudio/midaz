@@ -884,6 +884,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Overflow Error",
 			Message:    "The request could not be completed due to an overflow. Please check the values, and try again.",
 		},
+		constant.ErrOperationRouteTitleAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteTitleAlreadyExists.Error(),
+			Title:      "Operation Route Title Already Exists",
+			Message:    "The 'title' provided already exists for the 'type' provided. Please redefine the operation route title.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -17,7 +17,7 @@ import (
 
 const midazName = "midaz"
 
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -62,6 +62,9 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetAllBalancesByAccountID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalancesByAlias)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalancesExternalByCode)
+
+	// Operation-route
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(midazName, "operation-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
