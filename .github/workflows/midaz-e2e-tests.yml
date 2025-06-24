@@ -17,6 +17,11 @@ jobs:
           go-version: '1.21'
           cache: false
 
+      - name: Install build essentials
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
       - name: Generate Swagger and update Postman collection
         run: |
           go install github.com/swaggo/swag/cmd/swag@latest
