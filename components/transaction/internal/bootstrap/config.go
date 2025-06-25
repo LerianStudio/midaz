@@ -84,8 +84,8 @@ type Config struct {
 	RedisClientKeyPath         string `env:"REDIS_CLIENT_KEY_PATH"`
 	RedisUseIAM                bool   `env:"REDIS_USE_IAM" default:"false"`
 	RedisServiceAccount        string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	RedisTokenLifeTime         int    `env:"REDIS_TOKEN_LIFETIME" default:"1"`
-	RedisTokenRefreshDuration  int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"5"`
+	RedisTokenLifeTime         int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration  int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
 	AuthEnabled                bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                   string `env:"PLUGIN_AUTH_HOST"`
 }

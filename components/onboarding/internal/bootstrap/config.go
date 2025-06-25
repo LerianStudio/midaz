@@ -22,58 +22,67 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
+	"strings"
+	"time"
 )
 
 const ApplicationName = "onboarding"
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                 string `env:"ENV_NAME"`
-	LogLevel                string `env:"LOG_LEVEL"`
-	ServerAddress           string `env:"SERVER_ADDRESS"`
-	PrimaryDBHost           string `env:"DB_HOST"`
-	PrimaryDBUser           string `env:"DB_USER"`
-	PrimaryDBPassword       string `env:"DB_PASSWORD"`
-	PrimaryDBName           string `env:"DB_NAME"`
-	PrimaryDBPort           string `env:"DB_PORT"`
-	ReplicaDBHost           string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser           string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword       string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName           string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort           string `env:"DB_REPLICA_PORT"`
-	MaxOpenConnections      int    `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections      int    `env:"DB_MAX_IDLE_CONNS"`
-	MongoURI                string `env:"MONGO_URI"`
-	MongoDBHost             string `env:"MONGO_HOST"`
-	MongoDBName             string `env:"MONGO_NAME"`
-	MongoDBUser             string `env:"MONGO_USER"`
-	MongoDBPassword         string `env:"MONGO_PASSWORD"`
-	MongoDBPort             string `env:"MONGO_PORT"`
-	MaxPoolSize             int    `env:"MONGO_MAX_POOL_SIZE"`
-	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI               string `env:"RABBITMQ_URI"`
-	RabbitMQHost            string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQHealthCheckURL  string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQKey             string `env:"RABBITMQ_KEY"`
-	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost               string `env:"REDIS_HOST"`
-	RedisMasterName         string `env:"REDIS_MASTER_NAME" default:""`
-	RedisTLS                bool   `env:"REDIS_TLS" default:"false"`
-	RedisPassword           string `env:"REDIS_PASSWORD"`
-	RedisDB                 int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol           int    `env:"REDIS_DB" default:"3"`
-	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                string `env:"PLUGIN_AUTH_HOST"`
+	EnvName                   string `env:"ENV_NAME"`
+	LogLevel                  string `env:"LOG_LEVEL"`
+	ServerAddress             string `env:"SERVER_ADDRESS"`
+	PrimaryDBHost             string `env:"DB_HOST"`
+	PrimaryDBUser             string `env:"DB_USER"`
+	PrimaryDBPassword         string `env:"DB_PASSWORD"`
+	PrimaryDBName             string `env:"DB_NAME"`
+	PrimaryDBPort             string `env:"DB_PORT"`
+	ReplicaDBHost             string `env:"DB_REPLICA_HOST"`
+	ReplicaDBUser             string `env:"DB_REPLICA_USER"`
+	ReplicaDBPassword         string `env:"DB_REPLICA_PASSWORD"`
+	ReplicaDBName             string `env:"DB_REPLICA_NAME"`
+	ReplicaDBPort             string `env:"DB_REPLICA_PORT"`
+	MaxOpenConnections        int    `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections        int    `env:"DB_MAX_IDLE_CONNS"`
+	MongoURI                  string `env:"MONGO_URI"`
+	MongoDBHost               string `env:"MONGO_HOST"`
+	MongoDBName               string `env:"MONGO_NAME"`
+	MongoDBUser               string `env:"MONGO_USER"`
+	MongoDBPassword           string `env:"MONGO_PASSWORD"`
+	MongoDBPort               string `env:"MONGO_PORT"`
+	MaxPoolSize               int    `env:"MONGO_MAX_POOL_SIZE"`
+	JWKAddress                string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitURI                 string `env:"RABBITMQ_URI"`
+	RabbitMQHost              string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost          string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP          string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser              string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass              string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQExchange          string `env:"RABBITMQ_EXCHANGE"`
+	RabbitMQHealthCheckURL    string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQKey               string `env:"RABBITMQ_KEY"`
+	OtelServiceName           string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName           string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion        string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv         string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint   string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry           bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                 string `env:"REDIS_HOST"`
+	RedisMasterName           string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword             string `env:"REDIS_PASSWORD"`
+	RedisDB                   int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol             int    `env:"REDIS_DB" default:"3"`
+	RedisTLS                  bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACertPath           string `env:"REDIS_CA_CERT_PATH"`
+	RedisClientCertPath       string `env:"REDIS_CLIENT_CERT_PATH"`
+	RedisClientKeyPath        string `env:"REDIS_CLIENT_KEY_PATH"`
+	RedisUseIAM               bool   `env:"REDIS_USE_IAM" default:"false"`
+	RedisServiceAccount       string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	RedisTokenLifeTime        int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	AuthEnabled               bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                  string `env:"PLUGIN_AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -140,13 +149,20 @@ func InitServers() *Service {
 	}
 
 	redisConnection := &libRedis.RedisConnection{
-		Address:    []string{cfg.RedisHost},
-		Password:   cfg.RedisPassword,
-		DB:         cfg.RedisDB,
-		Protocol:   cfg.RedisProtocol,
-		MasterName: cfg.RedisMasterName,
-		Logger:     logger,
-		UseTLS:     cfg.RedisTLS,
+		Address:            strings.Split(cfg.RedisHost, ","),
+		Password:           cfg.RedisPassword,
+		DB:                 cfg.RedisDB,
+		Protocol:           cfg.RedisProtocol,
+		MasterName:         cfg.RedisMasterName,
+		UseTLS:             cfg.RedisTLS,
+		CACertPath:         &cfg.RedisCACertPath,
+		ClientCertPath:     &cfg.RedisClientCertPath,
+		ClientKeyPath:      &cfg.RedisClientKeyPath,
+		UseIAMAuth:         cfg.RedisUseIAM,
+		ServiceAccountName: cfg.RedisServiceAccount,
+		TokenLifeTime:      time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+		RefreshDuration:    time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		Logger:             logger,
 	}
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
