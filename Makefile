@@ -140,11 +140,6 @@ help:
 	@echo "  make demo-data                   - Generate demo data with small volume (optimized)"
 	@echo "  make demo-data-medium            - Generate demo data with medium volume (optimized)"
 	@echo "  make demo-data-large             - Generate demo data with large volume (optimized)"
-	@echo "  make demo-data-small-fast        - Generate small volume with no process delays"
-	@echo "  make demo-data-medium-fast       - Generate medium volume with no process delays"
-	@echo "  make demo-data-small-sequential  - Generate small volume using sequential generator"
-	@echo "  make demo-data-medium-sequential - Generate medium volume using sequential generator"
-	@echo "  make demo-data-large-sequential  - Generate large volume using sequential generator"
 	@echo ""
 	@echo ""
 
