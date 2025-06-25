@@ -108,4 +108,5 @@ var (
 	ErrOnHoldExternalAccount                    = errors.New("0098")
 	ErrCommitTransactionNotPending              = errors.New("0099")
 	ErrOperationRouteTitleAlreadyExists         = errors.New("0100")
+	ErrOperationRouteNotFound                   = errors.New("0101")
 )

@@ -890,6 +890,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Operation Route Title Already Exists",
 			Message:    "The 'title' provided already exists for the 'type' provided. Please redefine the operation route title.",
 		},
+		constant.ErrOperationRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteNotFound.Error(),
+			Title:      "Operation Route Not Found",
+			Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

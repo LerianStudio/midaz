@@ -112,6 +112,8 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	return record.ToEntity(), nil
 }
 
+// FindByID retrieves an operation route by its ID.
+// It returns the operation route if found, otherwise it returns an error.
 func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -125,7 +127,9 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := "SELECT * FROM operation_route WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	query := `SELECT id, organization_id, ledger_id, title, description, type, created_at, updated_at, deleted_at 
+		FROM operation_route 
+		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
 	args := []any{organizationID, ledgerID, id}
 
 	operationRoute := &OperationRoutePostgreSQLModel{}
