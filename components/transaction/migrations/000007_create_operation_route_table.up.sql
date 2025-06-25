@@ -15,5 +15,3 @@ CREATE INDEX idx_operation_route_organization_id_ledger_id ON operation_route (o
 CREATE INDEX idx_operation_route_type ON operation_route (organization_id, ledger_id, type) WHERE deleted_at IS NULL;
 
 CREATE INDEX idx_operation_route_deleted_at ON operation_route (organization_id, ledger_id, deleted_at);
-
-CREATE UNIQUE INDEX idx_operation_route_title_type_unique ON operation_route (organization_id, ledger_id, title, type) WHERE deleted_at IS NULL;

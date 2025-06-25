@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -77,40 +75,4 @@ func TestCreateOperationRouteError(t *testing.T) {
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, result)
-}
-
-// TestCreateOperationRouteDuplicateTitleTypeError is responsible to test CreateOperationRoute with duplicate title and type error
-func TestCreateOperationRouteDuplicateTitleTypeError(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
-	}
-
-	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteTitleAlreadyExists, "OperationRoute")
-
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
-	}
-
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, expectedError).
-		Times(1)
-
-	result, err := uc.CreateOperationRoute(context.TODO(), organizationID, ledgerID, payload)
-
-	assert.NotNil(t, err)
-	assert.Equal(t, expectedError.Error(), err.Error())
-	assert.Nil(t, result)
-
-	// Verify the error is of the correct type
-	var entityConflictError pkg.EntityConflictError
-	assert.True(t, errors.As(err, &entityConflictError))
-	assert.Equal(t, "0100", entityConflictError.Code)
-	assert.Equal(t, "Operation Route Title Already Exists", entityConflictError.Title)
 }
