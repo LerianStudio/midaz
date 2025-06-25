@@ -79,10 +79,8 @@ type Config struct {
 	RedisDB                    int    `env:"REDIS_DB" default:"0"`
 	RedisProtocol              int    `env:"REDIS_DB" default:"3"`
 	RedisTLS                   bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACertPath            string `env:"REDIS_CA_CERT_PATH"`
-	RedisClientCertPath        string `env:"REDIS_CLIENT_CERT_PATH"`
-	RedisClientKeyPath         string `env:"REDIS_CLIENT_KEY_PATH"`
-	RedisUseIAM                bool   `env:"REDIS_USE_IAM" default:"false"`
+	RedisCACert                string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM             bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
 	RedisServiceAccount        string `env:"REDIS_SERVICE_ACCOUNT" default:""`
 	RedisTokenLifeTime         int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
 	RedisTokenRefreshDuration  int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
@@ -161,10 +159,8 @@ func InitServers() *Service {
 		Protocol:           cfg.RedisProtocol,
 		MasterName:         cfg.RedisMasterName,
 		UseTLS:             cfg.RedisTLS,
-		CACertPath:         &cfg.RedisCACertPath,
-		ClientCertPath:     &cfg.RedisClientCertPath,
-		ClientKeyPath:      &cfg.RedisClientKeyPath,
-		UseIAMAuth:         cfg.RedisUseIAM,
+		CACert:             cfg.RedisCACert,
+		UseGCPIAMAuth:      cfg.RedisUseGCPIAM,
 		ServiceAccountName: cfg.RedisServiceAccount,
 		TokenLifeTime:      time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
 		RefreshDuration:    time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
