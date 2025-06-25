@@ -22,14 +22,16 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	payload := &mmodel.CreateOperationRouteInput{
 		Title:       "Test Operation Route",
 		Description: "Test Description",
-		Type:        "test-type",
+		Type:        "debit",
 	}
 
 	expectedOperationRoute := &mmodel.OperationRoute{
-		ID:          uuid.New(),
-		Title:       payload.Title,
-		Description: payload.Description,
-		Type:        payload.Type,
+		ID:             uuid.New(),
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Title:          payload.Title,
+		Description:    payload.Description,
+		Type:           payload.Type,
 	}
 
 	uc := UseCase{
@@ -38,7 +40,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 
 	uc.OperationRouteRepo.(*operationroute.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), gomock.Any()).
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
@@ -57,7 +59,7 @@ func TestCreateOperationRouteError(t *testing.T) {
 	payload := &mmodel.CreateOperationRouteInput{
 		Title:       "Test Operation Route",
 		Description: "Test Description",
-		Type:        "test-type",
+		Type:        "debit",
 	}
 
 	uc := UseCase{
@@ -66,7 +68,7 @@ func TestCreateOperationRouteError(t *testing.T) {
 
 	uc.OperationRouteRepo.(*operationroute.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), gomock.Any()).
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
 
@@ -85,7 +87,7 @@ func TestCreateOperationRouteDuplicateTitleTypeError(t *testing.T) {
 	payload := &mmodel.CreateOperationRouteInput{
 		Title:       "Test Operation Route",
 		Description: "Test Description",
-		Type:        "test-type",
+		Type:        "debit",
 	}
 
 	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteTitleAlreadyExists, "OperationRoute")
@@ -96,7 +98,7 @@ func TestCreateOperationRouteDuplicateTitleTypeError(t *testing.T) {
 
 	uc.OperationRouteRepo.(*operationroute.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), gomock.Any()).
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(nil, expectedError).
 		Times(1)
 
