@@ -66,6 +66,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	// Operation-route
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(midazName, "operation-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(midazName, "operation-routes", "get"), http.ParseUUIDPathParameters, orh.GetOperationRouteByID)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(midazName, "operation-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOperationRouteInput), orh.UpdateOperationRoute))
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
