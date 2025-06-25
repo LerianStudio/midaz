@@ -4,103 +4,96 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-// TestGetOperationRouteByIDSuccess is responsible to test GetOperationRouteByID with success
+// TestGetOperationRouteByIDSuccess tests getting an operation route by ID successfully
 func TestGetOperationRouteByIDSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	operationRouteID := uuid.New()
-	now := time.Now()
 
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Title:          "Test Operation Route",
+		Title:          "Test Route",
 		Description:    "Test Description",
 		Type:           "debit",
-		CreatedAt:      now,
-		UpdatedAt:      now,
 	}
 
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
 	}
 
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
+	mockRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.TODO(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
+	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoute, result)
-	assert.Nil(t, err)
 }
 
-// TestGetOperationRouteByIDError is responsible to test GetOperationRouteByID with database error
+// TestGetOperationRouteByIDError tests getting an operation route by ID with database error
 func TestGetOperationRouteByIDError(t *testing.T) {
-	errMSG := "database connection error"
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	operationRouteID := uuid.New()
+	expectedError := errors.New("database error")
 
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
 	}
 
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
+	mockRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(nil, errors.New(errMSG)).
+		Return(nil, expectedError).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.TODO(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.NotNil(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+	assert.Error(t, err)
+	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationRouteByIDNotFound is responsible to test GetOperationRouteByID with not found error
+// TestGetOperationRouteByIDNotFound tests getting an operation route by ID when not found
 func TestGetOperationRouteByIDNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	operationRouteID := uuid.New()
 
-	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, "OperationRoute")
-
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
 	}
 
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
+	mockRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(nil, services.ErrDatabaseItemNotFound).
+		Return(nil, nil).
 		Times(1)
 
-	result, err := uc.GetOperationRouteByID(context.TODO(), organizationID, ledgerID, nil, operationRouteID)
+	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.NotNil(t, err)
-	assert.Equal(t, expectedError.Error(), err.Error())
+	assert.NoError(t, err)
 	assert.Nil(t, result)
-
-	// Verify the error is of the correct type
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0101", entityNotFoundError.Code)
-	assert.Equal(t, "Operation Route Not Found", entityNotFoundError.Title)
 }

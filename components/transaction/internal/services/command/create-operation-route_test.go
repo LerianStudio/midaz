@@ -14,6 +14,9 @@ import (
 
 // TestCreateOperationRouteSuccess is responsible to test CreateOperationRoute with success
 func TestCreateOperationRouteSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
@@ -32,17 +35,17 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 		Type:           payload.Type,
 	}
 
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
+	mockOperationRouteRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(expectedOperationRoute, nil).
 		Times(1)
 
-	result, err := uc.CreateOperationRoute(context.TODO(), organizationID, ledgerID, payload)
+	result, err := uc.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
 	assert.Equal(t, expectedOperationRoute, result)
 	assert.Nil(t, err)
@@ -50,6 +53,9 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 
 // TestCreateOperationRouteError is responsible to test CreateOperationRoute with error
 func TestCreateOperationRouteError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errMSG := "err to create OperationRoute on database"
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -60,17 +66,17 @@ func TestCreateOperationRouteError(t *testing.T) {
 		Type:        "debit",
 	}
 
-	uc := UseCase{
-		OperationRouteRepo: operationroute.NewMockRepository(gomock.NewController(t)),
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	uc := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
 	}
 
-	uc.OperationRouteRepo.(*operationroute.MockRepository).
-		EXPECT().
+	mockOperationRouteRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
 
-	result, err := uc.CreateOperationRoute(context.TODO(), organizationID, ledgerID, payload)
+	result, err := uc.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
