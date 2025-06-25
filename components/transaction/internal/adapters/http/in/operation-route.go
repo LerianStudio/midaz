@@ -183,3 +183,47 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	return http.OK(c, operationRoute)
 }
+
+// DeleteOperationRouteByID is a method that deletes Operation Route information.
+//
+//	@Summary		Delete an operation route
+//	@Description	Deletes an existing operation route identified by its UUID within the specified ledger
+//	@Tags			Operation Route
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			operation_route_id	path		string	true	"Operation Route ID in UUID format"
+//	@Success		204				"Successfully deleted operation route"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id} [delete]
+func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("operation_route_id").(uuid.UUID)
+
+	logger.Infof("Initiating deletion of Operation Route with Operation Route ID: %s", id.String())
+
+	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete Operation Route on command", err)
+
+		logger.Errorf("Failed to delete Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully deleted Operation Route with Operation Route ID: %s", id.String())
+
+	return http.NoContent(c)
+}

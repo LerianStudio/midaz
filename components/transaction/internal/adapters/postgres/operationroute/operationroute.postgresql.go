@@ -24,8 +24,9 @@ import (
 // It defines methods for creating, retrieving, updating, and deleting operation routes.
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
-	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
-	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
+	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
@@ -118,7 +119,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 // FindByID retrieves an operation route by its ID.
 // It returns the operation route if found, otherwise it returns an error.
-func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
@@ -169,7 +170,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 // Update updates an operation route by its ID.
 // It returns the updated operation route if found, otherwise it returns an error.
-func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
@@ -246,4 +247,34 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	}
 
 	return record.ToEntity(), nil
+}
+
+// Delete an Operation Route entity from the database (soft delete) using the provided ID.
+func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	query := "UPDATE operation_route SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
+		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	}
+
+	spanExec.End()
+
+	return nil
 }
