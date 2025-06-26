@@ -11,11 +11,13 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -27,6 +29,7 @@ type Repository interface {
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, pagination libPostgres.Pagination) ([]*mmodel.OperationRoute, error)
 }
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
@@ -277,4 +280,84 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	spanExec.End()
 
 	return nil
+}
+
+// FindAll retrieves all operation routes from the database.
+// It returns a list of operation routes and an error if the operation fails.
+func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, pagination libPostgres.Pagination) ([]*mmodel.OperationRoute, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var operationRoutes []*mmodel.OperationRoute
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID))
+
+	findAll = findAll.OrderBy("created_at " + strings.ToUpper(pagination.SortOrder)).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(pagination.StartDate, libPointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(pagination.EndDate, libPointers.Int(1))})
+
+	findAll = findAll.Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var operationRoute OperationRoutePostgreSQLModel
+		if err := rows.Scan(
+			&operationRoute.ID,
+			&operationRoute.OrganizationID,
+			&operationRoute.LedgerID,
+			&operationRoute.Title,
+			&operationRoute.Description,
+			&operationRoute.Type,
+			&operationRoute.CreatedAt,
+			&operationRoute.UpdatedAt,
+			&operationRoute.DeletedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		operationRoutes = append(operationRoutes, operationRoute.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, err
+	}
+
+	return operationRoutes, nil
 }

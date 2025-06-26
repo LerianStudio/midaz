@@ -3,6 +3,7 @@ package in
 import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -226,4 +227,71 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	logger.Infof("Successfully deleted Operation Route with Operation Route ID: %s", id.String())
 
 	return http.NoContent(c)
+}
+
+// GetAllOperationRoutes is a method that retrieves all Operation Routes information.
+//
+//	@Summary		Retrieve all operation routes
+//	@Description	Returns a list of all operation routes within the specified ledger
+//	@Tags			Operation Route
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			page				query		int		false	"Page number for pagination"
+//	@Param			limit				query		int		false	"Number of items per page"
+//	@Param			sort_order			query		string	false	"Sort order for pagination"
+//	@Param			start_date			query		string	false	"Start date for pagination"
+//	@Param			end_date			query		string	false	"End date for pagination"
+//	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation routes"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [get]
+func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	pagination := libPostgres.Pagination{
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
+	}
+
+	logger.Infof("Initiating retrieval of all Operation Routes")
+
+	operationRoutes, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, pagination)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operation Routes on query", err)
+
+		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all Operation Routes")
+
+	pagination.SetItems(operationRoutes)
+
+	return http.OK(c, pagination)
 }

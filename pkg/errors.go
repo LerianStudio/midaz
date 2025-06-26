@@ -896,6 +896,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Operation Route Not Found",
 			Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
 		},
+		constant.ErrNoOperationRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoOperationRoutesFound.Error(),
+			Title:      "No Operation Routes Found",
+			Message:    "No operation routes were found in the search. Please review the search criteria and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
