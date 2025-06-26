@@ -22,16 +22,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+
       - name: Generate Swagger and update Postman collection
         run: |
           go install github.com/swaggo/swag/cmd/swag@latest
           swag --version
           make tidy
           make generate-docs
-
-      - uses: actions/setup-node@v2
-        with:
-          node-version: "23"
 
       - name: "Install newman"
         run: "npm install -g newman"
