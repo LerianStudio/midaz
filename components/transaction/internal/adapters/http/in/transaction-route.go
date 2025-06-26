@@ -16,8 +16,24 @@ type TransactionRouteHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateTransactionRoute creates a new transaction route.
-// It returns the created transaction route and an error if the operation fails.
+// Create a Transaction Route.
+//
+//	@Summary		Create Transaction Route
+//	@Description	Endpoint to create a new Transaction Route.
+//	@Tags			Transaction Route
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction-route	body		mmodel.CreateTransactionRouteInput	true	"Transaction Route Input"
+//	@Success		201				{object}	mmodel.TransactionRoute				"Successfully created transaction route"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes [post]
 func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

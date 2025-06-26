@@ -34,8 +34,6 @@ type OperationRouteHandler struct {
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error						"Ledger or organization not found"
-//	@Failure		409				{object}	mmodel.Error						"Conflict: Operation Route with the same title already exists"
 //	@Failure		500				{object}	mmodel.Error						"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [post]
 func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) error {
