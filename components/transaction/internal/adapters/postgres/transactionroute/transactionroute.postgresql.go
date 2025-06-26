@@ -2,6 +2,7 @@ package transactionroute
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strconv"
@@ -28,7 +29,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -204,7 +205,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		OrderBy("or_data.created_at").
 		PlaceholderFormat(squirrel.Dollar)
 
-	sql, args, err := mainQuery.ToSql()
+	sqlQuery, args, err := mainQuery.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -214,7 +215,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 	defer spanQuery.End()
 
-	rows, err := db.QueryContext(ctx, sql, args...)
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -300,9 +301,10 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	return transactionRoute, nil
 }
 
-// Update updates a transaction route by its ID.
+// Update updates a transaction route by its ID and manages its operation route relationships.
 // It returns the updated transaction route and an error if the operation fails.
-func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+// If the transaction route has operation routes, it will update the relationships atomically.
+func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
@@ -315,9 +317,26 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		return nil, err
 	}
 
+	// Begin transaction for atomicity (transaction route + operation route relationships)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+			}
+		}
+	}()
+
 	record := &TransactionRoutePostgreSQLModel{}
 	record.FromEntity(transactionRoute)
 
+	// Update transaction route basic fields
 	var updates []string
 
 	var args []any
@@ -335,7 +354,6 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE transaction_route SET ` + strings.Join(updates, ", ") +
@@ -353,7 +371,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, query, args...)
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
@@ -365,11 +383,9 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		return nil, err
 	}
 
-	spanExec.End()
-
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to get rows affected", err)
 
 		return nil, err
 	}
@@ -377,10 +393,103 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction route. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update transaction route. Rows affected is 0", err)
+
+		return nil, err
+	}
+
+	spanExec.End()
+
+	// Update operation route relationships if provided
+	if len(toAdd) > 0 || len(toRemove) > 0 {
+		err = r.updateOperationRouteRelationships(ctx, tx, id, toAdd, toRemove)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to update operation route relationships", err)
+
+			return nil, err
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
 
 		return nil, err
 	}
 
 	return record.ToEntity(), nil
+}
+
+// updateOperationRouteRelationships handles the complex logic of updating operation route relationships within an existing transaction
+func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")
+	defer span.End()
+
+	// Soft delete relationships that should be removed
+	if len(toRemove) > 0 {
+		ctxDelete, spanDelete := tracer.Start(ctxSpan, "postgres.soft_delete_relationships")
+		defer spanDelete.End()
+
+		placeholders := make([]string, len(toRemove))
+		deleteArgs := make([]any, len(toRemove)+1)
+
+		for i, id := range toRemove {
+			placeholders[i] = "$" + strconv.Itoa(i+2)
+			deleteArgs[i+1] = id
+		}
+
+		deleteArgs[0] = transactionRouteID
+
+		deleteQuery := `UPDATE operation_transaction_route 
+						SET deleted_at = NOW() 
+						WHERE transaction_route_id = $1 
+						AND operation_route_id IN (` + strings.Join(placeholders, ",") + `) 
+						AND deleted_at IS NULL`
+
+		_, err := tx.ExecContext(ctxDelete, deleteQuery, deleteArgs...)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanDelete, "Failed to soft delete operation route relationships", err)
+
+			return err
+		}
+
+		spanDelete.End()
+	}
+
+	// Create new relationships
+	if len(toAdd) > 0 {
+		ctxCreate, spanCreate := tracer.Start(ctxSpan, "postgres.create_relationships")
+		defer spanCreate.End()
+
+		for _, operationRouteID := range toAdd {
+			relationID := libCommons.GenerateUUIDv7()
+			now := time.Now()
+
+			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
+				relationID,
+				operationRouteID,
+				transactionRouteID,
+				now,
+			)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&spanCreate, "Failed to create operation route relationship", err)
+
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) {
+					return services.ValidatePGError(pgErr, "operation_transaction_route")
+				}
+
+				return err
+			}
+		}
+
+		spanCreate.End()
+	}
+
+	return nil
 }

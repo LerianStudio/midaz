@@ -30,7 +30,19 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 		Description: input.Description,
 	}
 
-	transactionRouteUpdated, err := uc.TransactionRouteRepo.Update(ctx, organizationID, ledgerID, id, transactionRoute)
+	// Handle operation route updates if provided
+	var toAdd, toRemove []uuid.UUID
+
+	if input.OperationRoutes != nil {
+		var err error
+
+		toAdd, toRemove, err = uc.handleOperationRouteUpdates(ctx, organizationID, ledgerID, id, *input.OperationRoutes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	transactionRouteUpdated, err := uc.TransactionRouteRepo.Update(ctx, organizationID, ledgerID, id, transactionRoute, toAdd, toRemove)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction route on repo by id", err)
 
@@ -55,4 +67,61 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	transactionRouteUpdated.Metadata = metadataUpdated
 
 	return transactionRouteUpdated, nil
+}
+
+// handleOperationRouteUpdates processes operation route relationship updates by comparing existing vs new operation routes.
+// It returns arrays of operation route IDs to add and remove, or an error if validation fails.
+func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
+	defer span.End()
+
+	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
+	if err != nil {
+		logger.Errorf("Error fetching current transaction route: %v", err)
+		return nil, nil, err
+	}
+
+	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
+	if err != nil {
+		logger.Errorf("Error fetching operation routes: %v", err)
+		return nil, nil, err
+	}
+
+	// Validate that we have at least 1 debit and 1 credit operation route
+	err = validateOperationRouteTypes(operationRoutes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Compare existing vs new operation routes to determine what to add/remove
+	existingIDs := make(map[uuid.UUID]bool)
+	for _, existingRoute := range currentTransactionRoute.OperationRoutes {
+		existingIDs[existingRoute.ID] = true
+	}
+
+	newIDs := make(map[uuid.UUID]bool)
+	for _, newID := range newOperationRouteIDs {
+		newIDs[newID] = true
+	}
+
+	// Find relationships to remove (exist currently but not in new list)
+	for existingID := range existingIDs {
+		if !newIDs[existingID] {
+			toRemove = append(toRemove, existingID)
+		}
+	}
+
+	// Find relationships to add (in new list but don't exist currently)
+	for newID := range newIDs {
+		if !existingIDs[newID] {
+			toAdd = append(toAdd, newID)
+		}
+	}
+
+	logger.Infof("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove)
+
+	return toAdd, toRemove, nil
 }
