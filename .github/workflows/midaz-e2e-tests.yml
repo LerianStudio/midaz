@@ -1,0 +1,45 @@
+name: "Midaz E2E Tests"
+
+on:
+  push:
+    branches:
+      - fix/refactor-postman-generation
+
+jobs:
+  midaz-e2e-tests:
+    name: Run Midaz E2E Tests
+    runs-on: firmino-gh-actions-runners
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Install build essentials
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Generate Swagger and update Postman collection
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+          swag --version
+          make tidy
+          make generate-docs
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "23"
+
+      - name: "Install newman"
+        run: "npm install -g newman"
+
+      - name: "Update URLs in Postman environment"
+        run: |
+          sed -i 's#\"value\": \"{{baseUrl}}:{{onboardingPort}}\"#\"value\": \"https://onboarding.lerian.net\"#' postman/MIDAZ.postman_environment.json
+          sed -i 's#\"value\": \"{{baseUrl}}:{{transactionPort}}\"#\"value\": \"https://transaction.lerian.net\"#' postman/MIDAZ.postman_environment.json
+
+      - name: "Run tests"
+        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json"
