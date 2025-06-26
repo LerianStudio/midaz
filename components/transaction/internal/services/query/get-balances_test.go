@@ -124,9 +124,9 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// 2) Get de Redis para cada alias
-		key1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
-		key2 := libCommons.LockInternalKey(organizationID, ledgerID, "alias2")
-		key3 := libCommons.LockInternalKey(organizationID, ledgerID, "alias3")
+		key1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
+		key2 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias2")
+		key3 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias3")
 
 		mockRedisRepo.
 			EXPECT().
@@ -288,13 +288,13 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Mock Redis.Get for both aliases (found in Redis)
-		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
+		internalKey1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey1).
 			Return(string(balance1JSON), nil).
 			Times(1)
 
-		internalKey2 := libCommons.LockInternalKey(organizationID, ledgerID, "alias2")
+		internalKey2 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias2")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey2).
 			Return(string(balance2JSON), nil).
@@ -410,7 +410,7 @@ func TestGetAccountAndLock(t *testing.T) {
 			},
 		}
 
-		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
+		internalKey1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
 
 		mockRedisRepo.EXPECT().
 			AddSumBalanceRedis(
@@ -463,19 +463,19 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 		balance1JSON, _ := json.Marshal(balance1)
 
 		// Mock Redis.Get for all aliases
-		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
+		internalKey1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey1).
 			Return(string(balance1JSON), nil).
 			Times(1)
 
-		internalKey2 := libCommons.LockInternalKey(organizationID, ledgerID, "alias2")
+		internalKey2 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias2")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey2).
 			Return("", nil).
 			Times(1)
 
-		internalKey3 := libCommons.LockInternalKey(organizationID, ledgerID, "alias3")
+		internalKey3 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias3")
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey3).
 			Return("", nil).

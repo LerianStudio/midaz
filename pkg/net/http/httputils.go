@@ -182,7 +182,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 
 	t, err := strconv.Atoi(iTTL)
 	if err != nil {
-		t = libRedis.RedisTTL
+		t = libRedis.TTL
 	}
 
 	ttl := time.Duration(t)
