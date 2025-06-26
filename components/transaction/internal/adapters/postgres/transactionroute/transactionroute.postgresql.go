@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -26,6 +28,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -295,4 +298,85 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	}
 
 	return transactionRoute, nil
+}
+
+// Update updates a transaction route by its ID.
+// It returns the updated transaction route and an error if the operation fails.
+func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	record := &TransactionRoutePostgreSQLModel{}
+	record.FromEntity(transactionRoute)
+
+	var updates []string
+
+	var args []any
+
+	if transactionRoute.Title != "" {
+		updates = append(updates, "title = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Title)
+	}
+
+	if transactionRoute.Description != "" {
+		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Description)
+	}
+
+	record.UpdatedAt = time.Now()
+
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+
+	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+
+	query := `UPDATE transaction_route SET ` + strings.Join(updates, ", ") +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+		` AND id = $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_route_repository_input", record)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction_route record from entity to JSON string", err)
+
+		return nil, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		}
+
+		return nil, err
+	}
+
+	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return nil, err
+	}
+
+	if rowsAffected == 0 {
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	}
+
+	return record.ToEntity(), nil
 }

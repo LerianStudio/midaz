@@ -114,3 +114,71 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 
 	return http.OK(c, transactionRoute)
 }
+
+// Update a Transaction Route.
+//
+//	@Summary		Update Transaction Route
+//	@Description	Endpoint to update a Transaction Route by its ID.
+//	@Tags			Transaction Route
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
+//	@Param			transaction-route	body		mmodel.UpdateTransactionRouteInput	true	"Transaction Route Input"
+//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully updated transaction route"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [patch]
+func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("transaction_route_id").(uuid.UUID)
+
+	logger.Infof("Request to update transaction route with ID: %s", id.String())
+
+	payload := i.(*mmodel.UpdateTransactionRouteInput)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Request to update transaction route with details: %#v", payload)
+
+	_, err = handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction route", err)
+
+		logger.Errorf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
+
+		logger.Errorf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated transaction route with ID: %s", id.String())
+
+	return http.OK(c, transactionRoute)
+}
