@@ -34,7 +34,9 @@ jobs:
           make generate-docs
 
       - name: "Install newman"
-        run: "npm install -g newman"
+        run: |
+          npm install -g newman
+          npm install -g newman-reporter-ctrf-json
 
       - name: "Update URLs in Postman environment"
         run: |
@@ -42,4 +44,23 @@ jobs:
           sed -i 's#\"value\": \"{{baseUrl}}:{{transactionPort}}\"#\"value\": \"https://transaction.lerian.net\"#' postman/MIDAZ.postman_environment.json
 
       - name: "Run tests"
-        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json"
+        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json -r ctrf/ctrf-report.json"
+
+      - name: Publish Test Report
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/*.json'
+          summary-report: true
+          github-report: true
+          failed-report: true
+          flaky-report: true
+          insights-report: true
+          fail-rate-report: true
+          flaky-rate-report: true
+          slowest-report: true
+          previous-results-report: true
+          use-suite-name: true
+          upload-artifact: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: always()
