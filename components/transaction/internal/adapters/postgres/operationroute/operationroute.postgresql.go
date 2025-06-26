@@ -24,9 +24,12 @@ import (
 
 // Repository provides an interface for operations related to operation route entities.
 // It defines methods for creating, retrieving, updating, and deleting operation routes.
+//
+//go:generate mockgen --destination=operationroute.postgresql_mock.go --package=operationroute . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error)
+	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, pagination libPostgres.Pagination) ([]*mmodel.OperationRoute, error)
@@ -169,6 +172,96 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 	}
 
 	return operationRoute.ToEntity(), nil
+}
+
+// FindByIDs retrieves operation routes by their IDs.
+// It returns the operation routes if found, otherwise it returns an error.
+func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_operation_routes_by_ids")
+	defer span.End()
+
+	if len(ids) == 0 {
+		return []*mmodel.OperationRoute{}, nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "created_at", "updated_at", "deleted_at").
+		From("operation_route").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": ids}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findByIDsSql, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_ids.query")
+
+	rows, err := db.QueryContext(ctx, findByIDsSql, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	var operationRoutes []*mmodel.OperationRoute
+
+	foundIDs := make(map[uuid.UUID]bool)
+
+	for rows.Next() {
+		operationRoute := &OperationRoutePostgreSQLModel{}
+
+		if err := rows.Scan(
+			&operationRoute.ID,
+			&operationRoute.OrganizationID,
+			&operationRoute.LedgerID,
+			&operationRoute.Title,
+			&operationRoute.Description,
+			&operationRoute.Type,
+			&operationRoute.CreatedAt,
+			&operationRoute.UpdatedAt,
+			&operationRoute.DeletedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan operation route", err)
+
+			return nil, err
+		}
+
+		operationRoutes = append(operationRoutes, operationRoute.ToEntity())
+		foundIDs[operationRoute.ID] = true
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, err
+	}
+
+	for _, id := range ids {
+		if !foundIDs[id] {
+			libOpentelemetry.HandleSpanError(&span, "Operation route not found", nil)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		}
+	}
+
+	return operationRoutes, nil
 }
 
 // Update updates an operation route by its ID.

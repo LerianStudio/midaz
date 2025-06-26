@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 )
@@ -27,6 +28,9 @@ type UseCase struct {
 
 	// OperationRouteRepo provides an abstraction on top of the operation route data source.
 	OperationRouteRepo operationroute.Repository
+
+	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
+	TransactionRouteRepo transactionroute.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

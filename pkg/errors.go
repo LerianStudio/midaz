@@ -908,6 +908,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Operation Route Type",
 			Message:    "The provided 'type' is not valid. Accepted types are 'debit' or 'credit'. Please provide a valid type.",
 		},
+		constant.ErrMissingOperationRoutes: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingOperationRoutes.Error(),
+			Title:      "Missing Operation Routes in Request",
+			Message:    "Your request must include at least one operation route of each type (debit and credit). Please refer to the documentation to ensure these fields are properly populated.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
