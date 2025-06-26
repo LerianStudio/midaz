@@ -55,3 +55,18 @@ func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2, arg3 any) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1, arg2, arg3)
 }
+
+// FindByID mocks base method.
+func (m *MockRepository) FindByID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*mmodel.TransactionRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByID", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*mmodel.TransactionRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByID indicates an expected call of FindByID.
+func (mr *MockRepositoryMockRecorder) FindByID(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), arg0, arg1, arg2, arg3)
+}
