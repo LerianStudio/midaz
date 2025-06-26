@@ -44,7 +44,7 @@ jobs:
           sed -i 's#\"value\": \"{{baseUrl}}:{{transactionPort}}\"#\"value\": \"https://transaction.lerian.net\"#' postman/MIDAZ.postman_environment.json
 
       - name: "Run tests"
-        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json -r ctrf/ctrf-report.json"
+        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json -r cli,ctrf-json"
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
