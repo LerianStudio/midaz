@@ -112,4 +112,5 @@ var (
 	ErrNoOperationRoutesFound                   = errors.New("0102")
 	ErrInvalidOperationRouteType                = errors.New("0103")
 	ErrMissingOperationRoutes                   = errors.New("0104")
+	ErrTransactionRouteNotFound                 = errors.New("0105")
 )

@@ -68,3 +68,49 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	return http.Created(c, transactionRoute)
 }
+
+// Get a Transaction Route by ID.
+//
+//	@Summary		Get Transaction Route by ID
+//	@Description	Endpoint to get a Transaction Route by its ID.
+//	@Tags			Transaction Route
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Param			transaction_route_id	path		string								true	"Transaction Route ID in UUID format"
+//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction route"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error						"Transaction Route not found"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id} [get]
+func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("transaction_route_id").(uuid.UUID)
+
+	logger.Infof("Request to get transaction route with ID: %s", id.String())
+
+	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved transaction route with ID: %s", id.String())
+
+	return http.OK(c, transactionRoute)
+}

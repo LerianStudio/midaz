@@ -914,6 +914,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Missing Operation Routes in Request",
 			Message:    "Your request must include at least one operation route of each type (debit and credit). Please refer to the documentation to ensure these fields are properly populated.",
 		},
+		constant.ErrTransactionRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRouteNotFound.Error(),
+			Title:      "Transaction Route Not Found",
+			Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
