@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	postgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -68,6 +69,21 @@ func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, i
 func (mr *MockRepositoryMockRecorder) Delete(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, organizationID, ledgerID, id)
+}
+
+// FindAll mocks base method.
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, pagination postgres.Pagination) ([]*mmodel.OperationRoute, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, pagination)
+	ret0, _ := ret[0].([]*mmodel.OperationRoute)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAll indicates an expected call of FindAll.
+func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, pagination any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, ledgerID, pagination)
 }
 
 // FindByID mocks base method.
