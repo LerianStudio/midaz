@@ -375,7 +375,11 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	}
 
 	if rowsAffected == 0 {
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		err := services.ErrDatabaseItemNotFound
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction route. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
