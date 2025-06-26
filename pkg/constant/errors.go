@@ -110,4 +110,5 @@ var (
 	ErrOperationRouteTitleAlreadyExists         = errors.New("0100")
 	ErrOperationRouteNotFound                   = errors.New("0101")
 	ErrNoOperationRoutesFound                   = errors.New("0102")
+	ErrInvalidOperationRouteType                = errors.New("0103")
 )

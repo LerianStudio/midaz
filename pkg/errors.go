@@ -902,6 +902,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Operation Routes Found",
 			Message:    "No operation routes were found in the search. Please review the search criteria and try again.",
 		},
+		constant.ErrInvalidOperationRouteType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidOperationRouteType.Error(),
+			Title:      "Invalid Operation Route Type",
+			Message:    "The provided 'type' is not valid. Accepted types are 'debit' or 'credit'. Please provide a valid type.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
