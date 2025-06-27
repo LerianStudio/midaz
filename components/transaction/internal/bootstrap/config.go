@@ -179,7 +179,6 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
 
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
@@ -221,8 +220,6 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
-
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
@@ -230,8 +227,7 @@ func InitServers() *Service {
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server:             server,
-		MultiQueueConsumer: multiQueueConsumer,
-		Logger:             logger,
+		Server: server,
+		Logger: logger,
 	}
 }
