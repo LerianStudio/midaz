@@ -30,6 +30,7 @@ type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -489,6 +490,63 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 		}
 
 		spanCreate.End()
+	}
+
+	return nil
+}
+
+// Delete deletes a transaction route by its ID and manages its operation route relationships.
+// It returns an error if the operation fails.
+// If the transaction route has operation routes, it will delete the relationships atomically.
+func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+	defer spanExec.End()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+			}
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, `UPDATE transaction_route SET deleted_at = NOW() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
+
+		return err
+	}
+
+	err = r.updateOperationRouteRelationships(ctx, tx, id, make([]uuid.UUID, 0), toRemove)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update operation route relationships", err)
+
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
+
+		return err
 	}
 
 	return nil

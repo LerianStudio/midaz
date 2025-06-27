@@ -74,6 +74,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(midazName, "transaction-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionRouteInput), trh.CreateTransactionRoute))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetTransactionRouteByID)
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "delete"), http.ParseUUIDPathParameters, trh.DeleteTransactionRouteByID)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
