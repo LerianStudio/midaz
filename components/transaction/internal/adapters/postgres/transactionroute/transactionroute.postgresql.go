@@ -270,6 +270,10 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan transaction route", err)
 
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			}
+
 			return nil, err
 		}
 
@@ -296,7 +300,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	}
 
 	if transactionRoute == nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	return transactionRoute, nil

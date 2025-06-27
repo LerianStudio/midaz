@@ -2,15 +2,10 @@ package query
 
 import (
 	"context"
-	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -31,10 +26,6 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 		libOpentelemetry.HandleSpanError(&span, "Failed to get operation routes on repo", err)
 
 		logger.Errorf("Error getting operation routes on repo: %v", err)
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
-		}
 
 		return nil, err
 	}

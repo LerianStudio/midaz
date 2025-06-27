@@ -367,7 +367,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	spanExec.End()
@@ -439,6 +439,10 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.DeletedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			}
 
 			return nil, err
 		}
