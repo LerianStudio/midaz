@@ -2,9 +2,15 @@ package command
 
 import (
 	"context"
+	"errors"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -21,6 +27,12 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			logger.Errorf("Transaction Route ID not found: %s", transactionRouteID.String())
+
+			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		}
+
 		logger.Errorf("Error finding transaction route: %v", err)
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route", err)
