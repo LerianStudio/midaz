@@ -1,0 +1,23 @@
+services:
+  consumer:
+    container_name: midaz-consumer
+    build:
+      context: ../..
+      dockerfile: components/consumer/Dockerfile
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - infra-network
+      - consumer-network
+
+networks:
+  infra-network:
+    name: infra-network
+    driver: bridge
+    external: true
+  consumer-network:
+    name: consumer-network
+    driver: bridge
