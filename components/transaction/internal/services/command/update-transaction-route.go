@@ -78,6 +78,10 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()
 
+	if len(newOperationRouteIDs) < 2 {
+		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, "Cannot update TransactionRoute to have less than 2 operation routes - must maintain at least 1 debit and 1 credit operation route")
+	}
+
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		logger.Errorf("Error fetching current transaction route: %v", err)
