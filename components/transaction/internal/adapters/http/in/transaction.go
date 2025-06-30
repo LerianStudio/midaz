@@ -1,6 +1,7 @@
 package in
 
 import (
+	"encoding/json"
 	"reflect"
 	"time"
 
@@ -679,10 +680,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	ts, _ := libCommons.StructToJSONString(parserDSL)
 	hash := libCommons.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+	key, ttl, isReplayed := http.GetIdempotencyKeyAndTTL(c)
 
-	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
-	if err != nil {
+	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if isReplayed && !libCommons.IsNilOrEmpty(value) {
+		t := transaction.Transaction{}
+		if err = json.Unmarshal([]byte(*value), &t); err != nil {
+			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization transaction json", err)
+
+			logger.Errorf("Error to deserialization transaction json: %v", err)
+
+			return http.WithError(c, err)
+		}
+
+		return http.Created(c, t)
+	} else if err != nil {
 		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
 
 		logger.Infof("Redis idempotency key: %v", err.Error())
@@ -831,6 +843,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
+
+	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 
 	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 

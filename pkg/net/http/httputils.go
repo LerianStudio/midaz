@@ -176,9 +176,15 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
-func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
+func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration, bool) {
 	ikey := c.Get(libConstants.IdempotencyKey)
 	iTTL := c.Get(libConstants.IdempotencyTTL)
+	idempotencyReplayed := c.Get(libConstants.IdempotencyReplayed)
+
+	isReplayed := false
+	if !libCommons.IsNilOrEmpty(&idempotencyReplayed) {
+		isReplayed, _ = strconv.ParseBool(idempotencyReplayed)
+	}
 
 	t, err := strconv.Atoi(iTTL)
 	if err != nil {
@@ -187,7 +193,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 
 	ttl := time.Duration(t)
 
-	return ikey, ttl
+	return ikey, ttl, isReplayed
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
