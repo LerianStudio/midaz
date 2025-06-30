@@ -48,7 +48,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	}
 
 	if ttl <= 0 {
-		ttl = libRedis.RedisTTL
+		ttl = time.Duration(libRedis.TTL)
 	}
 
 	logger.Infof("value of ttl: %v", ttl)

@@ -89,3 +89,4 @@ postman/backups
 /components/console/blob-report/
 /components/console/tests/storage/
 .windsurfrules
+cert/

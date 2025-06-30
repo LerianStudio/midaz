@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("success with key", func(t *testing.T) {
 		key := "test-key"
-		internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
@@ -45,7 +46,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("success with empty key", func(t *testing.T) {
 		// When key is empty, it should use the hash value
-		internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + hash
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
@@ -62,7 +63,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("key already exists", func(t *testing.T) {
 		key := "existing-key"
-		internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		// Mock Redis.SetNX - failure case (key already exists)
 		mockRedisRepo.EXPECT().
@@ -80,7 +81,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 	t.Run("redis error", func(t *testing.T) {
 		key := "test-key"
-		internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
 		// Mock Redis.SetNX - redis error
 		mockRedisRepo.EXPECT().

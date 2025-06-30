@@ -85,7 +85,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	newAliases := make([]string, 0)
 
 	for _, alias := range aliases {
-		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, alias)
+		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
 		if value != "" {
@@ -141,7 +141,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	operations := make([]lockOperation, 0)
 
 	for _, balance := range balances {
-		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
+		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, balance.Alias)
 
 		for k, v := range validate.From {
 			if libTransaction.SplitAlias(k) == balance.Alias {
