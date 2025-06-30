@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -22,8 +23,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
-	pagination := libPostgres.Pagination{
-		Page:      1,
+	filter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "asc",
 	}
@@ -47,20 +47,26 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 		},
 	}
 
+	expectedCursor := libHTTP.CursorPagination{
+		Next: "next_cursor",
+		Prev: "prev_cursor",
+	}
+
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
 		OperationRouteRepo: mockRepo,
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, pagination).
-		Return(expectedOperationRoutes, nil).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
-	result, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, pagination)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
+	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 2)
 }
 
@@ -73,8 +79,7 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	ledgerID := uuid.New()
 	expectedError := errors.New("database connection error")
 
-	pagination := libPostgres.Pagination{
-		Page:      1,
+	filter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "asc",
 	}
@@ -85,15 +90,16 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, pagination).
-		Return(nil, expectedError).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		Return(nil, libHTTP.CursorPagination{}, expectedError).
 		Times(1)
 
-	result, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, pagination)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
+	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
 // TestGetAllOperationRoutesEmpty tests getting all operation routes when no results found
@@ -104,13 +110,13 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
-	pagination := libPostgres.Pagination{
-		Page:      1,
+	filter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "asc",
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{}
+	expectedCursor := libHTTP.CursorPagination{}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -118,14 +124,15 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, pagination).
-		Return(expectedOperationRoutes, nil).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
-	result, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, pagination)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
+	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 0)
 }
 
@@ -137,10 +144,10 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
-	pagination := libPostgres.Pagination{
-		Page:      2,
+	filter := http.QueryHeader{
 		Limit:     5,
 		SortOrder: "desc",
+		Cursor:    "test_cursor",
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -154,20 +161,26 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 		},
 	}
 
+	expectedCursor := libHTTP.CursorPagination{
+		Next: "next_cursor",
+		Prev: "prev_cursor",
+	}
+
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
 		OperationRouteRepo: mockRepo,
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, pagination).
-		Return(expectedOperationRoutes, nil).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
-	result, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, pagination)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
+	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 }
 
@@ -182,8 +195,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 	startDate, _ := time.Parse("2006-01-02", "2024-01-01")
 	endDate, _ := time.Parse("2006-01-02", "2024-12-31")
 
-	pagination := libPostgres.Pagination{
-		Page:      1,
+	filter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "asc",
 		StartDate: startDate,
@@ -201,19 +213,25 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 		},
 	}
 
+	expectedCursor := libHTTP.CursorPagination{
+		Next: "next_cursor",
+		Prev: "prev_cursor",
+	}
+
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
 		OperationRouteRepo: mockRepo,
 	}
 
 	mockRepo.EXPECT().
-		FindAll(gomock.Any(), organizationID, ledgerID, pagination).
-		Return(expectedOperationRoutes, nil).
+		FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+		Return(expectedOperationRoutes, expectedCursor, nil).
 		Times(1)
 
-	result, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, pagination)
+	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
+	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 }
