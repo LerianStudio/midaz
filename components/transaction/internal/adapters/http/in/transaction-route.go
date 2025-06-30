@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type TransactionRouteHandler struct {
@@ -233,7 +234,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 // Get all Transaction Routes.
 //
 //	@Summary		Get all Transaction Routes
-//	@Description	Endpoint to get all Transaction Routes.
+//	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.
 //	@Tags			Transaction Route
 //	@Accept			json
 //	@Produce		json
@@ -241,7 +242,12 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
 //	@Param			organization_id	path		string								true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
-//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction routes"
+//	@Param			limit			query		int									false	"Limit"			default(10)
+//	@Param			start_date		query		string								false	"Start Date"	example "2021-01-01"
+//	@Param			end_date		query		string								false	"End Date"		example "2021-01-01"
+//	@Param			sort_order		query		string								false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string								false	"Cursor"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error						"Forbidden access"
@@ -268,26 +274,62 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Initiating retrieval of all Transaction Routes with pagination: %#v", headerParams)
-
 	pagination := libPostgres.Pagination{
 		Limit:      headerParams.Limit,
 		NextCursor: headerParams.Cursor,
 		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
-	// TODO: Add metadata filter
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Transaction Routes by metadata")
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
+
+			return http.WithError(c, err)
+		}
+
+		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Transaction Routes by metadata", err)
+
+			logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Transaction Routes by metadata")
+
+		pagination.SetItems(transactionRoutes)
+		pagination.SetCursor(cur.Next, cur.Prev)
+
+		return http.OK(c, pagination)
+	}
+
+	logger.Infof("Initiating retrieval of all Transaction Routes")
+
+	headerParams.Metadata = &bson.M{}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
+
+		return http.WithError(c, err)
+	}
 
 	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get all transaction routes", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Transaction Routes", err)
 
 		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved all transaction routes")
+	logger.Infof("Successfully retrieved all Transaction Routes")
 
 	pagination.SetItems(transactionRoutes)
 	pagination.SetCursor(cur.Next, cur.Prev)
