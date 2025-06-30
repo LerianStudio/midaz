@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	postgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	http "github.com/LerianStudio/lib-commons/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
+	http0 "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -72,12 +73,13 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 postgres.Pagination) ([]*mmodel.OperationRoute, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http0.Pagination) ([]*mmodel.OperationRoute, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.OperationRoute)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FindAll indicates an expected call of FindAll.

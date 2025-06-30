@@ -230,20 +230,22 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 // GetAllOperationRoutes is a method that retrieves all Operation Routes information.
 //
 //	@Summary		Retrieve all operation routes
-//	@Description	Returns a list of all operation routes within the specified ledger
+//	@Description	Returns a list of all operation routes within the specified ledger with cursor-based pagination
 //	@Tags			Operation Route
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
-//	@Param			page				query		int		false	"Page number for pagination"
-//	@Param			limit				query		int		false	"Number of items per page"
-//	@Param			sort_order			query		string	false	"Sort order for pagination"
-//	@Param			start_date			query		string	false	"Start date for pagination"
-//	@Param			end_date			query		string	false	"End date for pagination"
-//	@Success		200				{object}	mmodel.OperationRoute	"Successfully retrieved operation routes"
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.OperationRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Operation Route not found"
 //	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes [get]
@@ -269,16 +271,23 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	}
 
 	pagination := libPostgres.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operation Routes")
 
-	operationRoutes, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, pagination)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
+
+		return http.WithError(c, err)
+	}
+
+	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operation Routes on query", err)
 
@@ -290,6 +299,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	logger.Infof("Successfully retrieved all Operation Routes")
 
 	pagination.SetItems(operationRoutes)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }
