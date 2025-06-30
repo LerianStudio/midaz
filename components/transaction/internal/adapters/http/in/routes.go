@@ -80,6 +80,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	// Settings
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", auth.Authorize(midazName, "settings", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSettingsInput), sh.CreateSettings))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:id", auth.Authorize(midazName, "settings", "get"), http.ParseUUIDPathParameters, sh.GetSettingsByID)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:id", auth.Authorize(midazName, "settings", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSettingsInput), sh.UpdateSettings))
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

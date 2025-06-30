@@ -114,3 +114,72 @@ func (handler *SettingsHandler) GetSettingsByID(c *fiber.Ctx) error {
 
 	return http.OK(c, settings)
 }
+
+// UpdateSettings is a method that updates Setting information.
+//
+//	@Summary		Update a setting
+//	@Description	Updates an existing setting's properties such as value and description within the specified ledger
+//	@Tags			Settings
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string							false	"Request ID for tracing"
+//	@Param			organization_id	path		string							true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string							true	"Ledger ID in UUID format"
+//	@Param			id				path		string							true	"Setting ID in UUID format"
+//	@Param			settings		body		mmodel.UpdateSettingsInput		true	"Settings Input"
+//	@Success		200				{object}	mmodel.Settings					"Successfully updated setting"
+//	@Failure		400				{object}	mmodel.Error					"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error					"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error					"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error					"Setting not found"
+//	@Failure		409				{object}	mmodel.Error					"Conflict: Setting with the same key already exists"
+//	@Failure		500				{object}	mmodel.Error					"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id} [patch]
+func (handler *SettingsHandler) UpdateSettings(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_settings")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Initiating update of Setting with Setting ID: %s", id.String())
+
+	payload := i.(*mmodel.UpdateSettingsInput)
+	logger.Infof("Request to update a Setting with details: %#v", payload)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return http.WithError(c, err)
+	}
+
+	_, err = handler.Command.UpdateSettings(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update Setting on command", err)
+
+		logger.Errorf("Failed to update Setting with Setting ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	settings, err := handler.Query.GetSettingsByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Setting on query", err)
+
+		logger.Errorf("Failed to retrieve Setting with Setting ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated Setting with Setting ID: %s", id.String())
+
+	return http.OK(c, settings)
+}

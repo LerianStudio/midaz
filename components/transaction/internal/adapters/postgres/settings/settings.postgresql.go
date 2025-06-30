@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -23,6 +26,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 }
 
 // SettingsPostgreSQLRepository is a PostgreSQL implementation of the SettingsRepository.
@@ -161,4 +165,96 @@ func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizatio
 	spanQuery.End()
 
 	return record.ToEntity(), nil
+}
+
+// Update updates a setting by its ID.
+// It returns the updated setting if found, otherwise it returns an error.
+func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_settings")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	record := &SettingsPostgreSQLModel{}
+	record.FromEntity(settings)
+
+	var updates []string
+
+	var args []any
+
+	if settings.Value != "" {
+		updates = append(updates, "value = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Value)
+	}
+
+	if settings.Description != "" {
+		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Description)
+	}
+
+	record.UpdatedAt = time.Now()
+
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+
+	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+
+	query := `UPDATE settings SET ` + strings.Join(updates, ", ") +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+		` AND id = $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "settings_repository_input", record)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert settings record from entity to JSON string", err)
+
+		return nil, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Settings{}).Name())
+		}
+
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to get rows affected", err)
+
+		return nil, err
+	}
+
+	if rowsAffected == 0 {
+		err := services.ErrDatabaseItemNotFound
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update settings. Rows affected is 0", err)
+
+		return nil, err
+	}
+
+	spanExec.End()
+
+	updatedSettings, err := r.FindByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get updated settings", err)
+
+		return nil, err
+	}
+
+	return updatedSettings, nil
 }
