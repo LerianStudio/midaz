@@ -10,13 +10,16 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -31,6 +34,7 @@ type Repository interface {
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -469,6 +473,110 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 	}
 
 	return nil
+}
+
+// FindAll retrieves all transaction routes with pagination.
+// It returns a list of transaction routes, a cursor pagination object, and an error if the operation fails.
+// The function supports filtering by date range and pagination.
+func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_transaction_routes")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	transactionRoutes := make([]*mmodel.TransactionRoute, 0)
+
+	decodedCursor := libHTTP.Cursor{}
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var transactionRoute TransactionRoutePostgreSQLModel
+
+		if err := rows.Scan(
+			&transactionRoute.ID,
+			&transactionRoute.OrganizationID,
+			&transactionRoute.LedgerID,
+			&transactionRoute.Title,
+			&transactionRoute.Description,
+			&transactionRoute.CreatedAt,
+			&transactionRoute.UpdatedAt,
+			&transactionRoute.DeletedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan transaction route", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		transactionRoutes = append(transactionRoutes, transactionRoute.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	hasPagination := len(transactionRoutes) > filter.Limit
+
+	transactionRoutes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactionRoutes, filter.Limit, orderDirection)
+
+	cur := libHTTP.CursorPagination{}
+	if len(transactionRoutes) > 0 {
+		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactionRoutes[0].ID.String(), transactionRoutes[len(transactionRoutes)-1].ID.String())
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	return transactionRoutes, cur, nil
 }
 
 // updateOperationRouteRelationships handles the complex logic of updating operation route relationships within an existing transaction

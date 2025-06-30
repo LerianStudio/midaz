@@ -3,6 +3,7 @@ package in
 import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -227,4 +228,69 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	logger.Infof("Successfully deleted transaction route with ID: %s", id.String())
 
 	return http.NoContent(c)
+}
+
+// Get all Transaction Routes.
+//
+//	@Summary		Get all Transaction Routes
+//	@Description	Endpoint to get all Transaction Routes.
+//	@Tags			Transaction Route
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string								false	"Request ID for tracing"
+//	@Param			organization_id	path		string								true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string								true	"Ledger ID in UUID format"
+//	@Success		200				{object}	mmodel.TransactionRoute				"Successfully retrieved transaction routes"
+//	@Failure		400				{object}	mmodel.Error						"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error						"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error						"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error						"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes [get]
+func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Initiating retrieval of all Transaction Routes with pagination: %#v", headerParams)
+
+	pagination := libPostgres.Pagination{
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+	}
+
+	// TODO: Add metadata filter
+
+	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get all transaction routes", err)
+
+		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all transaction routes")
+
+	pagination.SetItems(transactionRoutes)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	return http.OK(c, pagination)
 }

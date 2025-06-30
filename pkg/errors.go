@@ -920,6 +920,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Route Not Found",
 			Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
 		},
+		constant.ErrNoTransactionRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoTransactionRoutesFound.Error(),
+			Title:      "No Transaction Routes Found",
+			Message:    "No transaction routes were found in the search. Please review the search criteria and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
