@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 
@@ -17,11 +18,11 @@ import (
 )
 
 // Repository provides an interface for operations related to settings entities.
-// It defines methods for creating settings.
 //
 //go:generate mockgen --destination=settings.postgresql_mock.go --package=settings . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
+	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error)
 }
 
 // SettingsPostgreSQLRepository is a PostgreSQL implementation of the SettingsRepository.
@@ -110,6 +111,54 @@ func (r *SettingsPostgreSQLRepository) Create(ctx context.Context, organizationI
 	}
 
 	spanExec.End()
+
+	return record.ToEntity(), nil
+}
+
+// FindByID retrieves a setting by its ID.
+// It returns the setting if found, otherwise it returns an error.
+func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_settings_by_id")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var record SettingsPostgreSQLModel
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
+
+	row := db.QueryRowContext(ctx, `SELECT id, organization_id, ledger_id, key, value, description, created_at, updated_at, deleted_at FROM settings WHERE id = $1 AND organization_id = $2 AND ledger_id = $3 AND deleted_at IS NULL`,
+		id, organizationID, ledgerID)
+
+	err = row.Scan(
+		&record.ID,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.Key,
+		&record.Value,
+		&record.Description,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan settings record", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, services.ValidatePGError(&pgconn.PgError{Code: "02000"}, reflect.TypeOf(mmodel.Settings{}).Name())
+		}
+
+		return nil, err
+	}
+
+	spanQuery.End()
 
 	return record.ToEntity(), nil
 }

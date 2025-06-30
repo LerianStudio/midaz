@@ -69,3 +69,48 @@ func (handler *SettingsHandler) CreateSettings(i any, c *fiber.Ctx) error {
 
 	return http.Created(c, settings)
 }
+
+// GetSettingsByID retrieves a setting by its ID.
+//
+//	@Summary		Get Setting by ID
+//	@Description	Retrieve a specific setting by its ID within an organization and ledger
+//	@Tags			Settings
+//	@Produce		json
+//	@Param			Authorization	header		string				true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string				false	"Request ID for tracing"
+//	@Param			organization_id	path		string				true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string				true	"Ledger ID in UUID format"
+//	@Param			id				path		string				true	"Setting ID in UUID format"
+//	@Success		200				{object}	mmodel.Settings		"Successfully retrieved setting"
+//	@Failure		400				{object}	mmodel.Error		"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error		"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error		"Setting not found"
+//	@Failure		500				{object}	mmodel.Error		"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id} [get]
+func (handler *SettingsHandler) GetSettingsByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_settings_by_id")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Request to get setting with id: %s", id)
+
+	settings, err := handler.Query.GetSettingsByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get settings by id", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved setting with id: %s", id)
+
+	return http.OK(c, settings)
+}

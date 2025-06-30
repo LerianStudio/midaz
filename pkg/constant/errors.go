@@ -115,4 +115,5 @@ var (
 	ErrTransactionRouteNotFound                 = errors.New("0105")
 	ErrNoTransactionRoutesFound                 = errors.New("0106")
 	ErrDuplicateSettingsKey                     = errors.New("0107")
+	ErrSettingsNotFound                         = errors.New("0108")
 )
