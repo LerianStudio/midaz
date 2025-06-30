@@ -938,6 +938,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Settings Not Found",
 			Message:    "The provided setting does not exist in our records. Please verify the setting ID and try again.",
 		},
+		constant.ErrOperationRouteLinkedToTransactionRoutes: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteLinkedToTransactionRoutes.Error(),
+			Title:      "Operation Route Linked to Transaction Routes",
+			Message:    "The operation route cannot be deleted because it is linked to one or more transaction routes. Please remove the operation route from all transaction routes before attempting to delete it.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

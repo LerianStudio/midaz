@@ -35,6 +35,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
+	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
 }
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
@@ -480,4 +481,39 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	}
 
 	return operationRoutes, cur, nil
+}
+
+// HasTransactionRouteLinks checks if an operation route is linked to any transaction routes.
+// It returns true if the operation route is linked to at least one transaction route, false otherwise.
+func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return false, err
+	}
+
+	query := `SELECT EXISTS(SELECT 1 FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL)`
+	args := []any{operationRouteID}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
+
+	var exists bool
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	spanQuery.End()
+
+	if err := row.Scan(&exists); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan exists result", err)
+
+		return false, err
+	}
+
+	return exists, nil
 }

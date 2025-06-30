@@ -118,6 +118,21 @@ func (mr *MockRepositoryMockRecorder) FindByIDs(arg0, arg1, arg2, arg3 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByIDs", reflect.TypeOf((*MockRepository)(nil).FindByIDs), arg0, arg1, arg2, arg3)
 }
 
+// HasTransactionRouteLinks mocks base method.
+func (m *MockRepository) HasTransactionRouteLinks(arg0 context.Context, arg1 uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasTransactionRouteLinks", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasTransactionRouteLinks indicates an expected call of HasTransactionRouteLinks.
+func (mr *MockRepositoryMockRecorder) HasTransactionRouteLinks(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTransactionRouteLinks", reflect.TypeOf((*MockRepository)(nil).HasTransactionRouteLinks), arg0, arg1)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	m.ctrl.T.Helper()

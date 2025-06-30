@@ -24,6 +24,21 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 	logger.Infof("Remove operation route for id: %s", id.String())
 
+	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to check transaction route links", err)
+
+		logger.Errorf("Error checking transaction route links for operation route %s: %v", id.String(), err)
+
+		return err
+	}
+
+	if hasLinks {
+		logger.Errorf("Operation Route ID %s cannot be deleted because it is linked to transaction routes", id.String())
+
+		return pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+	}
+
 	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete operation route on repo by id", err)
 
