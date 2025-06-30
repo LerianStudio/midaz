@@ -27,6 +27,7 @@ type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
 // SettingsPostgreSQLRepository is a PostgreSQL implementation of the SettingsRepository.
@@ -257,4 +258,47 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 	}
 
 	return updatedSettings, nil
+}
+
+// Delete performs a soft delete of a setting by its ID.
+// It returns an error if the operation fails or if the setting is not found.
+func (r *SettingsPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_settings")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	query := "UPDATE settings SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
+
+		return err
+	}
+
+	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return services.ErrDatabaseItemNotFound
+	}
+
+	return nil
 }
