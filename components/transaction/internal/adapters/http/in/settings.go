@@ -3,6 +3,7 @@ package in
 import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -226,4 +227,75 @@ func (handler *SettingsHandler) DeleteSettingsByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully deleted Setting with Setting ID: %s", id.String())
 
 	return http.NoContent(c)
+}
+
+// GetAllSettings is a method that retrieves all Settings from a ledger.
+//
+//	@Summary		Get all settings
+//	@Description	Retrieves all settings from the specified ledger with cursor pagination support
+//	@Tags			Settings
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Maximum number of settings to return (default: 10)"
+//	@Param			cursor			query		string	false	"Cursor for pagination"
+//	@Param			sort_order		query		string	false	"Sort order: 'asc' or 'desc' (default: 'asc')"
+//	@Param			start_date		query		string	false	"Start date for filtering (ISO 8601 format)"
+//	@Param			end_date		query		string	false	"End date for filtering (ISO 8601 format)"
+//	@Success		200				{object}	http.CursorPaginationResponse{items=[]mmodel.Settings}
+//	@Failure		400				{object}	http.ErrorResponse
+//	@Failure		401				{object}	http.ErrorResponse
+//	@Failure		404				{object}	http.ErrorResponse
+//	@Failure		500				{object}	http.ErrorResponse
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [get]
+func (sh *SettingsHandler) GetAllSettings(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_settings")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	logger.Infof("Request to get all settings for ledger: %s", ledgerID)
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Initiating retrieval of all Settings with pagination: %#v", headerParams)
+
+	settings, cur, err := sh.Query.GetAllSettings(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get all settings", err)
+
+		logger.Errorf("Error getting all settings: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved %d settings", len(settings))
+
+	pagination := libPostgres.Pagination{
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
+	}
+
+	pagination.SetItems(settings)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	return http.OK(c, pagination)
 }

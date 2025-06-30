@@ -10,12 +10,16 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -28,6 +32,7 @@ type Repository interface {
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Settings, libHTTP.CursorPagination, error)
 }
 
 // SettingsPostgreSQLRepository is a PostgreSQL implementation of the SettingsRepository.
@@ -301,4 +306,107 @@ func (r *SettingsPostgreSQLRepository) Delete(ctx context.Context, organizationI
 	}
 
 	return nil
+}
+
+// FindAll retrieves all settings with cursor pagination.
+// It returns a list of settings, a cursor pagination object, and an error if the operation fails.
+func (r *SettingsPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Settings, libHTTP.CursorPagination, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_settings")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	settings := make([]*mmodel.Settings, 0)
+
+	decodedCursor := libHTTP.Cursor{}
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var record SettingsPostgreSQLModel
+		if err := rows.Scan(
+			&record.ID,
+			&record.OrganizationID,
+			&record.LedgerID,
+			&record.Key,
+			&record.Value,
+			&record.Description,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+			&record.DeletedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan settings record", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		settings = append(settings, record.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	hasPagination := len(settings) > filter.Limit
+
+	settings = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, settings, filter.Limit, orderDirection)
+
+	cur := libHTTP.CursorPagination{}
+	if len(settings) > 0 {
+		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, settings[0].ID.String(), settings[len(settings)-1].ID.String())
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+	}
+
+	return settings, cur, nil
 }

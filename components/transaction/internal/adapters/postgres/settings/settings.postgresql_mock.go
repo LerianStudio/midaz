@@ -13,7 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
+	http "github.com/LerianStudio/lib-commons/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
+	http0 "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -68,6 +70,22 @@ func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2, arg3 uuid.UUID
 func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3)
+}
+
+// FindAll mocks base method.
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http0.Pagination) ([]*mmodel.Settings, http.CursorPagination, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]*mmodel.Settings)
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FindAll indicates an expected call of FindAll.
+func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3)
 }
 
 // FindByID mocks base method.
