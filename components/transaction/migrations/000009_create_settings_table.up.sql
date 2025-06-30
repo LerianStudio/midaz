@@ -2,9 +2,9 @@ CREATE TABLE IF NOT EXISTS settings (
     id                              UUID PRIMARY KEY NOT NULL,
     organization_id                 UUID NOT NULL,
     ledger_id                       UUID NOT NULL,
-    key                             VARCHAR(255) NOT NULL,
-    value                           TEXT,
-    description                     VARCHAR(250),
+    key                             VARCHAR(100) NOT NULL,
+    value                           VARCHAR(100),
+    description                     VARCHAR(255),
     created_at                      TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at                      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                      TIMESTAMP WITH TIME ZONE
