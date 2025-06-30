@@ -13,13 +13,13 @@ import (
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
 // ValidatePGError validate pgError and return business error
-func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
+func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
 	switch {
 	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
 		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
 		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
 	case strings.Contains(pgErr.ConstraintName, "idx_settings_unique_key"):
-		return pkg.ValidateBusinessError(constant.ErrDuplicateSettingsKey, entityType)
+		return pkg.ValidateBusinessError(constant.ErrDuplicateSettingsKey, entityType, args...)
 	default:
 		return pgErr
 	}

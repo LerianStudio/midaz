@@ -99,7 +99,7 @@ func (r *SettingsPostgreSQLRepository) Create(ctx context.Context, organizationI
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Settings{}).Name())
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Settings{}).Name(), record.Key)
 		}
 
 		return nil, err
@@ -232,7 +232,7 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Settings{}).Name())
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Settings{}).Name(), record.Key)
 		}
 
 		return nil, err
