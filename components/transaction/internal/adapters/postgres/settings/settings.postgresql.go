@@ -157,7 +157,7 @@ func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizatio
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan settings record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, services.ValidatePGError(&pgconn.PgError{Code: "02000"}, reflect.TypeOf(mmodel.Settings{}).Name())
+			return nil, services.ErrDatabaseItemNotFound
 		}
 
 		return nil, err
