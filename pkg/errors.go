@@ -926,6 +926,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Transaction Routes Found",
 			Message:    "No transaction routes were found in the search. Please review the search criteria and try again.",
 		},
+		constant.ErrDuplicateSettingsKey: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateSettingsKey.Error(),
+			Title:      "Duplicate Settings Key Error",
+			Message:    fmt.Sprintf("A setting with the key %v already exists for this organization and ledger. Please use a different key or update the existing setting.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

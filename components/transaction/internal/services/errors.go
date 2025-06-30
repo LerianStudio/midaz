@@ -18,6 +18,8 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
 		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
 		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
+	case strings.Contains(pgErr.ConstraintName, "idx_settings_unique_key"):
+		return pkg.ValidateBusinessError(constant.ErrDuplicateSettingsKey, entityType)
 	default:
 		return pgErr
 	}

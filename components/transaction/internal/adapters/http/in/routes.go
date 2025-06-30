@@ -17,7 +17,7 @@ import (
 
 const midazName = "midaz"
 
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, sh *SettingsHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -76,6 +76,9 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "delete"), http.ParseUUIDPathParameters, trh.DeleteTransactionRouteByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(midazName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetAllTransactionRoutes)
+
+	// Settings
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", auth.Authorize(midazName, "settings", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSettingsInput), sh.CreateSettings))
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

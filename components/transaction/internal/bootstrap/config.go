@@ -3,6 +3,9 @@ package bootstrap
 import (
 	"fmt"
 
+	"strings"
+	"time"
+
 	"github.com/LerianStudio/lib-auth/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
@@ -17,14 +20,13 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
-	"strings"
-	"time"
 )
 
 const ApplicationName = "transaction"
@@ -180,6 +182,7 @@ func InitServers() *Service {
 	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
 	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	settingsPostgreSQLRepository := settings.NewSettingsPostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -193,6 +196,7 @@ func InitServers() *Service {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
+		SettingsRepo:         settingsPostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
@@ -205,6 +209,7 @@ func InitServers() *Service {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
+		SettingsRepo:         settingsPostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
@@ -240,11 +245,16 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	settingsHandler := &in.SettingsHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, settingsHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

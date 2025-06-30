@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
@@ -31,6 +32,9 @@ type UseCase struct {
 
 	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
 	TransactionRouteRepo transactionroute.Repository
+
+	// SettingsRepo provides an abstraction on top of the settings data source.
+	SettingsRepo settings.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
