@@ -24,15 +24,16 @@ The Midaz API testing system consists of two main processes:
 ### Step 1: Environment Setup (`Makefile`)
 - **Trigger**: `make generate-docs` command
 - **Prerequisites**: Runs dependency checks (`make tidy`, `make check-envs`)
-- **Tool Verification**: Ensures `swag` CLI and `node` are installed
+- **Tool Verification**: Ensures `swag` CLI and `node` are installed via `setup-deps.sh`
 - **Purpose**: Prepares the build environment for documentation generation
 
-### Step 2: OpenAPI Specification Generation (`swag`)
-- **Location**: `components/{onboarding,transaction}/`
-- **Command**: `swag init -g cmd/server/main.go -o api`
+### Step 2: OpenAPI Specification Generation (`scripts/generate-docs.sh`)
+- **Orchestrator**: Clean, beautified wrapper around the generation process
+- **Components**: Processes `onboarding` and `transaction` services
+- **Command**: `swag init -g cmd/app/main.go -o api --parseDependency --parseInternal`
 - **Input**: Go source code with Swagger annotations
-- **Output**: `api/swagger.json` and `api/openapi.yaml` per component
-- **Purpose**: Extracts API documentation from Go code annotations
+- **Output**: `api/swagger.json` and `api/swagger.yaml` per component
+- **Features**: Progress tracking, error handling, timing metrics, log abstraction
 
 **Swagger Annotations Parsed**:
 - `@Summary`, `@Description`: Endpoint documentation
@@ -139,12 +140,15 @@ postman/
 ├── MIDAZ.postman_collection.json       # Generated collection (111+ requests)
 └── MIDAZ.postman_environment.json     # Environment variables
 
-scripts/postman-coll-generation/
-├── sync-postman.sh                     # Main orchestrator script
-├── convert-openapi.js                  # OpenAPI → Postman conversion
-├── enhance-tests.js                    # Test script generation
-├── create-workflow.js                  # Workflow folder creation
-└── package.json                        # Node.js dependencies
+scripts/
+├── generate-docs.sh                    # Clean generation orchestrator
+├── setup-deps.sh                       # Dependency setup and validation
+└── postman-coll-generation/
+    ├── sync-postman.sh                 # Collection merging and workflow creation
+    ├── convert-openapi.js              # OpenAPI → Postman conversion
+    ├── enhance-tests.js                # Test script generation
+    ├── create-workflow.js              # Workflow folder creation
+    └── package.json                    # Node.js dependencies
 
 reports/newman/
 ├── workflow-report.html                # Basic test report
