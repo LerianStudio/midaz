@@ -69,7 +69,7 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 		logger.Error("Err to serialize transaction struct %v\n", err)
 	}
 
-	err = uc.RedisRepo.Set(ctx, internalKey, string(value), ttl)
+	err = uc.RedisRepo.Set(ctx, internalKey, value, ttl)
 	if err != nil {
 		logger.Error("Error to set value on lock idempotency key on redis:", err.Error())
 	}
