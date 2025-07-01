@@ -37,13 +37,15 @@ func TestGetAllSettingsSuccess(t *testing.T) {
 		SortOrder: "asc",
 	}
 
+	active1 := true
+	active2 := false
 	expectedSettings := []*mmodel.Settings{
 		{
 			ID:             settingID1,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Key:            "setting1",
-			Value:          "value1",
+			Active:         &active1,
 			Description:    "Description 1",
 		},
 		{
@@ -51,7 +53,7 @@ func TestGetAllSettingsSuccess(t *testing.T) {
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Key:            "setting2",
-			Value:          "value2",
+			Active:         &active2,
 			Description:    "Description 2",
 		},
 	}

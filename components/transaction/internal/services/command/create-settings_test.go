@@ -19,7 +19,7 @@ func TestCreateSettingsSuccess(t *testing.T) {
 
 	payload := &mmodel.CreateSettingsInput{
 		Key:         "accounting_validation_enabled",
-		Value:       "true",
+		Active:      true,
 		Description: "Controls whether strict accounting validation rules are enforced",
 	}
 
@@ -28,7 +28,7 @@ func TestCreateSettingsSuccess(t *testing.T) {
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Key:            payload.Key,
-		Value:          payload.Value,
+		Active:         &payload.Active,
 		Description:    payload.Description,
 	}
 
@@ -56,9 +56,9 @@ func TestCreateSettingsError(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 
 	payload := &mmodel.CreateSettingsInput{
-		Key:         "transaction_timeout_seconds",
-		Value:       "300",
-		Description: "Maximum time in seconds a transaction can remain in pending state",
+		Key:         "transaction_timeout_enabled",
+		Active:      false,
+		Description: "Controls whether transaction timeout is enabled",
 	}
 
 	uc := UseCase{

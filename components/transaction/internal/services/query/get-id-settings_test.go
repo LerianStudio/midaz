@@ -22,12 +22,13 @@ func TestGetSettingsByIDSuccess(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
+	active := true
 	expectedSetting := &mmodel.Settings{
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Key:            "accounting_validation_enabled",
-		Value:          "true",
+		Active:         &active,
 		Description:    "Controls whether strict accounting validation rules are enforced",
 	}
 

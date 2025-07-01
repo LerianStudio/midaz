@@ -24,8 +24,9 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
+	active := false
 	input := &mmodel.UpdateSettingsInput{
-		Value:       "false",
+		Active:      &active,
 		Description: "Updated description for the setting",
 	}
 
@@ -34,7 +35,7 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Key:            "accounting_validation_enabled",
-		Value:          input.Value,
+		Active:         input.Active,
 		Description:    input.Description,
 	}
 
@@ -52,7 +53,7 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedSetting, result)
-	assert.Equal(t, input.Value, result.Value)
+	assert.Equal(t, input.Active, result.Active)
 	assert.Equal(t, input.Description, result.Description)
 }
 
@@ -65,8 +66,9 @@ func TestUpdateSettingsNotFound(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
+	active := false
 	input := &mmodel.UpdateSettingsInput{
-		Value:       "false",
+		Active:      &active,
 		Description: "Updated description for the setting",
 	}
 
@@ -99,8 +101,9 @@ func TestUpdateSettingsRepositoryError(t *testing.T) {
 	ledgerID := uuid.New()
 	repositoryError := errors.New("database connection failed")
 
+	active := true
 	input := &mmodel.UpdateSettingsInput{
-		Value:       "true",
+		Active:      &active,
 		Description: "Some description",
 	}
 
@@ -132,15 +135,16 @@ func TestUpdateSettingsPartialUpdate(t *testing.T) {
 
 	input := &mmodel.UpdateSettingsInput{
 		Description: "Updated description only",
-		// Value is not provided
+		// Active is not provided
 	}
 
+	activeValue := false
 	updatedSetting := &mmodel.Settings{
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Key:            "max_transaction_amount",
-		Value:          "", // Value not changed in input
+		Active:         &activeValue, // Active not changed in input
 		Description:    input.Description,
 	}
 
