@@ -1,21 +1,44 @@
 {
-  "name": "midaz-scripts",
+  "name": "midaz-postman-generation",
   "version": "1.0.0",
-  "description": "Midaz API documentation validation scripts",
+  "description": "Midaz Postman collection generation and testing scripts",
   "scripts": {
-    "verify-api": "bash ./verify-api-docs.sh",
-    "validate-onboarding": "cd ../components/onboarding && make validate-api-docs",
-    "validate-transaction": "cd ../components/transaction && make validate-api-docs",
-    "validate-all": "npm run validate-onboarding && npm run validate-transaction",
-    "test:postman": "bash ./run-postman-tests.sh",
-    "test:postman:e2e": "bash ./run-postman-tests.sh \"E2E Flow\"",
-    "debug:e2e": "node debug-e2e-flow.js ../postman/MIDAZ.postman_collection.json ../postman/MIDAZ.postman_environment.json"
+    "generate": "bash ./sync-postman.sh",
+    "convert": "node ./convert-openapi.js",
+    "workflow": "node ./create-workflow.js",
+    "enhance": "node ./enhance-tests.js",
+    "test:collection": "cd ../.. && make newman",
+    "test:collection:verbose": "cd ../.. && newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json --folder \"Complete API Workflow\" --verbose",
+    "validate:collection": "cd ../.. && jq . postman/MIDAZ.postman_collection.json > /dev/null && echo 'Collection JSON is valid'",
+    "validate:environment": "cd ../.. && jq . postman/MIDAZ.postman_environment.json > /dev/null && echo 'Environment JSON is valid'",
+    "validate:all": "npm run validate:collection && npm run validate:environment",
+    "docs:generate": "cd ../.. && make generate-docs",
+    "setup": "cd ../.. && bash scripts/setup-deps.sh"
   },
   "dependencies": {
-    "axios": "^1.8.4",
-    "commander": "^9.4.1",
-    "glob": "^8.0.3",
     "js-yaml": "^4.1.0",
     "uuid": "^9.0.1"
-  }
+  },
+  "devDependencies": {
+    "commander": "^9.4.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LerianStudio/midaz.git",
+    "directory": "scripts/postman-coll-generation"
+  },
+  "keywords": [
+    "postman",
+    "api",
+    "documentation",
+    "openapi",
+    "swagger",
+    "testing",
+    "midaz"
+  ],
+  "author": "Lerian Studio",
+  "license": "Apache-2.0"
 }
