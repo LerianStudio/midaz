@@ -87,7 +87,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 		// Assertions
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "0084")
+		assert.Contains(t, err.Error(), "already in use")
 		assert.NotNil(t, value)
 		assert.Equal(t, existingValue, *value)
 	})
@@ -113,7 +113,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 		// Assertions
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "0084")
+		assert.Contains(t, err.Error(), "already in use")
 		assert.Nil(t, value)
 	})
 }

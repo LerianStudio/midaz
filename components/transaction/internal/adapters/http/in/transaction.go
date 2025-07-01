@@ -703,7 +703,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		logger.Infof("Redis idempotency key: %v", err.Error())
 
 		c.Set(libConstants.IdempotencyReplayed, "false")
-		
+
 		return http.WithError(c, err)
 	}
 
