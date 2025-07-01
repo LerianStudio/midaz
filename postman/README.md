@@ -44,9 +44,19 @@ The Midaz API testing system consists of two main processes:
 
 #### File Chain & Purpose:
 
-**🔄 Main Conversion Script**: `convert-openapi.js`
-- **Input**: `components/{service}/api/openapi.yaml`
-- **Output**: Postman collection with 111+ requests
+**🎭 Main Orchestrator**: `sync-postman.sh`
+- **Input**: `swagger.json` files from both components
+- **Purpose**: Coordinates the entire conversion pipeline
+- **Key Functions**:
+  - Runs conversions in parallel for performance
+  - Merges collections from multiple services
+  - Creates timestamped backups before overwriting
+  - Handles error recovery and status tracking
+  - Calls other scripts in proper sequence
+
+**🔄 Core Conversion Script**: `convert-openapi.js`
+- **Input**: `components/{service}/api/swagger.json`
+- **Output**: Individual Postman collections per service
 - **Key Functions**:
   - Converts OpenAPI paths to Postman requests
   - Generates example payloads from schemas
@@ -74,12 +84,13 @@ The Midaz API testing system consists of two main processes:
   - Balance validation and extraction
   - Comprehensive cleanup sequence
 
-### Step 4: Collection Assembly & Optimization
-- **Merging**: Combines requests from multiple services
+### Step 4: Collection Assembly & Optimization (Handled by `sync-postman.sh`)
+- **Parallel Processing**: Converts both services simultaneously
+- **Intelligent Merging**: Combines requests from multiple services
 - **Organization**: Groups requests by functional area
 - **Variable Management**: Creates unified environment variables
 - **URL Routing**: Ensures correct service endpoints
-- **Quality Assurance**: Validates collection structure
+- **Quality Assurance**: Validates collection structure and handles errors gracefully
 
 ## 🧪 Workflow Testing Process (`make newman`)
 
@@ -129,6 +140,7 @@ postman/
 └── MIDAZ.postman_environment.json     # Environment variables
 
 scripts/postman-coll-generation/
+├── sync-postman.sh                     # Main orchestrator script
 ├── convert-openapi.js                  # OpenAPI → Postman conversion
 ├── enhance-tests.js                    # Test script generation
 ├── create-workflow.js                  # Workflow folder creation

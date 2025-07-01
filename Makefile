@@ -506,7 +506,11 @@ generate-docs:
 	@echo "Setting up dependencies and generating documentation..."
 	@./scripts/setup-deps.sh
 	@echo ""
-	@./scripts/generate-docs.sh
+	@echo "Generating OpenAPI specs from Go code..."
+	@cd components/onboarding && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+	@cd components/transaction && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+	@echo "Converting OpenAPI specs to Postman collection..."
+	@./scripts/postman-coll-generation/sync-postman.sh
 
 #-------------------------------------------------------
 # Newman / API Testing Commands
