@@ -801,7 +801,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Date Range Error",
 			Message:    "Both 'initialDate' and 'finalDate' fields are required and must be in the 'yyyy-mm-dd' format. Please provide valid dates and try again.",
 		},
-		constant.ErrIdempotencyKey: ValidationError{
+		constant.ErrIdempotencyKey: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrIdempotencyKey.Error(),
 			Title:      "Duplicate Idempotency Key",

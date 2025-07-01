@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -65,7 +64,7 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 
 	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
-	value, err := json.Marshal(t)
+	value, err := libCommons.StructToJSONString(t)
 	if err != nil {
 		logger.Error("Err to serialize transaction struct %v\n", err)
 	}
