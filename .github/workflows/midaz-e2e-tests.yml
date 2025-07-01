@@ -14,7 +14,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: "1.23"
           cache: false
 
       - name: Install build essentials
@@ -44,12 +44,12 @@ jobs:
           sed -i 's#\"value\": \"{{baseUrl}}:{{transactionPort}}\"#\"value\": \"https://transaction.lerian.net\"#' postman/MIDAZ.postman_environment.json
 
       - name: "Run tests"
-        run: "newman run postman/MIDAZ.postman_collection.json -e postman/MIDAZ.postman_environment.json -r cli,ctrf-json"
+        run: "make newman"
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
         with:
-          report-path: './ctrf/*.json'
+          report-path: "./ctrf/*.json"
           summary-report: true
           github-report: true
           failed-report: true
