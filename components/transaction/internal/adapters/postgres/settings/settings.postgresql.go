@@ -30,6 +30,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Settings, error)
+	FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Settings, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, settings *mmodel.Settings) (*mmodel.Settings, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Settings, libHTTP.CursorPagination, error)
@@ -144,8 +145,86 @@ func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizatio
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 
-	row := db.QueryRowContext(ctx, `SELECT id, organization_id, ledger_id, key, active, description, created_at, updated_at, deleted_at FROM settings WHERE id = $1 AND organization_id = $2 AND ledger_id = $3 AND deleted_at IS NULL`,
+	row := db.QueryRowContext(ctx, `
+		SELECT 
+			id, 
+			organization_id, 
+			ledger_id, 
+			key, 
+			active, 
+			description, 
+			created_at, 
+			updated_at, 
+			deleted_at 
+		FROM settings 
+		WHERE id = $1 
+			AND organization_id = $2 
+			AND ledger_id = $3 
+			AND deleted_at IS NULL`,
 		id, organizationID, ledgerID)
+
+	err = row.Scan(
+		&record.ID,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.Key,
+		&record.Active,
+		&record.Description,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan settings record", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, services.ErrDatabaseItemNotFound
+		}
+
+		return nil, err
+	}
+
+	spanQuery.End()
+
+	return record.ToEntity(), nil
+}
+
+// FindByKey retrieves a setting by its key within an organization and ledger.
+// It returns the setting if found, otherwise it returns an error.
+func (r *SettingsPostgreSQLRepository) FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Settings, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_settings_by_key")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var record SettingsPostgreSQLModel
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
+
+	row := db.QueryRowContext(ctx, `
+		SELECT 
+			id, 
+			organization_id, 
+			ledger_id, 
+			key, 
+			active, 
+			description, 
+			created_at, 
+			updated_at, 
+			deleted_at 
+		FROM settings 
+		WHERE key = $1 
+			AND organization_id = $2 
+			AND ledger_id = $3 
+			AND deleted_at IS NULL`,
+		key, organizationID, ledgerID)
 
 	err = row.Scan(
 		&record.ID,

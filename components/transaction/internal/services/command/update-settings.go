@@ -43,5 +43,13 @@ func (uc *UseCase) UpdateSettings(ctx context.Context, organizationID, ledgerID 
 		return nil, err
 	}
 
+	logger.Infof("Successfully updated setting with key: %s", settingsUpdated.Key)
+
+	if err := uc.CreateSettingsCache(ctx, organizationID, ledgerID, settingsUpdated.Key, settingsUpdated.Active); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to refresh cache for setting", err)
+
+		logger.Warnf("Failed to refresh cache for setting with key %s: %v", settingsUpdated.Key, err)
+	}
+
 	return settingsUpdated, nil
 }
