@@ -10,7 +10,7 @@ set -e
 
 # Define paths
 MIDAZ_ROOT=$(pwd)
-SCRIPTS_DIR="${MIDAZ_ROOT}/scripts"
+SCRIPTS_DIR="${MIDAZ_ROOT}/scripts/postman-coll-generation"
 CONVERTER="${SCRIPTS_DIR}/convert-openapi.js"
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
@@ -184,7 +184,7 @@ if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ];
     
     # Check if uuid is available in node_modules (should be from npm install)
     if [ -d "${SCRIPTS_DIR}/node_modules/uuid" ]; then
-        if node "${MIDAZ_ROOT}/scripts/create-workflow.js" \
+        if node "${SCRIPTS_DIR}/create-workflow.js" \
             "${POSTMAN_COLLECTION}" \
             "${MIDAZ_ROOT}/postman/WORKFLOW.md" \
             "${POSTMAN_COLLECTION}" 2>"${TEMP_DIR}/workflow.err"; then

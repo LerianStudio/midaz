@@ -13,12 +13,12 @@ import (
 
 func TestCountAccounts(t *testing.T) {
 	testCases := []struct {
-		name            string
-		setupMock       func(mockRepo *account.MockRepository)
-		organizationID  uuid.UUID
-		ledgerID        uuid.UUID
-		expectedCount   int64
-		expectedError   error
+		name           string
+		setupMock      func(mockRepo *account.MockRepository)
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		expectedCount  int64
+		expectedError  error
 	}{
 		{
 			name: "Success - Count accounts",
@@ -27,10 +27,10 @@ func TestCountAccounts(t *testing.T) {
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(5), nil)
 			},
-			organizationID:  uuid.New(),
-			ledgerID:        uuid.New(),
-			expectedCount:   5,
-			expectedError:   nil,
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			expectedCount:  5,
+			expectedError:  nil,
 		},
 		{
 			name: "Success - No accounts found",
@@ -39,10 +39,10 @@ func TestCountAccounts(t *testing.T) {
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(0), nil)
 			},
-			organizationID:  uuid.New(),
-			ledgerID:        uuid.New(),
-			expectedCount:   0,
-			expectedError:   nil,
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			expectedCount:  0,
+			expectedError:  nil,
 		},
 		{
 			name: "Error - Database error",
@@ -51,10 +51,10 @@ func TestCountAccounts(t *testing.T) {
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(int64(0), errors.New("database error"))
 			},
-			organizationID:  uuid.New(),
-			ledgerID:        uuid.New(),
-			expectedCount:   0,
-			expectedError:   errors.New("database error"),
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			expectedCount:  0,
+			expectedError:  errors.New("database error"),
 		},
 	}
 

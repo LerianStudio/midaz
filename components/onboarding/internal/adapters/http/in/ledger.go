@@ -1,7 +1,7 @@
 package in
 
 import (
-	"fmt"
+	"strconv"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -365,7 +365,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted ledgers for organization %s: %d", organizationID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
