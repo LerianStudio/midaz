@@ -14,7 +14,7 @@ type SettingsPostgreSQLModel struct {
 	OrganizationID uuid.UUID    `db:"organization_id"`
 	LedgerID       uuid.UUID    `db:"ledger_id"`
 	Key            string       `db:"key"`
-	Value          string       `db:"value"`
+	Active         sql.NullBool `db:"active"`
 	Description    string       `db:"description"`
 	CreatedAt      time.Time    `db:"created_at"`
 	UpdatedAt      time.Time    `db:"updated_at"`
@@ -28,10 +28,13 @@ func (m *SettingsPostgreSQLModel) ToEntity() *mmodel.Settings {
 		OrganizationID: m.OrganizationID,
 		LedgerID:       m.LedgerID,
 		Key:            m.Key,
-		Value:          m.Value,
 		Description:    m.Description,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
+	}
+
+	if m.Active.Valid {
+		e.Active = &m.Active.Bool
 	}
 
 	if m.DeletedAt.Valid {
@@ -47,10 +50,18 @@ func (m *SettingsPostgreSQLModel) FromEntity(settings *mmodel.Settings) {
 	m.OrganizationID = settings.OrganizationID
 	m.LedgerID = settings.LedgerID
 	m.Key = settings.Key
-	m.Value = settings.Value
 	m.Description = settings.Description
 	m.CreatedAt = settings.CreatedAt
 	m.UpdatedAt = settings.UpdatedAt
+
+	if settings.Active != nil {
+		m.Active = sql.NullBool{
+			Bool:  *settings.Active,
+			Valid: true,
+		}
+	} else {
+		m.Active = sql.NullBool{}
+	}
 
 	if settings.DeletedAt != nil {
 		m.DeletedAt = sql.NullTime{

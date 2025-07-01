@@ -19,8 +19,8 @@ type Settings struct {
 	LedgerID uuid.UUID `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 	// The key identifier for the setting.
 	Key string `json:"key,omitempty" example:"accounting_validation_enabled"`
-	// The value of the setting.
-	Value string `json:"value,omitempty" example:"true"`
+	// Whether the setting is active.
+	Active *bool `json:"active,omitempty" example:"true"`
 	// A description for the setting.
 	Description string `json:"description,omitempty" example:"Controls whether strict accounting validation rules are enforced for transactions"`
 	// The timestamp when the setting was created.
@@ -37,9 +37,9 @@ type Settings struct {
 // @Description CreateSettingsInput payload
 type CreateSettingsInput struct {
 	// The key identifier for the setting.
-	Key string `json:"key" validate:"required,max=100" example:"accounting_validation_enabled"`
-	// The value of the setting.
-	Value string `json:"value" validate:"required,max=100" example:"true"`
+	Key string `json:"key" validate:"required,max=30" example:"accounting_validation_enabled"`
+	// Whether the setting is active.
+	Active bool `json:"active" validate:"required" example:"true"`
 	// A description for the setting.
 	Description string `json:"description,omitempty" validate:"max=255" example:"Controls whether strict accounting validation rules are enforced for transactions"`
 } // @name CreateSettingsInput
@@ -49,8 +49,8 @@ type CreateSettingsInput struct {
 // swagger:model UpdateSettingsInput
 // @Description UpdateSettingsInput payload
 type UpdateSettingsInput struct {
-	// The value of the setting.
-	Value string `json:"value,omitempty" validate:"max=100" example:"false"`
+	// Whether the setting is active.
+	Active *bool `json:"active,omitempty" example:"false"`
 	// A description for the setting.
 	Description string `json:"description,omitempty" validate:"max=255" example:"Controls whether strict accounting validation rules are enforced for transactions"`
 } // @name UpdateSettingsInput

@@ -119,7 +119,7 @@ func (handler *SettingsHandler) GetSettingsByID(c *fiber.Ctx) error {
 // UpdateSettings is a method that updates Setting information.
 //
 //	@Summary		Update a setting
-//	@Description	Updates an existing setting's properties such as value and description within the specified ledger
+//	@Description	Updates an existing setting's properties such as active status and description within the specified ledger
 //	@Tags			Settings
 //	@Accept			json
 //	@Produce		json

@@ -26,7 +26,7 @@ func (uc *UseCase) CreateSettings(ctx context.Context, organizationID, ledgerID 
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Key:            payload.Key,
-		Value:          payload.Value,
+		Active:         &payload.Active,
 		Description:    payload.Description,
 		CreatedAt:      now,
 		UpdatedAt:      now,

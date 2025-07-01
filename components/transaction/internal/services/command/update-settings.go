@@ -26,8 +26,8 @@ func (uc *UseCase) UpdateSettings(ctx context.Context, organizationID, ledgerID 
 	logger.Infof("Trying to update settings: %v", input)
 
 	settings := &mmodel.Settings{
-		Value:       input.Value,
 		Description: input.Description,
+		Active:      input.Active,
 	}
 
 	settingsUpdated, err := uc.SettingsRepo.Update(ctx, organizationID, ledgerID, id, settings)

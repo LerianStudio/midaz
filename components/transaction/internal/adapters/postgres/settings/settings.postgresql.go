@@ -88,7 +88,7 @@ func (r *SettingsPostgreSQLRepository) Create(ctx context.Context, organizationI
 		&record.OrganizationID,
 		&record.LedgerID,
 		&record.Key,
-		&record.Value,
+		&record.Active,
 		&record.Description,
 		&record.CreatedAt,
 		&record.UpdatedAt,
@@ -144,7 +144,7 @@ func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizatio
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 
-	row := db.QueryRowContext(ctx, `SELECT id, organization_id, ledger_id, key, value, description, created_at, updated_at, deleted_at FROM settings WHERE id = $1 AND organization_id = $2 AND ledger_id = $3 AND deleted_at IS NULL`,
+	row := db.QueryRowContext(ctx, `SELECT id, organization_id, ledger_id, key, active, description, created_at, updated_at, deleted_at FROM settings WHERE id = $1 AND organization_id = $2 AND ledger_id = $3 AND deleted_at IS NULL`,
 		id, organizationID, ledgerID)
 
 	err = row.Scan(
@@ -152,7 +152,7 @@ func (r *SettingsPostgreSQLRepository) FindByID(ctx context.Context, organizatio
 		&record.OrganizationID,
 		&record.LedgerID,
 		&record.Key,
-		&record.Value,
+		&record.Active,
 		&record.Description,
 		&record.CreatedAt,
 		&record.UpdatedAt,
@@ -195,9 +195,9 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 
 	var args []any
 
-	if settings.Value != "" {
-		updates = append(updates, "value = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Value)
+	if settings.Active != nil {
+		updates = append(updates, "active = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Active)
 	}
 
 	if settings.Description != "" {
@@ -205,11 +205,8 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 		args = append(args, record.Description)
 	}
 
-	record.UpdatedAt = time.Now()
-
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+	args = append(args, time.Now(), organizationID, ledgerID, id)
 
 	query := `UPDATE settings SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
@@ -221,7 +218,7 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "settings_repository_input", record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert settings record from entity to JSON string", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert settings from entity to JSON string", err)
 
 		return nil, err
 	}
@@ -374,7 +371,7 @@ func (r *SettingsPostgreSQLRepository) FindAll(ctx context.Context, organization
 			&record.OrganizationID,
 			&record.LedgerID,
 			&record.Key,
-			&record.Value,
+			&record.Active,
 			&record.Description,
 			&record.CreatedAt,
 			&record.UpdatedAt,
