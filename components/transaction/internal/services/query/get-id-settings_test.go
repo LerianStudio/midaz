@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,9 +18,9 @@ func TestGetSettingsByIDSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	active := true
 	expectedSetting := &mmodel.Settings{
@@ -53,9 +53,9 @@ func TestGetSettingsByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 	expectedError := errors.New("database error")
 
 	mockRepo := settings.NewMockRepository(ctrl)
@@ -80,9 +80,9 @@ func TestGetSettingsByIDNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	mockRepo := settings.NewMockRepository(ctrl)
 	uc := &UseCase{

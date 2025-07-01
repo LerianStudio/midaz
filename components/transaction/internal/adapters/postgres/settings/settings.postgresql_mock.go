@@ -103,6 +103,21 @@ func (mr *MockRepositoryMockRecorder) FindByID(arg0, arg1, arg2, arg3 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), arg0, arg1, arg2, arg3)
 }
 
+// FindByKey mocks base method.
+func (m *MockRepository) FindByKey(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 string) (*mmodel.Settings, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByKey", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*mmodel.Settings)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByKey indicates an expected call of FindByKey.
+func (mr *MockRepositoryMockRecorder) FindByKey(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByKey", reflect.TypeOf((*MockRepository)(nil).FindByKey), arg0, arg1, arg2, arg3)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.Settings) (*mmodel.Settings, error) {
 	m.ctrl.T.Helper()

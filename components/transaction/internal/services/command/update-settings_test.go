@@ -3,14 +3,16 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -20,28 +22,31 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	active := false
-	input := &mmodel.UpdateSettingsInput{
-		Active:      &active,
-		Description: "Updated description for the setting",
-	}
-
 	updatedSetting := &mmodel.Settings{
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Key:            "accounting_validation_enabled",
-		Active:         input.Active,
-		Description:    input.Description,
+		Key:            "test_setting_key",
+		Active:         &active,
+		Description:    "Updated test setting description",
 	}
 
 	mockRepo := settings.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
+		RedisRepo:    mockRedisRepo,
+	}
+
+	input := &mmodel.UpdateSettingsInput{
+		Active:      &active,
+		Description: "Updated test setting description",
 	}
 
 	mockRepo.EXPECT().
@@ -49,32 +54,34 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 		Return(updatedSetting, nil).
 		Times(1)
 
+	mockRedisRepo.EXPECT().
+		Set(gomock.Any(), gomock.Any(), "false", gomock.Any()).
+		Return(nil).
+		Times(1)
+
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedSetting, result)
-	assert.Equal(t, input.Active, result.Active)
-	assert.Equal(t, input.Description, result.Description)
 }
 
-// TestUpdateSettingsNotFound tests when setting is not found during update
+// TestUpdateSettingsNotFound tests updating a setting that is not found
 func TestUpdateSettingsNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	active := false
-	input := &mmodel.UpdateSettingsInput{
-		Active:      &active,
-		Description: "Updated description for the setting",
-	}
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	mockRepo := settings.NewMockRepository(ctrl)
+
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
+	}
+
+	input := &mmodel.UpdateSettingsInput{
+		Description: "Updated test setting description",
 	}
 
 	mockRepo.EXPECT().
@@ -87,70 +94,71 @@ func TestUpdateSettingsNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrSettingsNotFound, "Settings")
-	assert.Equal(t, expectedBusinessError, err)
+	businessError := pkg.ValidateBusinessError(constant.ErrSettingsNotFound, reflect.TypeOf(mmodel.Settings{}).Name())
+	assert.Equal(t, businessError, err)
 }
 
-// TestUpdateSettingsRepositoryError tests handling repository errors during update
+// TestUpdateSettingsRepositoryError tests updating a setting with repository error
 func TestUpdateSettingsRepositoryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	repositoryError := errors.New("database connection failed")
-
-	active := true
-	input := &mmodel.UpdateSettingsInput{
-		Active:      &active,
-		Description: "Some description",
-	}
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	expectedError := errors.New("database error")
 
 	mockRepo := settings.NewMockRepository(ctrl)
+
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
 	}
 
+	input := &mmodel.UpdateSettingsInput{
+		Description: "Updated test setting description",
+	}
+
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
-		Return(nil, repositoryError).
+		Return(nil, expectedError).
 		Times(1)
 
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
 
 	assert.Error(t, err)
+	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
-	assert.Equal(t, repositoryError, err)
 }
 
-// TestUpdateSettingsPartialUpdate tests updating only some fields
+// TestUpdateSettingsPartialUpdate tests updating a setting with partial input (only description)
 func TestUpdateSettingsPartialUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	settingID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
-	input := &mmodel.UpdateSettingsInput{
-		Description: "Updated description only",
-		// Active is not provided
-	}
-
-	activeValue := false
+	active := true
 	updatedSetting := &mmodel.Settings{
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Key:            "max_transaction_amount",
-		Active:         &activeValue, // Active not changed in input
-		Description:    input.Description,
+		Key:            "test_setting_key",
+		Active:         &active,
+		Description:    "Updated description only",
 	}
 
 	mockRepo := settings.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
+		RedisRepo:    mockRedisRepo,
+	}
+
+	input := &mmodel.UpdateSettingsInput{
+		Description: "Updated description only",
 	}
 
 	mockRepo.EXPECT().
@@ -158,9 +166,61 @@ func TestUpdateSettingsPartialUpdate(t *testing.T) {
 		Return(updatedSetting, nil).
 		Times(1)
 
+	mockRedisRepo.EXPECT().
+		Set(gomock.Any(), gomock.Any(), "true", gomock.Any()).
+		Return(nil).
+		Times(1)
+
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedSetting, result)
-	assert.Equal(t, input.Description, result.Description)
+}
+
+// TestUpdateSettingsCacheError tests that cache errors don't break the update operation
+func TestUpdateSettingsCacheError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	active := true
+	updatedSetting := &mmodel.Settings{
+		ID:             settingID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Key:            "cache_error_test_setting",
+		Active:         &active,
+		Description:    "Test setting for cache error",
+	}
+
+	mockRepo := settings.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		SettingsRepo: mockRepo,
+		RedisRepo:    mockRedisRepo,
+	}
+
+	input := &mmodel.UpdateSettingsInput{
+		Active:      &active,
+		Description: "Test setting for cache error",
+	}
+
+	mockRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
+		Return(updatedSetting, nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		Set(gomock.Any(), gomock.Any(), "true", gomock.Any()).
+		Return(errors.New("redis connection error")).
+		Times(1)
+
+	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
+
+	assert.NoError(t, err)
+	assert.Equal(t, updatedSetting, result)
 }

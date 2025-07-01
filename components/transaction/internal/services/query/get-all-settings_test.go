@@ -5,13 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -21,10 +21,10 @@ func TestGetAllSettingsSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	settingID1 := uuid.New()
-	settingID2 := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	settingID1 := libCommons.GenerateUUIDv7()
+	settingID2 := libCommons.GenerateUUIDv7()
 
 	mockRepo := settings.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -79,8 +79,8 @@ func TestGetAllSettingsNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	mockRepo := settings.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -112,8 +112,8 @@ func TestGetAllSettingsRepositoryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
 
 	mockRepo := settings.NewMockRepository(ctrl)
 	uc := &UseCase{
