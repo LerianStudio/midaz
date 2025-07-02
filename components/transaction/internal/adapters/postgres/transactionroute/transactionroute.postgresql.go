@@ -146,7 +146,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		defer spanRelations.End()
 
 		for _, operationRoute := range transactionRoute.OperationRoutes {
-			relationID := uuid.New()
+			relationID := libCommons.GenerateUUIDv7()
 
 			_, err := tx.ExecContext(ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
