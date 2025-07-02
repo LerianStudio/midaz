@@ -17,7 +17,7 @@ const (
 	EventType string = "transaction"
 )
 
-func (uc *UseCase) SendTransactionEvents(ctx context.Context, transaction *transaction.Transaction) {
+func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -29,7 +29,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, transaction *trans
 	ctxSendTransactionEvents, spanTransactionEvents := tracer.Start(ctx, "command.send_transaction_events_async")
 	defer spanTransactionEvents.End()
 
-	payload, err := json.Marshal(transaction)
+	payload, err := json.Marshal(tran)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
@@ -39,11 +39,11 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, transaction *trans
 	event := mmodel.Event{
 		Source:         Source,
 		EventType:      EventType,
-		Action:         transaction.Status.Code,
+		Action:         tran.Status.Code,
 		TimeStamp:      time.Now().String(),
 		Version:        os.Getenv("VERSION"),
-		OrganizationID: transaction.OrganizationID,
-		LedgerID:       transaction.LedgerID,
+		OrganizationID: tran.OrganizationID,
+		LedgerID:       tran.LedgerID,
 		Payload:        payload,
 	}
 
@@ -53,7 +53,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, transaction *trans
 	key.WriteString(".")
 	key.WriteString(EventType)
 	key.WriteString(".")
-	key.WriteString(transaction.Status.Code)
+	key.WriteString(tran.Status.Code)
 
 	logger.Infof("Sending transaction events to key: %s", key)
 
