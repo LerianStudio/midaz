@@ -94,7 +94,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
 
-	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
+	_, err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error creating transaction", err)
 

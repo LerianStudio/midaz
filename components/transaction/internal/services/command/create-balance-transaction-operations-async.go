@@ -21,7 +21,7 @@ import (
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
-func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
+func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) (*transaction.Transaction, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -34,7 +34,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
-			return err
+			return nil, err
 		}
 	}
 
@@ -48,7 +48,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
-		return err
+		return nil, err
 	}
 
 	tran, err := uc.CreateOrUpdateTransaction(ctxProcessBalances, logger, tracer, t)
@@ -56,7 +56,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to create or update transaction", err)
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
-		return err
+		return nil, err
 	}
 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
@@ -67,7 +67,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		libOpentelemetry.HandleSpanError(&spanCreateMetadata, "Failed to create metadata on transaction", err)
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
-		return err
+		return nil, err
 	}
 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
@@ -87,7 +87,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			} else {
 				logger.Errorf("Error creating operation: %v", err)
 
-				return err
+				return nil, err
 			}
 		}
 
@@ -96,13 +96,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
-			return err
+			return nil, err
 		}
 	}
 
 	go uc.SendTransactionEvents(ctxProcessBalances, tran)
 
-	return nil
+	return tran, nil
 }
 
 // CreateOrUpdateTransaction func that is responsible to create or update a transaction.
@@ -182,11 +182,15 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 }
 
 // CreateBTOSync func that create balance transaction operations synchronously
-func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
+func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) (*transaction.Transaction, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
-	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
+	tran, err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
+
+		return nil, err
 	}
+
+	return tran, nil
 }

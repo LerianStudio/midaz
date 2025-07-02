@@ -177,7 +177,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err)
 	})
@@ -278,7 +278,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
@@ -389,7 +389,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
 	})
@@ -571,7 +571,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err)
 	})
@@ -723,7 +723,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create operation")
@@ -894,7 +894,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			AnyTimes()
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
 	})
@@ -1031,7 +1031,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+		_, err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create operation metadata")
