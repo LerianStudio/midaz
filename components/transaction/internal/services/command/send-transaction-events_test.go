@@ -2,14 +2,15 @@ package command
 
 import (
 	"context"
-	"os"
-	"testing"
-
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/google/uuid"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
+	"os"
+	"testing"
+	"time"
 )
 
 func TestSendTransactionEvents(t *testing.T) {
@@ -43,43 +44,36 @@ func TestSendTransactionEvents(t *testing.T) {
 
 	// Test data
 	ctx := context.Background()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	action := "created"
 
-	// Create transaction data
-	amountValue := decimal.NewFromInt(100)
-	transaction := &libTransaction.Transaction{
-		ChartOfAccountsGroupName: "ASSETS",
-		Description:              "Test transaction",
-		Code:                     "TXN001",
-		Pending:                  false,
-		Metadata:                 map[string]any{"test": "value"},
-		Send: libTransaction.Send{
-			Asset: "USD",
-			Value: amountValue,
-			Source: libTransaction.Source{
-				From: []libTransaction.FromTo{
-					{
-						AccountAlias: "test-source-account",
-						Amount:       &libTransaction.Amount{Value: amountValue},
-						IsFrom:       true,
-					},
-				},
-			},
-			Distribute: libTransaction.Distribute{
-				To: []libTransaction.FromTo{
-					{
-						AccountAlias: "test-destination-account",
-						Amount:       &libTransaction.Amount{Value: amountValue},
-						IsFrom:       false,
-					},
-				},
-			},
-		},
+	description := constant.APPROVED
+	status := transaction.Status{
+		Code:        description,
+		Description: &description,
 	}
 
-	t.Run("success with events enabled", func(t *testing.T) {
+	assetCode := "BRL"
+
+	parentTransactionID := libCommons.GenerateUUIDv7().String()
+
+	amount := decimal.NewFromInt(100)
+
+	chartOfAccountsGroupName := "ChartOfAccountsGroupName"
+
+	tran := &transaction.Transaction{
+		ID:                       libCommons.GenerateUUIDv7().String(),
+		ParentTransactionID:      &parentTransactionID,
+		OrganizationID:           libCommons.GenerateUUIDv7().String(),
+		LedgerID:                 libCommons.GenerateUUIDv7().String(),
+		Description:              description,
+		Status:                   status,
+		Amount:                   &amount,
+		AssetCode:                assetCode,
+		ChartOfAccountsGroupName: chartOfAccountsGroupName,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
+	}
+
+	t.Run("success with events approved", func(t *testing.T) {
 		// Set environment variables for the test
 		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
 		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "true")
@@ -93,12 +87,12 @@ func TestSendTransactionEvents(t *testing.T) {
 
 		// Mock RabbitMQRepo.ProducerDefault with the environment variable values
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.created", gomock.Any()).
+			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, organizationID, ledgerID, action, transaction)
+		uc.SendTransactionEvents(ctx, tran)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
@@ -111,7 +105,7 @@ func TestSendTransactionEvents(t *testing.T) {
 		// No expectations for RabbitMQRepo as it shouldn't be called
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, organizationID, ledgerID, action, transaction)
+		uc.SendTransactionEvents(ctx, tran)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if no mock expectations are called
@@ -132,12 +126,12 @@ func TestSendTransactionEvents(t *testing.T) {
 
 		// Mock RabbitMQRepo.ProducerDefault
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.created", gomock.Any()).
+			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
 		// Call the method
-		uc.SendTransactionEvents(ctx, organizationID, ledgerID, action, transaction)
+		uc.SendTransactionEvents(ctx, tran)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
@@ -155,16 +149,22 @@ func TestSendTransactionEvents(t *testing.T) {
 			os.Unsetenv("VERSION")
 		}()
 
-		updateAction := "updated"
+		description = constant.CANCELED
+		status = transaction.Status{
+			Code:        description,
+			Description: &description,
+		}
+
+		tran.Status = status
 
 		// Mock RabbitMQRepo.ProducerDefault with different action
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.updated", gomock.Any()).
+			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.CANCELED", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
 		// Call the method with different action
-		uc.SendTransactionEvents(ctx, organizationID, ledgerID, updateAction, transaction)
+		uc.SendTransactionEvents(ctx, tran)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met

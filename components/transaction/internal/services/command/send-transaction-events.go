@@ -3,15 +3,13 @@ package command
 import (
 	"context"
 	"encoding/json"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"os"
 	"strings"
 	"time"
-
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 const (
@@ -19,7 +17,7 @@ const (
 	EventType string = "transaction"
 )
 
-func (uc *UseCase) SendTransactionEvents(ctx context.Context, organizationID, ledgerID uuid.UUID, action string, transaction *libTransaction.Transaction) {
+func (uc *UseCase) SendTransactionEvents(ctx context.Context, transaction *transaction.Transaction) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -41,11 +39,11 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, organizationID, le
 	event := mmodel.Event{
 		Source:         Source,
 		EventType:      EventType,
-		Action:         action,
+		Action:         transaction.Status.Code,
 		TimeStamp:      time.Now().String(),
 		Version:        os.Getenv("VERSION"),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
+		OrganizationID: transaction.OrganizationID,
+		LedgerID:       transaction.LedgerID,
 		Payload:        payload,
 	}
 
@@ -55,7 +53,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, organizationID, le
 	key.WriteString(".")
 	key.WriteString(EventType)
 	key.WriteString(".")
-	key.WriteString(action)
+	key.WriteString(transaction.Status.Code)
 
 	logger.Infof("Sending transaction events to key: %s", key)
 

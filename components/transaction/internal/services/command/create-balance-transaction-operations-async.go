@@ -100,7 +100,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctxProcessBalances, data.OrganizationID, data.LedgerID, tran.Status.Code, t.ParseDSL)
+	go uc.SendTransactionEvents(ctxProcessBalances, tran)
 
 	return nil
 }
