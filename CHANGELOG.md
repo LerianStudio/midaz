@@ -1,3 +1,36 @@
+## [v2.3.0-beta.7] - 2025-07-02
+
+This major release of midaz introduces dynamic plugin management, enhanced security configurations, and significant improvements to user interface and performance, ensuring a more robust and flexible user experience.
+
+### ⚠️ Breaking Changes
+- **Backend**: The removal of `console.log` from the API error handler affects debugging processes. Users should implement alternative logging solutions to maintain error tracking capabilities.
+
+### ✨ Features  
+- **Dynamic Plugin Menu**: Enjoy a more customizable interface with the new dynamic plugin menu, supporting manifest integration and icons. This feature allows for seamless content updates without needing redeployment, enhancing user engagement.
+- **Plugin Management System**: Manage your plugins effortlessly with the new MongoDB-integrated manifest system, simplifying updates and configuration maintenance.
+- **GCP Credentials Support**: Easily integrate with Google Cloud Platform services using the new base64-like string support for credentials, streamlining cloud operations.
+- **Redis Configuration Enhancements**: Benefit from improved security and flexibility with added Redis configurations for standalone, cluster, and sentinel setups, now supporting TLS certification and IAM tokens.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Resolved issues with idempotency tests and transaction validation logic, ensuring accurate processing and preventing duplication or erroneous states.
+- **Frontend Stability**: Fixed Storybook and build issues, stabilizing the development environment for reliable UI component testing.
+
+### ⚡ Performance
+- **Transaction Handling Optimization**: Experience faster and more reliable transaction processing with optimized methods for reverting transactions and body storage.
+- **Frontend Data Presentation**: Enhanced data-table functionality and numeric display for improved readability and user interaction.
+
+### 🔄 Changes
+- **Nginx Proxy Configuration**: Updated authentication settings for production deployment, boosting security and performance.
+
+### 📚 Documentation
+- **API Documentation Updates**: Access the latest API changes with updated Swagger and OpenAPI specifications, ensuring developers have accurate and comprehensive documentation.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed hardcoded Casdoor secrets from configuration files, improving security by eliminating sensitive information exposure.
+- **Component Upgrades**: Upgraded frontend components to maintain compatibility with the latest standards, enhancing overall performance.
+
+This release focuses on delivering a more secure, efficient, and user-friendly experience. We encourage users to explore these updates and adjust their workflows to leverage the new capabilities.
+
 ## [v2.3.0-beta.6] - 2025-06-10
 
 This release of the midaz project brings significant enhancements to system stability, data precision, and user experience, with no breaking changes.
