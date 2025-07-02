@@ -42,7 +42,7 @@ plugins:
     failComment: false
     labels: []
   
- Plugin to perform the backmerge between the 'main' and 'develop' branches
+  # Plugin to perform the backmerge between the 'main' and 'develop' branches
   - path: "@saithodev/semantic-release-backmerge"
     backmergeBranches:
       - from: main
