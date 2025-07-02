@@ -47,11 +47,18 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		QueueData:      queueData,
 	}
 
+	message, err := json.Marshal(queueMessage)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
+
+		logger.Errorf("Failed to marshal exchange message struct")
+	}
+
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxSendBTOQueue,
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
-		queueMessage,
+		message,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
 

@@ -2,19 +2,17 @@ package rabbitmq
 
 import (
 	"context"
-	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
 // // It defines methods for sending messages to a queue.
 type ProducerRepository interface {
-	ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error)
+	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
 }
 
@@ -42,7 +40,7 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	return prmq.conn.HealthCheck()
 }
 
-func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
+func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -51,16 +49,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	message, err := json.Marshal(queueMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
-
-		logger.Errorf("Failed to marshal queue message struct")
-
-		return nil, err
-	}
-
-	err = prmq.conn.Channel.Publish(
+	err := prmq.conn.Channel.Publish(
 		exchange,
 		key,
 		false,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -21,13 +22,13 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.transaction.log_transaction")
-	defer spanLogTransaction.End()
-
 	if !isAuditLogEnabled() {
 		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
 		return
 	}
+
+	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.transaction.log_transaction")
+	defer spanLogTransaction.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -52,11 +53,18 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		QueueData:      queueData,
 	}
 
+	message, err := json.Marshal(queueMessage)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanLogTransaction, "Failed to marshal exchange message struct", err)
+
+		logger.Errorf("Failed to marshal exchange message struct")
+	}
+
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxLogTransaction,
 		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
 		os.Getenv("RABBITMQ_AUDIT_KEY"),
-		queueMessage,
+		message,
 	); err != nil {
 		logger.Fatalf("Failed to send message: %s", err.Error())
 	}
