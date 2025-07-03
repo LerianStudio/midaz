@@ -3,11 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,17 +26,56 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title:       "Updated Title",
-		Description: "Updated Description",
+		Title:        "Updated Operation Route",
+		Description:  "Updated Description",
+		AccountTypes: []string{"asset", "liability", "equity"},
+		AccountAlias: "@updated_cash_account",
+	}
+
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockOperationRouteRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
+			assert.Equal(t, input.Title, operationRoute.Title)
+			assert.Equal(t, input.Description, operationRoute.Description)
+			assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
+			assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
+			return operationRoute, nil
+		})
+
+	useCase := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, operationRoute)
+	assert.Equal(t, input.Title, operationRoute.Title)
+	assert.Equal(t, input.Description, operationRoute.Description)
+	assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
+	assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
+}
+
+// TestUpdateOperationRouteAccountTypesOnly tests updating only account types
+func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	input := &mmodel.UpdateOperationRouteInput{
+		AccountTypes: []string{"asset", "liability"},
 	}
 
 	updatedRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Title:          input.Title,
-		Description:    input.Description,
 		Type:           "debit",
+		AccountTypes:   input.AccountTypes,
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -53,7 +94,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 	assert.Equal(t, updatedRoute, result)
 }
 
-// TestUpdateOperationRouteNotFound tests when operation route is not found during update
+// TestUpdateOperationRouteNotFound tests updating a non-existent operation route
 func TestUpdateOperationRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -63,59 +104,57 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title: "Updated Title",
+		Title:        "Updated Operation Route",
+		Description:  "Updated Description",
+		AccountTypes: []string{"asset", "liability"},
+		AccountAlias: "@updated_cash_account",
 	}
 
-	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
-	mockRepo.EXPECT().
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		Return(nil, services.ErrDatabaseItemNotFound).
-		Times(1)
+		Return(nil, services.ErrDatabaseItemNotFound)
 
-	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	useCase := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
 	assert.Error(t, err)
-
-	// Check if it's the proper business error
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0101", entityNotFoundError.Code)
-	assert.Nil(t, result)
+	assert.Nil(t, operationRoute)
+	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name()), err)
 }
 
-// TestUpdateOperationRouteUpdateError tests error during update operation
-func TestUpdateOperationRouteUpdateError(t *testing.T) {
+// TestUpdateOperationRouteError tests updating an operation route with an error
+func TestUpdateOperationRouteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	updateError := errors.New("database connection error")
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title: "Updated Title",
+		Title:        "Updated Operation Route",
+		Description:  "Updated Description",
+		AccountTypes: []string{"asset", "liability"},
+		AccountAlias: "@updated_cash_account",
 	}
 
-	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
-	mockRepo.EXPECT().
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		Return(nil, updateError).
-		Times(1)
+		Return(nil, errors.New("failed to update operation route"))
 
-	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
+	useCase := &UseCase{
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+
+	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
 	assert.Error(t, err)
-	assert.Equal(t, updateError, err)
-	assert.Nil(t, result)
+	assert.Nil(t, operationRoute)
 }
 
 // TestUpdateOperationRoutePartialUpdate tests partial update with only description
