@@ -76,7 +76,14 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`
 
     await this.httpService.delete(url)
+  }
 
-    return
+  async count(
+    organizationId: string,
+    ledgerId: string
+  ): Promise<{ total: number }> {
+    return await this.httpService.count(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/metrics/count`
+    )
   }
 }

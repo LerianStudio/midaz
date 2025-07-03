@@ -1,6 +1,10 @@
 import { inject, injectable } from 'inversify'
 import { LoggerAggregator, RequestIdRepository } from '@lerianstudio/lib-logs'
-import { HttpService } from '@/lib/http'
+import {
+  ApiException,
+  HttpService,
+  ServiceUnavailableApiException
+} from '@/lib/http'
 import { getServerSession } from 'next-auth'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
@@ -133,5 +137,39 @@ export class MidazHttpService extends HttpService {
         defaultMessage: 'Unknown error on Midaz.'
       })
     )
+  }
+
+  /**
+   * Counts the total number of resources at the specified URL.
+   * This method sends a HEAD request to the given URL and retrieves the total count from the `x-total-count` header.
+   * @param url URL or string representing the endpoint to count resources.
+   * @example
+   * ```ts
+   * const count = await midazHttpService.count('/api/organizations/12345/ledgers/12345/accounts/metrics/count')
+   * ```
+   * @returns
+   */
+  public async count<T>(url: URL | string): Promise<{ total: number }> {
+    const request = await this.createRequest(url, {
+      method: 'HEAD'
+    })
+
+    try {
+      this.onBeforeFetch(request)
+
+      const response = await fetch(request)
+
+      this.onAfterFetch(request, response)
+
+      return {
+        total: Number(response.headers.get('x-total-count')) || 0
+      }
+    } catch (error: any) {
+      if (error instanceof ApiException) {
+        throw error
+      }
+
+      throw new ServiceUnavailableApiException(error)
+    }
   }
 }

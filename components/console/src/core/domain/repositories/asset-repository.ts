@@ -32,4 +32,8 @@ export abstract class AssetRepository {
     ledgerId: string,
     assetId: string
   ) => Promise<void>
+  abstract count: (
+    organizationId: string,
+    ledgerId: string
+  ) => Promise<{ total: number }>
 }

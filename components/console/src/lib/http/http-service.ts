@@ -8,6 +8,7 @@ import {
   UnauthorizedApiException,
   UnprocessableEntityApiException
 } from './api-exception'
+import { isNil } from 'lodash'
 
 export interface FetchModuleOptions extends RequestInit {
   baseUrl?: URL | string
@@ -73,6 +74,10 @@ export abstract class HttpService {
         return {} as T
       }
 
+      if (isNil(response.body)) {
+        return {} as T
+      }
+
       return await response.json()
     } catch (error: any) {
       if (error instanceof ApiException) {
@@ -83,7 +88,7 @@ export abstract class HttpService {
     }
   }
 
-  private async createRequest(
+  protected async createRequest(
     url: URL | string,
     options: FetchModuleOptions
   ): Promise<Request> {
@@ -95,8 +100,8 @@ export abstract class HttpService {
     return new Request(new URL(url + createQueryString(search), baseUrl), {
       ...init,
       headers: {
-        ...options?.headers,
-        ...init?.headers
+        ...init?.headers,
+        ...options?.headers
       }
     })
   }

@@ -82,4 +82,13 @@ export class MidazSegmentRepository implements SegmentRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
     )
   }
+
+  async count(
+    organizationId: string,
+    ledgerId: string
+  ): Promise<{ total: number }> {
+    return await this.httpService.count(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/metrics/count`
+    )
+  }
 }
