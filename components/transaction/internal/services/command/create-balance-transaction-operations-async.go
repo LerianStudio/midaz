@@ -180,17 +180,3 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 
 	return nil
 }
-
-// CreateBTOSync func that create balance transaction operations synchronously
-func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) (*transaction.Transaction, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-
-	tran, err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
-	if err != nil {
-		logger.Errorf("Failed to create balance transaction operations: %v", err)
-
-		return nil, err
-	}
-
-	return tran, nil
-}

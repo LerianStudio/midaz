@@ -23,7 +23,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -862,6 +861,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Errorf("Failed to create transaction: %v", err.Error())
 
+		_ = handler.Command.RedisRepo.Del(ctx, key)
+
 		return http.WithError(c, err)
 	}
 
@@ -1013,22 +1014,19 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	return http.Created(c, tran)
 }
 
+// transactionAsyncOrSync func responsible to execute transaction sync or async.
 func (handler *TransactionHandler) transactionAsyncOrSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) (*transaction.Transaction, error) {
-	isEnabled := true
-
-	s := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_ASYNC_ENABLED")))
-	isEnabled, _ = strconv.ParseBool(s)
-
-	if isEnabled {
-		go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
-	} else {
+	isEnabled := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_ASYNC_ENABLED")))
+	if isEnabled == "false" {
 		t, err := handler.Command.SendBTOExecuteSync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
 		if err != nil {
 			return nil, err
 		}
 
 		return t, nil
-	}
+	} else {
+		go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
 
-	return nil, nil
+		return nil, nil
+	}
 }

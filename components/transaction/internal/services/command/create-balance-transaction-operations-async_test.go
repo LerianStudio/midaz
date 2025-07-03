@@ -1187,5 +1187,5 @@ func TestCreateBTOAsync(t *testing.T) {
 		AnyTimes()
 
 	// Call the method - this should not panic
-	uc.CreateBTOSync(ctx, queue)
+	_, _ = uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 }
