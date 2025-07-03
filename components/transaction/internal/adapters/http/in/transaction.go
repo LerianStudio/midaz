@@ -1029,6 +1029,6 @@ func (handler *TransactionHandler) transactionAsyncOrSync(ctx context.Context, o
 	} else {
 		go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
 
-		return nil, nil
+		return tran, nil
 	}
 }
