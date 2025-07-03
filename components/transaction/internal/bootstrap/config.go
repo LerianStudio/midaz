@@ -68,6 +68,8 @@ type Config struct {
 	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
 	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
@@ -144,20 +146,6 @@ func InitServers() *Service {
 		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
 	redisConnection := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
@@ -186,8 +174,21 @@ func InitServers() *Service {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
+	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
+		ConnectionStringSource: rabbitSource,
+		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQUser,
+		Pass:                   cfg.RabbitMQPass,
+		Queue:                  cfg.RabbitMQBalanceCreateQueue,
+		Logger:                 logger,
+	}
+
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
@@ -249,6 +250,22 @@ func InitServers() *Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
+
+	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
+		ConnectionStringSource: rabbitConsumerSource,
+		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQConsumerUser,
+		Pass:                   cfg.RabbitMQConsumerPass,
+		Queue:                  cfg.RabbitMQBalanceCreateQueue,
+		Logger:                 logger,
+	}
+
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 

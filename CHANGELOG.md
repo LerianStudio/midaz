@@ -1,3 +1,60 @@
+## [v2.3.0-beta.8] - 2025-07-03
+
+This release introduces real-time transaction event streaming, enhancing data flow and operational efficiency. It also includes critical bug fixes and performance improvements for a more reliable and responsive user experience.
+
+### ✨ Features  
+- **Real-Time Transaction Streaming**: We've added a transaction event streaming feature to the platform, enabling real-time processing and seamless integration with external systems. This enhancement significantly boosts data flow efficiency and operational performance, allowing users to experience faster and more reliable transactions.
+
+### 🐛 Bug Fixes
+- **Improved Code Clarity**: Resolved an import-shadowing issue in the backend, ensuring clearer code and preventing potential runtime errors.
+- **Enhanced Data Integrity**: Adjusted transaction structures and tests to ensure accurate data validation, improving system reliability.
+- **Corrected Test Logic**: Updated test cases to match new logic and structures, ensuring accurate and reliable test results.
+
+### ⚡ Performance
+- **Asynchronous Event Sending**: Implemented asynchronous processing for event sending, enhancing system performance and responsiveness during high-load operations.
+
+### 📚 Documentation
+- **Updated Configuration and Changelog**: The `.env.example` file now reflects version v2.3.0, and the CHANGELOG has been refreshed to include all recent updates, ensuring users have access to the latest information.
+
+### 🔧 Maintenance
+- **Comprehensive Testing**: Added extensive tests to the backend and test modules, enhancing the overall code quality and reducing the likelihood of future issues.
+
+This update is designed to improve the overall functionality, reliability, and user experience of the system, ensuring users benefit from enhanced performance and reduced errors.
+
+
+## [v2.3.0-beta.7] - 2025-07-02
+
+This major release of midaz introduces dynamic plugin management, enhanced security configurations, and significant improvements to user interface and performance, ensuring a more robust and flexible user experience.
+
+### ⚠️ Breaking Changes
+- **Backend**: The removal of `console.log` from the API error handler affects debugging processes. Users should implement alternative logging solutions to maintain error tracking capabilities.
+
+### ✨ Features  
+- **Dynamic Plugin Menu**: Enjoy a more customizable interface with the new dynamic plugin menu, supporting manifest integration and icons. This feature allows for seamless content updates without needing redeployment, enhancing user engagement.
+- **Plugin Management System**: Manage your plugins effortlessly with the new MongoDB-integrated manifest system, simplifying updates and configuration maintenance.
+- **GCP Credentials Support**: Easily integrate with Google Cloud Platform services using the new base64-like string support for credentials, streamlining cloud operations.
+- **Redis Configuration Enhancements**: Benefit from improved security and flexibility with added Redis configurations for standalone, cluster, and sentinel setups, now supporting TLS certification and IAM tokens.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Resolved issues with idempotency tests and transaction validation logic, ensuring accurate processing and preventing duplication or erroneous states.
+- **Frontend Stability**: Fixed Storybook and build issues, stabilizing the development environment for reliable UI component testing.
+
+### ⚡ Performance
+- **Transaction Handling Optimization**: Experience faster and more reliable transaction processing with optimized methods for reverting transactions and body storage.
+- **Frontend Data Presentation**: Enhanced data-table functionality and numeric display for improved readability and user interaction.
+
+### 🔄 Changes
+- **Nginx Proxy Configuration**: Updated authentication settings for production deployment, boosting security and performance.
+
+### 📚 Documentation
+- **API Documentation Updates**: Access the latest API changes with updated Swagger and OpenAPI specifications, ensuring developers have accurate and comprehensive documentation.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed hardcoded Casdoor secrets from configuration files, improving security by eliminating sensitive information exposure.
+- **Component Upgrades**: Upgraded frontend components to maintain compatibility with the latest standards, enhancing overall performance.
+
+This release focuses on delivering a more secure, efficient, and user-friendly experience. We encourage users to explore these updates and adjust their workflows to leverage the new capabilities.
+
 ## [v2.3.0-beta.6] - 2025-06-10
 
 This release of the midaz project brings significant enhancements to system stability, data precision, and user experience, with no breaking changes.
