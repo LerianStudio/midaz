@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
+	"time"
 )
 
 const midazName = "midaz"
@@ -20,6 +21,11 @@ const midazName = "midaz"
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		Prefork:               true,
+		ReadTimeout:           30 * time.Second,
+		WriteTimeout:          30 * time.Second,
+		IdleTimeout:           60 * time.Second,
+		BodyLimit:             20 * 1024 * 1024,
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
