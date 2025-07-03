@@ -244,11 +244,11 @@ func (handler *SettingsHandler) DeleteSettingsByID(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort order: 'asc' or 'desc' (default: 'asc')"
 //	@Param			start_date		query		string	false	"Start date for filtering (ISO 8601 format)"
 //	@Param			end_date		query		string	false	"End date for filtering (ISO 8601 format)"
-//	@Success		200				{object}	http.CursorPaginationResponse{items=[]mmodel.Settings}
-//	@Failure		400				{object}	http.ErrorResponse
-//	@Failure		401				{object}	http.ErrorResponse
-//	@Failure		404				{object}	http.ErrorResponse
-//	@Failure		500				{object}	http.ErrorResponse
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Settings,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Failure		400				{object}	mmodel.Error
+//	@Failure		401				{object}	mmodel.Error
+//	@Failure		404				{object}	mmodel.Error
+//	@Failure		500				{object}	mmodel.Error
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings [get]
 func (sh *SettingsHandler) GetAllSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
