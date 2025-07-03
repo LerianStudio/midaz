@@ -735,7 +735,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
 
 		return http.WithError(c, err)
 	}
@@ -749,7 +749,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
 
 		return http.WithError(c, err)
 	}
@@ -861,7 +861,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Errorf("Failed to create transaction: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
 
 		return http.WithError(c, err)
 	}
