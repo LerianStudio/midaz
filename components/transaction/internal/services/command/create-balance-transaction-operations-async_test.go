@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -55,6 +56,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -62,6 +64,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -167,6 +170,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -181,6 +190,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with mock repositories
 		uc := &UseCase{
@@ -188,6 +198,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -281,6 +292,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -288,6 +300,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -370,6 +383,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Mock MetadataRepo.Create for transaction metadata (should not be called due to duplicate error)
 		// We don't need to mock this since the method returns early after handling the duplicate error
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
@@ -383,6 +402,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -390,6 +410,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -543,6 +564,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(2)
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -557,6 +584,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -564,6 +592,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -708,6 +737,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -715,6 +745,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -856,6 +887,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -870,6 +907,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -877,6 +915,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
 		}
 
 		ctx := context.Background()
@@ -1051,6 +1090,7 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 	// Create a real UseCase with mock repositories
 	uc := &UseCase{
@@ -1058,6 +1098,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		TransactionRepo: mockTransactionRepo,
 		MetadataRepo:    mockMetadataRepo,
 		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
 	}
 
 	ctx := context.Background()
@@ -1137,6 +1178,12 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
+		AnyTimes()
+
+	// Mock RabbitMQRepo.ProducerDefault for transaction events
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
 		AnyTimes()
 
 	// Call the method - this should not panic
