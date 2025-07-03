@@ -79,6 +79,7 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 func (uc *UseCase) RemoveIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	
 	_, span := tracer.Start(ctx, "command.remove_idempotency_key")
 	defer span.End()
 
