@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strconv"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -76,6 +77,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Infof("Trying to create new operations")
 
 	for _, oper := range tran.Operations {
+
+		for _, balance := range t.Balances {
+			if oper.AccountAlias == balance.Alias {
+				oper.Route = strconv.FormatInt(balance.Version+1, 10)
+			}
+		}
+
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
