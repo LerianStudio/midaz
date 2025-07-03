@@ -27,6 +27,8 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		Title:          payload.Title,
 		Description:    payload.Description,
 		Type:           payload.Type,
+		AccountTypes:   payload.AccountTypes,
+		AccountAlias:   payload.AccountAlias,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

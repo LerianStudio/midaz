@@ -2,6 +2,7 @@ package operationroute
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -16,6 +17,8 @@ type OperationRoutePostgreSQLModel struct {
 	Title          string       `db:"title"`
 	Description    string       `db:"description"`
 	Type           string       `db:"type"`
+	AccountTypes   string       `db:"account_types"`
+	AccountAlias   string       `db:"account_alias"`
 	CreatedAt      time.Time    `db:"created_at"`
 	UpdatedAt      time.Time    `db:"updated_at"`
 	DeletedAt      sql.NullTime `db:"deleted_at"`
@@ -27,6 +30,11 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		return nil
 	}
 
+	var accountTypes []string
+	if m.AccountTypes != "" {
+		accountTypes = strings.Split(m.AccountTypes, ";")
+	}
+
 	e := &mmodel.OperationRoute{
 		ID:             m.ID,
 		OrganizationID: m.OrganizationID,
@@ -34,6 +42,8 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		Title:          m.Title,
 		Description:    m.Description,
 		Type:           m.Type,
+		AccountTypes:   accountTypes,
+		AccountAlias:   m.AccountAlias,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
@@ -56,7 +66,18 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.LedgerID = e.LedgerID
 	m.Title = e.Title
 	m.Description = e.Description
-	m.Type = e.Type
+	m.Type = strings.ToLower(e.Type)
+
+	if e.AccountTypes != nil {
+		accountTypes := make([]string, len(e.AccountTypes))
+		for i, accountType := range e.AccountTypes {
+			accountTypes[i] = strings.ToLower(accountType)
+		}
+
+		m.AccountTypes = strings.Join(accountTypes, ";")
+	}
+
+	m.AccountAlias = e.AccountAlias
 	m.CreatedAt = e.CreatedAt
 	m.UpdatedAt = e.UpdatedAt
 

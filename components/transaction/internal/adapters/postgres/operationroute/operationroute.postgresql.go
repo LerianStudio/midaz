@@ -85,13 +85,15 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation_route VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO operation_route VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
 		&record.ID,
 		&record.OrganizationID,
 		&record.LedgerID,
 		&record.Title,
 		&record.Description,
 		&record.Type,
+		&record.AccountTypes,
+		&record.AccountAlias,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	)
@@ -141,7 +143,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := `SELECT id, organization_id, ledger_id, title, description, type, created_at, updated_at, deleted_at 
+	query := `SELECT id, organization_id, ledger_id, title, description, type, account_types, account_alias, created_at, updated_at, deleted_at 
 		FROM operation_route 
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
 	args := []any{organizationID, ledgerID, id}
@@ -161,6 +163,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		&operationRoute.Title,
 		&operationRoute.Description,
 		&operationRoute.Type,
+		&operationRoute.AccountTypes,
+		&operationRoute.AccountAlias,
 		&operationRoute.CreatedAt,
 		&operationRoute.UpdatedAt,
 		&operationRoute.DeletedAt,
@@ -196,7 +200,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
-	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "created_at", "updated_at", "deleted_at").
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "account_types", "account_alias", "created_at", "updated_at", "deleted_at").
 		From("operation_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -237,6 +241,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 			&operationRoute.Title,
 			&operationRoute.Description,
 			&operationRoute.Type,
+			&operationRoute.AccountTypes,
+			&operationRoute.AccountAlias,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
@@ -299,6 +305,16 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		args = append(args, record.Description)
 	}
 
+	if operationRoute.AccountTypes != nil {
+		updates = append(updates, "account_types = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AccountTypes)
+	}
+
+	if operationRoute.AccountAlias != "" {
+		updates = append(updates, "account_alias = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AccountAlias)
+	}
+
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
@@ -342,7 +358,11 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	}
 
 	if rowsAffected == 0 {
-		return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		err := services.ErrDatabaseItemNotFound
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update operation route. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -448,6 +468,8 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.Title,
 			&operationRoute.Description,
 			&operationRoute.Type,
+			&operationRoute.AccountTypes,
+			&operationRoute.AccountAlias,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,

@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS operation_route (
     title                           VARCHAR(255) NOT NULL,
     description                     VARCHAR(250),
     type                            VARCHAR(20) NOT NULL CHECK (LOWER(type) IN ('debit', 'credit')),
+    account_types                   TEXT,
+    account_alias                   TEXT,
     created_at                      TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at                      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                      TIMESTAMP WITH TIME ZONE

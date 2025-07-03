@@ -24,8 +24,10 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	logger.Infof("Trying to update operation route: %v", input)
 
 	operationRoute := &mmodel.OperationRoute{
-		Title:       input.Title,
-		Description: input.Description,
+		Title:        input.Title,
+		Description:  input.Description,
+		AccountTypes: input.AccountTypes,
+		AccountAlias: input.AccountAlias,
 	}
 
 	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, ledgerID, id, operationRoute)
