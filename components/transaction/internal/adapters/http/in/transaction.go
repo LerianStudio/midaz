@@ -776,6 +776,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
+	timeCreateOrUpdate := time.Now()
+
 	tran := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
@@ -786,8 +788,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
+		CreatedAt:                timeCreateOrUpdate,
+		UpdatedAt:                timeCreateOrUpdate,
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
@@ -838,8 +840,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
+					CreatedAt:       timeCreateOrUpdate,
+					UpdatedAt:       timeCreateOrUpdate,
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
