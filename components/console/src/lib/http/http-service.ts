@@ -74,10 +74,6 @@ export abstract class HttpService {
         return {} as T
       }
 
-      if (isNil(response.body)) {
-        return {} as T
-      }
-
       return await response.json()
     } catch (error: any) {
       if (error instanceof ApiException) {
