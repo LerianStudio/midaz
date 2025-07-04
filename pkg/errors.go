@@ -944,6 +944,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Operation Route Linked to Transaction Routes",
 			Message:    "The operation route cannot be deleted because it is linked to one or more transaction routes. Please remove the operation route from all transaction routes before attempting to delete it.",
 		},
+		constant.ErrMutuallyExclusiveFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMutuallyExclusiveFields.Error(),
+			Title:      "Mutually Exclusive Fields Error",
+			Message:    fmt.Sprintf("The fields '%v' and '%v' are mutually exclusive.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

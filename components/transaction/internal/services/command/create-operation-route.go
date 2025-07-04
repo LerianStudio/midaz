@@ -2,10 +2,13 @@ package command
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -17,6 +20,15 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 	ctx, span := tracer.Start(ctx, "command.create_operation_route")
 	defer span.End()
+
+	// Validate mutually exclusive fields
+	if len(payload.AccountTypes) > 0 && payload.AccountAlias != "" {
+		err := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
+
+		libOpentelemetry.HandleSpanError(&span, "Mutually exclusive fields provided", err)
+
+		return nil, err
+	}
 
 	now := time.Now()
 

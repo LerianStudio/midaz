@@ -23,6 +23,35 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 	logger.Infof("Trying to update operation route: %v", input)
 
+	if len(input.AccountTypes) > 0 && input.AccountAlias != "" {
+		err := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
+
+		libOpentelemetry.HandleSpanError(&span, "Mutually exclusive fields provided", err)
+
+		return nil, err
+	}
+
+	existingOperationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve existing operation route", err)
+
+		logger.Errorf("Error retrieving existing operation route: %v", err)
+
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		}
+
+		return nil, err
+	}
+
+	if (len(existingOperationRoute.AccountTypes) > 0 && input.AccountAlias != "") || (len(input.AccountTypes) > 0 && existingOperationRoute.AccountAlias != "") {
+		err := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
+
+		libOpentelemetry.HandleSpanError(&span, "Cannot update, a mutually exclusive field is provided", err)
+
+		return nil, err
+	}
+
 	operationRoute := &mmodel.OperationRoute{
 		Title:        input.Title,
 		Description:  input.Description,
