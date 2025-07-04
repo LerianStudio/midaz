@@ -100,8 +100,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctxProcessBalances, tran)
-
 	return tran, nil
 }
 
