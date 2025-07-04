@@ -29,4 +29,8 @@ export abstract class SegmentRepository {
     ledgerId: string,
     segmentId: string
   ) => Promise<void>
+  abstract count: (
+    organizationId: string,
+    ledgerId: string
+  ) => Promise<{ total: number }>
 }

@@ -152,4 +152,13 @@ export class MidazAccountRepository implements AccountRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/${accountId}`
     )
   }
+
+  async count(
+    organizationId: string,
+    ledgerId: string
+  ): Promise<{ total: number }> {
+    return await this.httpService.count(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts/metrics/count`
+    )
+  }
 }
