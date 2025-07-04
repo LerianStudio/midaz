@@ -1,3 +1,27 @@
+## [v2.3.0-beta.8] - 2025-07-03
+
+This release introduces real-time transaction event streaming, enhancing data flow and operational efficiency. It also includes critical bug fixes and performance improvements for a more reliable and responsive user experience.
+
+### ✨ Features  
+- **Real-Time Transaction Streaming**: We've added a transaction event streaming feature to the platform, enabling real-time processing and seamless integration with external systems. This enhancement significantly boosts data flow efficiency and operational performance, allowing users to experience faster and more reliable transactions.
+
+### 🐛 Bug Fixes
+- **Improved Code Clarity**: Resolved an import-shadowing issue in the backend, ensuring clearer code and preventing potential runtime errors.
+- **Enhanced Data Integrity**: Adjusted transaction structures and tests to ensure accurate data validation, improving system reliability.
+- **Corrected Test Logic**: Updated test cases to match new logic and structures, ensuring accurate and reliable test results.
+
+### ⚡ Performance
+- **Asynchronous Event Sending**: Implemented asynchronous processing for event sending, enhancing system performance and responsiveness during high-load operations.
+
+### 📚 Documentation
+- **Updated Configuration and Changelog**: The `.env.example` file now reflects version v2.3.0, and the CHANGELOG has been refreshed to include all recent updates, ensuring users have access to the latest information.
+
+### 🔧 Maintenance
+- **Comprehensive Testing**: Added extensive tests to the backend and test modules, enhancing the overall code quality and reducing the likelihood of future issues.
+
+This update is designed to improve the overall functionality, reliability, and user experience of the system, ensuring users benefit from enhanced performance and reduced errors.
+
+
 ## [v2.3.0-beta.7] - 2025-07-02
 
 This major release of midaz introduces dynamic plugin management, enhanced security configurations, and significant improvements to user interface and performance, ensuring a more robust and flexible user experience.
