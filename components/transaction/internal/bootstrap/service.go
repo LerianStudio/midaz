@@ -8,7 +8,6 @@ import (
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
-	*MultiQueueConsumer
 	libLog.Logger
 }
 
@@ -18,6 +17,5 @@ func (app *Service) Run() {
 	libCommons.NewLauncher(
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("services", app.Server),
-		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 	).Run()
 }

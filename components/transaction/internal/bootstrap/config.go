@@ -63,11 +63,6 @@ type Config struct {
 	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
 	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
 	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
@@ -176,7 +171,6 @@ func InitServers() *Service {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
 
@@ -222,24 +216,6 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
-
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
@@ -247,8 +223,7 @@ func InitServers() *Service {
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server:             server,
-		MultiQueueConsumer: multiQueueConsumer,
-		Logger:             logger,
+		Server: server,
+		Logger: logger,
 	}
 }

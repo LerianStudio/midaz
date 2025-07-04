@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/components/consumer/internal/adapters/rabbitmq"
+	command "github.com/LerianStudio/midaz/components/consumer/internal/services/commands"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"os"
 )
