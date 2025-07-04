@@ -23,6 +23,12 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
+    },
+    {
+      "name":"producer",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -54,6 +60,13 @@
     },
     {
       "user": "consumer",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "producer",
       "vhost": "/",
       "configure": ".*",
       "write": ".*",

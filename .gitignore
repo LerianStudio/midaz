@@ -7,8 +7,7 @@ tmp/
 CLAUDE.md
 .claude/
 .windsurf/
-.run/onboarding.run.xml
-.run/transaction.run.xml
+.run
 
 # OS generated files
 .DS_Store

@@ -7,16 +7,17 @@ MIDAZ_ROOT := $(shell pwd)
 
 # Component directories
 INFRA_DIR := ./components/infra
+CONSUMER_DIR := ./components/consumer
 MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 CONSOLE_DIR := ./components/console
 
 # Define component groups for easier management
-BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
+BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSUMER_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
+COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR) $(CONSUMER_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -471,6 +472,14 @@ transaction:
 		exit 1; \
 	fi
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
+
+consumer:
+	$(call print_title,"Running command in consumer component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
+		exit 1; \
+	fi
+	@cd $(CONSUMER_DIR) && $(MAKE) $(COMMAND)
 
 console:
 	$(call print_title,"Running command in console component")

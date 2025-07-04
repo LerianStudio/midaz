@@ -9,6 +9,8 @@ import (
 	command "github.com/LerianStudio/midaz/components/consumer/internal/services/commands"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 // MultiQueueConsumer represents a multi-queue consumer.
@@ -33,7 +35,17 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 
 // Run starts consumers for all registered queues.
 func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
-	return mq.consumerRoutes.RunConsumers()
+	err := mq.consumerRoutes.RunConsumers()
+	if err != nil {
+		return err
+	}
+
+	// Wait for interrupt signal to gracefully shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	return nil
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
