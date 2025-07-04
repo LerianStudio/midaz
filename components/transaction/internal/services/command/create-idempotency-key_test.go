@@ -137,15 +137,15 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 	t.Run("success with key", func(t *testing.T) {
 		key := "test-key"
 		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
-		
+
 		txn := transaction.Transaction{
-			ID: uuid.New().String(),
-			ParentTransactionID: nil,
-			OrganizationID: organizationID.String(),
-			LedgerID: ledgerID.String(),
-			Description: "Test transaction",
+			ID:                       uuid.New().String(),
+			ParentTransactionID:      nil,
+			OrganizationID:           organizationID.String(),
+			LedgerID:                 ledgerID.String(),
+			Description:              "Test transaction",
 			ChartOfAccountsGroupName: "test-group",
-			Status: transaction.Status{Code: "COMMITTED"},
+			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
 		expectedValue, _ := json.Marshal(txn)
@@ -162,15 +162,15 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 
 	t.Run("success with empty key", func(t *testing.T) {
 		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
-		
+
 		txn := transaction.Transaction{
-			ID: uuid.New().String(),
-			ParentTransactionID: nil,
-			OrganizationID: organizationID.String(),
-			LedgerID: ledgerID.String(),
-			Description: "Test transaction with empty key",
+			ID:                       uuid.New().String(),
+			ParentTransactionID:      nil,
+			OrganizationID:           organizationID.String(),
+			LedgerID:                 ledgerID.String(),
+			Description:              "Test transaction with empty key",
 			ChartOfAccountsGroupName: "test-group",
-			Status: transaction.Status{Code: "COMMITTED"},
+			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
 		expectedValue, _ := json.Marshal(txn)
@@ -188,15 +188,15 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 	t.Run("redis set error", func(t *testing.T) {
 		key := "test-key"
 		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
-		
+
 		txn := transaction.Transaction{
-			ID: uuid.New().String(),
-			ParentTransactionID: nil,
-			OrganizationID: organizationID.String(),
-			LedgerID: ledgerID.String(),
-			Description: "Test transaction with redis error",
+			ID:                       uuid.New().String(),
+			ParentTransactionID:      nil,
+			OrganizationID:           organizationID.String(),
+			LedgerID:                 ledgerID.String(),
+			Description:              "Test transaction with redis error",
 			ChartOfAccountsGroupName: "test-group",
-			Status: transaction.Status{Code: "COMMITTED"},
+			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
 		expectedValue, _ := json.Marshal(txn)
