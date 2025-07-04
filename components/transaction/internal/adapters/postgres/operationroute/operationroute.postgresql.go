@@ -262,12 +262,20 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
+	var missingIDs []string
+
 	for _, id := range ids {
 		if !foundIDs[id] {
-			libOpentelemetry.HandleSpanError(&span, "Operation route not found", nil)
-
-			return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			missingIDs = append(missingIDs, id.String())
 		}
+	}
+
+	if len(missingIDs) > 0 {
+		missingIDsStr := strings.Join(missingIDs, ", ")
+
+		libOpentelemetry.HandleSpanError(&span, "Operation route(s) not found", errors.New("operation route not found"))
+
+		return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), missingIDsStr)
 	}
 
 	return operationRoutes, nil
