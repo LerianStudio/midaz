@@ -192,8 +192,8 @@ const Page = () => {
                     <div className="flex flex-col justify-center gap-2">
                       <DevResourceLink
                         title={intl.formatMessage({
-                          id: 'homePage.footer.devResources.midazDocs',
-                          defaultMessage: 'Midaz Docs'
+                          id: 'homePage.footer.devResources.lerianDocs',
+                          defaultMessage: 'Lerian Docs'
                         })}
                         href="https://docs.lerian.studio/"
                       />

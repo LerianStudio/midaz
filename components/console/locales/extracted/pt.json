@@ -631,7 +631,6 @@
   "homePage.footer.banner.button": "Confira nosso Blog",
   "homePage.footer.devResources.github": "Github",
   "homePage.footer.devResources.lerianDiscord": "Discord da Lerian",
-  "homePage.footer.devResources.midazDocs": "Documentação do Midaz",
   "homePage.footer.devResources.title": "Recursos para Desenvolvedores",
   "homePage.header.description": "Esta é a página inicial do seu ledger atual. Use o menu lateral para navegar pelas entidades. Não sabe por onde começar? Confira nossas sugestões em Próximos Passos.",
   "homePage.myOperation.title": "Minha Operação",
@@ -643,5 +642,6 @@
   "homePage.nextSteps.transactions.button": "Ver Transações",
   "homePage.nextSteps.transactions.description": "Visualize e crie transações, o elemento vital que encapsula cada movimentação financeira dentro do seu ledger.",
   "ledgers.current.name": "{name} <b>(atual)</b>",
-  "ledgers.useLedger": "Mudar para este ledger"
+  "ledgers.useLedger": "Mudar para este ledger",
+  "homePage.footer.devResources.lerianDocs": "Documentação da Lerian"
 }
