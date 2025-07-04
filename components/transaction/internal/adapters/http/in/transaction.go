@@ -1,12 +1,10 @@
 package in
 
 import (
+	"context"
 	"encoding/json"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	"reflect"
-	"time"
-
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -23,6 +21,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"os"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -733,7 +735,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
 
 		return http.WithError(c, err)
 	}
@@ -747,7 +749,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
 
 		return http.WithError(c, err)
 	}
@@ -774,6 +776,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
+	timeCreateOrUpdate := time.Now()
+
 	tran := &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
@@ -784,8 +788,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
+		CreatedAt:                timeCreateOrUpdate,
+		UpdatedAt:                timeCreateOrUpdate,
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
@@ -836,8 +840,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
+					CreatedAt:       timeCreateOrUpdate,
+					UpdatedAt:       timeCreateOrUpdate,
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
@@ -851,9 +855,18 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
-
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+
+	tran, err = handler.transactionAsyncOrSync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to create transaction", err)
+
+		logger.Errorf("Failed to create transaction: %v", err.Error())
+
+		handler.Command.RemoveIdempotencyKey(ctx, organizationID, ledgerID, key, hash)
+
+		return http.WithError(c, err)
+	}
 
 	return http.Created(c, tran)
 }
@@ -989,9 +1002,33 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
-
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
+	tran, err = handler.transactionAsyncOrSync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to create transaction", err)
+
+		logger.Errorf("Failed to create transaction: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
+
 	return http.Created(c, tran)
+}
+
+// transactionAsyncOrSync func responsible to execute transaction sync or async.
+func (handler *TransactionHandler) transactionAsyncOrSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) (*transaction.Transaction, error) {
+	isEnabled := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_ASYNC_ENABLED")))
+	if isEnabled == "false" {
+		t, err := handler.Command.SendBTOExecuteSync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
+		if err != nil {
+			return nil, err
+		}
+
+		return t, nil
+	} else {
+		go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
+
+		return tran, nil
+	}
 }
