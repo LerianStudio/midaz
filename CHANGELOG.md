@@ -1,3 +1,26 @@
+## [v2.3.0-beta.9] - 2025-07-04
+
+This release of midaz introduces a refreshed Home page interface and new real-time analytics, enhancing user navigation and insight capabilities. Backend optimizations further improve system performance and reliability.
+
+### ✨ Features
+- **Enhanced Home Page Interface**: Enjoy a more intuitive and visually appealing Home page, designed for easier navigation and interaction.
+- **Real-Time Home Metrics**: Access up-to-date analytics directly on your dashboard, providing timely insights to enhance decision-making.
+
+### 🐛 Bug Fixes
+- **Text Display Corrections**: Resolved issues with text clarity on the user interface, ensuring consistent readability across all elements.
+- **Stability Improvements**: Fixed backend issues that could cause unexpected behavior, enhancing overall system reliability.
+
+### ⚡ Performance
+- **Optimized Data Handling**: Implemented a repository counting feature that improves the accuracy of metrics and supports better resource management.
+
+### 🔄 Changes
+- **Codebase Cleanup**: Removed unused files to streamline the system architecture, reducing maintenance overhead and improving efficiency.
+
+### 🔧 Maintenance
+- **Updated Documentation**: The CHANGELOG has been updated to include the latest changes, ensuring all users and developers have access to current information.
+
+This update focuses on delivering a smoother and more informative user experience while ensuring the backend remains robust and efficient.
+
 ## [v2.3.0-beta.8] - 2025-07-03
 
 This release introduces real-time transaction event streaming, enhancing data flow and operational efficiency. It also includes critical bug fixes and performance improvements for a more reliable and responsive user experience.
