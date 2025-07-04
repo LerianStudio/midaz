@@ -643,5 +643,5 @@
   "homePage.nextSteps.transactions.description": "Visualize e crie transações, o elemento vital que encapsula cada movimentação financeira dentro do seu ledger.",
   "ledgers.current.name": "{name} <b>(atual)</b>",
   "ledgers.useLedger": "Mudar para este ledger",
-  "homePage.footer.devResources.lerianDocs": "Documentação da Lerian"
+  "homePage.footer.devResources.lerianDocs": "Documentação Lerian"
 }
