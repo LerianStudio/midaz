@@ -1,7 +1,7 @@
 package in
 
 import (
-	"fmt"
+	"strconv"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -365,7 +365,7 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

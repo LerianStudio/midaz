@@ -1,2019 +1,1927 @@
-openapi: 3.0.1
+openapi: 3.0.0
 info:
+  description: This is a swagger documentation for the Midaz Transaction API
+  title: Midaz Transaction API
+  termsOfService: http://swagger.io/terms/
   contact:
     name: Discord community
     url: https://discord.gg/DnhqKwkGv3
-  description: This is a swagger documentation for the Midaz Transaction API
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  termsOfService: http://swagger.io/terms/
-  title: Midaz Transaction API
   version: v1.48.0
 servers:
-- url: //localhost:3001/
+  - url: https://localhost:3001/
+    description: Default server
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
     get:
       description: Get Balances with alias
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Alias (e.g. @person1)
-        in: path
-        name: alias
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200'
-          description: OK
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Balance not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get Balances using Alias
       tags:
-      - Balances
+        - Balances
+      summary: Get Balances using Alias
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Alias (e.g. @person1)
+          name: alias
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      ' next_cursor':
+                        type: string
+                      ' prev_cursor':
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/mmodel.Balance'
+                      limit:
+                        type: integer
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
     get:
       description: Get External balances with code
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Code (e.g. BRL)
-        in: path
-        name: code
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200'
-          description: OK
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Balance not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get External balances using code
       tags:
-      - Balances
+        - Balances
+      summary: Get External balances using code
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Code (e.g. BRL)
+          name: code
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      ' next_cursor':
+                        type: string
+                      ' prev_cursor':
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/mmodel.Balance'
+                      limit:
+                        type: integer
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       description: Get all balances by account id
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: account_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid query parameters
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Account not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get all balances by account id
       tags:
-      - Balances
+        - Balances
+      summary: Get all balances by account id
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Account ID
+          name: account_id
+          in: path
+          required: true
+        - type: integer
+          default: 10
+          description: Limit
+          name: limit
+          in: query
+        - type: string
+          description: Start Date
+          name: start_date
+          in: query
+        - type: string
+          description: End Date
+          name: end_date
+          in: query
+        - type: string
+          description: Sort Order
+          name: sort_order
+          in: query
+        - type: string
+          description: Cursor
+          name: cursor
+          in: query
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      ' next_cursor':
+                        type: string
+                      ' prev_cursor':
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/mmodel.Balance'
+                      limit:
+                        type: integer
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       description: Get all Operations with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: account_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      - description: DEBIT, CREDIT
-        in: query
-        name: type
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_1'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid query parameters
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Account not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get all Operations by account
       tags:
-      - Operations
+        - Operations
+      summary: Get all Operations by account
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Account ID
+          name: account_id
+          in: path
+          required: true
+        - type: integer
+          default: 10
+          description: Limit
+          name: limit
+          in: query
+        - type: string
+          description: Start Date
+          name: start_date
+          in: query
+        - type: string
+          description: End Date
+          name: end_date
+          in: query
+        - type: string
+          description: Sort Order
+          name: sort_order
+          in: query
+        - type: string
+          description: Cursor
+          name: cursor
+          in: query
+        - type: string
+          description: DEBIT, CREDIT
+          name: type
+          in: query
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      ' next_cursor':
+                        type: string
+                      ' prev_cursor':
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/Operation'
+                      limit:
+                        type: integer
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
     get:
       description: Get an Operation with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: account_id
-        required: true
-        schema:
-          type: string
-      - description: Operation ID
-        in: path
-        name: operation_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Operation'
-          description: OK
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Operation not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get an Operation by account
       tags:
-      - Operations
+        - Operations
+      summary: Get an Operation by account
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Account ID
+          name: account_id
+          in: path
+          required: true
+        - type: string
+          description: Operation ID
+          name: operation_id
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Operation'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
     put:
       description: Create or Update an AssetRate with the input details
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Asset Rates
+      summary: Create or Update an AssetRate
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/AssetRate'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Ledger or organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAssetRateInput'
-        description: AssetRate Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssetRate'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Ledger or organization not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create or Update an AssetRate
-      tags:
-      - Asset Rates
-      x-codegen-request-body-name: asset-rate
+              $ref: '#/definitions/CreateAssetRateInput'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
     get:
       description: Get an AssetRate by the Asset Code with the input details
+      tags:
+        - Asset Rates
+      summary: Get an AssetRate by the Asset Code
       parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: From Asset Code
-        in: path
-        name: asset_code
-        required: true
-        schema:
-          type: string
-      - description: To Asset Codes
-        explode: false
-        in: query
-        name: to
-        schema:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: From Asset Code
+          name: asset_code
+          in: path
+          required: true
+        - type: array
           items:
             type: string
-          type: array
-        style: form
-      - description: Limit
-        in: query
-        name: limit
-        schema:
+          collectionFormat: csv
+          description: To Asset Codes
+          name: to
+          in: query
+        - type: integer
           default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
+          description: Limit
+          name: limit
+          in: query
+        - type: string
+          description: Start Date
+          name: start_date
+          in: query
+        - type: string
+          description: End Date
+          name: end_date
+          in: query
+        - enum:
+            - asc
+            - desc
           type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
+          description: Sort Order
+          name: sort_order
+          in: query
+        - type: string
+          description: Cursor
+          name: cursor
+          in: query
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+        '200':
           description: OK
-        "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/AssetRate'
+                      limit:
+                        type: integer
+                      next_cursor:
+                        type: string
+                      prev_cursor:
+                        type: string
+        '400':
           description: Invalid query parameters
-        "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '401':
           description: Unauthorized access
-        "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '403':
           description: Forbidden access
-        "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '404':
           description: Asset code not found
-        "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '500':
           description: Internal server error
-      summary: Get an AssetRate by the Asset Code
-      tags:
-      - Asset Rates
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
       description: Get an AssetRate by External ID with the input details
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: External ID
-        in: path
-        name: external_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssetRate'
-          description: OK
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Asset rate not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get an AssetRate by External ID
       tags:
-      - Asset Rates
+        - Asset Rates
+      summary: Get an AssetRate by External ID
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: External ID
+          name: external_id
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/AssetRate'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Asset rate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
     get:
       description: Get all balances
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid query parameters
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get all balances
       tags:
-      - Balances
+        - Balances
+      summary: Get all balances
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: integer
+          default: 10
+          description: Limit
+          name: limit
+          in: query
+        - type: string
+          description: Start Date
+          name: start_date
+          in: query
+        - type: string
+          description: End Date
+          name: end_date
+          in: query
+        - type: string
+          description: Sort Order
+          name: sort_order
+          in: query
+        - type: string
+          description: Cursor
+          name: cursor
+          in: query
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      ' next_cursor':
+                        type: string
+                      ' prev_cursor':
+                        type: string
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/mmodel.Balance'
+                      limit:
+                        type: integer
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+    get:
+      description: Get a Balance with the input ID
+      tags:
+        - Balances
+      summary: Get Balance by id
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Balance ID
+          name: balance_id
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/mmodel.Balance'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
     delete:
       description: Delete a Balance with the input ID
+      tags:
+        - Balances
+      summary: Delete Balance by account
       parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        schema:
-          type: string
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Balance ID
+          name: balance_id
+          in: path
+          required: true
       responses:
-        "204":
+        '204':
+          description: Balance successfully deleted
           content:
             application/json:
               schema:
                 type: string
-          description: Balance successfully deleted
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        '401':
           description: Unauthorized access
-        "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '403':
           description: Forbidden access
-        "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '404':
           description: Balance not found
-        "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '409':
           description: 'Conflict: Cannot delete balance with active operations'
-        "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/definitions/Error'
+        '500':
           description: Internal server error
-      summary: Delete Balance by account
-      tags:
-      - Balances
-    get:
-      description: Get a Balance with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/mmodel.Balance'
-          description: OK
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Balance not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get Balance by id
-      tags:
-      - Balances
+                $ref: '#/definitions/Error'
     patch:
       description: Update a Balance with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Balances
+      summary: Update Balance
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/mmodel.Balance'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateBalance'
-        description: Balance Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/mmodel.Balance'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Balance not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Update Balance
-      tags:
-      - Balances
-      x-codegen-request-body-name: balance
+              $ref: '#/definitions/UpdateBalance'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Balance ID
+          name: balance_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_3'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid query parameters
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get all Transactions
       tags:
-      - Transactions
+        - Transactions
+      summary: Get all Transactions
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: integer
+          default: 10
+          description: Limit
+          name: limit
+          in: query
+        - type: string
+          description: Start Date
+          name: start_date
+          in: query
+        - type: string
+          description: End Date
+          name: end_date
+          in: query
+        - enum:
+            - asc
+            - desc
+          type: string
+          description: Sort Order
+          name: sort_order
+          in: query
+        - type: string
+          description: Cursor
+          name: cursor
+          in: query
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/definitions/Pagination'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/definitions/Transaction'
+                      limit:
+                        type: integer
+                      next_cursor:
+                        type: string
+                      page:
+                        type: object
+                      prev_cursor:
+                        type: string
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       description: Create a Transaction with the input DSL file
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              properties:
-                transaction:
-                  description: Transaction DSL file
-                  format: binary
-                  type: string
-              required:
-              - transaction
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid DSL file format or validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create a Transaction using DSL
       tags:
-      - Transactions
+        - Transactions
+      summary: Create a Transaction using DSL
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: file
+          description: Transaction DSL file
+          name: transaction
+          in: formData
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid DSL file format or validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow:
     post:
       description: Create a Transaction with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Transactions
+      summary: Create a Transaction without passing from source
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel'
-        description: Transaction Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create a Transaction without passing from source
-      tags:
-      - Transactions
-      x-codegen-request-body-name: transaction
+              $ref: '#/definitions/CreateTransactionInflowSwaggerModel'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
     post:
       description: Create a Transaction with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Transactions
+      summary: Create a Transaction using JSON
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
-        description: Transaction Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create a Transaction using JSON
-      tags:
-      - Transactions
-      x-codegen-request-body-name: transaction
+              $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       description: Create a Transaction with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Transactions
+      summary: Create a Transaction without passing to distribution
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel'
-        description: Transaction Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create a Transaction without passing to distribution
-      tags:
-      - Transactions
-      x-codegen-request-body-name: transaction
+              $ref: '#/definitions/CreateTransactionOutflowSwaggerModel'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
     get:
       description: Get a Transaction with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid query parameters
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get a Transaction by ID
       tags:
-      - Transactions
+        - Transactions
+      summary: Get a Transaction by ID
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
     patch:
       description: Update a Transaction with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Transactions
+      summary: Update a Transaction
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateTransactionInput'
-        description: Transaction Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Update a Transaction
-      tags:
-      - Transactions
-      x-codegen-request-body-name: transaction
+              $ref: '#/definitions/UpdateTransactionInput'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel:
     post:
       description: Cancel a previously created pre transaction
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid request or transaction cannot be reverted
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction not found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction already has a parent transaction
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Cancel a pre transaction
       tags:
-      - Transactions
+        - Transactions
+      summary: Cancel a pre transaction
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid request or transaction cannot be reverted
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '409':
+          description: Transaction already has a parent transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
     post:
       description: Commit a previously created transaction
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid request or transaction cannot be reverted
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction not found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction already has a parent transaction
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Commit a Transaction
       tags:
-      - Transactions
+        - Transactions
+      summary: Commit a Transaction
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid request or transaction cannot be reverted
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '409':
+          description: Transaction already has a parent transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
     patch:
       description: Update an Operation with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
-      - description: Operation ID
-        in: path
-        name: operation_id
-        required: true
-        schema:
-          type: string
+      tags:
+        - Operations
+      summary: Update an Operation
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Operation'
+        '400':
+          description: Invalid input, validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateOperationInput'
-        description: Operation Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Operation'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Operation not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Update an Operation
-      tags:
-      - Operations
-      x-codegen-request-body-name: operation
+              $ref: '#/definitions/UpdateOperationInput'
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
+        - type: string
+          description: Operation ID
+          name: operation_id
+          in: path
+          required: true
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
     post:
       description: Revert a Transaction with Transaction ID only
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Transaction ID
-        in: path
-        name: transaction_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid request or transaction cannot be reverted
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction not found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transaction already has a parent transaction
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Revert a Transaction
       tags:
-      - Transactions
+        - Transactions
+      summary: Revert a Transaction
+      parameters:
+        - type: string
+          description: Authorization Bearer Token
+          name: Authorization
+          in: header
+          required: true
+        - type: string
+          description: Request ID
+          name: X-Request-Id
+          in: header
+        - type: string
+          description: Organization ID
+          name: organization_id
+          in: path
+          required: true
+        - type: string
+          description: Ledger ID
+          name: ledger_id
+          in: path
+          required: true
+        - type: string
+          description: Transaction ID
+          name: transaction_id
+          in: path
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Transaction'
+        '400':
+          description: Invalid request or transaction cannot be reverted
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '409':
+          description: Transaction already has a parent transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/definitions/Error'
 components:
   schemas:
     Amount:
-      description: Amount is the struct designed to represent the amount of an operation.
-        Contains the value and scale (decimal places) of an operation amount.
+      description: Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.
+      type: object
       properties:
         value:
           description: |-
             The amount value in the smallest unit of the asset (e.g., cents)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
           type: number
-      type: object
+          minimum: 0
+          example: 1500
     AssetRate:
-      description: AssetRate is a struct designed to store asset rate data. Represents
-        a complete asset rate entity containing conversion information between two
-        assets, including all system-generated fields.
-      example:
-        metadata:
-          key: '{}'
-        externalId: 00000000-0000-0000-0000-000000000000
-        scale: 2.0
-        source: External System
-        ttl: 3600
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        rate: 100.0
-        from: USD
-        id: 00000000-0000-0000-0000-000000000000
-        to: BRL
-        updatedAt: 2021-01-01T00:00:00Z
+      description: AssetRate is a struct designed to store asset rate data. Represents a complete asset rate entity containing conversion information between two assets, including all system-generated fields.
+      type: object
       properties:
         createdAt:
           description: |-
             Timestamp when the asset rate was created
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         externalId:
           description: |-
             External identifier for integration with third-party systems
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         from:
           description: |-
             Source asset code
             example: USD
             minLength: 2
             maxLength: 10
-          example: USD
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: USD
         id:
           description: |-
             Unique identifier for the asset rate
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         ledgerId:
           description: |-
             Ledger containing this asset rate
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
           type: object
+          additionalProperties: {}
         organizationId:
           description: |-
             Organization that owns this asset rate
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         rate:
           description: |-
             Conversion rate value
             example: 100
-          example: 100.0
           type: number
+          example: 100
         scale:
           description: |-
             Decimal places for the rate
             example: 2
             minimum: 0
-          example: 2.0
-          minimum: 0
           type: number
+          minimum: 0
+          example: 2
         source:
           description: |-
             Source of rate information
             example: External System
             maxLength: 200
-          example: External System
-          maxLength: 200
           type: string
+          maxLength: 200
+          example: External System
         to:
           description: |-
             Target asset code
             example: BRL
             minLength: 2
             maxLength: 10
-          example: BRL
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: BRL
         ttl:
           description: |-
             Time-to-live in seconds
             example: 3600
             minimum: 0
-          example: 3600
-          minimum: 0
           type: integer
+          minimum: 0
+          example: 3600
         updatedAt:
           description: |-
             Timestamp when the asset rate was last updated
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
-      type: object
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
     Balance:
-      description: Balance is the struct designed to represent the account balance.
-        Contains available and on-hold amounts along with the scale (decimal places).
+      description: Balance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).
+      type: object
       properties:
         available:
           description: |-
             Amount available for transactions (in the smallest unit of asset)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
           type: number
+          minimum: 0
+          example: 1500
         onHold:
           description: |-
             Amount on hold and unavailable for transactions (in the smallest unit of asset)
             example: 500
             minimum: 0
-          example: 500.0
-          minimum: 0
           type: number
-      type: object
+          minimum: 0
+          example: 500
     CreateAssetRateInput:
-      description: CreateAssetRateInput is the input payload to create an asset rate.
-        Contains required fields for setting up asset conversion rates, including
-        source and target assets, rate value, scale, and optional metadata.
-      example:
-        metadata:
-          key: '{}'
-        rate: 100
-        externalId: 00000000-0000-0000-0000-000000000000
-        scale: 2
-        from: USD
-        source: External System
-        to: BRL
-        ttl: 3600
+      description: CreateAssetRateInput is the input payload to create an asset rate. Contains required fields for setting up asset conversion rates, including source and target assets, rate value, scale, and optional metadata.
+      type: object
+      required:
+        - from
+        - rate
+        - to
       properties:
         externalId:
           description: |-
             External identifier for integration (optional)
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         from:
           description: |-
             Source asset code (required)
@@ -2021,40 +1929,39 @@ components:
             required: true
             minLength: 2
             maxLength: 10
-          example: USD
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: USD
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes (optional)
             example: {"provider": "Central Bank", "rateName": "Official Exchange Rate"}
           type: object
+          additionalProperties: {}
         rate:
           description: |-
             Conversion rate value (required)
             example: 100
             required: true
-          example: 100
           type: integer
+          example: 100
         scale:
           description: |-
             Decimal places for the rate (optional)
             example: 2
             minimum: 0
-          example: 2
-          minimum: 0
           type: integer
+          minimum: 0
+          example: 2
         source:
           description: |-
             Source of rate information (optional)
             example: External System
             maxLength: 200
-          example: External System
-          maxLength: 200
           type: string
+          maxLength: 200
+          example: External System
         to:
           description: |-
             Target asset code (required)
@@ -2062,56 +1969,21 @@ components:
             required: true
             minLength: 2
             maxLength: 10
-          example: BRL
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: BRL
         ttl:
           description: |-
             Time-to-live in seconds (optional)
             example: 3600
             minimum: 0
-          example: 3600
-          minimum: 0
           type: integer
-      required:
-      - from
-      - rate
-      - to
-      type: object
+          minimum: 0
+          example: 3600
     CreateTransactionInflowSwaggerModel:
-      description: Schema for creating inflow transaction with the complete SendInflow
-        operation structure defined inline
-      example:
-        metadata:
-          key: '{}'
-        code: code
-        description: description
-        chartOfAccountsGroupName: chartOfAccountsGroupName
-        send:
-          scale: 1
-          distribute:
-            to:
-            - amount:
-                scale: 0
-                asset: asset
-                value: 6
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-              account: account
-            - amount:
-                scale: 0
-                asset: asset
-                value: 6
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-              account: account
-          asset: asset
-          value: 5
+      description: Schema for creating inflow transaction with the complete SendInflow operation structure defined inline
+      type: object
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -2132,46 +2004,98 @@ components:
             maxLength: 256
           type: string
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
+          additionalProperties: {}
         send:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send'
-      type: object
+          description: |-
+            Send operation details including distribution only
+            required: true
+          type: object
+          properties:
+            asset:
+              description: |-
+                Asset code for the transaction
+                example: USD
+                required: true
+              type: string
+            distribute:
+              description: |-
+                Destination accounts and amounts for the transaction
+                required: true
+              type: object
+              properties:
+                to:
+                  description: |-
+                    List of destination operations
+                    required: true
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      account:
+                        description: |-
+                          Account identifier or alias
+                          example: {{accountAlias}}
+                          required: true
+                        type: string
+                      amount:
+                        description: |-
+                          Amount details for the operation
+                          required: true
+                        type: object
+                        properties:
+                          asset:
+                            description: |-
+                              Asset code
+                              example: USD
+                              required: true
+                            type: string
+                          scale:
+                            description: |-
+                              Decimal places
+                              example: 2
+                              required: true
+                            type: integer
+                          value:
+                            description: |-
+                              Amount value in smallest unit
+                              example: 100
+                              required: true
+                            type: integer
+                      chartOfAccounts:
+                        description: |-
+                          Chart of accounts code
+                          example: FUNDING_CREDIT
+                        type: string
+                      description:
+                        description: |-
+                          Operation description
+                          example: Credit Operation
+                        type: string
+                      metadata:
+                        description: |-
+                          Additional metadata
+                          example: {"operation": "funding", "type": "account"}
+                        type: object
+                        additionalProperties: {}
+            scale:
+              description: |-
+                Decimal places for the transaction amount
+                example: 2
+                required: true
+              type: integer
+            value:
+              description: |-
+                Transaction amount value in the smallest unit of the asset
+                example: 100
+                required: true
+              type: integer
     CreateTransactionOutflowSwaggerModel:
-      description: Schema for creating outflow transaction with the complete SendOutflow
-        operation structure defined inline
-      example:
-        metadata:
-          key: '{}'
-        code: code
-        pending: true
-        description: description
-        chartOfAccountsGroupName: chartOfAccountsGroupName
-        send:
-          source:
-            from:
-            - amount:
-                asset: asset
-                value: 0.8008281904610115
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-              account: account
-            - amount:
-                asset: asset
-                value: 0.8008281904610115
-              metadata:
-                key: '{}'
-              chartOfAccounts: chartOfAccounts
-              description: description
-              account: account
-          asset: asset
-          value: 6.027456183070403
+      description: Schema for creating outflow transaction with the complete SendOutflow operation structure defined inline
+      type: object
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -2192,573 +2116,515 @@ components:
             maxLength: 256
           type: string
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
+          additionalProperties: {}
         pending:
-          default: false
           description: |-
             Whether the transaction should be created in pending state
             example: true
             swagger: type boolean
-          example: true
           type: boolean
+          default: false
+          example: true
         send:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
-      type: object
+          description: |-
+            Send operation details including source only
+            required: true
+          type: object
+          properties:
+            asset:
+              description: |-
+                Asset code for the transaction
+                example: USD
+                required: true
+              type: string
+            source:
+              description: |-
+                Source accounts and amounts for the transaction
+                required: true
+              type: object
+              properties:
+                from:
+                  description: |-
+                    List of source operations
+                    required: true
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      account:
+                        description: |-
+                          Account identifier or alias
+                          example: {{accountAlias}}
+                          required: true
+                        type: string
+                      amount:
+                        description: |-
+                          Amount details for the operation
+                          required: true
+                        type: object
+                        properties:
+                          asset:
+                            description: |-
+                              Asset code
+                              example: USD
+                              required: true
+                            type: string
+                          value:
+                            description: |-
+                              Amount value in smallest unit
+                              example: "100"
+                              required: true
+                            type: number
+                      chartOfAccounts:
+                        description: |-
+                          Chart of accounts code
+                          example: WITHDRAWAL_DEBIT
+                        type: string
+                      description:
+                        description: |-
+                          Operation description
+                          example: Debit Operation
+                        type: string
+                      metadata:
+                        description: |-
+                          Additional metadata
+                          example: {"operation": "withdrawal", "type": "account"}
+                        type: object
+                        additionalProperties: {}
+            value:
+              description: |-
+                Transaction amount value in the smallest unit of the asset
+                example: "100"
+                required: true
+              type: number
     Error:
-      description: Standardized error response format used across all API endpoints
-        for error situations. Provides structured information about errors including
-        codes, messages, and field-specific validation details.
+      description: Standardized error response format used across all API endpoints for error situations. Provides structured information about errors including codes, messages, and field-specific validation details.
+      type: object
       properties:
         code:
           description: |-
             Error code identifying the specific error condition
             example: ERR_INVALID_INPUT
             maxLength: 50
-          example: ERR_INVALID_INPUT
-          maxLength: 50
           type: string
+          maxLength: 50
+          example: ERR_INVALID_INPUT
         entityType:
           description: |-
             Optional type of entity associated with the error
             example: Organization
             maxLength: 100
-          example: Organization
-          maxLength: 100
           type: string
+          maxLength: 100
+          example: Organization
         fields:
-          additionalProperties:
-            type: string
           description: |-
             Optional detailed field validations for client-side handling
             example: {"name": "Field 'name' is required"}
+          type: object
+          additionalProperties:
+            type: string
           example:
             '{"name"': ' "Field ''name'' is required"}'
-          type: object
         message:
           description: |-
             Detailed error message explaining the issue
             example: The request contains invalid fields. Please check the field 'name' and try again.
             maxLength: 500
-          example: The request contains invalid fields. Please check the field 'name'
-            and try again.
-          maxLength: 500
           type: string
+          maxLength: 500
+          example: The request contains invalid fields. Please check the field 'name' and try again.
         title:
           description: |-
             Short, human-readable error title
             example: Bad Request
             maxLength: 100
-          example: Bad Request
-          maxLength: 100
           type: string
-      type: object
+          maxLength: 100
+          example: Bad Request
     Operation:
-      description: Operation is a struct designed to store operation data. Represents
-        a financial operation that affects account balances, including details such
-        as amount, balance before and after, transaction association, and metadata.
-      example:
-        accountAlias: '@person1'
-        amount: '{}'
-        metadata:
-          key: '{}'
-        assetCode: BRL
-        chartOfAccounts: "1000"
-        description: Credit card operation
-        type: DEBIT
-        transactionId: 00000000-0000-0000-0000-000000000000
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        route: 00000000-0000-0000-0000-000000000000
-        balance: '{}'
-        balanceAfter: '{}'
-        id: 00000000-0000-0000-0000-000000000000
-        balanceId: 00000000-0000-0000-0000-000000000000
-        status: '{}'
-        updatedAt: 2021-01-01T00:00:00Z
+      description: Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.
+      type: object
       properties:
         accountAlias:
           description: |-
             Human-readable alias for the account
             example: @person1
             maxLength: 256
-          example: '@person1'
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: '@person1'
         accountId:
           description: |-
             Account identifier associated with this operation
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         amount:
-          allOf:
-          - $ref: '#/components/schemas/Amount'
           description: Operation amount information
-          type: object
+          allOf:
+            - $ref: '#/definitions/Amount'
         assetCode:
           description: |-
             Asset code for the operation
             example: BRL
             minLength: 2
             maxLength: 10
-          example: BRL
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: BRL
         balance:
-          allOf:
-          - $ref: '#/components/schemas/Balance'
           description: Balance before the operation
-          type: object
-        balanceAfter:
           allOf:
-          - $ref: '#/components/schemas/Balance'
+            - $ref: '#/definitions/Balance'
+        balanceAfter:
           description: Balance after the operation
-          type: object
+          allOf:
+            - $ref: '#/definitions/Balance'
         balanceId:
           description: |-
             Balance identifier affected by this operation
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         chartOfAccounts:
           description: |-
             Chart of accounts code for accounting purposes
             example: 1000
             maxLength: 20
-          example: "1000"
-          maxLength: 20
           type: string
+          maxLength: 20
+          example: '1000'
         createdAt:
           description: |-
             Timestamp when the operation was created
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         deletedAt:
           description: |-
             Timestamp when the operation was deleted (if soft-deleted)
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         description:
           description: |-
             Human-readable description of the operation
             example: Credit card operation
             maxLength: 256
-          example: Credit card operation
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: Credit card operation
         id:
           description: |-
             Unique identifier for the operation
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         ledgerId:
           description: |-
             Ledger identifier
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"reason": "Purchase refund", "reference": "INV-12345"}
           type: object
+          additionalProperties: {}
         organizationId:
           description: |-
             Organization identifier
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         route:
           description: |-
             Route
             example: 00000000-0000-0000-0000-000000000000
             format: string
-          example: 00000000-0000-0000-0000-000000000000
-          format: string
           type: string
+          format: string
+          example: 00000000-0000-0000-0000-000000000000
         status:
-          allOf:
-          - $ref: '#/components/schemas/Status'
           description: Operation status information
-          type: object
+          allOf:
+            - $ref: '#/definitions/Status'
         transactionId:
           description: |-
             Parent transaction identifier
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         type:
           description: |-
             Type of operation (e.g., DEBIT, CREDIT)
             example: DEBIT
             maxLength: 50
-          example: DEBIT
-          maxLength: 50
           type: string
+          maxLength: 50
+          example: DEBIT
         updatedAt:
           description: |-
             Timestamp when the operation was last updated
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
+          type: string
           format: date-time
-          type: string
-      type: object
+          example: '2021-01-01T00:00:00Z'
     Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
+      description: Pagination is the struct designed to store the pagination data of an entity list.
       type: object
+      properties:
+        items: {}
+        limit:
+          type: integer
+          example: 10
+        next_cursor:
+          type: string
+          x-omitempty: true
+          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        page:
+          type: integer
+          example: 1
+        prev_cursor:
+          type: string
+          x-omitempty: true
+          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
     Status:
-      description: Status is the struct designed to represent the status of a transaction.
-        Contains code and optional description for transaction states.
+      description: Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.
+      type: object
       properties:
         code:
           description: |-
             Status code identifying the state of the transaction
             example: ACTIVE
             maxLength: 100
-          example: ACTIVE
-          maxLength: 100
           type: string
+          maxLength: 100
+          example: ACTIVE
         description:
           description: |-
             Optional descriptive text explaining the status
             example: Active status
             maxLength: 256
-          example: Active status
-          maxLength: 256
           type: string
-      type: object
+          maxLength: 256
+          example: Active status
     Transaction:
-      description: Transaction is a struct designed to store transaction data. Represents
-        a financial transaction that consists of multiple operations affecting account
-        balances, including details about the transaction's status, amounts, and related
-        operations.
-      example:
-        amount: 1500.0
-        metadata:
-          key: '{}'
-        assetCode: BRL
-        destination:
-        - '@person2'
-        description: Transaction description
-        source:
-        - '@person1'
-        chartOfAccountsGroupName: Chart of accounts group name
-        parentTransactionId: 00000000-0000-0000-0000-000000000000
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        operations:
-        - accountAlias: '@person1'
-          amount: '{}'
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: DEBIT
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@person1'
-          amount: '{}'
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: DEBIT
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        route: 00000000-0000-0000-0000-000000000000
-        id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
-        updatedAt: 2021-01-01T00:00:00Z
+      description: Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.
+      type: object
       properties:
         amount:
           description: |-
             Transaction amount value in the smallest unit of the asset
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
           type: number
+          minimum: 0
+          example: 1500
         assetCode:
           description: |-
             Asset code for the transaction
             example: BRL
             minLength: 2
             maxLength: 10
-          example: BRL
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: BRL
         chartOfAccountsGroupName:
           description: |-
             Chart of accounts group name for accounting purposes
             example: Chart of accounts group name
             maxLength: 256
-          example: Chart of accounts group name
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: Chart of accounts group name
         createdAt:
           description: |-
             Timestamp when the transaction was created
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         deletedAt:
           description: |-
             Timestamp when the transaction was deleted (if soft-deleted)
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         description:
           description: |-
             Human-readable description of the transaction
             example: Transaction description
             maxLength: 256
-          example: Transaction description
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: Transaction description
         destination:
           description: |-
             List of destination account aliases or identifiers
             example: ["@person2"]
-          example:
-          - '@person2'
+          type: array
           items:
             type: string
-          type: array
+          example:
+            - '@person2'
         id:
           description: |-
             Unique identifier for the transaction
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         ledgerId:
           description: |-
             Ledger identifier
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
+          additionalProperties: {}
         operations:
           description: List of operations associated with this transaction
-          items:
-            $ref: '#/components/schemas/Operation'
           type: array
+          items:
+            $ref: '#/definitions/Operation'
         organizationId:
           description: |-
             Organization identifier
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         parentTransactionId:
           description: |-
             Parent transaction identifier (for reversals or child transactions)
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         route:
           description: |-
             Route
             example: 00000000-0000-0000-0000-000000000000
             format: string
-          example: 00000000-0000-0000-0000-000000000000
-          format: string
           type: string
+          format: string
+          example: 00000000-0000-0000-0000-000000000000
         source:
           description: |-
             List of source account aliases or identifiers
             example: ["@person1"]
-          example:
-          - '@person1'
+          type: array
           items:
             type: string
-          type: array
+          example:
+            - '@person1'
         status:
-          allOf:
-          - $ref: '#/components/schemas/Status'
           description: Transaction status information
-          type: object
+          allOf:
+            - $ref: '#/definitions/Status'
         updatedAt:
           description: |-
             Timestamp when the transaction was last updated
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
-      type: object
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
     UpdateBalance:
-      description: Request payload for updating an existing balance's permissions.
-        All fields are optional - only specified fields will be updated. Omitted fields
-        will remain unchanged.
-      example:
-        allowReceiving: true
-        allowSending: true
+      description: Request payload for updating an existing balance's permissions. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+      type: object
       properties:
         allowReceiving:
           description: |-
             Whether the account should be allowed to receive funds to this balance
             required: false
             example: true
-          example: true
           type: boolean
+          example: true
         allowSending:
           description: |-
             Whether the account should be allowed to send funds from this balance
             required: false
             example: true
-          example: true
           type: boolean
-      type: object
+          example: true
     UpdateOperationInput:
-      description: UpdateOperationInput is the input payload to update an operation.
-        Contains fields that can be modified after an operation is created.
-      example:
-        metadata:
-          key: '{}'
-        description: Credit card operation
+      description: UpdateOperationInput is the input payload to update an operation. Contains fields that can be modified after an operation is created.
+      type: object
       properties:
         description:
           description: |-
             Human-readable description of the operation
             example: Credit card operation
             maxLength: 256
-          example: Credit card operation
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: Credit card operation
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"reason": "Purchase refund", "reference": "INV-12345"}
           type: object
-      type: object
+          additionalProperties: {}
     UpdateTransactionInput:
-      description: UpdateTransactionInput is the input payload to update a transaction.
-        Contains fields that can be modified after a transaction is created.
-      example:
-        metadata:
-          key: '{}'
-        description: Transaction description
+      description: UpdateTransactionInput is the input payload to update a transaction. Contains fields that can be modified after a transaction is created.
+      type: object
       properties:
         description:
           description: |-
             Human-readable description of the transaction
             example: Transaction description
             maxLength: 256
-          example: Transaction description
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: Transaction description
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
-      type: object
+          additionalProperties: {}
     github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
-      description: Schema for creating transaction with the complete Send operation
-        structure defined inline
+      description: Schema for creating transaction with the complete Send operation structure defined inline
+      type: object
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -2779,908 +2645,271 @@ components:
             maxLength: 256
           type: string
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Additional custom attributes
             example: {"reference": "TRANSACTION-001", "source": "api"}
           type: object
+          additionalProperties: {}
         pending:
-          default: false
           description: |-
             Whether the transaction should be created in pending state
             example: true
             swagger: type boolean
-          example: true
           type: boolean
+          default: false
+          example: true
         send:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
-      type: object
+          description: |-
+            Send operation details including source and distribution
+            required: true
+          type: object
+          properties:
+            asset:
+              description: |-
+                Asset code for the transaction
+                example: USD
+                required: true
+              type: string
+            distribute:
+              description: |-
+                Destination accounts and amounts for the transaction
+                required: true
+              type: object
+              properties:
+                to:
+                  description: |-
+                    List of destination operations
+                    required: true
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      account:
+                        description: |-
+                          Account identifier or alias
+                          example: {{accountAlias}}
+                          required: true
+                        type: string
+                      amount:
+                        description: |-
+                          Amount details for the operation
+                          required: true
+                        type: object
+                        properties:
+                          asset:
+                            description: |-
+                              Asset code
+                              example: USD
+                              required: true
+                            type: string
+                          value:
+                            description: |-
+                              Amount value in smallest unit
+                              example: 100
+                              required: true
+                            type: number
+                      chartOfAccounts:
+                        description: |-
+                          Chart of accounts code
+                          example: FUNDING_CREDIT
+                        type: string
+                      description:
+                        description: |-
+                          Operation description
+                          example: Credit Operation
+                        type: string
+                      metadata:
+                        description: |-
+                          Additional metadata
+                          example: {"operation": "funding", "type": "account"}
+                        type: object
+                        additionalProperties: {}
+            source:
+              description: |-
+                Source accounts and amounts for the transaction
+                required: true
+              type: object
+              properties:
+                from:
+                  description: |-
+                    List of source operations
+                    required: true
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      account:
+                        description: |-
+                          Account identifier or alias
+                          example: @external/USD
+                          required: true
+                        type: string
+                      amount:
+                        description: |-
+                          Amount details for the operation
+                          required: true
+                        type: object
+                        properties:
+                          asset:
+                            description: |-
+                              Asset code
+                              example: USD
+                              required: true
+                            type: string
+                          value:
+                            description: |-
+                              Amount value in smallest unit
+                              example: 100
+                              required: true
+                            type: number
+                      chartOfAccounts:
+                        description: |-
+                          Chart of accounts code
+                          example: FUNDING_DEBIT
+                        type: string
+                      description:
+                        description: |-
+                          Operation description
+                          example: Debit Operation
+                        type: string
+                      metadata:
+                        description: |-
+                          Additional metadata
+                          example: {"operation": "funding", "type": "external"}
+                        type: object
+                        additionalProperties: {}
+            value:
+              description: |-
+                Transaction amount value in the smallest unit of the asset
+                example: 100
+                required: true
+              type: number
     mmodel.Balance:
-      description: Complete balance entity containing all fields including system-generated
-        fields like ID, creation timestamps, and metadata. This is the response format
-        for balance operations. Balances represent the amount of a specific asset
-        held in an account, including available and on-hold amounts.
-      example:
-        metadata:
-          key: '{}'
-        assetCode: USD
-        onHold: 500.0
-        allowReceiving: true
-        accountType: creditCard
-        available: 1500.0
-        allowSending: true
-        version: 1
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        alias: '@person1'
-        id: 00000000-0000-0000-0000-000000000000
-        updatedAt: 2021-01-01T00:00:00Z
+      description: Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.
+      type: object
       properties:
         accountId:
           description: |-
             Account that holds this balance
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         accountType:
           description: |-
             Type of account holding this balance
             example: creditCard
             maxLength: 50
-          example: creditCard
-          maxLength: 50
           type: string
+          maxLength: 50
+          example: creditCard
         alias:
           description: |-
             Alias for the account, used for easy identification or tagging
             example: @person1
             maxLength: 256
-          example: '@person1'
-          maxLength: 256
           type: string
+          maxLength: 256
+          example: '@person1'
         allowReceiving:
           description: |-
             Whether the account can receive funds to this balance
             example: true
-          example: true
           type: boolean
+          example: true
         allowSending:
           description: |-
             Whether the account can send funds from this balance
             example: true
-          example: true
           type: boolean
+          example: true
         assetCode:
           description: |-
             Asset code identifying the currency or asset type of this balance
             example: USD
             minLength: 2
             maxLength: 10
-          example: USD
+          type: string
           maxLength: 10
           minLength: 2
-          type: string
+          example: USD
         available:
           description: |-
             Amount available for transactions (in the smallest unit of the asset, e.g. cents)
             example: 1500
             minimum: 0
-          example: 1500.0
-          minimum: 0
           type: number
+          minimum: 0
+          example: 1500
         createdAt:
           description: |-
             Timestamp when the balance was created (RFC3339 format)
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         deletedAt:
           description: |-
             Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)
             example: null
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         id:
           description: |-
             Unique identifier for the balance (UUID format)
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         ledgerId:
           description: |-
             Ledger containing the account this balance belongs to
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         metadata:
-          additionalProperties:
-            type: object
           description: |-
             Custom key-value pairs for extending the balance information
             example: {"purpose": "Main savings", "category": "Personal"}
           type: object
+          additionalProperties: {}
         onHold:
           description: |-
             Amount currently on hold and unavailable for transactions
             example: 500
             minimum: 0
-          example: 500.0
-          minimum: 0
           type: number
+          minimum: 0
+          example: 500
         organizationId:
           description: |-
             Organization that owns this balance
             example: 00000000-0000-0000-0000-000000000000
             format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
         updatedAt:
           description: |-
             Timestamp when the balance was last updated (RFC3339 format)
             example: 2021-01-01T00:00:00Z
             format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+          format: date-time
+          example: '2021-01-01T00:00:00Z'
         version:
           description: |-
             Optimistic concurrency control version
             example: 1
             minimum: 1
-          example: 1
+          type: integer
           minimum: 1
-          type: integer
-      type: object
-    inline_response_200:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        ' prev_cursor': ' prev_cursor'
-        ' next_cursor': ' next_cursor'
-        limit: 0
-        items:
-        - metadata:
-            key: '{}'
-          assetCode: USD
-          onHold: 500.0
-          allowReceiving: true
-          accountType: creditCard
-          available: 1500.0
-          allowSending: true
-          version: 1
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
-            key: '{}'
-          assetCode: USD
-          onHold: 500.0
-          allowReceiving: true
-          accountType: creditCard
-          available: 1500.0
-          allowSending: true
-          version: 1
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        ' next_cursor':
-          type: string
-        ' prev_cursor':
-          type: string
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/mmodel.Balance'
-          type: array
-        limit:
-          type: integer
-      type: object
-    inline_response_200_1:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        ' prev_cursor': ' prev_cursor'
-        ' next_cursor': ' next_cursor'
-        limit: 0
-        items:
-        - accountAlias: '@person1'
-          amount: '{}'
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: DEBIT
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@person1'
-          amount: '{}'
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: DEBIT
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        ' next_cursor':
-          type: string
-        ' prev_cursor':
-          type: string
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Operation'
-          type: array
-        limit:
-          type: integer
-      type: object
-    inline_response_200_2:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        items:
-        - metadata:
-            key: '{}'
-          externalId: 00000000-0000-0000-0000-000000000000
-          scale: 2.0
-          source: External System
-          ttl: 3600
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          rate: 100.0
-          from: USD
-          id: 00000000-0000-0000-0000-000000000000
-          to: BRL
-          updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
-            key: '{}'
-          externalId: 00000000-0000-0000-0000-000000000000
-          scale: 2.0
-          source: External System
-          ttl: 3600
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          rate: 100.0
-          from: USD
-          id: 00000000-0000-0000-0000-000000000000
-          to: BRL
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/AssetRate'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_3:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: '{}'
-        items:
-        - amount: 1500.0
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            amount: '{}'
-            metadata:
-              key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            description: Credit card operation
-            type: DEBIT
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@person1'
-            amount: '{}'
-            metadata:
-              key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            description: Credit card operation
-            type: DEBIT
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - amount: 1500.0
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            amount: '{}'
-            metadata:
-              key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            description: Credit card operation
-            type: DEBIT
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@person1'
-            amount: '{}'
-            metadata:
-              key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            description: Credit card operation
-            type: DEBIT
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Transaction'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_amount:
-      description: |-
-        Amount details for the operation
-        required: true
-      example:
-        scale: 0
-        asset: asset
-        value: 6
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
-            required: true
-          type: string
-        scale:
-          description: |-
-            Decimal places
-            example: 2
-            required: true
-          type: integer
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: 100
-            required: true
-          type: integer
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute_to:
-      example:
-        amount:
-          scale: 0
-          asset: asset
-          value: 6
-        metadata:
-          key: '{}'
-        chartOfAccounts: chartOfAccounts
-        description: description
-        account: account
-      properties:
-        account:
-          description: |-
-            Account identifier or alias
-            example: {{accountAlias}}
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_CREDIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Credit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "account"}
-          type: object
-      type: object
-    CreateTransactionInflowSwaggerModel_send_distribute:
-      description: |-
-        Destination accounts and amounts for the transaction
-        required: true
-      example:
-        to:
-        - amount:
-            scale: 0
-            asset: asset
-            value: 6
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-          account: account
-        - amount:
-            scale: 0
-            asset: asset
-            value: 6
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-          account: account
-      properties:
-        to:
-          description: |-
-            List of destination operations
-            required: true
-          items:
-            $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_to'
-          type: array
-      type: object
-    CreateTransactionInflowSwaggerModel_send:
-      description: |-
-        Send operation details including distribution only
-        required: true
-      example:
-        scale: 1
-        distribute:
-          to:
-          - amount:
-              scale: 0
-              asset: asset
-              value: 6
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-            account: account
-          - amount:
-              scale: 0
-              asset: asset
-              value: 6
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-            account: account
-        asset: asset
-        value: 5
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        distribute:
-          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
-        scale:
-          description: |-
-            Decimal places for the transaction amount
-            example: 2
-            required: true
-          type: integer
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: 100
-            required: true
-          type: integer
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source_amount:
-      description: |-
-        Amount details for the operation
-        required: true
-      example:
-        asset: asset
-        value: 0.8008281904610115
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
-            required: true
-          type: string
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: "100"
-            required: true
-          type: number
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source_from:
-      example:
-        amount:
-          asset: asset
-          value: 0.8008281904610115
-        metadata:
-          key: '{}'
-        chartOfAccounts: chartOfAccounts
-        description: description
-        account: account
-      properties:
-        account:
-          description: |-
-            Account identifier or alias
-            example: {{accountAlias}}
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: WITHDRAWAL_DEBIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Debit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "withdrawal", "type": "account"}
-          type: object
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source:
-      description: |-
-        Source accounts and amounts for the transaction
-        required: true
-      example:
-        from:
-        - amount:
-            asset: asset
-            value: 0.8008281904610115
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-          account: account
-        - amount:
-            asset: asset
-            value: 0.8008281904610115
-          metadata:
-            key: '{}'
-          chartOfAccounts: chartOfAccounts
-          description: description
-          account: account
-      properties:
-        from:
-          description: |-
-            List of source operations
-            required: true
-          items:
-            $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_from'
-          type: array
-      type: object
-    CreateTransactionOutflowSwaggerModel_send:
-      description: |-
-        Send operation details including source only
-        required: true
-      example:
-        source:
-          from:
-          - amount:
-              asset: asset
-              value: 0.8008281904610115
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-            account: account
-          - amount:
-              asset: asset
-              value: 0.8008281904610115
-            metadata:
-              key: '{}'
-            chartOfAccounts: chartOfAccounts
-            description: description
-            account: account
-        asset: asset
-        value: 6.027456183070403
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        source:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source'
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: "100"
-            required: true
-          type: number
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount
-    : description: |-
-        Amount details for the operation
-        required: true
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
-            required: true
-          type: string
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: 100
-            required: true
-          type: number
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to
-    : properties:
-        account:
-          description: |-
-            Account identifier or alias
-            example: {{accountAlias}}
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_CREDIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Credit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "account"}
-          type: object
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
-    : description: |-
-        Destination accounts and amounts for the transaction
-        required: true
-      properties:
-        to:
-          description: |-
-            List of destination operations
-            required: true
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to'
-          type: array
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
-    : properties:
-        account:
-          description: |-
-            Account identifier or alias
-            example: @external/USD
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_DEBIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Debit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "external"}
-          type: object
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
-    : description: |-
-        Source accounts and amounts for the transaction
-        required: true
-      properties:
-        from:
-          description: |-
-            List of source operations
-            required: true
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
-          type: array
-      type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
-      description: |-
-        Send operation details including source and distribution
-        required: true
-      properties:
-        asset:
-          description: |-
-            Asset code for the transaction
-            example: USD
-            required: true
-          type: string
-        distribute:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute'
-        source:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
-        value:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: 100
-            required: true
-          type: number
-      type: object
-x-original-swagger-version: "2.0"
+          example: 1
+  securitySchemes: {}

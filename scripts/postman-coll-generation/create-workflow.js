@@ -16,6 +16,13 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// Import enhanced workflow features for CI regression testing
+const {
+  generateEnhancedTestScript,
+  generateEnhancedPreRequestScript,
+  generateWorkflowSummaryScript
+} = require('./enhance-tests.js');
+
 // --- Utility Functions ---
 
 // Read JSON file
@@ -131,27 +138,59 @@ function parseWorkflowStepsFromMarkdown(markdown) {
     }
     // Match Uses section
     else if (currentStep && line.includes('**Uses:**')) {
-        let j = i + 1;
-        while (j < lines.length && lines[j].trim().startsWith('- `')) {
-            const useMatch = lines[j].match(/- `([^`]+)` from step (\d+)/);
-            if (useMatch) {
-                currentStep.uses.push({ variable: useMatch[1], step: parseInt(useMatch[2]) });
+        // Check if uses is on the same line - handle multiple uses separated by commas
+        const inlineUsesMatch = line.match(/\*\*Uses:\*\*\s*(.+)/);
+        if (inlineUsesMatch) {
+            const usesText = inlineUsesMatch[1];
+            // Match all `variable` from step X patterns and extract them
+            const useMatches = usesText.match(/`([^`]+)`\s+from\s+step\s+(\d+)/g);
+            if (useMatches) {
+                useMatches.forEach(match => {
+                    const useMatch = match.match(/`([^`]+)`\s+from\s+step\s+(\d+)/);
+                    if (useMatch) {
+                        currentStep.uses.push({ variable: useMatch[1], step: parseInt(useMatch[2]) });
+                    }
+                });
             }
-            j++;
+        } else {
+            // Check following lines for uses
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim().startsWith('- `')) {
+                const useMatch = lines[j].match(/- `([^`]+)` from step (\d+)/);
+                if (useMatch) {
+                    currentStep.uses.push({ variable: useMatch[1], step: parseInt(useMatch[2]) });
+                }
+                j++;
+            }
+            i = j - 1; // Adjust outer loop index
         }
-        i = j - 1; // Adjust outer loop index
     }
     // Match Output section
     else if (currentStep && (line.includes('**Output:**') || line.includes('**Outputs:**'))) {
-        let j = i + 1;
-        while (j < lines.length && lines[j].trim().startsWith('- `')) {
-            const outputMatch = lines[j].match(/- `([^`]+)`/);
-            if (outputMatch) {
-                currentStep.outputs.push(outputMatch[1]);
+        // Check if output is on the same line - handle multiple outputs separated by commas
+        const inlineOutputMatch = line.match(/\*\*Outputs?:\*\*\s*(.+)/);
+        if (inlineOutputMatch) {
+            const outputsText = inlineOutputMatch[1];
+            // Match all `variable` patterns and extract them
+            const outputMatches = outputsText.match(/`([^`]+)`/g);
+            if (outputMatches) {
+                outputMatches.forEach(match => {
+                    const variable = match.replace(/`/g, '');
+                    currentStep.outputs.push(variable);
+                });
             }
-            j++;
+        } else {
+            // Check following lines for outputs
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim().startsWith('- `')) {
+                const outputMatch = lines[j].match(/- `([^`]+)`/);
+                if (outputMatch) {
+                    currentStep.outputs.push(outputMatch[1]);
+                }
+                j++;
+            }
+            i = j - 1; // Adjust outer loop index
         }
-        i = j - 1; // Adjust outer loop index
     }
   }
   console.log(`Parsed ${steps.length} workflow steps from Markdown.`);
@@ -238,10 +277,8 @@ function findRequestRecursive(items, targetMethod, targetPath) {
 
 // --- Test Script Generation ---
 
-// Add or update the test script to extract variables
-function addOrUpdateTestScript(workflowItem, outputs) {
-    if (!outputs || outputs.length === 0) return; // No outputs to extract
-    
+// Enhanced test script generation for CI regression testing
+function addOrUpdateTestScript(workflowItem, outputs, stepNumber, stepTitle, operation, path, method, requires = []) {
     // Find or create test event
     let testEvent = null;
     if (!workflowItem.event) {
@@ -266,29 +303,44 @@ function addOrUpdateTestScript(workflowItem, outputs) {
         testEvent.script.exec = [];
     }
     
-    // Add variable extraction script
-    let extractScript = "\n// Extract variables from response\ntry {\n";
-    extractScript += "    const jsonData = pm.response.json();\n";
+    // Generate comprehensive test script for CI regression testing
+    const enhancedScript = generateEnhancedTestScript(
+        operation, 
+        path, 
+        method, 
+        outputs, 
+        stepNumber, 
+        stepTitle
+    );
     
-    for (const output of outputs) {
-        if (typeof output === 'string' && output.trim() !== '') {
-            extractScript += "    // Attempting to save " + output + "\n";
-            extractScript += "    let foundVal = null;\n";
-            extractScript += "    if (jsonData && jsonData." + output + ") { foundVal = jsonData." + output + "; }\n";
-            extractScript += "    else if (jsonData && jsonData.data && jsonData.data." + output + ") { foundVal = jsonData.data." + output + "; }\n";
-            // Add more specific checks if needed, e.g., iterating arrays
-            extractScript += "    if (foundVal) {\n";
-            extractScript += "        pm.environment.set(\"" + output + "\", foundVal);\n";
-            extractScript += "        console.log(\"Saved " + output + ":\", foundVal);\n";
-            extractScript += "    } else { /* console.log(\"Could not find " + output + " directly in response\"); */ }\n";
-        } else {
-            console.warn(`  Warning: Don't know how to extract output variable '${output}'. Skipping.`);
-        }
+    // Replace the exec array with enhanced script
+    testEvent.script.exec = [enhancedScript];
+    
+    // Add or update pre-request script
+    let preRequestEvent = workflowItem.event.find(e => e.listen === 'prerequest');
+    if (!preRequestEvent) {
+        preRequestEvent = {
+            listen: 'prerequest',
+            script: {
+                id: uuidv4(),
+                exec: [],
+                type: 'text/javascript'
+            }
+        };
+        workflowItem.event.push(preRequestEvent);
     }
-    extractScript += '} catch (e) { console.error("Error parsing response JSON or extracting variables:", e); }\n';
-
-    // Append extraction script to existing test exec array
-    testEvent.script.exec.push(extractScript);
+    
+    // Generate enhanced pre-request script
+    const enhancedPreScript = generateEnhancedPreRequestScript(
+        operation,
+        path,
+        method,
+        stepNumber,
+        requires
+    );
+    
+    // Replace the exec array with enhanced pre-request script
+    preRequestEvent.script.exec = [enhancedPreScript];
 }
 
 // --- Workflow Folder Creation ---
@@ -342,35 +394,149 @@ function createWorkflowFolder(collection, steps) {
             workflowItem.request.description = markdownDesc;
 
             // Update path parameters in the URL
+            let newPath = null;
             if (workflowItem.request.url && workflowItem.request.url.path) {
-                workflowItem.request.url.path = workflowItem.request.url.path.map(segment => {
-                    // Replace path parameters with environment variables
-                    if (segment === 'organizationId' || segment === '{organizationId}') {
-                        return '{organizationId}';
-                    } else if (segment === 'ledgerId' || segment === '{ledgerId}') {
-                        return '{ledgerId}';
-                    } else if (segment === 'accountId' || segment === '{accountId}') {
-                        return '{accountId}';
-                    } else if (segment === 'assetId' || segment === '{assetId}') {
-                        return '{assetId}';
-                    } else if (segment === 'balanceId' || segment === '{balanceId}') {
-                        return '{balanceId}';
-                    } else if (segment === 'portfolioId' || segment === '{portfolioId}') {
-                        return '{portfolioId}';
-                    } else if (segment === 'segmentId' || segment === '{segmentId}') {
-                        return '{segmentId}';
-                    } else if (segment === 'transactionId' || segment === '{transactionId}') {
-                        return '{transactionId}';
-                    } else if (segment === 'operationId' || segment === '{operationId}') {
-                        return '{operationId}';
+                // Rebuild the path array from the workflow step path to ensure correct structure
+                const expectedPath = step.path.replace(/^\//, '').split('/');
+                newPath = expectedPath.map(segment => {
+                    // Replace path parameters with Postman environment variables
+                    if (segment === '{organizationId}' || segment === '{organization_id}') {
+                        return '{{organizationId}}';
+                    } else if (segment === '{ledgerId}' || segment === '{ledger_id}') {
+                        return '{{ledgerId}}';
+                    } else if (segment === '{accountId}' || segment === '{account_id}') {
+                        return '{{accountId}}';
+                    } else if (segment === '{assetId}' || segment === '{asset_id}') {
+                        return '{{assetId}}';
+                    } else if (segment === '{balanceId}' || segment === '{balance_id}') {
+                        return '{{balanceId}}';
+                    } else if (segment === '{portfolioId}' || segment === '{portfolio_id}') {
+                        return '{{portfolioId}}';
+                    } else if (segment === '{segmentId}' || segment === '{segment_id}') {
+                        return '{{segmentId}}';
+                    } else if (segment === '{transactionId}' || segment === '{transaction_id}') {
+                        return '{{transactionId}}';
+                    } else if (segment === '{operationId}' || segment === '{operation_id}') {
+                        return '{{operationId}}';
+                    } else if (segment === '{assetRateId}' || segment === '{asset_rate_id}') {
+                        return '{{assetRateId}}';
+                    } else if (segment === '{alias}') {
+                        return '{{accountAlias}}';
+                    } else if (segment === '{code}') {
+                        return '{{externalCode}}';
+                    } else if (segment === '{assetCode}' || segment === '{asset_code}') {
+                        return '{{assetCode}}';
+                    } else if (segment === '{externalId}' || segment === '{external_id}') {
+                        return '{{assetRateId}}';
+                    } else if (segment === '{id}') {
+                        // Generic {id} parameter - map based on context
+                        if (step.path.includes('/organizations/{id}')) {
+                            return '{{organizationId}}';
+                        } else if (step.path.includes('/ledgers/{id}')) {
+                            return '{{ledgerId}}';
+                        } else if (step.path.includes('/accounts/{id}')) {
+                            return '{{accountId}}';
+                        } else if (step.path.includes('/assets/{id}')) {
+                            return '{{assetId}}';
+                        } else if (step.path.includes('/portfolios/{id}')) {
+                            return '{{portfolioId}}';
+                        } else if (step.path.includes('/segments/{id}')) {
+                            return '{{segmentId}}';
+                        } else if (step.path.includes('/transactions/{id}')) {
+                            return '{{transactionId}}';
+                        } else if (step.path.includes('/operations/{id}')) {
+                            return '{{operationId}}';
+                        } else if (step.path.includes('/balances/{id}')) {
+                            return '{{balanceId}}';
+                        } else if (step.path.includes('/asset-rates/{id}')) {
+                            return '{{assetRateId}}';
+                        }
+                        return '{{id}}'; // fallback
+                    } else {
+                        // Keep literal segments as they are
+                        return segment;
                     }
-                    return segment;
                 });
+                
+                // Replace the path array with the correctly structured one
+                workflowItem.request.url.path = newPath;
+            }
+            
+            // Also update the raw URL to match the corrected path
+            if (workflowItem.request.url && newPath) {
+                // Determine the correct base URL for this endpoint
+                let baseUrl = '{{onboardingUrl}}'; // Default to onboarding
+                if (step.path.includes('/transactions') || step.path.includes('/operations') || 
+                    step.path.includes('/balances') || step.path.includes('/asset-rates')) {
+                    baseUrl = '{{transactionUrl}}';
+                }
+                
+                // Build raw URL from the corrected path
+                const fullPath = '/' + newPath.join('/');
+                workflowItem.request.url.raw = baseUrl + fullPath;
             }
 
-            // Add/Update test script for variable extraction
-            addOrUpdateTestScript(workflowItem, step.outputs);
+            // Add/Update enhanced test script for CI regression testing
+            const requires = (step.uses || []).map(use => use.variable || use);
+            addOrUpdateTestScript(
+                workflowItem, 
+                step.outputs, 
+                step.number, 
+                step.title, 
+                step.title, // Use step title as operation description
+                step.path, 
+                step.method, 
+                requires
+            );
 
+            // Special handling for Check Account Balance Before Zeroing step
+            if (step.title === "Check Account Balance Before Zeroing") {
+                console.log(`  DEBUG: Adding balance extraction for step ${step.number}: Check Account Balance Before Zeroing`);
+                
+                // Add custom test script to extract balance amount and scale
+                let testEvent = workflowItem.event.find(e => e.listen === 'test');
+                if (testEvent && testEvent.script && testEvent.script.exec) {
+                    // Add balance extraction logic to the existing test script
+                    const balanceExtractionScript = `
+// Extract balance information for zero-out transaction
+if (pm.response.code === 200) {
+    const responseJson = pm.response.json();
+    console.log("🏦 Balance response structure:", JSON.stringify(responseJson, null, 2));
+    
+    if (responseJson.items && responseJson.items.length > 0) {
+        // Get the first balance (USD balance for the account)
+        const balance = responseJson.items[0];
+        if (balance.available !== undefined && balance.scale !== undefined) {
+            const balanceAmount = Math.abs(balance.available); // Use absolute value of available balance
+            const balanceScale = balance.scale;
+            
+            pm.environment.set("currentBalanceAmount", balanceAmount);
+            pm.environment.set("currentBalanceScale", balanceScale);
+            
+            console.log("💰 Extracted balance amount:", balanceAmount);
+            console.log("📊 Extracted balance scale:", balanceScale);
+            console.log("✅ Balance variables set for zero-out transaction");
+        } else {
+            console.warn("⚠️ No balance amount/scale found in response");
+            console.warn("⚠️ Balance object structure:", JSON.stringify(balance, null, 2));
+            // Set default values to prevent failures
+            pm.environment.set("currentBalanceAmount", 0);
+            pm.environment.set("currentBalanceScale", 2);
+        }
+    } else {
+        console.warn("⚠️ No balance items found in response");
+        // Set default values to prevent failures
+        pm.environment.set("currentBalanceAmount", 0);
+        pm.environment.set("currentBalanceScale", 2);
+    }
+}`;
+                    
+                    // Append the balance extraction script to the existing test script
+                    testEvent.script.exec[0] += balanceExtractionScript;
+                    console.log(`  DEBUG: Added balance extraction logic to test script`);
+                }
+            }
+            
             // Special handling for Zero Out Balance step
             if (step.title === "Zero Out Balance") {
                 console.log(`  DEBUG: Attempting to customize Zero Out Balance step (Step ${step.number})...`);
@@ -392,13 +558,14 @@ function createWorkflowFolder(collection, steps) {
                     console.log(`  DEBUG: Request body already exists with mode: ${workflowItem.request.body.mode}`);
                 }
                 
-                // Set the custom transaction body for zeroing out the balance
+                // Set the custom transaction body for zeroing out the balance (reverse transaction using dynamic amounts)
                 const zeroOutTransactionBody = {
                   "chartOfAccountsGroupName": "Example chartOfAccountsGroupName",
-                  "code": "Example code",
-                  "description": "Example description",
+                  "code": "Zero Out Balance Transaction",
+                  "description": "Reverse transaction to zero out the account balance using actual current balance",
                   "metadata": {
-                    "key": "value"
+                    "purpose": "balance_zeroing",
+                    "reference_step": "48"
                   },
                   "send": {
                     "asset": "USD",
@@ -408,42 +575,47 @@ function createWorkflowFolder(collection, steps) {
                           "account": "@external/USD",
                           "amount": {
                             "asset": "USD",
-                            "scale": 2,
-                            "value": 100
+                            "scale": "{{currentBalanceScale}}",
+                            "value": "{{currentBalanceAmount}}"
                           },
                           "chartOfAccounts": "Example chartOfAccounts",
-                          "description": "Example description",
+                          "description": "External account for balance zeroing",
                           "metadata": {
-                            "key": "value"
+                            "operation_type": "credit"
                           }
                         }
                       ]
                     },
-                    "scale": 2,
                     "source": {
                       "from": [
                         {
                           "account": "{{accountAlias}}",
                           "amount": {
                             "asset": "USD",
-                            "scale": 2,
-                            "value": 100
+                            "scale": "{{currentBalanceScale}}",
+                            "value": "{{currentBalanceAmount}}"
                           },
                           "chartOfAccounts": "Example chartOfAccounts",
-                          "description": "Example description",
+                          "description": "Source account for balance zeroing",
                           "metadata": {
-                            "key": "value"
+                            "operation_type": "debit"
                           }
                         }
                       ]
                     },
-                    "value": 100
+                    "scale": "{{currentBalanceScale}}",
+                    "value": "{{currentBalanceAmount}}"
                   }
                 };
                 
-                // Update the request body
+                // Update the request body with proper variable substitution
                 if (workflowItem.request.body) {
-                    workflowItem.request.body.raw = JSON.stringify(zeroOutTransactionBody, null, 2);
+                    let bodyString = JSON.stringify(zeroOutTransactionBody, null, 2);
+                    // Replace numeric placeholders with Postman variables (without quotes) for all occurrences
+                    bodyString = bodyString.replace(/\"{{currentBalanceScale}}\"/g, '{{currentBalanceScale}}');
+                    bodyString = bodyString.replace(/\"{{currentBalanceAmount}}\"/g, '{{currentBalanceAmount}}');
+                    
+                    workflowItem.request.body.raw = bodyString;
                     console.log(`  DEBUG: Updated request body for Zero Out Balance step`);
                     console.log(`  DEBUG: New request body:`, workflowItem.request.body.raw);
                 } else {
@@ -463,11 +635,18 @@ function createWorkflowFolder(collection, steps) {
                 path: step.path
             });
             // Optionally, create a placeholder item
+            let baseUrl = '{{onboardingUrl}}'; // Default to onboarding
+            // Determine which service URL to use based on path patterns
+            if (step.path.includes('/transactions') || step.path.includes('/operations') || 
+                step.path.includes('/balances') || step.path.includes('/asset-rates')) {
+                baseUrl = '{{transactionUrl}}';
+            }
+            
             workflowFolder.item.push({
                 name: `[NOT FOUND] ${step.title}`, // Indicate it wasn't found
                 request: {
                     method: step.method,
-                    url: { raw: step.path }, // Use path as raw URL placeholder
+                    url: { raw: `${baseUrl}${step.path}` }, // Include proper base URL
                     description: `Placeholder for missing request: ${step.method} ${step.path}`
                 },
                  // Add a simple test script indicating failure
@@ -546,9 +725,35 @@ function main() {
         } else {
             console.log("Adding new 'Complete API Workflow' folder.");
         }
+        // Add workflow summary step at the end for CI reporting
+        const summaryStep = {
+            name: "Workflow Summary & Report",
+            request: {
+                method: "GET",
+                url: {
+                    raw: "{{onboardingUrl}}/health",
+                    host: ["{{onboardingUrl}}"],
+                    path: ["health"]
+                },
+                description: "Final step that generates comprehensive test summary for CI reporting"
+            },
+            event: [
+                {
+                    listen: "test",
+                    script: {
+                        id: uuidv4(),
+                        exec: [generateWorkflowSummaryScript()],
+                        type: "text/javascript"
+                    }
+                }
+            ]
+        };
+        
+        workflowFolder.item.push(summaryStep);
+        console.log("Added workflow summary and reporting step for CI");
+
         // Add the new folder at the beginning
         collection.item.unshift(workflowFolder);
-
 
         // 6. Write Updated Collection
         console.log(`\nWriting updated collection to: ${outputFilePath}`);

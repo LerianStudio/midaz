@@ -152,117 +152,198 @@ This document outlines a complete linear workflow for testing all the main endpo
     - Lists all segments in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-25. **Create Transaction**
+25. **Count Organizations**
+
+    - `HEAD /v1/organizations/metrics/count`
+    - Gets the total count of organizations in the system
+    - Returns count in response headers
+
+26. **Count Ledgers**
+
+    - `HEAD /v1/organizations/{organizationId}/ledgers/metrics/count`
+    - Gets the total count of ledgers in the organization
+    - **Uses:** `organizationId` from step 1
+
+27. **Count Accounts**
+
+    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/metrics/count`
+    - Gets the total count of accounts in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+28. **Count Assets**
+
+    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/metrics/count`
+    - Gets the total count of assets in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+29. **Count Portfolios**
+
+    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/metrics/count`
+    - Gets the total count of portfolios in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+30. **Count Segments**
+
+    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/metrics/count`
+    - Gets the total count of segments in the ledger
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+31. **Get Account by Alias**
+
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}`
+    - Retrieves an account using its alias
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+
+32. **Get Account by External Code**
+
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/external/{code}`
+    - Retrieves an account using external code
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+33. **Create Transaction**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
     - Creates a new transaction in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
     - **Output:** `transactionId`, `balanceId`, `operationId`
 
-26. **Get Transaction**
+34. **Create Transaction (Inflow)**
+
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/inflow`
+    - Creates an inflow transaction (money coming in)
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+    - **Output:** `inflowTransactionId`
+
+35. **Create Transaction (Outflow)**
+
+    - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/outflow`
+    - Creates an outflow transaction (money going out)
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+    - **Output:** `outflowTransactionId`
+
+36. **Get Transaction**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
     - Retrieves the transaction details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 33
 
-27. **Update Transaction**
+37. **Update Transaction**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}`
     - Updates transaction metadata
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 33
 
-28. **List Transactions**
+38. **List Transactions**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions`
     - Lists all transactions in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-29. **Get Operation**
+39. **Get Operation**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations/{operationId}`
     - Retrieves the operation details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13, `operationId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13, `operationId` from step 33
 
-30. **List Operations by Account**
+40. **List Operations by Account**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations`
     - Lists all operations for a specific account
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-31. **Update Operation Metadata**
+41. **Update Operation Metadata**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}/operations/{operationId}`
     - Updates operation metadata
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 25, `operationId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `transactionId` from step 33, `operationId` from step 33
 
-32. **Get Balance**
+42. **Get Balance**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Retrieves the balance details
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 33
 
-33. **List Balances by Account**
+43. **List Balances by Account**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/balances`
     - Lists all balances for a specific account
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-34. **Update Balance**
+44. **List Balances by Account Alias**
+
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}/balances`
+    - Lists all balances for an account identified by alias
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+
+45. **List Balances by External Code**
+
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/external/{code}/balances`
+    - Lists all balances for an account identified by external code
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+
+46. **Update Balance**
 
     - `PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Updates balance metadata
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 33
 
-35. **List All Balances**
+47. **List All Balances**
 
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances`
     - Lists all balances in the ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-36. **Zero Out Balance**
+48. **Check Account Balance Before Zeroing**
+
+    - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}/balances`
+    - Gets the current balance of the account before zeroing it out
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
+    - **Output:** `currentBalanceAmount`, `currentBalanceScale`
+
+49. **Zero Out Balance**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
-    - Creates a reverse transaction to zero out the balance created in step 25
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
-    - **Description:** Creates a transaction that transfers 100 (scale 2) from account to external/USD, reversing the transaction in step 25
+    - Creates a reverse transaction to zero out the account balance using the actual current balance
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13, `currentBalanceAmount` from step 48, `currentBalanceScale` from step 48
+    - **Description:** Creates a transaction that transfers the current balance amount from account to external/USD, completely zeroing the balance
 
-37. **Delete Balance**
+50. **Delete Balance**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}`
     - Deletes a balance
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 25
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `balanceId` from step 33
 
-38. **Delete Segment**
+51. **Delete Segment**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}`
     - Deletes a segment
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `segmentId` from step 21
 
-39. **Delete Portfolio**
+52. **Delete Portfolio**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}`
     - Deletes a portfolio
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `portfolioId` from step 17
 
-40. **Delete Account**
+53. **Delete Account**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}`
     - Deletes an account
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountId` from step 13
 
-41. **Delete Asset**
+54. **Delete Asset**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}`
     - Deletes an asset
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `assetId` from step 9
 
-42. **Delete Ledger**
+55. **Delete Ledger**
 
     - `DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}`
     - Deletes a ledger
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
 
-43. **Delete Organization**
+56. **Delete Organization**
 
     - `DELETE /v1/organizations/{organizationId}`
     - Deletes an organization
@@ -270,8 +351,15 @@ This document outlines a complete linear workflow for testing all the main endpo
 
 ## Notes
 
-- This workflow provides a comprehensive test of all major API endpoints in a logical sequence.
-- Each step builds on previous steps, using IDs and resources created earlier.
-- The sequence follows the natural hierarchy: Organization → Ledger → Assets/Accounts → Transactions → Operations/Balances.
-- The cleanup sequence follows the reverse order to maintain referential integrity.
-- This workflow can be automated in Postman by using environment variables to store and pass the IDs between requests.
+- This workflow provides a comprehensive test of **ALL API endpoints** across both onboarding and transaction services.
+- **Complete Coverage**: Now includes 56 steps covering implemented API endpoints plus business flow variations.
+- **Enhanced Sections Added**:
+  - **Metrics Endpoints** (Steps 25-30): All count/metrics operations for monitoring
+  - **Alternative Access** (Steps 31-32): Account lookup by alias and external code  
+  - **Transaction Variants** (Steps 34-35): Inflow and outflow transaction types
+  - **Extended Balance Operations** (Steps 44-45): Balance queries by alias/external code
+- **Dependency Chain Maintained**: Each step builds on previous steps, using IDs and resources created earlier.
+- **Logical Sequence**: Organization → Ledger → Assets/Accounts → Metrics → Alternative Access → Transactions → Transaction Variants → Operations → Balances → Cleanup.
+- **Referential Integrity**: The cleanup sequence follows the reverse order to maintain referential integrity.
+- **CI/CD Ready**: This comprehensive workflow ensures complete API regression testing in automated pipelines.
+- **Environment Variables**: Can be automated in Postman by using environment variables to store and pass the IDs between requests.
