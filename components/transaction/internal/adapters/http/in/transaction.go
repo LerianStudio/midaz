@@ -1027,7 +1027,10 @@ func (handler *TransactionHandler) transactionAsyncOrSync(ctx context.Context, o
 
 		return t, nil
 	} else {
-		go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
+		err := handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parserDSL, validate, blc, tran)
+		if err != nil {
+			return nil, err
+		}
 
 		return tran, nil
 	}

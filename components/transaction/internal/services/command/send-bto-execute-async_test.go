@@ -108,7 +108,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		Times(1)
 
 	// Call the method with the correct parameters
-	uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+	_ = uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
 
 	// No assertions needed as the function doesn't return anything
 	// The test passes if the mock expectations are met
