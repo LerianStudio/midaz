@@ -167,7 +167,7 @@ func TestGetAllMetadataTransactionRoutesNoMetadata(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-		Return(nil, nil)
+		Return(nil, errors.New("metadata not found"))
 
 	result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 

@@ -73,6 +73,33 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 		EndDate:    headerParams.EndDate,
 	}
 
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Operations by account and metadata")
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
+
+			return http.WithError(c, err)
+		}
+
+		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account and metadata", err)
+
+			logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Operations by account and metadata")
+
+		pagination.SetItems(trans)
+		pagination.SetCursor(cur.Next, cur.Prev)
+
+		return http.OK(c, pagination)
+	}
+
 	logger.Infof("Initiating retrieval of all Operations by account")
 
 	headerParams.Metadata = &bson.M{}

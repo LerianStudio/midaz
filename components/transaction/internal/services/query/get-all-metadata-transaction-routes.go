@@ -27,21 +27,15 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 	logger.Infof("Retrieving transaction routes by metadata")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), filter)
-	if err != nil {
+	if err != nil || metadata == nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction routes on repo by metadata", err)
 
 		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
-	if metadata == nil {
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	}
-
-	uuids := make([]uuid.UUID, len(metadata))
 	metadataMap := make(map[string]map[string]any, len(metadata))
 
-	for i, meta := range metadata {
-		uuids[i] = uuid.MustParse(meta.EntityID)
+	for _, meta := range metadata {
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
@@ -60,17 +54,9 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	var filteredTransactionRoutes []*mmodel.TransactionRoute
 
-	uuidSet := make(map[uuid.UUID]bool)
-	for _, id := range uuids {
-		uuidSet[id] = true
-	}
-
 	for _, transactionRoute := range allTransactionRoutes {
-		if uuidSet[transactionRoute.ID] {
-			if data, ok := metadataMap[transactionRoute.ID.String()]; ok {
-				transactionRoute.Metadata = data
-			}
-
+		if data, ok := metadataMap[transactionRoute.ID.String()]; ok {
+			transactionRoute.Metadata = data
 			filteredTransactionRoutes = append(filteredTransactionRoutes, transactionRoute)
 		}
 	}
