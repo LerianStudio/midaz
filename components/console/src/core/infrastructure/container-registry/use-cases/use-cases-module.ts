@@ -5,6 +5,7 @@ import { AssetUseCaseModule } from './asset-module'
 import { AuthUseCaseModule } from './auth-module'
 import { BalanceUseCaseModule } from './balance-module'
 import { GroupUseCaseModule } from './group-module'
+import { HomeUseCaseModule } from './home-module'
 import { LedgerUseCaseModule } from './ledger-module'
 import { OnboardingUseCaseModule } from './onboarding-module'
 import { OrganizationUseCaseModule } from './organization-module'
@@ -31,4 +32,5 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(ApplicationModule)
   container.load(PluginMenuModule)
   container.load(PluginManifestModule)
+  container.load(HomeUseCaseModule)
 })

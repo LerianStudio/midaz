@@ -1,3 +1,59 @@
+## [v2.3.0-beta.10] - 2025-07-07
+
+This release introduces significant enhancements to the backend, focusing on improved data management, performance optimizations, and robust error handling. Users will benefit from enhanced CRUD functionalities, faster operations, and a more reliable system.
+
+### ✨ Features  
+- **Enhanced Data Integrity**: Validation for mutually exclusive fields in operation routes ensures data integrity and prevents conflicting inputs.
+- **Improved Performance**: Caching for settings retrieval and updates dramatically reduces load times, making repeated access faster and more efficient.
+- **Comprehensive Settings Management**: New CRUD endpoints for settings, complete with pagination, allow for efficient data handling and retrieval.
+- **Flexible Transaction Management**: Full CRUD functionality for transaction routes, with pagination and metadata filtering, enables detailed data management.
+- **Scalable Data Navigation**: Cursor-based pagination in operation routes enhances user experience when dealing with large datasets.
+
+### 🐛 Bug Fixes
+- **Clearer Error Handling**: Improved feedback for missing transaction routes during deletion reduces user confusion.
+- **Enhanced Duplicate Handling**: Error validation now includes record keys, aiding in troubleshooting duplicate settings.
+- **Consistent UUID Generation**: Updated UUID generation method ensures compatibility across systems.
+- **Standardized Error Responses**: Missing settings records now provide consistent feedback, improving system reliability.
+
+### ⚡ Performance
+- **Optimized Settings Retrieval**: Caching mechanisms significantly enhance performance, reducing load times for settings operations.
+
+### 🔄 Changes
+- **Flexible Data Entry**: Removal of title + type uniqueness constraint allows for more diverse data entry options.
+- **Enhanced Model Flexibility**: Operation routes now include account types and alias fields, offering greater management flexibility.
+
+### 📚 Documentation
+- **Improved User Guidance**: Updated documentation to reflect new features and changes, ensuring users have the information needed to utilize new capabilities effectively.
+
+### 🔧 Maintenance
+- **Streamlined Database Management**: Updated migration scripts for smoother operation route table management.
+- **Future-Proofing**: Refactored settings table schema and related validations to enhance code maintainability.
+
+This release ensures a robust and efficient backend with a focus on user satisfaction through improved functionality, performance, and error handling.
+
+## [v2.3.0-beta.9] - 2025-07-04
+
+This release of midaz introduces a refreshed Home page interface and new real-time analytics, enhancing user navigation and insight capabilities. Backend optimizations further improve system performance and reliability.
+
+### ✨ Features
+- **Enhanced Home Page Interface**: Enjoy a more intuitive and visually appealing Home page, designed for easier navigation and interaction.
+- **Real-Time Home Metrics**: Access up-to-date analytics directly on your dashboard, providing timely insights to enhance decision-making.
+
+### 🐛 Bug Fixes
+- **Text Display Corrections**: Resolved issues with text clarity on the user interface, ensuring consistent readability across all elements.
+- **Stability Improvements**: Fixed backend issues that could cause unexpected behavior, enhancing overall system reliability.
+
+### ⚡ Performance
+- **Optimized Data Handling**: Implemented a repository counting feature that improves the accuracy of metrics and supports better resource management.
+
+### 🔄 Changes
+- **Codebase Cleanup**: Removed unused files to streamline the system architecture, reducing maintenance overhead and improving efficiency.
+
+### 🔧 Maintenance
+- **Updated Documentation**: The CHANGELOG has been updated to include the latest changes, ensuring all users and developers have access to current information.
+
+This update focuses on delivering a smoother and more informative user experience while ensuring the backend remains robust and efficient.
+
 ## [v2.3.0-beta.8] - 2025-07-03
 
 This release introduces real-time transaction event streaming, enhancing data flow and operational efficiency. It also includes critical bug fixes and performance improvements for a more reliable and responsive user experience.
