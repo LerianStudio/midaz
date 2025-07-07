@@ -1,3 +1,36 @@
+## [v2.3.0-beta.10] - 2025-07-07
+
+This release introduces significant enhancements to the backend, focusing on improved data management, performance optimizations, and robust error handling. Users will benefit from enhanced CRUD functionalities, faster operations, and a more reliable system.
+
+### ✨ Features  
+- **Enhanced Data Integrity**: Validation for mutually exclusive fields in operation routes ensures data integrity and prevents conflicting inputs.
+- **Improved Performance**: Caching for settings retrieval and updates dramatically reduces load times, making repeated access faster and more efficient.
+- **Comprehensive Settings Management**: New CRUD endpoints for settings, complete with pagination, allow for efficient data handling and retrieval.
+- **Flexible Transaction Management**: Full CRUD functionality for transaction routes, with pagination and metadata filtering, enables detailed data management.
+- **Scalable Data Navigation**: Cursor-based pagination in operation routes enhances user experience when dealing with large datasets.
+
+### 🐛 Bug Fixes
+- **Clearer Error Handling**: Improved feedback for missing transaction routes during deletion reduces user confusion.
+- **Enhanced Duplicate Handling**: Error validation now includes record keys, aiding in troubleshooting duplicate settings.
+- **Consistent UUID Generation**: Updated UUID generation method ensures compatibility across systems.
+- **Standardized Error Responses**: Missing settings records now provide consistent feedback, improving system reliability.
+
+### ⚡ Performance
+- **Optimized Settings Retrieval**: Caching mechanisms significantly enhance performance, reducing load times for settings operations.
+
+### 🔄 Changes
+- **Flexible Data Entry**: Removal of title + type uniqueness constraint allows for more diverse data entry options.
+- **Enhanced Model Flexibility**: Operation routes now include account types and alias fields, offering greater management flexibility.
+
+### 📚 Documentation
+- **Improved User Guidance**: Updated documentation to reflect new features and changes, ensuring users have the information needed to utilize new capabilities effectively.
+
+### 🔧 Maintenance
+- **Streamlined Database Management**: Updated migration scripts for smoother operation route table management.
+- **Future-Proofing**: Refactored settings table schema and related validations to enhance code maintainability.
+
+This release ensures a robust and efficient backend with a focus on user satisfaction through improved functionality, performance, and error handling.
+
 ## [v2.3.0-beta.9] - 2025-07-04
 
 This release of midaz introduces a refreshed Home page interface and new real-time analytics, enhancing user navigation and insight capabilities. Backend optimizations further improve system performance and reliability.
