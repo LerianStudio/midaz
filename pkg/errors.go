@@ -930,7 +930,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateSettingsKey.Error(),
 			Title:      "Duplicate Settings Key Error",
-			Message:    fmt.Sprintf("A setting with the key '%v' already exists for this organization and ledger. Please use a different key or update the existing setting.", args...),
+			Message:    "A setting with the specified key already exists for this organization and ledger. Please use a different key or update the existing setting.",
 		},
 		constant.ErrSettingsNotFound: EntityNotFoundError{
 			EntityType: entityType,
