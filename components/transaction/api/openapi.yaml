@@ -982,6 +982,1121 @@ paths:
       tags:
       - Balances
       x-codegen-request-body-name: balance
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
+    get:
+      description: Returns a list of all operation routes within the specified ledger
+        with cursor-based pagination
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_3'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Operation Route not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Retrieve all operation routes
+      tags:
+      - Operation Route
+    post:
+      description: Endpoint to create a new Operation Route.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOperationRouteInput'
+        description: Operation Route Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: Successfully created operation route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Operation Route
+      tags:
+      - Operation Route
+      x-codegen-request-body-name: operation-route
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}:
+    get:
+      description: Returns detailed information about an operation route identified
+        by its UUID within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Operation Route ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: Successfully retrieved operation route
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+      summary: Retrieve a specific operation route
+      tags:
+      - Operation Route
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
+    delete:
+      description: Deletes an existing operation route identified by its UUID within
+        the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Operation Route ID in UUID format
+        in: path
+        name: operation_route_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully deleted operation route
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Operation Route not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Delete an operation route
+      tags:
+      - Operation Route
+    patch:
+      description: Updates an existing operation route's properties such as title,
+        description, and type within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Operation Route ID in UUID format
+        in: path
+        name: operation_route_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOperationRouteInput'
+        description: Operation Route Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationRoute'
+          description: Successfully updated operation route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Operation Route not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Conflict: Operation Route with the same title already exists'
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Update an operation route
+      tags:
+      - Operation Route
+      x-codegen-request-body-name: operation-route
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
+    get:
+      description: Retrieves all settings from the specified ledger with cursor pagination
+        support
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: 'Maximum number of settings to return (default: 10)'
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: Cursor for pagination
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: 'Sort order: ''asc'' or ''desc'' (default: ''asc'')'
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Start date for filtering (ISO 8601 format)
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End date for filtering (ISO 8601 format)
+        in: query
+        name: end_date
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_4'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get all settings
+      tags:
+      - Settings
+    post:
+      description: Endpoint to create a new Setting.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingsInput'
+        description: Settings Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully created setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict - setting key already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Setting
+      tags:
+      - Settings
+      x-codegen-request-body-name: settings
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}:
+    delete:
+      description: Deletes an existing setting identified by its UUID within the specified
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully deleted setting
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Delete a setting
+      tags:
+      - Settings
+    get:
+      description: Retrieve a specific setting by its ID within an organization and
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully retrieved setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Setting by ID
+      tags:
+      - Settings
+    patch:
+      description: Updates an existing setting's properties such as active status
+        and description within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsInput'
+        description: Settings Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully updated setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Conflict: Setting with the same key already exists'
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Update a setting
+      tags:
+      - Settings
+      x-codegen-request-body-name: settings
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
+    get:
+      description: Endpoint to get all Transaction Routes with optional metadata filtering.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_5'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get all Transaction Routes
+      tags:
+      - Transaction Route
+    post:
+      description: Endpoint to create a new Transaction Route.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRouteInput'
+        description: Transaction Route Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: Successfully created transaction route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Transaction Route
+      tags:
+      - Transaction Route
+      x-codegen-request-body-name: transaction-route
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}:
+    delete:
+      description: Endpoint to delete a Transaction Route by its ID.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction Route ID in UUID format
+        in: path
+        name: transaction_route_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully deleted transaction route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction Route not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Delete Transaction Route by ID
+      tags:
+      - Transaction Route
+    get:
+      description: Endpoint to get a Transaction Route by its ID.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction Route ID in UUID format
+        in: path
+        name: transaction_route_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: Successfully retrieved transaction route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transaction Route not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Transaction Route by ID
+      tags:
+      - Transaction Route
+    patch:
+      description: Endpoint to update a Transaction Route by its ID.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction Route ID in UUID format
+        in: path
+        name: transaction_route_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTransactionRouteInput'
+        description: Transaction Route Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionRoute'
+          description: Successfully updated transaction route
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Update Transaction Route
+      tags:
+      - Transaction Route
+      x-codegen-request-body-name: transaction-route
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
@@ -1043,7 +2158,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_6'
           description: OK
         "400":
           content:
@@ -2079,6 +3194,77 @@ components:
       - rate
       - to
       type: object
+    CreateOperationRouteInput:
+      description: CreateOperationRouteInput payload
+      example:
+        accountAlias: '@cash_account'
+        accountTypes:
+        - '["asset"'
+        - '"liability"]'
+        description: This operation route handles cash-in transactions from service
+          charge collections
+        title: Cashin from service charge
+        type: debit
+      properties:
+        accountAlias:
+          description: Specific account alias for this operation route.
+          example: '@cash_account'
+          type: string
+        accountTypes:
+          description: Array of allowed account types for this operation route.
+          example:
+          - '["asset"'
+          - '"liability"]'
+          items:
+            type: string
+          type: array
+        description:
+          description: Detailed description of the operation route purpose and usage.
+          example: This operation route handles cash-in transactions from service
+            charge collections
+          maxLength: 250
+          type: string
+        title:
+          description: Short text summarizing the purpose of the operation. Used as
+            an entry note for identification.
+          example: Cashin from service charge
+          maxLength: 50
+          type: string
+        type:
+          description: The type of the operation route.
+          example: debit
+          type: string
+      required:
+      - title
+      - type
+      type: object
+    CreateSettingsInput:
+      description: CreateSettingsInput payload
+      example:
+        active: true
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+        key: accounting_validation_enabled
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: true
+          type: boolean
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          maxLength: 255
+          type: string
+        key:
+          description: The key identifier for the setting.
+          example: accounting_validation_enabled
+          maxLength: 30
+          type: string
+      required:
+      - active
+      - key
+      type: object
     CreateTransactionInflowSwaggerModel:
       description: Schema for creating inflow transaction with the complete SendInflow
         operation structure defined inline
@@ -2208,6 +3394,43 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send'
+      type: object
+    CreateTransactionRouteInput:
+      description: CreateTransactionRouteInput payload
+      example:
+        metadata:
+          key: '{}'
+        operationRoutes:
+        - operationRoutes
+        - operationRoutes
+        description: Settlement route for service charges
+        title: Charge Settlement
+      properties:
+        description:
+          description: A description for the Transaction Route.
+          example: Settlement route for service charges
+          maxLength: 250
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
+        operationRoutes:
+          description: An object containing accounting data of Operation Routes from
+            the Transaction Route.
+          items:
+            type: string
+          type: array
+        title:
+          description: Short text summarizing the purpose of the transaction. Used
+            as an entry note for identification.
+          example: Charge Settlement
+          maxLength: 50
+          type: string
+      required:
+      - operationRoutes
+      - title
       type: object
     Error:
       description: Standardized error response format used across all API endpoints
@@ -2434,6 +3657,78 @@ components:
           format: date-time
           type: string
       type: object
+    OperationRoute:
+      description: OperationRoute object
+      example:
+        accountAlias: '@cash_account'
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        accountTypes:
+        - '["asset"'
+        - '"liability"]'
+        description: This operation route handles cash-in transactions from service
+          charge collections
+        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        title: Cashin from service charge
+        type: debit
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountAlias:
+          description: Specific account alias for this operation route.
+          example: '@cash_account'
+          type: string
+        accountTypes:
+          description: Array of allowed account types for this operation route.
+          example:
+          - '["asset"'
+          - '"liability"]'
+          items:
+            type: string
+          type: array
+        createdAt:
+          description: The timestamp when the operation route was created.
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        deletedAt:
+          description: The timestamp when the operation route was deleted.
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        description:
+          description: Detailed description of the operation route purpose and usage.
+          example: This operation route handles cash-in transactions from service
+            charge collections
+          type: string
+        id:
+          description: The unique identifier of the Operation Route.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          description: The unique identifier of the Ledger.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        organizationId:
+          description: The unique identifier of the Organization.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          description: Short text summarizing the purpose of the operation. Used as
+            an entry note for identification.
+          example: Cashin from service charge
+          type: string
+        type:
+          description: The type of the operation route.
+          example: debit
+          type: string
+        updatedAt:
+          description: The timestamp when the operation route was last updated.
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+      type: object
     Pagination:
       description: Pagination is the struct designed to store the pagination data
         of an entity list.
@@ -2460,6 +3755,58 @@ components:
           example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
           type: string
           x-omitempty: true
+      type: object
+    Settings:
+      description: Settings object
+      example:
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        active: true
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        key: accounting_validation_enabled
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: true
+          type: boolean
+        createdAt:
+          description: The timestamp when the setting was created.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          description: The timestamp when the setting was deleted.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          type: string
+        id:
+          description: The unique identifier of the Settings.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        key:
+          description: The key identifier for the setting.
+          example: accounting_validation_enabled
+          type: string
+        ledgerId:
+          description: The unique identifier of the Ledger.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        organizationId:
+          description: The unique identifier of the Organization.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        updatedAt:
+          description: The timestamp when the setting was last updated.
+          example: 2025-01-01T00:00:00Z
+          type: string
       type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
@@ -2685,6 +4032,94 @@ components:
           format: date-time
           type: string
       type: object
+    TransactionRoute:
+      description: TransactionRoute object
+      example:
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        metadata:
+          key: '{}'
+        operationRoutes:
+        - accountAlias: '@cash_account'
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          accountTypes:
+          - '["asset"'
+          - '"liability"]'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Cashin from service charge
+          type: debit
+          updatedAt: 2021-01-01T00:00:00Z
+        - accountAlias: '@cash_account'
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          accountTypes:
+          - '["asset"'
+          - '"liability"]'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Cashin from service charge
+          type: debit
+          updatedAt: 2021-01-01T00:00:00Z
+        description: Settlement route for service charges
+        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        title: Charge Settlement
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        createdAt:
+          description: The timestamp when the transaction route was created.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          description: The timestamp when the transaction route was deleted.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        description:
+          description: A description for the Transaction Route.
+          example: Settlement route for service charges
+          type: string
+        id:
+          description: The unique identifier of the Transaction Route.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          description: The unique identifier of the Ledger.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
+        operationRoutes:
+          description: An object containing accounting data of Operation Routes from
+            the Transaction Route.
+          items:
+            $ref: '#/components/schemas/OperationRoute'
+          type: array
+        organizationId:
+          description: The unique identifier of the Organization.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          description: Short text summarizing the purpose of the transaction. Used
+            as an entry note for identification.
+          example: Charge Settlement
+          type: string
+        updatedAt:
+          description: The timestamp when the transaction route was last updated.
+          example: 2025-01-01T00:00:00Z
+          type: string
+      type: object
     UpdateBalance:
       description: Request payload for updating an existing balance's permissions.
         All fields are optional - only specified fields will be updated. Omitted fields
@@ -2732,6 +4167,60 @@ components:
             example: {"reason": "Purchase refund", "reference": "INV-12345"}
           type: object
       type: object
+    UpdateOperationRouteInput:
+      description: UpdateOperationRouteInput payload
+      example:
+        accountAlias: '@cash_account'
+        accountTypes:
+        - '["asset"'
+        - '"liability"]'
+        description: This operation route handles cash-in transactions from service
+          charge collections
+        title: Cashin from service charge
+      properties:
+        accountAlias:
+          description: Specific account alias for this operation route.
+          example: '@cash_account'
+          type: string
+        accountTypes:
+          description: Array of allowed account types for this operation route.
+          example:
+          - '["asset"'
+          - '"liability"]'
+          items:
+            type: string
+          type: array
+        description:
+          description: Detailed description of the operation route purpose and usage.
+          example: This operation route handles cash-in transactions from service
+            charge collections
+          maxLength: 250
+          type: string
+        title:
+          description: Short text summarizing the purpose of the operation. Used as
+            an entry note for identification.
+          example: Cashin from service charge
+          maxLength: 50
+          type: string
+      type: object
+    UpdateSettingsInput:
+      description: UpdateSettingsInput payload
+      example:
+        active: false
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: false
+          type: boolean
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          maxLength: 255
+          type: string
+      type: object
     UpdateTransactionInput:
       description: UpdateTransactionInput is the input payload to update a transaction.
         Contains fields that can be modified after a transaction is created.
@@ -2755,6 +4244,40 @@ components:
             Additional custom attributes
             example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
+      type: object
+    UpdateTransactionRouteInput:
+      description: UpdateTransactionRouteInput payload
+      example:
+        metadata:
+          key: '{}'
+        operationRoutes:
+        - operationRoutes
+        - operationRoutes
+        description: Settlement route for service charges
+        title: Charge Settlement
+      properties:
+        description:
+          description: A description for the Transaction Route.
+          example: Settlement route for service charges
+          maxLength: 250
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
+        operationRoutes:
+          description: An object containing accounting data of Operation Routes from
+            the Transaction Route.
+          items:
+            type: string
+          type: array
+        title:
+          description: Short text summarizing the purpose of the transaction. Used
+            as an entry note for identification.
+          example: Charge Settlement
+          maxLength: 50
+          type: string
       type: object
     github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
       description: Schema for creating transaction with the complete Send operation
@@ -3129,6 +4652,222 @@ components:
           type: string
       type: object
     inline_response_200_3:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - accountAlias: '@cash_account'
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          accountTypes:
+          - '["asset"'
+          - '"liability"]'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Cashin from service charge
+          type: debit
+          updatedAt: 2021-01-01T00:00:00Z
+        - accountAlias: '@cash_account'
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          accountTypes:
+          - '["asset"'
+          - '"liability"]'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Cashin from service charge
+          type: debit
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/OperationRoute'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_4:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          active: true
+          description: Controls whether strict accounting validation rules are enforced
+            for transactions
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          key: accounting_validation_enabled
+          updatedAt: 2025-01-01T00:00:00Z
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          active: true
+          description: Controls whether strict accounting validation rules are enforced
+            for transactions
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          key: accounting_validation_enabled
+          updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Settings'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_5:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          operationRoutes:
+          - accountAlias: '@cash_account'
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            accountTypes:
+            - '["asset"'
+            - '"liability"]'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            title: Cashin from service charge
+            type: debit
+            updatedAt: 2021-01-01T00:00:00Z
+          - accountAlias: '@cash_account'
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            accountTypes:
+            - '["asset"'
+            - '"liability"]'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            title: Cashin from service charge
+            type: debit
+            updatedAt: 2021-01-01T00:00:00Z
+          description: Settlement route for service charges
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Charge Settlement
+          updatedAt: 2025-01-01T00:00:00Z
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          operationRoutes:
+          - accountAlias: '@cash_account'
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            accountTypes:
+            - '["asset"'
+            - '"liability"]'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            title: Cashin from service charge
+            type: debit
+            updatedAt: 2021-01-01T00:00:00Z
+          - accountAlias: '@cash_account'
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            accountTypes:
+            - '["asset"'
+            - '"liability"]'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            title: Cashin from service charge
+            type: debit
+            updatedAt: 2021-01-01T00:00:00Z
+          description: Settlement route for service charges
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          title: Charge Settlement
+          updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/TransactionRoute'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_6:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
