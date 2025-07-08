@@ -294,6 +294,7 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 		` AND deleted_at IS NULL`
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	defer spanExec.End()
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "settings_repository_input", record)
 	if err != nil {
@@ -329,16 +330,7 @@ func (r *SettingsPostgreSQLRepository) Update(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	spanExec.End()
-
-	updatedSettings, err := r.FindByID(ctx, organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get updated settings", err)
-
-		return nil, err
-	}
-
-	return updatedSettings, nil
+	return record.ToEntity(), nil
 }
 
 // Delete performs a soft delete of a setting by its ID.
