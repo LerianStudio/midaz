@@ -128,6 +128,55 @@ definitions:
         format: date-time
         type: string
     type: object
+  AccountType:
+    description: AccountType object
+    properties:
+      createdAt:
+        description: The timestamp when the account type was created.
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      deletedAt:
+        description: The timestamp when the account type was deleted.
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+      description:
+        description: Detailed description of the account type.
+        example: Assets that are expected to be converted to cash within one year
+        type: string
+      id:
+        description: The unique identifier of the Account Type.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      keyValue:
+        description: A unique key value identifier for the account type.
+        example: current_assets
+        type: string
+      ledgerId:
+        description: The unique identifier of the Ledger.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Custom key-value pairs for extending the account type information
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+        type: object
+      name:
+        description: The name of the account type.
+        example: Current Assets
+        type: string
+      organizationId:
+        description: The unique identifier of the Organization.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      updatedAt:
+        description: The timestamp when the account type was last updated.
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
+        type: string
+    type: object
   Address:
     description: Structured address information following standard postal address
       format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
@@ -332,6 +381,35 @@ definitions:
     - assetCode
     - type
     type: object
+  CreateAccountTypeInput:
+    description: CreateAccountTypeInput payload
+    properties:
+      description:
+        description: Detailed description of the account type.
+        example: Assets that are expected to be converted to cash within one year
+        maxLength: 500
+        type: string
+      keyValue:
+        description: A unique key value identifier for the account type.
+        example: current_assets
+        maxLength: 50
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Custom key-value pairs for extending the account type information
+          required: false
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+        type: object
+      name:
+        description: The name of the account type.
+        example: Current Assets
+        maxLength: 100
+        type: string
+    required:
+    - keyValue
+    - name
+    type: object
   CreateAssetInput:
     description: CreateAssetInput is the input payload to create an asset within a
       ledger, such as a currency, cryptocurrency, or other financial instrument.
@@ -506,6 +584,28 @@ definitions:
         description: Status of the segment (active, inactive, pending)
     required:
     - name
+    type: object
+  CreateSettingsInput:
+    description: CreateSettingsInput payload
+    properties:
+      active:
+        description: Whether the setting is active.
+        example: true
+        type: boolean
+      description:
+        description: A description for the setting.
+        example: Controls whether strict accounting validation rules are enforced
+          for transactions
+        maxLength: 255
+        type: string
+      key:
+        description: The key identifier for the setting.
+        example: accounting_validation_enabled
+        maxLength: 30
+        type: string
+    required:
+    - active
+    - key
     type: object
   Error:
     description: Standardized error response format used across all API endpoints
@@ -825,6 +925,47 @@ definitions:
         format: date-time
         type: string
     type: object
+  Settings:
+    description: Settings object
+    properties:
+      active:
+        description: Whether the setting is active.
+        example: true
+        type: boolean
+      createdAt:
+        description: The timestamp when the setting was created.
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        description: The timestamp when the setting was deleted.
+        example: "2025-01-01T00:00:00Z"
+        type: string
+      description:
+        description: A description for the setting.
+        example: Controls whether strict accounting validation rules are enforced
+          for transactions
+        type: string
+      id:
+        description: The unique identifier of the Settings.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      key:
+        description: The key identifier for the setting.
+        example: accounting_validation_enabled
+        type: string
+      ledgerId:
+        description: The unique identifier of the Ledger.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      organizationId:
+        description: The unique identifier of the Organization.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+      updatedAt:
+        description: The timestamp when the setting was last updated.
+        example: "2025-01-01T00:00:00Z"
+        type: string
+    type: object
   Status:
     description: 'Entity status information with a standardized code and optional
       description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,
@@ -893,6 +1034,27 @@ definitions:
         description: |-
           Updated status of the account
           required: false
+    type: object
+  UpdateAccountTypeInput:
+    description: UpdateAccountTypeInput payload
+    properties:
+      description:
+        description: Detailed description of the account type.
+        example: Assets that are expected to be converted to cash within one year
+        maxLength: 500
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: |-
+          Custom key-value pairs for extending the account type information
+          required: false
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+        type: object
+      name:
+        description: The name of the account type.
+        example: Current Assets
+        maxLength: 100
+        type: string
     type: object
   UpdateAssetInput:
     description: UpdateAssetInput is the input payload to update an existing asset's
@@ -1036,6 +1198,20 @@ definitions:
         allOf:
         - $ref: '#/definitions/Status'
         description: Updated status of the segment (active, inactive, pending)
+    type: object
+  UpdateSettingsInput:
+    description: UpdateSettingsInput payload
+    properties:
+      active:
+        description: Whether the setting is active.
+        example: false
+        type: boolean
+      description:
+        description: A description for the setting.
+        example: Controls whether strict accounting validation rules are enforced
+          for transactions
+        maxLength: 255
+        type: string
     type: object
 host: localhost:3000
 info:
@@ -1640,6 +1816,331 @@ paths:
       summary: Update an existing ledger
       tags:
       - Ledgers
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
+    get:
+      description: Returns a paginated list of all account types for the specified
+        organization and ledger, optionally filtered by metadata
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: JSON string to filter account types by metadata fields
+        in: query
+        name: metadata
+        type: string
+      - description: 'Limit of account types per page (default: 10, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Page number for offset pagination (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: Cursor for cursor-based pagination
+        in: query
+        name: cursor
+        type: string
+      - description: 'Sort order (asc or desc, default: asc)'
+        in: query
+        name: sort_order
+        type: string
+      - description: Start date for filtering (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date for filtering (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved account types
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/AccountType'
+                  type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                page:
+                  type: object
+                prev_cursor:
+                  type: string
+              type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization, ledger, or account types not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all account types
+      tags:
+      - Account Types
+    post:
+      consumes:
+      - application/json
+      description: Endpoint to create a new Account Type.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account Type Input
+        in: body
+        name: accountType
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAccountTypeInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created account type
+          schema:
+            $ref: '#/definitions/AccountType'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict - account type key value already exists
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create Account Type
+      tags:
+      - Account Types
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+    delete:
+      description: Deletes an existing account type identified by its UUID within
+        the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully deleted account type
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account type not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete an account type
+      tags:
+      - Account Types
+    get:
+      description: Returns detailed information about an account type identified by
+        its UUID within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved account type
+          schema:
+            $ref: '#/definitions/AccountType'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account type, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific account type
+      tags:
+      - Account Types
+    patch:
+      consumes:
+      - application/json
+      description: Endpoint to update an existing Account Type.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Account Type Update Input
+        in: body
+        name: accountType
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateAccountTypeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated account type
+          schema:
+            $ref: '#/definitions/AccountType'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account type not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update Account Type
+      tags:
+      - Account Types
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       description: Returns a paginated list of accounts within the specified ledger,
@@ -3319,6 +3820,328 @@ paths:
       summary: Count segments
       tags:
       - Segments
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
+    get:
+      description: Retrieves all settings from the specified ledger with cursor pagination
+        support
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: 'Maximum number of settings to return (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor for pagination
+        in: query
+        name: cursor
+        type: string
+      - description: 'Sort order: ''asc'' or ''desc'' (default: ''asc'')'
+        in: query
+        name: sort_order
+        type: string
+      - description: Start date for filtering (ISO 8601 format)
+        in: query
+        name: start_date
+        type: string
+      - description: End date for filtering (ISO 8601 format)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Settings'
+                  type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                page:
+                  type: object
+                prev_cursor:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get all settings
+      tags:
+      - Settings
+    post:
+      consumes:
+      - application/json
+      description: Endpoint to create a new Setting.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Settings Input
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/CreateSettingsInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created setting
+          schema:
+            $ref: '#/definitions/Settings'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Conflict - setting key already exists
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create Setting
+      tags:
+      - Settings
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}:
+    delete:
+      description: Deletes an existing setting identified by its UUID within the specified
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully deleted setting
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Setting not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a setting
+      tags:
+      - Settings
+    get:
+      description: Retrieve a specific setting by its ID within an organization and
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved setting
+          schema:
+            $ref: '#/definitions/Settings'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Setting not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get Setting by ID
+      tags:
+      - Settings
+    patch:
+      consumes:
+      - application/json
+      description: Updates an existing setting's properties such as active status
+        and description within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Settings Input
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateSettingsInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated setting
+          schema:
+            $ref: '#/definitions/Settings'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Setting not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Setting with the same key already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a setting
+      tags:
+      - Settings
   /v1/organizations/{organization_id}/ledgers/metrics/count:
     head:
       description: Returns the total count of ledgers for a specific organization

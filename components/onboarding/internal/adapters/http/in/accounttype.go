@@ -246,7 +246,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort order (asc or desc, default: asc)"
 //	@Param			start_date		query		string	false	"Start date for filtering (YYYY-MM-DD)"
 //	@Param			end_date		query		string	false	"End date for filtering (YYYY-MM-DD)"
-//	@Success		200				{object}	mmodel.AccountTypePaginationResponse	"Successfully retrieved account types"
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.AccountType,next_cursor=string,prev_cursor=string,limit=int,page=nil}	"Successfully retrieved account types"
 //	@Failure		400				{object}	mmodel.Error							"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error							"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error							"Forbidden access"

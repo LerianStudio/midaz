@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "8b9617dd-1363-4738-a082-d22ba07b6ab7",
+      "_postman_id": "0ae8af67-7356-4ffd-8a18-607bce1d896d",
       "event": []
     },
     {
@@ -7393,6 +7393,672 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Treasury Operations Global\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Account Types",
+      "description": "Endpoints related to Account Types.",
+      "item": [
+        {
+          "name": "Get all account types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "account-types"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "JSON string to filter account types by metadata fields",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of account types per page (default: 10, max: 100)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number for offset pagination (default: 1)",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor for cursor-based pagination",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort order (asc or desc, default: asc)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start date for filtering (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End date for filtering (YYYY-MM-DD)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns a paginated list of all account types for the specified organization and ledger, optionally filtered by metadata"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Account Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "account-types"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ]
+            },
+            "description": "Endpoint to create a new Account Type.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"keyValue\": \"current_assets\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve a specific account type",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "account-types",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Account Type ID in UUID format"
+                }
+              ]
+            },
+            "description": "Returns detailed information about an account type identified by its UUID within the specified ledger"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete an account type",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "account-types",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Account Type ID in UUID format"
+                }
+              ]
+            },
+            "description": "Deletes an existing account type identified by its UUID within the specified ledger"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Account Type",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "account-types",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Account Type ID in UUID format"
+                }
+              ]
+            },
+            "description": "Endpoint to update an existing Account Type.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Assets that are expected to be converted to cash within one year\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"Current Assets\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10880,6 +11546,660 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"name\": \"My Segment Updated\",\n  \"status\": {\n    \"code\": \"ACTIVE\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "description": "Endpoints related to Settings.",
+      "item": [
+        {
+          "name": "Get all settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "settings"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Maximum number of settings to return (default: 10)",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor for pagination",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort order: 'asc' or 'desc' (default: 'asc')",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start date for filtering (ISO 8601 format)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End date for filtering (ISO 8601 format)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieves all settings from the specified ledger with cursor pagination support"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Setting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "settings"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                }
+              ]
+            },
+            "description": "Endpoint to create a new Setting.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": true,\n  \"description\": \"Controls whether strict accounting validation rules are enforced for transactions\",\n  \"key\": \"accounting_validation_enabled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Setting by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "settings",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Setting ID in UUID format"
+                }
+              ]
+            },
+            "description": "Retrieve a specific setting by its ID within an organization and ledger"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete a setting",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "settings",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Setting ID in UUID format"
+                }
+              ]
+            },
+            "description": "Deletes an existing setting identified by its UUID within the specified ledger"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Check for auth token",
+                  "if (!pm.environment.get(\"authToken\")) {",
+                  "  console.log(\"Warning: authToken is not set in the environment\");",
+                  "}",
+                  "",
+                  "// Set authorization header if it exists",
+                  "if (pm.environment.get(\"authToken\")) {",
+                  "  pm.request.headers.upsert({",
+                  "    key: \"Authorization\",",
+                  "    value: \"Bearer \" + pm.environment.get(\"authToken\")",
+                  "  });",
+                  "}",
+                  "",
+                  "// Set request ID for tracing",
+                  "pm.request.headers.upsert({",
+                  "  key: \"X-Request-Id\",",
+                  "  value: pm.variables.replaceIn(\"{{$guid}}\")",
+                  "});",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "// Test for successful response status",
+                  "if (pm.request.method === \"POST\") {",
+                  "  pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  });",
+                  "} else if (pm.request.method === \"DELETE\") {",
+                  "  pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "  });",
+                  "}",
+                  "",
+                  "// Validate response has the expected format",
+                  "pm.test(\"Response has the correct structure\", function() {",
+                  "  // For DELETE operations that return 204 No Content, the body is empty by design",
+                  "  if (pm.response.code === 204) {",
+                  "    pm.expect(true).to.be.true; // Always pass for 204 responses",
+                  "    return;",
+                  "  }",
+                  "  ",
+                  "  // For responses with content, validate JSON structure",
+                  "  pm.response.to.be.json;",
+                  "  ",
+                  "  // Add specific validation based on response schema here",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update a setting",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Request ID for tracing",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{onboardingUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}",
+              "host": [
+                "{{onboardingUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organizationId}}",
+                "ledgers",
+                "{{ledgerId}}",
+                "settings",
+                "{{ledgerId}}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "{{organizationId}}",
+                  "description": "Organization ID in UUID format"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "{{ledgerId}}",
+                  "description": "Ledger ID in UUID format"
+                },
+                {
+                  "key": "id",
+                  "value": "{{ledgerId}}",
+                  "description": "Setting ID in UUID format"
+                }
+              ]
+            },
+            "description": "Updates an existing setting's properties such as active status and description within the specified ledger",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"description\": \"Controls whether strict accounting validation rules are enforced for transactions\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
