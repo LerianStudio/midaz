@@ -32,6 +32,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
 // AccountTypePostgreSQLRepository is a PostgreSQL implementation of the AccountTypeRepository.
@@ -369,4 +370,47 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	}
 
 	return accountTypes, cur, nil
+}
+
+// Delete performs a soft delete of an account type by its ID.
+// It returns an error if the operation fails or if the account type is not found.
+func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_account_type")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	query := "UPDATE account_type SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
+
+		return err
+	}
+
+	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return services.ErrDatabaseItemNotFound
+	}
+
+	return nil
 }
