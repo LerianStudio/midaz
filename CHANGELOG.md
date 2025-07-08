@@ -1,3 +1,19 @@
+## [v2.3.0-beta.13] - 2025-07-08
+
+This release introduces a significant enhancement to the configuration process, offering a streamlined approach to managing pre-release activities. Our focus is on improving the efficiency and reliability of release management.
+
+### ✨ Features  
+- **Streamlined Pre-Release Configuration**: We've introduced a new pre-release flow configuration that simplifies the setup process for upcoming software versions. This feature is designed to help release management teams by providing a structured and configurable approach to handling pre-release activities. It ensures smoother transitions and minimizes errors during deployment, ultimately enhancing the efficiency of your release management process.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring that all users and developers have access to accurate and up-to-date information about the software's evolution. This transparency aids in better understanding and tracking of the project's progress.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Regular updates to the changelog ensure that it remains a reliable source of information for all stakeholders, facilitating communication and understanding across the team.
+
+
+This changelog highlights the key feature introduced in this release, focusing on its benefits and impact on users, particularly those involved in release management. The documentation updates ensure that users have access to the latest information, promoting transparency and effective communication.
+
 ## [v2.3.0-beta.12] - 2025-07-08
 
 This release introduces significant enhancements to data management capabilities, improves testing reliability, and ensures ongoing compatibility with the latest libraries, all without breaking existing functionality.
