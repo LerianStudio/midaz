@@ -25,7 +25,7 @@ func TestCreateSettingsSuccess(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 
 	payload := &mmodel.CreateSettingsInput{
-		Key:         "accounting_validation_enabled",
+		Key:         constant.AccountingValidationEnabledKey,
 		Active:      true,
 		Description: "Controls whether strict accounting validation rules are enforced",
 	}
