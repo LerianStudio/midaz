@@ -48,7 +48,11 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
-		Return(updatedSetting, nil).
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, settings *mmodel.Settings) (*mmodel.Settings, error) {
+			assert.Equal(t, input.Active, settings.Active)
+			assert.Equal(t, input.Description, settings.Description)
+			return updatedSetting, nil
+		}).
 		Times(1)
 
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
@@ -153,7 +157,55 @@ func TestUpdateSettingsPartialUpdate(t *testing.T) {
 
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
-		Return(updatedSetting, nil).
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, settings *mmodel.Settings) (*mmodel.Settings, error) {
+			assert.Equal(t, input.Description, settings.Description)
+			assert.Nil(t, settings.Active)
+			return updatedSetting, nil
+		}).
+		Times(1)
+
+	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
+
+	assert.NoError(t, err)
+	assert.Equal(t, updatedSetting, result)
+}
+
+// TestUpdateSettingsActiveOnly tests updating a setting with only active field
+func TestUpdateSettingsActiveOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	settingID := libCommons.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	active := false
+	updatedSetting := &mmodel.Settings{
+		ID:             settingID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Key:            "test_setting_key",
+		Active:         &active,
+		Description:    "Existing description", // Would come from existing record
+	}
+
+	mockRepo := settings.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		SettingsRepo: mockRepo,
+	}
+
+	input := &mmodel.UpdateSettingsInput{
+		Active: &active,
+	}
+
+	mockRepo.EXPECT().
+		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, settings *mmodel.Settings) (*mmodel.Settings, error) {
+			assert.Equal(t, input.Active, settings.Active)
+			assert.Equal(t, "", settings.Description)
+			return updatedSetting, nil
+		}).
 		Times(1)
 
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
