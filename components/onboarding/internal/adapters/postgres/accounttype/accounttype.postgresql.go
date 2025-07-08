@@ -22,6 +22,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 // Repository provides an interface for operations related to account type entities.
@@ -32,6 +33,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
@@ -370,6 +372,82 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	}
 
 	return accountTypes, cur, nil
+}
+
+// ListByIDs retrieves account types by their IDs.
+// It returns the account types matching the provided IDs or an error if the operation fails.
+func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_account_types_by_ids")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var accountTypes []*mmodel.AccountType
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
+
+	query := `SELECT 
+		id, 
+		organization_id, 
+		ledger_id, 
+		name, 
+		description, 
+		key_value, 
+		created_at, 
+		updated_at, 
+		deleted_at 
+	FROM account_type 
+	WHERE organization_id = $1 
+		AND ledger_id = $2 
+		AND id = ANY($3) 
+		AND deleted_at IS NULL 
+	ORDER BY created_at DESC`
+
+	rows, err := db.QueryContext(ctx, query, organizationID, ledgerID, pq.Array(ids))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var record AccountTypePostgreSQLModel
+		if err := rows.Scan(
+			&record.ID,
+			&record.OrganizationID,
+			&record.LedgerID,
+			&record.Name,
+			&record.Description,
+			&record.KeyValue,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+			&record.DeletedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
+
+			return nil, err
+		}
+
+		accountTypes = append(accountTypes, record.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, err
+	}
+
+	return accountTypes, nil
 }
 
 // Delete performs a soft delete of an account type by its ID.
