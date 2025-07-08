@@ -391,7 +391,7 @@ func (r *SettingsPostgreSQLRepository) FindAll(ctx context.Context, organization
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	settings := make([]*mmodel.Settings, 0)
+	var settings []*mmodel.Settings
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)

@@ -120,4 +120,5 @@ var (
 	ErrMutuallyExclusiveFields                  = errors.New("0110")
 	ErrDuplicateAccountTypeKeyValue             = errors.New("0111")
 	ErrAccountTypeNotFound                      = errors.New("0112")
+	ErrNoAccountTypesFound                      = errors.New("0113")
 )

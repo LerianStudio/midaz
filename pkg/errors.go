@@ -962,6 +962,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Type Not Found Error",
 			Message:    "The account type you are trying to access does not exist or has been removed.",
 		},
+		constant.ErrNoAccountTypesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoAccountTypesFound.Error(),
+			Title:      "No Account Types Found",
+			Message:    "No account types were found in the search. Please review the search criteria and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

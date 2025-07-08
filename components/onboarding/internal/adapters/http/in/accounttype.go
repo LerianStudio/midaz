@@ -3,6 +3,7 @@ package in
 import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -181,4 +182,75 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	logger.Infof("Successfully updated account type with ID: %s", id)
 
 	return http.OK(c, accountType)
+}
+
+// GetAllAccountTypes is a method that retrieves all Account Types.
+//
+//	@Summary		Get all account types
+//	@Description	Returns a paginated list of all account types for the specified organization and ledger
+//	@Tags			Account Types
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			limit			query		int		false	"Limit of account types per page (default: 10, max: 100)"
+//	@Param			page			query		int		false	"Page number for offset pagination (default: 1)"
+//	@Param			cursor			query		string	false	"Cursor for cursor-based pagination"
+//	@Param			sort_order		query		string	false	"Sort order (asc or desc, default: asc)"
+//	@Param			start_date		query		string	false	"Start date for filtering (YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"End date for filtering (YYYY-MM-DD)"
+//	@Success		200				{object}	mmodel.AccountTypePaginationResponse	"Successfully retrieved account types"
+//	@Failure		400				{object}	mmodel.Error							"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error							"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error							"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error							"Organization, ledger, or account types not found"
+//	@Failure		500				{object}	mmodel.Error							"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types [get]
+func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_account_types")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Initiating retrieval of Account Types")
+
+	accountTypes, cur, err := handler.Query.GetAllAccountType(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account Types on query", err)
+
+		logger.Errorf("Failed to retrieve Account Types, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved %d Account Types", len(accountTypes))
+
+	pagination := libPostgres.Pagination{
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
+	}
+
+	pagination.SetItems(accountTypes)
+	pagination.SetCursor(cur.Next, cur.Prev)
+
+	return http.OK(c, pagination)
 }

@@ -87,6 +87,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(midazName, "account-types", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(midazName, "account-types", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountTypeInput), ath.UpdateAccountType))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(midazName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAccountTypeByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(midazName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAllAccountTypes)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
