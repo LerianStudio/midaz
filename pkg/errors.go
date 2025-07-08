@@ -950,6 +950,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Mutually Exclusive Fields Error",
 			Message:    fmt.Sprintf("The fields '%v' and '%v' are mutually exclusive.", args...),
 		},
+		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),
+			Title:      "Duplicate Account Type Key Value Error",
+			Message:    "An account type with the specified key value already exists for this organization and ledger. Please use a different key value or update the existing account type.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

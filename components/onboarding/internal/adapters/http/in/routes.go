@@ -16,7 +16,7 @@ import (
 const midazName = "midaz"
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, sth *SettingsHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, sth *SettingsHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -82,6 +82,9 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", auth.Authorize(midazName, "settings", "get"), http.ParseUUIDPathParameters, sth.GetAllSettings)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:id", auth.Authorize(midazName, "settings", "get"), http.ParseUUIDPathParameters, sth.GetSettingsByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:id", auth.Authorize(midazName, "settings", "delete"), http.ParseUUIDPathParameters, sth.DeleteSettingsByID)
+
+	// Account Types
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(midazName, "account-types", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

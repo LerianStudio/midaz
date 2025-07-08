@@ -3,6 +3,7 @@ package command
 import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
@@ -35,6 +36,9 @@ type UseCase struct {
 
 	// SettingsRepo provides an abstraction on top of the settings data source.
 	SettingsRepo settings.Repository
+
+	// AccountTypeRepo provides an abstraction on top of the account type data source.
+	AccountTypeRepo accounttype.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

@@ -29,6 +29,9 @@ type AccountType struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 	// The timestamp when the account type was deleted.
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	// Custom key-value pairs for extending the account type information
+	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name AccountType
 
 // CreateAccountTypeInput is a struct designed to store Account Type input data.
@@ -42,6 +45,10 @@ type CreateAccountTypeInput struct {
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
 	// A unique key value identifier for the account type.
 	KeyValue string `json:"keyValue" validate:"required,max=50" example:"current_assets"`
+	// Custom key-value pairs for extending the account type information
+	// required: false
+	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateAccountTypeInput
 
 // UpdateAccountTypeInput is a struct designed to store Account Type input data.

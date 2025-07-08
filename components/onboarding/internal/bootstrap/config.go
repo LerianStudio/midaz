@@ -16,6 +16,7 @@ import (
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
@@ -174,6 +175,7 @@ func InitServers() *Service {
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
 	settingsPostgreSQLRepository := settings.NewSettingsPostgreSQLRepository(postgresConnection)
+	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -187,6 +189,7 @@ func InitServers() *Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		SettingsRepo:     settingsPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
@@ -200,6 +203,7 @@ func InitServers() *Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		SettingsRepo:     settingsPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
 	}
@@ -239,9 +243,14 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	accountTypeHandler := &httpin.AccountTypeHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, settingsHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, settingsHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
