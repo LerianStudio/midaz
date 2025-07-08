@@ -1,3 +1,50 @@
+## [v2.3.0-beta.13] - 2025-07-08
+
+This release introduces a significant enhancement to the configuration process, offering a streamlined approach to managing pre-release activities. Our focus is on improving the efficiency and reliability of release management.
+
+### ✨ Features  
+- **Streamlined Pre-Release Configuration**: We've introduced a new pre-release flow configuration that simplifies the setup process for upcoming software versions. This feature is designed to help release management teams by providing a structured and configurable approach to handling pre-release activities. It ensures smoother transitions and minimizes errors during deployment, ultimately enhancing the efficiency of your release management process.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring that all users and developers have access to accurate and up-to-date information about the software's evolution. This transparency aids in better understanding and tracking of the project's progress.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Regular updates to the changelog ensure that it remains a reliable source of information for all stakeholders, facilitating communication and understanding across the team.
+
+
+This changelog highlights the key feature introduced in this release, focusing on its benefits and impact on users, particularly those involved in release management. The documentation updates ensure that users have access to the latest information, promoting transparency and effective communication.
+
+## [v2.3.0-beta.12] - 2025-07-08
+
+This release introduces significant enhancements to data management capabilities, improves testing reliability, and ensures ongoing compatibility with the latest libraries, all without breaking existing functionality.
+
+### ✨ Features  
+- **Metadata-Based Operations Retrieval**: We've enhanced the backend and frontend systems to support dynamic data access and management using metadata. This improvement provides a more flexible and robust architecture, allowing for more efficient data handling and processing across the application.
+
+### 🐛 Bug Fixes
+- **Test Reliability**: Resolved a critical nil pointer issue within the test suite. This fix enhances the accuracy and dependability of our testing processes, ensuring that the application performs as expected without interruptions.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated Go module dependencies to incorporate the latest security patches and library improvements. This ensures that the application remains secure and compatible with modern development standards.
+- **Changelog Documentation**: Our changelog has been updated to reflect all recent changes and improvements, keeping our documentation current and informative for both developers and users.
+
+This release focuses on strengthening the core functionalities of the application, improving system reliability, and maintaining high standards of security and compatibility. Enjoy the enhanced experience!
+
+## [v2.3.0-beta.11] - 2025-07-08
+
+This release introduces a significant enhancement to the deployment workflow and updates project documentation to ensure all stakeholders are informed of the latest changes.
+
+### ✨ Features  
+- **GitOps Workflow Enhancement**: We've introduced a pre-release flow to the GitOps pipeline. This new feature automates the preparation of pre-release versions, making the deployment process smoother and reducing the need for manual intervention. Teams utilizing continuous integration and delivery will find this particularly beneficial as it streamlines transitions between development stages.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes and improvements. This ensures that all users and stakeholders have access to the latest project information, enhancing communication and planning efforts.
+
+### 🔧 Maintenance
+- **Project Documentation**: Regular updates to project documentation have been made to maintain accuracy and clarity, supporting better user understanding and engagement with the software.
+
+This release focuses on improving the efficiency and transparency of the development process, with no breaking changes introduced. The enhancements aim to facilitate a more seamless user experience and better project management.
+
 ## [v2.3.0-beta.10] - 2025-07-07
 
 This release introduces significant enhancements to the backend, focusing on improved data management, performance optimizations, and robust error handling. Users will benefit from enhanced CRUD functionalities, faster operations, and a more reliable system.
