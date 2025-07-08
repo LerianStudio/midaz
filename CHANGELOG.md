@@ -1,3 +1,19 @@
+## [v2.3.0-beta.12] - 2025-07-08
+
+This release introduces significant enhancements to data management capabilities, improves testing reliability, and ensures ongoing compatibility with the latest libraries, all without breaking existing functionality.
+
+### ✨ Features  
+- **Metadata-Based Operations Retrieval**: We've enhanced the backend and frontend systems to support dynamic data access and management using metadata. This improvement provides a more flexible and robust architecture, allowing for more efficient data handling and processing across the application.
+
+### 🐛 Bug Fixes
+- **Test Reliability**: Resolved a critical nil pointer issue within the test suite. This fix enhances the accuracy and dependability of our testing processes, ensuring that the application performs as expected without interruptions.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated Go module dependencies to incorporate the latest security patches and library improvements. This ensures that the application remains secure and compatible with modern development standards.
+- **Changelog Documentation**: Our changelog has been updated to reflect all recent changes and improvements, keeping our documentation current and informative for both developers and users.
+
+This release focuses on strengthening the core functionalities of the application, improving system reliability, and maintaining high standards of security and compatibility. Enjoy the enhanced experience!
+
 ## [v2.3.0-beta.11] - 2025-07-08
 
 This release introduces a significant enhancement to the deployment workflow and updates project documentation to ensure all stakeholders are informed of the latest changes.
