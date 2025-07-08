@@ -32,6 +32,7 @@ type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error)
 	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error)
+	FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.AccountType, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
@@ -91,7 +92,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&record.LedgerID,
 		&record.Name,
 		&record.Description,
-		&record.KeyValue,
+		strings.ToLower(record.KeyValue),
 		&record.CreatedAt,
 		&record.UpdatedAt,
 		&record.DeletedAt,
@@ -163,6 +164,69 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 			AND ledger_id = $3 
 			AND deleted_at IS NULL`,
 		id, organizationID, ledgerID)
+
+	err = row.Scan(
+		&record.ID,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.Name,
+		&record.Description,
+		&record.KeyValue,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+		&record.DeletedAt,
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan account type record", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, services.ErrDatabaseItemNotFound
+		}
+
+		return nil, err
+	}
+
+	spanQuery.End()
+
+	return record.ToEntity(), nil
+}
+
+// FindByKey retrieves an account type by its key within an organization and ledger.
+// It returns the account type if found, otherwise it returns an error.
+func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.AccountType, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_account_type_by_key")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var record AccountTypePostgreSQLModel
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
+
+	row := db.QueryRowContext(ctx, `
+		SELECT 
+			id, 
+			organization_id, 
+			ledger_id, 
+			name, 
+			description, 
+			key_value, 
+			created_at, 
+			updated_at, 
+			deleted_at 
+		FROM account_type 
+		WHERE key_value = $1 
+			AND organization_id = $2 
+			AND ledger_id = $3 
+			AND deleted_at IS NULL`,
+		strings.ToLower(key), organizationID, ledgerID)
 
 	err = row.Scan(
 		&record.ID,
