@@ -1,3 +1,18 @@
+## [v2.3.0-beta.11] - 2025-07-08
+
+This release introduces a significant enhancement to the deployment workflow and updates project documentation to ensure all stakeholders are informed of the latest changes.
+
+### ✨ Features  
+- **GitOps Workflow Enhancement**: We've introduced a pre-release flow to the GitOps pipeline. This new feature automates the preparation of pre-release versions, making the deployment process smoother and reducing the need for manual intervention. Teams utilizing continuous integration and delivery will find this particularly beneficial as it streamlines transitions between development stages.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes and improvements. This ensures that all users and stakeholders have access to the latest project information, enhancing communication and planning efforts.
+
+### 🔧 Maintenance
+- **Project Documentation**: Regular updates to project documentation have been made to maintain accuracy and clarity, supporting better user understanding and engagement with the software.
+
+This release focuses on improving the efficiency and transparency of the development process, with no breaking changes introduced. The enhancements aim to facilitate a more seamless user experience and better project management.
+
 ## [v2.3.0-beta.10] - 2025-07-07
 
 This release introduces significant enhancements to the backend, focusing on improved data management, performance optimizations, and robust error handling. Users will benefit from enhanced CRUD functionalities, faster operations, and a more reliable system.
