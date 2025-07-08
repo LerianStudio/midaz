@@ -119,4 +119,5 @@ var (
 	ErrOperationRouteLinkedToTransactionRoutes  = errors.New("0109")
 	ErrMutuallyExclusiveFields                  = errors.New("0110")
 	ErrDuplicateAccountTypeKeyValue             = errors.New("0111")
+	ErrAccountTypeNotFound                      = errors.New("0112")
 )

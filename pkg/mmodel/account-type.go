@@ -60,4 +60,8 @@ type UpdateAccountTypeInput struct {
 	Name string `json:"name,omitempty" validate:"max=100" example:"Current Assets"`
 	// Detailed description of the account type.
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
+	// Custom key-value pairs for extending the account type information
+	// required: false
+	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateAccountTypeInput

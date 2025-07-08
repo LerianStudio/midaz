@@ -956,6 +956,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Account Type Key Value Error",
 			Message:    "An account type with the specified key value already exists for this organization and ledger. Please use a different key value or update the existing account type.",
 		},
+		constant.ErrAccountTypeNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountTypeNotFound.Error(),
+			Title:      "Account Type Not Found Error",
+			Message:    "The account type you are trying to access does not exist or has been removed.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
