@@ -117,5 +117,6 @@ var (
 	ErrDuplicateSettingsKey                     = errors.New("0107")
 	ErrSettingsNotFound                         = errors.New("0108")
 	ErrOperationRouteLinkedToTransactionRoutes  = errors.New("0109")
-	ErrMutuallyExclusiveFields                  = errors.New("0110")
+	ErrInvalidAccountRuleType                   = errors.New("0110")
+	ErrInvalidAccountRuleValue                  = errors.New("0111")
 )

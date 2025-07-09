@@ -944,11 +944,17 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Operation Route Linked to Transaction Routes",
 			Message:    "The operation route cannot be deleted because it is linked to one or more transaction routes. Please remove the operation route from all transaction routes before attempting to delete it.",
 		},
-		constant.ErrMutuallyExclusiveFields: ValidationError{
+		constant.ErrInvalidAccountRuleType: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrMutuallyExclusiveFields.Error(),
-			Title:      "Mutually Exclusive Fields Error",
-			Message:    fmt.Sprintf("The fields '%v' and '%v' are mutually exclusive.", args...),
+			Code:       constant.ErrInvalidAccountRuleType.Error(),
+			Title:      "Invalid Account Rule Type",
+			Message:    "The provided 'account.ruleType' is not valid. Accepted types are 'alias' or 'account_type'. Please provide a valid rule type.",
+		},
+		constant.ErrInvalidAccountRuleValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountRuleValue.Error(),
+			Title:      "Invalid Account Rule Value",
+			Message:    "The provided 'account.validIf' is not valid. Please provide a string for 'alias' or an array of strings for 'account_type'.",
 		},
 	}
 

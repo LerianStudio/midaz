@@ -5,34 +5,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
 // OperationRoutePostgreSQLModel represents the database model for operation routes
 type OperationRoutePostgreSQLModel struct {
-	ID             uuid.UUID    `db:"id"`
-	OrganizationID uuid.UUID    `db:"organization_id"`
-	LedgerID       uuid.UUID    `db:"ledger_id"`
-	Title          string       `db:"title"`
-	Description    string       `db:"description"`
-	Type           string       `db:"type"`
-	AccountTypes   string       `db:"account_types"`
-	AccountAlias   string       `db:"account_alias"`
-	CreatedAt      time.Time    `db:"created_at"`
-	UpdatedAt      time.Time    `db:"updated_at"`
-	DeletedAt      sql.NullTime `db:"deleted_at"`
+	ID                 uuid.UUID    `db:"id"`
+	OrganizationID     uuid.UUID    `db:"organization_id"`
+	LedgerID           uuid.UUID    `db:"ledger_id"`
+	Title              string       `db:"title"`
+	Description        string       `db:"description"`
+	Type               string       `db:"type"`
+	AccountRuleType    string       `db:"account_rule_type"`
+	AccountRuleValidIf string       `db:"account_rule_valid_if"`
+	CreatedAt          time.Time    `db:"created_at"`
+	UpdatedAt          time.Time    `db:"updated_at"`
+	DeletedAt          sql.NullTime `db:"deleted_at"`
 }
 
 // ToEntity converts the database model to a domain model
 func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 	if m == nil {
 		return nil
-	}
-
-	var accountTypes []string
-	if m.AccountTypes != "" {
-		accountTypes = strings.Split(m.AccountTypes, ";")
 	}
 
 	e := &mmodel.OperationRoute{
@@ -42,10 +38,29 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		Title:          m.Title,
 		Description:    m.Description,
 		Type:           m.Type,
-		AccountTypes:   accountTypes,
-		AccountAlias:   m.AccountAlias,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
+	}
+
+	if m.AccountRuleType != "" || m.AccountRuleValidIf != "" {
+		account := &mmodel.AccountRule{
+			RuleType: m.AccountRuleType,
+		}
+
+		if m.AccountRuleValidIf != "" {
+			if strings.ToLower(m.AccountRuleType) == constant.AccountRuleTypeAccountType {
+				values := strings.Split(m.AccountRuleValidIf, ",")
+				for i, v := range values {
+					values[i] = strings.TrimSpace(v)
+				}
+
+				account.ValidIf = values
+			} else {
+				account.ValidIf = m.AccountRuleValidIf
+			}
+		}
+
+		e.Account = account
 	}
 
 	if m.DeletedAt.Valid {
@@ -68,16 +83,33 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.Description = e.Description
 	m.Type = strings.ToLower(e.Type)
 
-	if e.AccountTypes != nil {
-		accountTypes := make([]string, len(e.AccountTypes))
-		for i, accountType := range e.AccountTypes {
-			accountTypes[i] = strings.ToLower(accountType)
-		}
+	if e.Account != nil {
+		m.AccountRuleType = e.Account.RuleType
 
-		m.AccountTypes = strings.Join(accountTypes, ";")
+		if e.Account.ValidIf != nil {
+			switch strings.ToLower(e.Account.RuleType) {
+			case constant.AccountRuleTypeAccountType:
+				if values, ok := e.Account.ValidIf.([]string); ok {
+					m.AccountRuleValidIf = strings.Join(values, ",")
+				} else if values, ok := e.Account.ValidIf.([]any); ok {
+					stringValues := make([]string, len(values))
+
+					for i, v := range values {
+						if str, ok := v.(string); ok {
+							stringValues[i] = str
+						}
+					}
+
+					m.AccountRuleValidIf = strings.Join(stringValues, ",")
+				}
+			default:
+				if value, ok := e.Account.ValidIf.(string); ok {
+					m.AccountRuleValidIf = value
+				}
+			}
+		}
 	}
 
-	m.AccountAlias = e.AccountAlias
 	m.CreatedAt = e.CreatedAt
 	m.UpdatedAt = e.UpdatedAt
 

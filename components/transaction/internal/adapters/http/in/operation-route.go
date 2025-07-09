@@ -1,11 +1,17 @@
 package in
 
 import (
+	"context"
+	"reflect"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -58,6 +64,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	}
 
 	logger.Infof("Request to create an operation route with details: %#v", payload)
+
+	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return http.WithError(c, err)
+	}
 
 	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -152,6 +162,10 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	payload := i.(*mmodel.UpdateOperationRouteInput)
 	logger.Infof("Request to update an Operation Route with details: %#v", payload)
+
+	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return http.WithError(c, err)
+	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
@@ -302,4 +316,74 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
+}
+
+// validateAccountRule validates account rule configuration for operation routes.
+// It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
+func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_account_rule")
+	defer span.End()
+
+	if account == nil {
+		return nil
+	}
+
+	if account.RuleType != "" && account.ValidIf == nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.validIf")
+
+		libOpentelemetry.HandleSpanError(&span, "Account rule type provided but validIf is missing", err)
+
+		return err
+	}
+
+	if account.RuleType == "" && account.ValidIf != nil {
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.ruleType")
+
+		libOpentelemetry.HandleSpanError(&span, "Account validIf provided but rule type is missing", err)
+
+		return err
+	}
+
+	if account.RuleType != "" && account.ValidIf != nil {
+		switch strings.ToLower(account.RuleType) {
+		case constant.AccountRuleTypeAlias:
+			if _, ok := account.ValidIf.(string); !ok {
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+				libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf type for alias rule", err)
+
+				return err
+			}
+		case constant.AccountRuleTypeAccountType:
+			switch v := account.ValidIf.(type) {
+			case []string:
+			case []any:
+				for _, item := range v {
+					if _, ok := item.(string); !ok {
+						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+						libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf array element type", err)
+
+						return err
+					}
+				}
+			default:
+				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+				libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf type for account_type rule", err)
+
+				return err
+			}
+		default:
+			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanError(&span, "Invalid account rule type", err)
+
+			return err
+		}
+	}
+
+	return nil
 }

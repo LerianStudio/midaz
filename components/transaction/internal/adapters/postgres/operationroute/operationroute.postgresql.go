@@ -92,8 +92,8 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		&record.Title,
 		&record.Description,
 		&record.Type,
-		&record.AccountTypes,
-		&record.AccountAlias,
+		&record.AccountRuleType,
+		&record.AccountRuleValidIf,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	)
@@ -143,7 +143,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := `SELECT id, organization_id, ledger_id, title, description, type, account_types, account_alias, created_at, updated_at, deleted_at 
+	query := `SELECT id, organization_id, ledger_id, title, description, type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at 
 		FROM operation_route 
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
 	args := []any{organizationID, ledgerID, id}
@@ -163,8 +163,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		&operationRoute.Title,
 		&operationRoute.Description,
 		&operationRoute.Type,
-		&operationRoute.AccountTypes,
-		&operationRoute.AccountAlias,
+		&operationRoute.AccountRuleType,
+		&operationRoute.AccountRuleValidIf,
 		&operationRoute.CreatedAt,
 		&operationRoute.UpdatedAt,
 		&operationRoute.DeletedAt,
@@ -200,7 +200,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
-	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "account_types", "account_alias", "created_at", "updated_at", "deleted_at").
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
 		From("operation_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -241,8 +241,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 			&operationRoute.Title,
 			&operationRoute.Description,
 			&operationRoute.Type,
-			&operationRoute.AccountTypes,
-			&operationRoute.AccountAlias,
+			&operationRoute.AccountRuleType,
+			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
@@ -313,14 +313,16 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		args = append(args, record.Description)
 	}
 
-	if operationRoute.AccountTypes != nil {
-		updates = append(updates, "account_types = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AccountTypes)
-	}
+	if operationRoute.Account != nil {
+		if operationRoute.Account.RuleType != "" {
+			updates = append(updates, "account_rule_type = $"+strconv.Itoa(len(args)+1))
+			args = append(args, record.AccountRuleType)
+		}
 
-	if operationRoute.AccountAlias != "" {
-		updates = append(updates, "account_alias = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AccountAlias)
+		if operationRoute.Account.ValidIf != nil {
+			updates = append(updates, "account_rule_valid_if = $"+strconv.Itoa(len(args)+1))
+			args = append(args, record.AccountRuleValidIf)
+		}
 	}
 
 	record.UpdatedAt = time.Now()
@@ -476,8 +478,8 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.Title,
 			&operationRoute.Description,
 			&operationRoute.Type,
-			&operationRoute.AccountTypes,
-			&operationRoute.AccountAlias,
+			&operationRoute.AccountRuleType,
+			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
