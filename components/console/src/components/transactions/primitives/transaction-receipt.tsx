@@ -139,7 +139,7 @@ TransactionReceiptItem.displayName = 'TransactionReceiptTicket'
 
 export type TransactionReceiptOperationProps =
   HTMLAttributes<HTMLDivElement> & {
-    type: 'debit' | 'credit'
+    type: 'debit' | 'credit' | 'fee'
     account: string
     asset: string
     value: string
@@ -164,17 +164,26 @@ export const TransactionReceiptOperation = forwardRef<
                 id: 'common.debit',
                 defaultMessage: 'Debit'
               })
-            : intl.formatMessage({
-                id: 'common.credit',
-                defaultMessage: 'Credit'
-              })}
+            : type === 'credit'
+              ? intl.formatMessage({
+                  id: 'common.credit',
+                  defaultMessage: 'Credit'
+                })
+              : intl.formatMessage({
+                  id: 'common.fee',
+                  defaultMessage: 'Fee'
+                })}
         </p>
         <div className="flex flex-row gap-8">
           <p>{account}</p>
           <p
             className={cn(
               'w-24 text-right text-xs',
-              type === 'debit' ? 'text-red-500' : 'text-green-500'
+              type === 'debit'
+                ? 'text-red-500'
+                : type === 'credit'
+                  ? 'text-green-500'
+                  : 'text-blue-500'
             )}
           >
             {type === 'debit' ? '-' : '+'} {asset} {value}

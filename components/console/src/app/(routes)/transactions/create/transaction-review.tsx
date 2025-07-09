@@ -24,12 +24,14 @@ import { useCreateTransaction } from '@/client/transactions'
 import { useOrganization } from '@/providers/organization-provider'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TransactionFormSchema } from './schemas'
 import {
   TransactionMode,
   useTransactionMode
 } from './hooks/use-transaction-mode'
+import { useFeeCalculation } from './hooks/use-fee-calculation'
+import { FeeBreakdown } from '@/components/transactions/fee-breakdown'
 
 export const TransactionReview = () => {
   const intl = useIntl()
@@ -40,6 +42,24 @@ export const TransactionReview = () => {
   const { values, handleBack, handleReset } = useTransactionForm()
 
   const [sendAnother, setSendAnother] = useState(false)
+
+  const {
+    mutate: calculateFees,
+    isPending: calculatingFees,
+    data: calculatedFees,
+    error: feesError
+  } = useFeeCalculation({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id!,
+    onError: (error: any) => {
+      console.error('Fee calculation failed:', error)
+    }
+  })
+
+  // Derived state - no need for separate useState
+  const hasCalculatedFees =
+    calculatedFees !== undefined || feesError !== undefined
+  const feesErrorMessage = feesError ? 'Failed to calculate fees' : null
 
   const { mutate: createTransaction, isPending: loading } =
     useCreateTransaction({
@@ -59,9 +79,30 @@ export const TransactionReview = () => {
           return
         }
 
-        router.push(`/transactions/${data.id}`)
+        // Navigate to the transaction details page
+        if (data.id) {
+          // Found the actual transaction, navigate to its details page
+          router.push(`/transactions/${data.id}`)
+        } else {
+          // Could not find the actual transaction, navigate to transactions list
+          console.log(
+            'No transaction ID found, navigating to transactions list'
+          )
+          router.push('/transactions')
+        }
       }
     })
+
+  // Calculate fees when component loads (only if fees are enabled)
+  useEffect(() => {
+    if (values && currentOrganization.id && currentLedger.id) {
+      const feesEnabled = process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED === 'true'
+
+      if (feesEnabled) {
+        calculateFees({ transaction: values })
+      }
+    }
+  }, [values, currentOrganization.id, currentLedger.id])
 
   const parse = ({ value, ...values }: TransactionFormSchema) => ({
     ...values,
@@ -76,14 +117,48 @@ export const TransactionReview = () => {
     }))
   })
 
+  const getTransactionPayload = () => {
+    // If fees are calculated, convert the fee service response to CreateTransactionDto format
+    if (calculatedFees && calculatedFees.transaction) {
+      const feeTransaction = calculatedFees.transaction
+      return {
+        description: feeTransaction.description,
+        chartOfAccountsGroupName: feeTransaction.chartOfAccountsGroupName,
+        amount: feeTransaction.send.value,
+        asset: feeTransaction.send.asset,
+        source: feeTransaction.send.source.from.map((source: any) => ({
+          accountAlias: source.accountAlias,
+          asset: source.amount.asset,
+          amount: source.amount.value,
+          description: source.description,
+          chartOfAccounts: source.chartOfAccounts,
+          metadata: source.metadata || {}
+        })),
+        destination: feeTransaction.send.distribute.to.map(
+          (destination: any) => ({
+            accountAlias: destination.accountAlias,
+            asset: destination.amount.asset,
+            amount: destination.amount.value,
+            description: destination.description,
+            chartOfAccounts: destination.chartOfAccounts,
+            metadata: destination.metadata || {}
+          })
+        ),
+        metadata: feeTransaction.metadata || {}
+      }
+    }
+    // Otherwise, use the original transaction data
+    return parse(values)
+  }
+
   const handleSubmitAnother = () => {
     setSendAnother(true)
-    createTransaction(parse(values))
+    createTransaction(getTransactionPayload())
   }
 
   const handleSubmit = () => {
     setSendAnother(false)
-    createTransaction(parse(values))
+    createTransaction(getTransactionPayload())
   }
 
   return (
@@ -232,6 +307,12 @@ export const TransactionReview = () => {
               />
             ))}
             <Separator orientation="horizontal" />
+
+            {/* Fee Breakdown Section - Integrated into the receipt */}
+            {hasCalculatedFees && calculatedFees && !feesError && (
+              <FeeBreakdown transaction={calculatedFees} />
+            )}
+
             <TransactionReceiptItem
               label={intl.formatMessage({
                 id: 'transactions.create.field.chartOfAccountsGroupName',
@@ -264,6 +345,60 @@ export const TransactionReview = () => {
               )}
             />
           </TransactionReceipt>
+
+          {/* Fee calculation status and breakdown */}
+          {calculatingFees && (
+            <div className="mb-4 flex items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 py-3 transition-all duration-300">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600"></div>
+              <span className="text-sm font-medium text-blue-700">
+                {intl.formatMessage({
+                  id: 'transactions.fees.calculating',
+                  defaultMessage: 'Calculating transaction fees...'
+                })}
+              </span>
+            </div>
+          )}
+
+          {hasCalculatedFees && feesError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 transition-all duration-300">
+              <div className="flex items-center gap-2">
+                <div className="text-red-500">⚠️</div>
+                <div>
+                  <p className="text-sm font-medium text-red-800">
+                    {intl.formatMessage({
+                      id: 'transactions.fees.error.title',
+                      defaultMessage: 'Fee Calculation Failed'
+                    })}
+                  </p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {feesErrorMessage}
+                  </p>
+                  <p className="mt-1 text-xs text-red-500">
+                    {intl.formatMessage({
+                      id: 'transactions.fees.error.fallback',
+                      defaultMessage:
+                        'Transaction will proceed without fee calculation.'
+                    })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {hasCalculatedFees && !calculatedFees && !feesError && (
+            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 transition-all duration-300">
+              <div className="flex items-center gap-2">
+                <div className="text-gray-500">ℹ️</div>
+                <span className="text-sm text-gray-600">
+                  {intl.formatMessage({
+                    id: 'transactions.fees.disabled',
+                    defaultMessage:
+                      'Fee calculation is disabled for this transaction.'
+                  })}
+                </span>
+              </div>
+            </div>
+          )}
 
           <TransactionReceiptTicket />
         </div>

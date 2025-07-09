@@ -63,6 +63,19 @@ export default function TransactionDetailsPage() {
     return <SkeletonTransactionDialog />
   }
 
+  const isFeeOperation = (operation: TransactionOperationDto) => {
+    const description = operation.description?.toLowerCase() ?? ''
+    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
+    return (
+      description.includes('fee') ||
+      chartOfAccounts.includes('fee') ||
+      operation.accountAlias === transaction.source[0]?.accountAlias
+    )
+  }
+  const nonFeeDestinations = transaction.destination.filter(
+    (destination) => !isFeeOperation(destination)
+  )
+
   return (
     <div className="p-16">
       <Breadcrumb
@@ -151,9 +164,9 @@ export default function TransactionDetailsPage() {
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
                 sources={transaction.source.map((s) => s.accountAlias!)!}
-                destinations={
-                  transaction.destination.map((d) => d.accountAlias!)!
-                }
+                destinations={nonFeeDestinations.map(
+                  (destination) => destination.accountAlias!
+                )}
               />
               {transaction.description && (
                 <TransactionReceiptDescription>
@@ -187,7 +200,7 @@ export default function TransactionDetailsPage() {
                 })}
                 value={
                   <div className="flex flex-col">
-                    {transaction.destination?.map(
+                    {nonFeeDestinations?.map(
                       (destination: TransactionOperationDto, index: number) => (
                         <p key={index} className="underline">
                           {destination.accountAlias}
@@ -220,7 +233,7 @@ export default function TransactionDetailsPage() {
                 (operation: TransactionOperationDto, index: number) => (
                   <TransactionReceiptOperation
                     key={index}
-                    type="credit"
+                    type={isFeeOperation(operation) ? 'fee' : 'credit'}
                     account={operation.accountAlias!}
                     asset={operation.asset}
                     value={formatNumber(operation?.amount)}

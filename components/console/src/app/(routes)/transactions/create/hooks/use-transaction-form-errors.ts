@@ -16,8 +16,8 @@ export const useTransactionFormErrors = (
   const { errors, add, remove } = useCustomFormError()
   const { value, source, destination } = values
 
-  const sum = (source: TransactionSourceFormSchema) =>
-    source.reduce((acc, curr) => acc + Number(curr.value), 0)
+  const total = (source: TransactionSourceFormSchema) =>
+    source.reduce((account, current) => account + Number(current.value), 0)
 
   const dataLoss = (values: TransactionFormSchema) => {
     if (
@@ -38,14 +38,14 @@ export const useTransactionFormErrors = (
 
   const totalSumSourceRule = (values: TransactionFormSchema) => {
     const value = Number(values.value)
-    const totalSource = sum(values.source)
+    const totalSource = total(values.source)
 
     if (value !== totalSource) {
       add('debit', {
         message: intl.formatMessage({
           id: 'transactions.errors.debit',
           defaultMessage:
-            'The sum of the debits differs from the transaction amount'
+            'The total of the debits differs from the transaction amount'
         })
       })
       return true
@@ -57,14 +57,14 @@ export const useTransactionFormErrors = (
 
   const totalSumDestinationRule = (values: TransactionFormSchema) => {
     const value = Number(values.value)
-    const totalDestination = sum(values.destination)
+    const totalDestination = total(values.destination)
 
     if (value !== totalDestination) {
       add('credit', {
         message: intl.formatMessage({
           id: 'transactions.errors.credit',
           defaultMessage:
-            'The sum of the credits differs from the transaction amount'
+            'The total of the credits differs from the transaction amount'
         })
       })
       return true
@@ -163,7 +163,7 @@ export const useTransactionFormErrors = (
   React.useEffect(() => {
     totalSumSourceRule(values)
     totalSumDestinationRule(values)
-  }, [value, sum(source), sum(destination)])
+  }, [value, total(source), total(destination)])
 
   return { errors, open, setOpen, validate, add, remove }
 }

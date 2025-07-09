@@ -18,7 +18,21 @@ export class TransactionMapper {
   }
 
   static toResponseDto(transaction: TransactionEntity): TransactionDto {
-    return {
+    console.log('=== TRANSACTION MAPPER toResponseDto ===')
+    console.log('Input transaction:', JSON.stringify(transaction, null, 2))
+
+    // Check if this is a fee API response (has segmentId and transaction properties)
+    if (
+      transaction &&
+      typeof transaction === 'object' &&
+      'segmentId' in transaction &&
+      'transaction' in transaction
+    ) {
+      console.log('Detected fee API response, returning as-is')
+      return transaction as any
+    }
+
+    const result = {
       id: transaction.id!,
       ledgerId: transaction.ledgerId!,
       organizationId: transaction.organizationId!,
@@ -34,6 +48,9 @@ export class TransactionMapper {
       updatedAt: transaction.updatedAt,
       deletedAt: transaction.deletedAt
     }
+
+    console.log('Returning result:', JSON.stringify(result, null, 2))
+    return result
   }
 
   static toPaginatedResponseDto(

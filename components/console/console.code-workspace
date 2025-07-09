@@ -1,5 +1,12 @@
 {
-  "folders": [{ "path": "." }],
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../../../plugin-fees-ui"
+    }
+  ],
   "settings": {
     "git.autoRepositoryDetection": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",

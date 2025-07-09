@@ -169,7 +169,10 @@ const config: Config = {
   // ]
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  testPathIgnorePatterns: ['\\\\node_modules\\\\', './tests']
+  testPathIgnorePatterns: ['/node_modules/', './tests'],
+
+  // Allow transformation of specific ESM packages used by Next-Auth (openid-client, jose)
+  transformIgnorePatterns: ['/node_modules/(?!(openid-client|jose)/)']
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],

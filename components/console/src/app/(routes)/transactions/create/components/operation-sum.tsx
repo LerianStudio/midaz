@@ -27,7 +27,10 @@ export const OperationSum = ({
 }: OperationSumProps) => {
   const intl = useIntl()
 
-  const total = operations.reduce((sum, op) => sum + Number(op.value), 0)
+  const total = operations.reduce(
+    (total, operation) => total + Number(operation.value),
+    0
+  )
 
   const divergent = Number(value) !== total
 
