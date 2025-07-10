@@ -3,7 +3,7 @@ name: "Pre-Release GitOps Update"
 on:
   push:
     tags:
-      - 'v*.*.*-beta.*'
+      - 'v*.*.*-beta.*'  
 
 permissions:
   id-token: write       # Needed for authentication
@@ -41,33 +41,7 @@ jobs:
       matrix:
         app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
     steps:
-      # Create a token for the GitHub App that will commit to the GitOps repo
-      - name: Create GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-
-      # Checkout the GitOps repo using the GitHub App token
-      - uses: actions/checkout@v4
-        with:
-          repository: LerianStudio/midaz-firmino-gitops
-          ref: main
-          token: ${{ steps.app-token.outputs.token }}
-          fetch-depth: 0
-
-      # Extract the tag name from the Git reference (e.g., v2.3.0-beta.1)
-      - name: Extract tag
-        id: extract
-        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      # Update the appropriate image tag in the Helmfile values.yaml
-      - name: Update tag in values.yaml
-        run: |
-          yq e '.${{ matrix.app.name }}.image.tag = "${{ steps.extract.outputs.tag }}"' -i environments/firmino/helmfile/midaz/values.yaml
-
-      # Import the GPG key to sign the commit
+      # Import GPG key for signing commits
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -80,16 +54,34 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+      # Checkout the GitOps repo using the GitHub App token
+      - uses: actions/checkout@v4
+        with:
+          repository: LerianStudio/midaz-firmino-gitops
+          ref: main
+          token: ${{ secrets.MANAGE_TOKEN }}
+          fetch-depth: 0
+
+      # Extract the tag name from the Git reference (e.g., v2.3.0-beta.1)
+      - name: Extract tag
+        id: extract
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # Update the appropriate image tag in the Helmfile values.yaml
+      - name: Update tag in values.yaml
+        run: |
+          yq e '.${{ matrix.app.name }}.image.tag = "${{ steps.extract.outputs.tag }}"' -i environments/firmino/helmfile/midaz/values.yaml
+
       # Commit the updated values.yaml with a signed commit using the GitHub App identity
-      - name: Commit and push
+      - name: Commit and push on midaz-firmino-gitops
         env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
-          git config user.name "$GIT_AUTHOR_NAME"
-          git config user.email "$GIT_AUTHOR_EMAIL"
           git add environments/firmino/helmfile/midaz/values.yaml
           git commit -S -m "ci: update ${{ matrix.app.name }} tag to ${{ steps.extract.outputs.tag }}"
-          git push
+          git push origin main
