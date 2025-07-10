@@ -60,6 +60,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	defer spanProducer.End()
 
 	var err error
+	
 	backoff := initialBackoff
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {

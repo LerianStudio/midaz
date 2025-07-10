@@ -62,6 +62,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	defer spanProducer.End()
 
 	var err error
+
 	backoff := initialBackoff
 
 	message, err := json.Marshal(queueMessage)
