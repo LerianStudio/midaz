@@ -493,7 +493,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	transactionRoutes := make([]*mmodel.TransactionRoute, 0)
+	var transactionRoutes []*mmodel.TransactionRoute
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)

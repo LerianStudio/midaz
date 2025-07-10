@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,3 +63,31 @@ type UpdateTransactionRouteInput struct {
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
 } // @name UpdateTransactionRouteInput
+
+// ToCacheData converts the transaction route into a cache structure for Redis storage.
+// Returns a JSON string representation of the cache data.
+func (tr *TransactionRoute) ToCacheData() (string, error) {
+	cacheData := make(map[string]map[string]any)
+
+	for _, operationRoute := range tr.OperationRoutes {
+		routeData := map[string]any{
+			"type": operationRoute.Type,
+		}
+
+		if operationRoute.Account != nil {
+			routeData["account"] = map[string]any{
+				"ruleType": operationRoute.Account.RuleType,
+				"validIf":  operationRoute.Account.ValidIf,
+			}
+		}
+
+		cacheData[operationRoute.ID.String()] = routeData
+	}
+
+	cacheJSON, err := json.Marshal(cacheData)
+	if err != nil {
+		return "", err
+	}
+
+	return string(cacheJSON), nil
+}

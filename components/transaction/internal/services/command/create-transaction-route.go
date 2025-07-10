@@ -35,7 +35,6 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	// Fetch all operation routes in a single database call
 	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find operation routes", err)
@@ -71,7 +70,6 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	// Ensure operation routes are included in the response
 	createdTransactionRoute.OperationRoutes = operationRoutes
 
 	if payload.Metadata != nil {

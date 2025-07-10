@@ -36,6 +36,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
 	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
+	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
@@ -424,7 +425,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	operationRoutes := make([]*mmodel.OperationRoute, 0)
+	var operationRoutes []*mmodel.OperationRoute
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
@@ -548,4 +549,56 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 	}
 
 	return exists, nil
+}
+
+// FindTransactionRouteIDs retrieves all transaction route IDs associated with a specific operation route.
+// It returns a slice of transaction route UUIDs that are linked to the given operation route ID.
+func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query := `SELECT transaction_route_id FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL ORDER BY created_at`
+	args := []any{operationRouteID}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_route_ids.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactionRouteIDs []uuid.UUID
+
+	for rows.Next() {
+		var transactionRouteID uuid.UUID
+
+		if err := rows.Scan(&transactionRouteID); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan transaction route ID", err)
+
+			return nil, err
+		}
+
+		transactionRouteIDs = append(transactionRouteIDs, transactionRouteID)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, err
+	}
+
+	return transactionRouteIDs, nil
 }

@@ -68,6 +68,12 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	logger.Infof("Successfully created transaction route")
 
+	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
+
+		logger.Errorf("Failed to create transaction route cache: %v", err)
+	}
+
 	return http.Created(c, transactionRoute)
 }
 
@@ -113,6 +119,12 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	}
 
 	logger.Infof("Successfully retrieved transaction route with ID: %s", id.String())
+
+	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
+
+		logger.Errorf("Failed to create transaction route cache: %v", err)
+	}
 
 	return http.OK(c, transactionRoute)
 }
@@ -182,6 +194,12 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 	logger.Infof("Successfully updated transaction route with ID: %s", id.String())
 
+	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
+
+		logger.Errorf("Failed to create transaction route cache: %v", err)
+	}
+
 	return http.OK(c, transactionRoute)
 }
 
@@ -227,6 +245,12 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	}
 
 	logger.Infof("Successfully deleted transaction route with ID: %s", id.String())
+
+	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route cache", err)
+
+		logger.Errorf("Failed to delete transaction route cache: %v", err)
+	}
 
 	return http.NoContent(c)
 }
