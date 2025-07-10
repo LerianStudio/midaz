@@ -106,6 +106,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			return nil, err
 		}
 
+		// #nosec G404
 		jitter := time.Duration(rand.Float64() * jitterFactor * float64(backoff))
 
 		sleepDuration := backoff + jitter

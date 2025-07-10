@@ -60,7 +60,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	defer spanProducer.End()
 
 	var err error
-	
+
 	backoff := initialBackoff
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -95,6 +95,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			return nil, err
 		}
 
+		// #nosec G404
 		jitter := time.Duration(rand.Float64() * jitterFactor * float64(backoff))
 
 		sleepDuration := backoff + jitter
