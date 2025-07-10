@@ -1,3 +1,20 @@
+## [v2.3.0-beta.14] - 2025-07-10
+
+This release introduces significant enhancements to streamline cross-repository operations, empowering users with greater flexibility and efficiency in managing their projects.
+
+### ✨ Features  
+- **Cross-Repository Operations**: You can now insert custom tokens to execute operations seamlessly across different repositories. This feature enhances workflow automation and integration across multiple codebases, making project management more efficient and flexible.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and enhancements. This ensures you have access to the most current information on updates, making it easier to track project evolution and understand new features.
+
+### 🔧 Maintenance
+- **Code Refinements**: The codebase has been refined with a net change of +33 additions and -25 deletions, focusing on adding new functionality while improving existing code quality.
+
+---
+
+This release contains no breaking changes, ensuring a smooth upgrade experience. Enjoy the new features and improvements!
+
 ## [v2.3.0-beta.13] - 2025-07-08
 
 This release introduces a significant enhancement to the configuration process, offering a streamlined approach to managing pre-release activities. Our focus is on improving the efficiency and reliability of release management.
