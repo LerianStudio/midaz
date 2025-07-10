@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS operation_route (
     ledger_id                       UUID NOT NULL,
     title                           VARCHAR(255) NOT NULL,
     description                     VARCHAR(250),
-    type                            VARCHAR(20) NOT NULL CHECK (LOWER(type) IN ('debit', 'credit')),
+    operation_type                  VARCHAR(20) NOT NULL CHECK (LOWER(operation_type) IN ('source', 'destination')),
     account_rule_type               VARCHAR(20),
     account_rule_valid_if           TEXT,
     created_at                      TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -14,6 +14,6 @@ CREATE TABLE IF NOT EXISTS operation_route (
 
 CREATE INDEX idx_operation_route_organization_id_ledger_id ON operation_route (organization_id, ledger_id);
 
-CREATE INDEX idx_operation_route_type ON operation_route (organization_id, ledger_id, type) WHERE deleted_at IS NULL;
+CREATE INDEX idx_operation_route_type ON operation_route (organization_id, ledger_id, operation_type) WHERE deleted_at IS NULL;
 
 CREATE INDEX idx_operation_route_deleted_at ON operation_route (organization_id, ledger_id, deleted_at);

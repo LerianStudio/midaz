@@ -31,7 +31,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
-		Type:           "debit",
+		OperationType:  "source",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -67,7 +67,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
-	assert.Equal(t, "debit", result.Type)
+	assert.Equal(t, "source", result.OperationType)
 	assert.Equal(t, map[string]any{"key": "value", "type": "important"}, result.Metadata)
 }
 
@@ -86,7 +86,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
-		Type:           "credit",
+		OperationType:  "destination",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -116,7 +116,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
-	assert.Equal(t, "credit", result.Type)
+	assert.Equal(t, "destination", result.OperationType)
 	assert.Nil(t, result.Metadata)
 }
 
@@ -195,7 +195,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
-		Type:           "debit",
+		OperationType:  "source",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
@@ -239,7 +239,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Portfolio Route",
 		Description:    "Portfolio Description",
-		Type:           "credit",
+		OperationType:  "destination",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)

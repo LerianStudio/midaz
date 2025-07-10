@@ -22,9 +22,9 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
 		Account: &mmodel.AccountRule{
 			RuleType: constant.AccountRuleTypeAccountType,
 			ValidIf:  []string{"asset", "liability"},
@@ -37,7 +37,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
-			assert.Equal(t, payload.Type, operationRoute.Type)
+			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 			assert.Equal(t, payload.Account, operationRoute.Account)
 			return operationRoute, nil
 		})
@@ -52,7 +52,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
-	assert.Equal(t, payload.Type, operationRoute.Type)
+	assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
@@ -65,9 +65,9 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
 		Account: &mmodel.AccountRule{
 			RuleType: constant.AccountRuleTypeAlias,
 			ValidIf:  "@cash_account",
@@ -80,7 +80,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
-			assert.Equal(t, payload.Type, operationRoute.Type)
+			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 			assert.Equal(t, payload.Account, operationRoute.Account)
 			return operationRoute, nil
 		})
@@ -95,7 +95,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
-	assert.Equal(t, payload.Type, operationRoute.Type)
+	assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
@@ -108,9 +108,9 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
 	}
 
 	expectedOperationRoute := &mmodel.OperationRoute{
@@ -119,7 +119,7 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          payload.Title,
 		Description:    payload.Description,
-		Type:           payload.Type,
+		OperationType:  payload.OperationType,
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -147,9 +147,9 @@ func TestCreateOperationRouteError(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
 		Account: &mmodel.AccountRule{
 			RuleType: constant.AccountRuleTypeAccountType,
 			ValidIf:  []string{"asset", "liability"},

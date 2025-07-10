@@ -40,14 +40,14 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Title:          "Debit Route",
-			Type:           "debit",
+			OperationType:  "source",
 		},
 		{
 			ID:             operationRouteID2,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Title:          "Credit Route",
-			Type:           "credit",
+			OperationType:  "destination",
 		},
 	}
 
@@ -116,12 +116,12 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "debit",
+			ID:            operationRouteID1,
+			OperationType: "source",
 		},
 		{
-			ID:   operationRouteID2,
-			Type: "credit",
+			ID:            operationRouteID2,
+			OperationType: "destination",
 		},
 	}
 
@@ -206,8 +206,8 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	// Only credit operation route, missing debit
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "credit",
+			ID:            operationRouteID1,
+			OperationType: "destination",
 		},
 	}
 
@@ -246,8 +246,8 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	// Only debit operation route, missing credit
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "debit",
+			ID:            operationRouteID1,
+			OperationType: "source",
 		},
 	}
 
@@ -286,12 +286,12 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "debit",
+			ID:            operationRouteID1,
+			OperationType: "source",
 		},
 		{
-			ID:   operationRouteID2,
-			Type: "credit",
+			ID:            operationRouteID2,
+			OperationType: "destination",
 		},
 	}
 
@@ -339,12 +339,12 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "debit",
+			ID:            operationRouteID1,
+			OperationType: "source",
 		},
 		{
-			ID:   operationRouteID2,
-			Type: "credit",
+			ID:            operationRouteID2,
+			OperationType: "destination",
 		},
 	}
 
@@ -407,12 +407,12 @@ func TestCreateTransactionRouteErrorInvalidMetadata(t *testing.T) {
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
 		{
-			ID:   operationRouteID1,
-			Type: "debit",
+			ID:            operationRouteID1,
+			OperationType: "source",
 		},
 		{
-			ID:   operationRouteID2,
-			Type: "credit",
+			ID:            operationRouteID2,
+			OperationType: "destination",
 		},
 	}
 
@@ -450,8 +450,8 @@ func TestCreateTransactionRouteErrorInvalidMetadata(t *testing.T) {
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{Type: "debit"},
-		{Type: "credit"},
+		{OperationType: "source"},
+		{OperationType: "destination"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
@@ -461,8 +461,8 @@ func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 // TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing
 func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{Type: "credit"},
-		{Type: "credit"},
+		{OperationType: "destination"},
+		{OperationType: "destination"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
@@ -474,8 +474,8 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 // TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing
 func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{Type: "debit"},
-		{Type: "debit"},
+		{OperationType: "source"},
+		{OperationType: "source"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)

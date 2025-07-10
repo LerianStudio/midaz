@@ -22,7 +22,7 @@ type OperationRoute struct {
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
 	// The type of the operation route.
-	Type string `json:"type,omitempty" example:"debit" enum:"debit,credit"`
+	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -45,7 +45,7 @@ type CreateOperationRouteInput struct {
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// The type of the operation route.
-	Type string `json:"type,omitempty" validate:"required" example:"debit" enum:"debit,credit"`
+	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.

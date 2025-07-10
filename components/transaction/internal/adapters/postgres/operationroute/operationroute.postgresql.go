@@ -92,7 +92,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		&record.LedgerID,
 		&record.Title,
 		&record.Description,
-		&record.Type,
+		&record.OperationType,
 		&record.AccountRuleType,
 		&record.AccountRuleValidIf,
 		&record.CreatedAt,
@@ -163,7 +163,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		&operationRoute.LedgerID,
 		&operationRoute.Title,
 		&operationRoute.Description,
-		&operationRoute.Type,
+		&operationRoute.OperationType,
 		&operationRoute.AccountRuleType,
 		&operationRoute.AccountRuleValidIf,
 		&operationRoute.CreatedAt,
@@ -201,7 +201,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
-	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "operation_type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
 		From("operation_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -241,7 +241,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 			&operationRoute.LedgerID,
 			&operationRoute.Title,
 			&operationRoute.Description,
-			&operationRoute.Type,
+			&operationRoute.OperationType,
 			&operationRoute.AccountRuleType,
 			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,
@@ -478,7 +478,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.LedgerID,
 			&operationRoute.Title,
 			&operationRoute.Description,
-			&operationRoute.Type,
+			&operationRoute.OperationType,
 			&operationRoute.AccountRuleType,
 			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,

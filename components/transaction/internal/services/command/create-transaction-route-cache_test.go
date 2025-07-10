@@ -35,7 +35,7 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 				ID:             operationRouteID,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "debit",
+				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -49,7 +49,7 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedCacheData := `{"` + operationRouteID.String() + `":{"account":{"ruleType":"alias","validIf":"@cash_account"},"type":"debit"}}`
+	expectedCacheData := `{"` + operationRouteID.String() + `":{"account":{"ruleType":"alias","validIf":"@cash_account"},"operationType":"source"}}`
 
 	mockRedisRepo.EXPECT().
 		Set(gomock.Any(), gomock.Any(), expectedCacheData, time.Duration(0)).
@@ -82,7 +82,7 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 				ID:             operationRouteID,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "credit",
+				OperationType:  "destination",
 				Account:        nil,
 			},
 		},
@@ -93,7 +93,7 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedCacheData := `{"` + operationRouteID.String() + `":{"type":"credit"}}`
+	expectedCacheData := `{"` + operationRouteID.String() + `":{"operationType":"destination"}}`
 
 	mockRedisRepo.EXPECT().
 		Set(gomock.Any(), gomock.Any(), expectedCacheData, time.Duration(0)).
@@ -162,7 +162,7 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 				ID:             operationRouteID1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "debit",
+				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -172,7 +172,7 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 				ID:             operationRouteID2,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "credit",
+				OperationType:  "destination",
 				Account: &mmodel.AccountRule{
 					RuleType: "account_type",
 					ValidIf:  []string{"liability", "asset"},
@@ -217,7 +217,7 @@ func TestCreateAccountingRouteCache_ToCacheDataError(t *testing.T) {
 				ID:             uuid.UUID{}, // Invalid UUID
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "debit",
+				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  make(chan int), // Invalid data type that will cause JSON marshal error
@@ -257,7 +257,7 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 				ID:             operationRouteID,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "debit",
+				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -304,7 +304,7 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 				ID:             operationRouteID,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				Type:           "debit",
+				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",

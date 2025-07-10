@@ -40,7 +40,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Debit Route",
 			Description:    "Test Debit Description",
-			Type:           "debit",
+			OperationType:  "source",
 		},
 		{
 			ID:             uuid.New(),
@@ -48,7 +48,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Credit Route",
 			Description:    "Test Credit Description",
-			Type:           "credit",
+			OperationType:  "destination",
 		},
 	}
 
@@ -241,7 +241,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Test Route",
 			Description:    "Test Description",
-			Type:           "debit",
+			OperationType:  "source",
 		},
 	}
 
@@ -302,7 +302,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Operation Route 1",
 			Description:    "Description 1",
-			Type:           "debit",
+			OperationType:  "source",
 		},
 	}
 
@@ -367,7 +367,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Filtered Route",
 			Description:    "Filtered Description",
-			Type:           "credit",
+			OperationType:  "destination",
 		},
 	}
 
@@ -429,7 +429,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 			LedgerID:       ledgerID,
 			Title:          "Payment Route",
 			Description:    "Payment Description",
-			Type:           "debit",
+			OperationType:  "source",
 		},
 	}
 

@@ -103,22 +103,22 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both debit and credit types.
-// Returns an error if either debit or credit type is missing.
+// validateOperationRouteTypes validates that operation routes contain both source and destination types.
+// Returns an error if either source or destination type is missing.
 func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
-	hasDebit := false
-	hasCredit := false
+	hasSource := false
+	hasDestination := false
 
 	for _, operationRoute := range operationRoutes {
-		if operationRoute.Type == "debit" {
-			hasDebit = true
+		if operationRoute.OperationType == "source" {
+			hasSource = true
 		}
 
-		if operationRoute.Type == "credit" {
-			hasCredit = true
+		if operationRoute.OperationType == "destination" {
+			hasDestination = true
 		}
 
-		if hasDebit && hasCredit {
+		if hasSource && hasDestination {
 			return nil
 		}
 	}

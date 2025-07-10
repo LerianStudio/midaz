@@ -17,7 +17,7 @@ type OperationRoutePostgreSQLModel struct {
 	LedgerID           uuid.UUID    `db:"ledger_id"`
 	Title              string       `db:"title"`
 	Description        string       `db:"description"`
-	Type               string       `db:"type"`
+	OperationType      string       `db:"operation_type"`
 	AccountRuleType    string       `db:"account_rule_type"`
 	AccountRuleValidIf string       `db:"account_rule_valid_if"`
 	CreatedAt          time.Time    `db:"created_at"`
@@ -37,7 +37,7 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		LedgerID:       m.LedgerID,
 		Title:          m.Title,
 		Description:    m.Description,
-		Type:           m.Type,
+		OperationType:  m.OperationType,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
@@ -81,7 +81,7 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.LedgerID = e.LedgerID
 	m.Title = e.Title
 	m.Description = e.Description
-	m.Type = strings.ToLower(e.Type)
+	m.OperationType = strings.ToLower(e.OperationType)
 
 	if e.Account != nil {
 		m.AccountRuleType = e.Account.RuleType

@@ -263,7 +263,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&opRoute.LedgerID,
 			&opRoute.Title,
 			&opRoute.Description,
-			&opRoute.Type,
+			&opRoute.OperationType,
 			&opRoute.AccountRuleType,
 			&opRoute.AccountRuleValidIf,
 			&opRoute.CreatedAt,

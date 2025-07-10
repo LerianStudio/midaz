@@ -28,7 +28,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		LedgerID:       ledgerID,
 		Title:          payload.Title,
 		Description:    payload.Description,
-		Type:           payload.Type,
+		OperationType:  payload.OperationType,
 		Account:        payload.Account,
 		CreatedAt:      now,
 		UpdatedAt:      now,

@@ -71,7 +71,7 @@ func (tr *TransactionRoute) ToCacheData() (string, error) {
 
 	for _, operationRoute := range tr.OperationRoutes {
 		routeData := map[string]any{
-			"type": operationRoute.Type,
+			"type": operationRoute.OperationType,
 		}
 
 		if operationRoute.Account != nil {
