@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -38,21 +36,14 @@ func TestCreateSettingsSuccess(t *testing.T) {
 	}
 
 	mockSettingsRepo := settings.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := UseCase{
 		SettingsRepo: mockSettingsRepo,
-		RedisRepo:    mockRedisRepo,
 	}
 
 	mockSettingsRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(expectedSettings, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), "true", time.Duration(0)).
-		Return(nil).
 		Times(1)
 
 	res, err := uc.CreateSettings(context.TODO(), organizationID, ledgerID, payload)
@@ -81,7 +72,6 @@ func TestCreateSettingsError(t *testing.T) {
 
 	uc := UseCase{
 		SettingsRepo: mockSettingsRepo,
-		// RedisRepo is not set since we don't expect cache calls on database error
 	}
 
 	mockSettingsRepo.EXPECT().
@@ -96,49 +86,55 @@ func TestCreateSettingsError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
-// TestCreateSettingsCacheError is responsible to test CreateSettings with cache error (should not fail operation)
-func TestCreateSettingsCacheError(t *testing.T) {
+// TestCreateSettingsWithDifferentActiveValues tests CreateSettings with various active values
+func TestCreateSettingsWithDifferentActiveValues(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 
-	payload := &mmodel.CreateSettingsInput{
-		Key:         "cache_test_setting",
-		Active:      false,
-		Description: "Setting to test cache failure handling",
+	testCases := []struct {
+		name   string
+		active bool
+	}{
+		{"ActiveTrue", true},
+		{"ActiveFalse", false},
 	}
 
-	expectedSettings := &mmodel.Settings{
-		ID:             libCommons.GenerateUUIDv7(),
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Key:            payload.Key,
-		Active:         &payload.Active,
-		Description:    payload.Description,
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := &mmodel.CreateSettingsInput{
+				Key:         "test_setting_" + tc.name,
+				Active:      tc.active,
+				Description: "Test setting for " + tc.name,
+			}
+
+			expectedSettings := &mmodel.Settings{
+				ID:             libCommons.GenerateUUIDv7(),
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				Key:            payload.Key,
+				Active:         &payload.Active,
+				Description:    payload.Description,
+			}
+
+			mockSettingsRepo := settings.NewMockRepository(ctrl)
+
+			uc := UseCase{
+				SettingsRepo: mockSettingsRepo,
+			}
+
+			mockSettingsRepo.EXPECT().
+				Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+				Return(expectedSettings, nil).
+				Times(1)
+
+			res, err := uc.CreateSettings(context.TODO(), organizationID, ledgerID, payload)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedSettings, res)
+			assert.Equal(t, tc.active, *res.Active)
+		})
 	}
-
-	mockSettingsRepo := settings.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	uc := UseCase{
-		SettingsRepo: mockSettingsRepo,
-		RedisRepo:    mockRedisRepo,
-	}
-
-	mockSettingsRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(expectedSettings, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), "false", time.Duration(0)).
-		Return(errors.New("redis connection error")).
-		Times(1)
-
-	res, err := uc.CreateSettings(context.TODO(), organizationID, ledgerID, payload)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSettings, res)
 }

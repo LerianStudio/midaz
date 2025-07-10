@@ -68,6 +68,12 @@ func (handler *SettingsHandler) CreateSettings(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Successfully created setting")
 
+	if err := handler.Command.CreateSettingsCache(ctx, organizationID, ledgerID, settings.Key, settings.Active); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to create settings cache", err)
+
+		logger.Errorf("Failed to create settings cache: %v", err)
+	}
+
 	return http.Created(c, settings)
 }
 
@@ -182,6 +188,12 @@ func (handler *SettingsHandler) UpdateSettings(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Successfully updated Setting with Setting ID: %s", id.String())
 
+	if err := handler.Command.CreateSettingsCache(ctx, organizationID, ledgerID, settings.Key, settings.Active); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to create settings cache", err)
+
+		logger.Errorf("Failed to create settings cache: %v", err)
+	}
+
 	return http.OK(c, settings)
 }
 
@@ -225,6 +237,12 @@ func (handler *SettingsHandler) DeleteSettingsByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully deleted Setting with Setting ID: %s", id.String())
+
+	if err := handler.Command.DeleteSettingsCache(ctx, organizationID, ledgerID, id); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete settings cache", err)
+
+		logger.Errorf("Failed to delete settings cache: %v", err)
+	}
 
 	return http.NoContent(c)
 }

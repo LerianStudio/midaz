@@ -43,11 +43,5 @@ func (uc *UseCase) CreateSettings(ctx context.Context, organizationID, ledgerID 
 
 	logger.Infof("Successfully created setting with key: %s", createdSettings.Key)
 
-	if err := uc.CreateSettingsCache(ctx, organizationID, ledgerID, createdSettings.Key, createdSettings.Active); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to cache created setting", err)
-
-		logger.Warnf("Failed to cache created setting with key %s: %v", createdSettings.Key, err)
-	}
-
 	return createdSettings, nil
 }

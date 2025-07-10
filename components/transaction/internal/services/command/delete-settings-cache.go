@@ -9,28 +9,36 @@ import (
 )
 
 // DeleteSettingsCache removes a setting from the cache.
-// Cache failures are logged but do not break the operation.
-func (uc *UseCase) DeleteSettingsCache(ctx context.Context, organizationID, ledgerID uuid.UUID, settingKey string) error {
+func (uc *UseCase) DeleteSettingsCache(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "command.delete_settings_cache")
 	defer span.End()
 
-	logger.Infof("Deleting cache for setting with key: %s", settingKey)
-
-	internalKey := libCommons.SettingsTransactionInternalKey(organizationID, ledgerID, settingKey)
-
-	err := uc.RedisRepo.Del(ctx, internalKey)
+	setting, err := uc.SettingsRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete setting cache", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find setting by id", err)
 
-		logger.Warnf("Failed to invalidate cache for setting with key %s: %v", settingKey, err)
+		logger.Errorf("Failed to find setting by id: %v", err)
 
 		return err
 	}
 
-	logger.Infof("Successfully invalidated cache for setting with key: %s", settingKey)
+	logger.Infof("Deleting cache for setting with key: %s", setting.Key)
+
+	internalKey := libCommons.SettingsTransactionInternalKey(organizationID, ledgerID, setting.Key)
+
+	err = uc.RedisRepo.Del(ctx, internalKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete setting cache", err)
+
+		logger.Warnf("Failed to invalidate cache for setting with key %s: %v", setting.Key, err)
+
+		return err
+	}
+
+	logger.Infof("Successfully invalidated cache for setting with key: %s", setting.Key)
 
 	return nil
 }

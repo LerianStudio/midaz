@@ -8,7 +8,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -37,11 +36,9 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 	}
 
 	mockRepo := settings.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
-		RedisRepo:    mockRedisRepo,
 	}
 
 	input := &mmodel.UpdateSettingsInput{
@@ -52,11 +49,6 @@ func TestUpdateSettingsSuccess(t *testing.T) {
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
 		Return(updatedSetting, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), "false", gomock.Any()).
-		Return(nil).
 		Times(1)
 
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
@@ -150,11 +142,9 @@ func TestUpdateSettingsPartialUpdate(t *testing.T) {
 	}
 
 	mockRepo := settings.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
-		RedisRepo:    mockRedisRepo,
 	}
 
 	input := &mmodel.UpdateSettingsInput{
@@ -166,19 +156,14 @@ func TestUpdateSettingsPartialUpdate(t *testing.T) {
 		Return(updatedSetting, nil).
 		Times(1)
 
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), "true", gomock.Any()).
-		Return(nil).
-		Times(1)
-
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedSetting, result)
 }
 
-// TestUpdateSettingsCacheError tests that cache errors don't break the update operation
-func TestUpdateSettingsCacheError(t *testing.T) {
+// TestUpdateSettingsOnlyActiveField tests updating a setting with only the active field
+func TestUpdateSettingsOnlyActiveField(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -186,37 +171,29 @@ func TestUpdateSettingsCacheError(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 
-	active := true
+	active := false
 	updatedSetting := &mmodel.Settings{
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Key:            "cache_error_test_setting",
+		Key:            "test_setting_key",
 		Active:         &active,
-		Description:    "Test setting for cache error",
+		Description:    "Existing description",
 	}
 
 	mockRepo := settings.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		SettingsRepo: mockRepo,
-		RedisRepo:    mockRedisRepo,
 	}
 
 	input := &mmodel.UpdateSettingsInput{
-		Active:      &active,
-		Description: "Test setting for cache error",
+		Active: &active,
 	}
 
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, settingID, gomock.Any()).
 		Return(updatedSetting, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), "true", gomock.Any()).
-		Return(errors.New("redis connection error")).
 		Times(1)
 
 	result, err := uc.UpdateSettings(context.Background(), organizationID, ledgerID, settingID, input)
