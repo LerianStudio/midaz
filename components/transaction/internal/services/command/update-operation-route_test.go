@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -54,8 +55,15 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 			return expectedOperationRoute, nil
 		})
 
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
+		MetadataRepo:       mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -103,8 +111,15 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 			return expectedOperationRoute, nil
 		})
 
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
+		MetadataRepo:       mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
@@ -139,14 +154,21 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+		MetadataRepo:       mockMetadataRepo,
+	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
@@ -245,14 +267,21 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+		MetadataRepo:       mockMetadataRepo,
+	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 

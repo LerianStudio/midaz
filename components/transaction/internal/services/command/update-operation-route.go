@@ -42,5 +42,16 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), id.String(), input.Metadata)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+
+		logger.Errorf("Error updating metadata on repo by id: %v", err)
+
+		return nil, err
+	}
+
+	operationRouteUpdated.Metadata = metadataUpdated
+
 	return operationRouteUpdated, nil
 }

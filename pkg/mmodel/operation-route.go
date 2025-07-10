@@ -23,6 +23,8 @@ type OperationRoute struct {
 	Description string `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
 	// The type of the operation route.
 	Type string `json:"type,omitempty" example:"debit" enum:"debit,credit"`
+	// Additional metadata stored as JSON
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
 	// The timestamp when the operation route was created.
@@ -44,6 +46,8 @@ type CreateOperationRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// The type of the operation route.
 	Type string `json:"type,omitempty" validate:"required" example:"debit" enum:"debit,credit"`
+	// Additional metadata stored as JSON
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
 } // @name CreateOperationRouteInput
@@ -57,6 +61,8 @@ type UpdateOperationRouteInput struct {
 	Title string `json:"title,omitempty" validate:"max=50" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
+	// Additional metadata stored as JSON
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
 } // @name UpdateOperationRouteInput

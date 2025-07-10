@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // OperationRouteHandler is a struct that contains the command and query use cases.
@@ -194,6 +195,14 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	logger.Infof("Successfully updated Operation Route with Operation Route ID: %s", id.String())
 
+	if payload.Account != nil {
+		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to reload operation route cache", err)
+
+			logger.Errorf("Failed to reload operation route cache: %v", err)
+		}
+	}
+
 	return http.OK(c, operationRoute)
 }
 
@@ -292,7 +301,36 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 		EndDate:    headerParams.EndDate,
 	}
 
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Operation Routes by metadata")
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
+
+			return http.WithError(c, err)
+		}
+
+		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operation Routes by metadata", err)
+
+			logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Operation Routes by metadata")
+
+		pagination.SetItems(operationRoutes)
+		pagination.SetCursor(cur.Next, cur.Prev)
+
+		return http.OK(c, pagination)
+	}
+
 	logger.Infof("Initiating retrieval of all Operation Routes")
+
+	headerParams.Metadata = &bson.M{}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
