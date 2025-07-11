@@ -15,7 +15,7 @@ import (
 )
 
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
-func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
+func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -36,6 +36,8 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 
 		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
+
+		return err
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -61,6 +63,8 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to redis backup queue", err)
 
 		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
+
+		return err
 	}
 
 	message, err := json.Marshal(queueMessage)
@@ -68,6 +72,8 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
 
 		logger.Errorf("Failed to marshal exchange message struct")
+
+		return err
 	}
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
@@ -79,7 +85,11 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
 
 		logger.Errorf("Failed to send message: %s", err.Error())
+
+		return err
 	}
 
 	logger.Infof("Mensagem send to queue: %s", tran.ID)
+
+	return nil
 }

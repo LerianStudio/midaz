@@ -673,8 +673,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
-	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction")
-	defer spanValidateDSL.End()
+	_, span := tracer.Start(ctx, "handler.create_transaction")
+	defer span.End()
 
 	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 	defer spanIdempotency.End()
@@ -709,7 +709,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanValidateDSL, "Failed to validate send source and distribute", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
 
 		logger.Error("Validation failed:", err.Error())
 
@@ -849,7 +849,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to send BTO to rabbitmq", err)
+
+		_ = handler.Command.RedisRepo.Del(ctx, key)
+
+		return http.WithError(c, err)
+	}
 
 	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 
@@ -989,7 +996,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to send BTO to rabbitmq", err)
+
+		return http.WithError(c, err)
+	}
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
