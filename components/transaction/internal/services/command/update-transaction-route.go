@@ -79,7 +79,7 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	defer span.End()
 
 	if len(newOperationRouteIDs) < 2 {
-		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, "Cannot update TransactionRoute to have less than 2 operation routes - must maintain at least 1 debit and 1 credit operation route")
+		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)

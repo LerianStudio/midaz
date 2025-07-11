@@ -29,7 +29,7 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 	}
 
 	if len(transactionRouteIDs) == 0 {
-		logger.Infof("No transaction routes found for operation route %s, cache reload complete", id)
+		logger.Infof("No transaction routes found for operation route %s, no cache reload needed", id)
 
 		return nil
 	}

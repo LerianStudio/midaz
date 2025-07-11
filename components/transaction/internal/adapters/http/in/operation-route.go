@@ -179,16 +179,12 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update Operation Route on command", err)
 
-		logger.Errorf("Failed to update Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
-
 		return http.WithError(c, err)
 	}
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation Route on query", err)
-
-		logger.Errorf("Failed to retrieve Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
 		return http.WithError(c, err)
 	}

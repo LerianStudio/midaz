@@ -120,12 +120,6 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 
 	logger.Infof("Successfully retrieved transaction route with ID: %s", id.String())
 
-	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
-
-		logger.Errorf("Failed to create transaction route cache: %v", err)
-	}
-
 	return http.OK(c, transactionRoute)
 }
 
