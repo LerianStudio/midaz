@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/settings"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"

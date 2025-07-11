@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,6 +28,10 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 		return pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, entityType)
 	case "account_organization_id_fkey", "ledger_organization_id_fkey", "asset_organization_id_fkey", "portfolio_organization_id_fkey", "segment_organization_id_fkey":
 		return pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, entityType)
+	case "idx_settings_unique_key":
+		return pkg.ValidateBusinessError(constant.ErrDuplicateSettingsKey, entityType)
+	case "idx_account_type_unique_key_value":
+		return pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, entityType)
 	default:
 		return pgErr
 	}

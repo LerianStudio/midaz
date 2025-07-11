@@ -930,7 +930,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateSettingsKey.Error(),
 			Title:      "Duplicate Settings Key Error",
-			Message:    fmt.Sprintf("A setting with the key '%v' already exists for this organization and ledger. Please use a different key or update the existing setting.", args...),
+			Message:    "A setting with the specified key already exists for this organization and ledger. Please use a different key or update the existing setting.",
 		},
 		constant.ErrSettingsNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -949,6 +949,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrMutuallyExclusiveFields.Error(),
 			Title:      "Mutually Exclusive Fields Error",
 			Message:    fmt.Sprintf("The fields '%v' and '%v' are mutually exclusive.", args...),
+		},
+		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),
+			Title:      "Duplicate Account Type Key Value Error",
+			Message:    "An account type with the specified key value already exists for this organization and ledger. Please use a different key value or update the existing account type.",
+		},
+		constant.ErrAccountTypeNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountTypeNotFound.Error(),
+			Title:      "Account Type Not Found Error",
+			Message:    "The account type you are trying to access does not exist or has been removed.",
+		},
+		constant.ErrNoAccountTypesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoAccountTypesFound.Error(),
+			Title:      "No Account Types Found",
+			Message:    "No account types were found in the search. Please review the search criteria and try again.",
 		},
 	}
 

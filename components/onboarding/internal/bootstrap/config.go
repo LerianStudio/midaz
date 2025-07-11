@@ -2,6 +2,9 @@ package bootstrap
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/LerianStudio/lib-auth/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
@@ -13,17 +16,17 @@ import (
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
-	"strings"
-	"time"
 )
 
 const ApplicationName = "onboarding"
@@ -171,6 +174,8 @@ func InitServers() *Service {
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
+	settingsPostgreSQLRepository := settings.NewSettingsPostgreSQLRepository(postgresConnection)
+	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -183,6 +188,8 @@ func InitServers() *Service {
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
+		SettingsRepo:     settingsPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
@@ -195,6 +202,8 @@ func InitServers() *Service {
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
+		SettingsRepo:     settingsPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
 	}
@@ -229,9 +238,19 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	settingsHandler := &httpin.SettingsHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	accountTypeHandler := &httpin.AccountTypeHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, settingsHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
