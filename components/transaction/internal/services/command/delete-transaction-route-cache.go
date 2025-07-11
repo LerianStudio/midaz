@@ -18,7 +18,7 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 	logger.Infof("Deleting transaction route cache for transaction route with id: %s", transactionRouteID)
 
-	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID.String())
+	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	err := uc.RedisRepo.Del(ctx, internalKey)
 	if err != nil {

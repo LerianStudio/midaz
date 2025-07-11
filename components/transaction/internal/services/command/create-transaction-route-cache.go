@@ -23,9 +23,11 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 	logger.Infof("Creating transaction route cache for transaction route with id: %s", route.ID)
 
-	internalKey := libCommons.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID.String())
+	internalKey := libCommons.AccountingRoutesInternalKey(route.OrganizationID, route.LedgerID, route.ID)
 
-	cacheData, err := route.ToCacheData()
+	cacheData := route.ToCache()
+
+	cacheBytes, err := cacheData.ToMsgpack()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert route to cache data", err)
 
@@ -34,7 +36,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 		return err
 	}
 
-	err = uc.RedisRepo.Set(ctx, internalKey, cacheData, 0)
+	err = uc.RedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
 
