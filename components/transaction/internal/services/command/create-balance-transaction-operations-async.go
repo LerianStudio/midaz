@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/vmihailenco/msgpack/v5"
 	"reflect"
 	"time"
 
@@ -30,7 +31,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
-		err := json.Unmarshal(item.Value, &t)
+		err := msgpack.Unmarshal(item.Value, &t)
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 

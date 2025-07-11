@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"github.com/vmihailenco/msgpack/v5"
 	"os"
 )
 
@@ -67,7 +68,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		return err
 	}
 
-	message, err := json.Marshal(queueMessage)
+	message, err := msgpack.Marshal(queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
 
