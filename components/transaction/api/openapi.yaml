@@ -1109,7 +1109,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOperationRouteInput'
+              $ref: '#/components/schemas/mmodel.CreateOperationRouteInput'
         description: Operation Route Input
         required: true
       responses:
@@ -3194,50 +3194,6 @@ components:
       - rate
       - to
       type: object
-    CreateOperationRouteInput:
-      description: CreateOperationRouteInput payload
-      example:
-        accountAlias: '@cash_account'
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
-        description: This operation route handles cash-in transactions from service
-          charge collections
-        title: Cashin from service charge
-        type: debit
-      properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
-        description:
-          description: Detailed description of the operation route purpose and usage.
-          example: This operation route handles cash-in transactions from service
-            charge collections
-          maxLength: 250
-          type: string
-        title:
-          description: Short text summarizing the purpose of the operation. Used as
-            an entry note for identification.
-          example: Cashin from service charge
-          maxLength: 50
-          type: string
-        type:
-          description: The type of the operation route.
-          example: debit
-          type: string
-      required:
-      - title
-      - type
-      type: object
     CreateSettingsInput:
       description: CreateSettingsInput payload
       example:
@@ -3660,33 +3616,25 @@ components:
     OperationRoute:
       description: OperationRoute object
       example:
-        accountAlias: '@cash_account'
         ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
+        metadata:
+          key: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
+        operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         title: Cashin from service charge
-        type: debit
+        account: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
+        account:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountRule'
+          description: The account selection rule configuration.
+          type: object
         createdAt:
           description: The timestamp when the operation route was created.
           example: 2021-01-01T00:00:00Z
@@ -3710,6 +3658,15 @@ components:
           description: The unique identifier of the Ledger.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
+        operationType:
+          description: The type of the operation route.
+          example: source
+          type: string
         organizationId:
           description: The unique identifier of the Organization.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -3718,10 +3675,6 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          type: string
-        type:
-          description: The type of the operation route.
-          example: debit
           type: string
         updatedAt:
           description: The timestamp when the operation route was last updated.
@@ -4042,33 +3995,31 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         description: Settlement route for service charges
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4170,32 +4121,29 @@ components:
     UpdateOperationRouteInput:
       description: UpdateOperationRouteInput payload
       example:
-        accountAlias: '@cash_account'
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
+        metadata:
+          key: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
+        account: '{}'
       properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
+        account:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountRule'
+          description: The account selection rule configuration.
+          type: object
         description:
           description: Detailed description of the operation route purpose and usage.
           example: This operation route handles cash-in transactions from service
             charge collections
           maxLength: 250
           type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
         title:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
@@ -4318,6 +4266,8 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
+      type: object
+    mmodel.AccountRule:
       type: object
     mmodel.Balance:
       description: Complete balance entity containing all fields including system-generated
@@ -4468,6 +4418,8 @@ components:
           example: 1
           minimum: 1
           type: integer
+      type: object
+    mmodel.CreateOperationRouteInput:
       type: object
     inline_response_200:
       example:
@@ -4664,33 +4616,31 @@ components:
         limit: 0
         page: '{}'
         items:
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
         Pagination:
@@ -4779,33 +4729,31 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4818,33 +4766,31 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a

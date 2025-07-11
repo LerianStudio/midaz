@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "0ae8af67-7356-4ffd-8a18-607bce1d896d",
+      "_postman_id": "d934dd83-beda-443c-9536-889a07c0aded",
       "event": []
     },
     {
@@ -14310,7 +14310,7 @@
             "description": "Endpoint to create a new Operation Route.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"accountAlias\": \"@cash_account\",\n  \"accountTypes\": [\n    \"[\\\"asset\\\"\",\n    \"\\\"liability\\\"]\"\n  ],\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"title\": \"Cashin from service charge\",\n  \"type\": \"debit\"\n}",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -14685,7 +14685,7 @@
             "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"accountAlias\": \"@cash_account\",\n  \"accountTypes\": [\n    \"[\\\"asset\\\"\",\n    \"\\\"liability\\\"]\"\n  ],\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"title\": \"Cashin from service charge\"\n}",
+              "raw": "{\n  \"account\": null,\n  \"description\": \"This operation route handles cash-in transactions from service charge collections\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"title\": \"Cashin from service charge\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

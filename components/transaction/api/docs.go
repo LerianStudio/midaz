@@ -1506,7 +1506,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/CreateOperationRouteInput"
+                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -3953,49 +3953,6 @@ const docTemplate = `{
                 }
             }
         },
-        "CreateOperationRouteInput": {
-            "description": "CreateOperationRouteInput payload",
-            "type": "object",
-            "required": [
-                "title",
-                "type"
-            ],
-            "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
-                    ]
-                },
-                "description": {
-                    "description": "Detailed description of the operation route purpose and usage.",
-                    "type": "string",
-                    "maxLength": 250,
-                    "example": "This operation route handles cash-in transactions from service charge collections"
-                },
-                "title": {
-                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
-                    "type": "string",
-                    "maxLength": 50,
-                    "example": "Cashin from service charge"
-                },
-                "type": {
-                    "description": "The type of the operation route.",
-                    "type": "string",
-                    "example": "debit"
-                }
-            }
-        },
         "CreateSettingsInput": {
             "description": "CreateSettingsInput payload",
             "type": "object",
@@ -4415,20 +4372,12 @@ const docTemplate = `{
             "description": "OperationRoute object",
             "type": "object",
             "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
                     ]
                 },
                 "createdAt": {
@@ -4458,6 +4407,16 @@ const docTemplate = `{
                     "type": "string",
                     "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
                 },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationType": {
+                    "description": "The type of the operation route.",
+                    "type": "string",
+                    "example": "source"
+                },
                 "organizationId": {
                     "description": "The unique identifier of the Organization.",
                     "type": "string",
@@ -4467,11 +4426,6 @@ const docTemplate = `{
                     "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
                     "type": "string",
                     "example": "Cashin from service charge"
-                },
-                "type": {
-                    "description": "The type of the operation route.",
-                    "type": "string",
-                    "example": "debit"
                 },
                 "updatedAt": {
                     "description": "The timestamp when the operation route was last updated.",
@@ -4789,20 +4743,12 @@ const docTemplate = `{
             "description": "UpdateOperationRouteInput payload",
             "type": "object",
             "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
                     ]
                 },
                 "description": {
@@ -4810,6 +4756,11 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 250,
                     "example": "This operation route handles cash-in transactions from service charge collections"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "title": {
                     "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
@@ -5018,6 +4969,9 @@ const docTemplate = `{
                 }
             }
         },
+        "mmodel.AccountRule": {
+            "type": "object"
+        },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
             "type": "object",
@@ -5117,6 +5071,9 @@ const docTemplate = `{
                     "example": 1
                 }
             }
+        },
+        "mmodel.CreateOperationRouteInput": {
+            "type": "object"
         }
     }
 }`

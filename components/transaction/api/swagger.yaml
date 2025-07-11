@@ -221,41 +221,6 @@ definitions:
     - rate
     - to
     type: object
-  CreateOperationRouteInput:
-    description: CreateOperationRouteInput payload
-    properties:
-      accountAlias:
-        description: Specific account alias for this operation route.
-        example: '@cash_account'
-        type: string
-      accountTypes:
-        description: Array of allowed account types for this operation route.
-        example:
-        - '["asset"'
-        - '"liability"]'
-        items:
-          type: string
-        type: array
-      description:
-        description: Detailed description of the operation route purpose and usage.
-        example: This operation route handles cash-in transactions from service charge
-          collections
-        maxLength: 250
-        type: string
-      title:
-        description: Short text summarizing the purpose of the operation. Used as
-          an entry note for identification.
-        example: Cashin from service charge
-        maxLength: 50
-        type: string
-      type:
-        description: The type of the operation route.
-        example: debit
-        type: string
-    required:
-    - title
-    - type
-    type: object
   CreateSettingsInput:
     description: CreateSettingsInput payload
     properties:
@@ -729,18 +694,10 @@ definitions:
   OperationRoute:
     description: OperationRoute object
     properties:
-      accountAlias:
-        description: Specific account alias for this operation route.
-        example: '@cash_account'
-        type: string
-      accountTypes:
-        description: Array of allowed account types for this operation route.
-        example:
-        - '["asset"'
-        - '"liability"]'
-        items:
-          type: string
-        type: array
+      account:
+        allOf:
+        - $ref: '#/definitions/mmodel.AccountRule'
+        description: The account selection rule configuration.
       createdAt:
         description: The timestamp when the operation route was created.
         example: "2021-01-01T00:00:00Z"
@@ -764,6 +721,14 @@ definitions:
         description: The unique identifier of the Ledger.
         example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         type: string
+      metadata:
+        additionalProperties: {}
+        description: Additional metadata stored as JSON
+        type: object
+      operationType:
+        description: The type of the operation route.
+        example: source
+        type: string
       organizationId:
         description: The unique identifier of the Organization.
         example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -772,10 +737,6 @@ definitions:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
         example: Cashin from service charge
-        type: string
-      type:
-        description: The type of the operation route.
-        example: debit
         type: string
       updatedAt:
         description: The timestamp when the operation route was last updated.
@@ -1092,24 +1053,20 @@ definitions:
   UpdateOperationRouteInput:
     description: UpdateOperationRouteInput payload
     properties:
-      accountAlias:
-        description: Specific account alias for this operation route.
-        example: '@cash_account'
-        type: string
-      accountTypes:
-        description: Array of allowed account types for this operation route.
-        example:
-        - '["asset"'
-        - '"liability"]'
-        items:
-          type: string
-        type: array
+      account:
+        allOf:
+        - $ref: '#/definitions/mmodel.AccountRule'
+        description: The account selection rule configuration.
       description:
         description: Detailed description of the operation route purpose and usage.
         example: This operation route handles cash-in transactions from service charge
           collections
         maxLength: 250
         type: string
+      metadata:
+        additionalProperties: {}
+        description: Additional metadata stored as JSON
+        type: object
       title:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
@@ -1338,6 +1295,8 @@ definitions:
             type: number
         type: object
     type: object
+  mmodel.AccountRule:
+    type: object
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1468,6 +1427,8 @@ definitions:
         example: 1
         minimum: 1
         type: integer
+    type: object
+  mmodel.CreateOperationRouteInput:
     type: object
 host: localhost:3001
 info:
@@ -2461,7 +2422,7 @@ paths:
         name: operation-route
         required: true
         schema:
-          $ref: '#/definitions/CreateOperationRouteInput'
+          $ref: '#/definitions/mmodel.CreateOperationRouteInput'
       produces:
       - application/json
       responses:
