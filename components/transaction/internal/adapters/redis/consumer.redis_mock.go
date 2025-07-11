@@ -87,6 +87,21 @@ func (mr *MockRedisRepositoryMockRecorder) Get(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), ctx, key)
 }
 
+// GetBytes mocks base method.
+func (m *MockRedisRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBytes", ctx, key)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBytes indicates an expected call of GetBytes.
+func (mr *MockRedisRepositoryMockRecorder) GetBytes(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBytes", reflect.TypeOf((*MockRedisRepository)(nil).GetBytes), ctx, key)
+}
+
 // Incr mocks base method.
 func (m *MockRedisRepository) Incr(ctx context.Context, key string) int64 {
 	m.ctrl.T.Helper()
@@ -113,6 +128,20 @@ func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl ti
 func (mr *MockRedisRepositoryMockRecorder) Set(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), ctx, key, value, ttl)
+}
+
+// SetBytes mocks base method.
+func (m *MockRedisRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBytes", ctx, key, value, ttl)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetBytes indicates an expected call of SetBytes.
+func (mr *MockRedisRepositoryMockRecorder) SetBytes(ctx, key, value, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBytes", reflect.TypeOf((*MockRedisRepository)(nil).SetBytes), ctx, key, value, ttl)
 }
 
 // SetNX mocks base method.
