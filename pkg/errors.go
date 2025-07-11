@@ -956,6 +956,48 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Rule Value",
 			Message:    "The provided 'account.validIf' is not valid. Please provide a string for 'alias' or an array of strings for 'account_type'.",
 		},
+		constant.ErrInvalidAccountingRoute: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountingRoute.Error(),
+			Title:      "Invalid Accounting Route",
+			Message:    "The transaction does not comply with the defined accounting route rules. Please verify that the transaction matches the expected operation types and account validation rules.",
+		},
+		constant.ErrTransactionRouteNotInformed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRouteNotInformed.Error(),
+			Title:      "Transaction Route Not Informed",
+			Message:    "The transaction route is not informed. Please inform the transaction route for this transaction.",
+		},
+		constant.ErrInvalidTransactionRouteID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTransactionRouteID.Error(),
+			Title:      "Invalid Transaction Route ID",
+			Message:    "The provided transaction route ID is not a valid UUID format. Please provide a valid UUID for the transaction route.",
+		},
+		constant.ErrAccountingRouteCountMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
+			Title:      "Accounting Route Count Mismatch",
+			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source routes and %v destination routes, but found %v source routes and %v destination routes in the transaction route.", args...),
+		},
+		constant.ErrAccountingRouteNotFound: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingRouteNotFound.Error(),
+			Title:      "Accounting Route Not Found",
+			Message:    fmt.Sprintf("The operation route ID '%v' was not found in the transaction route cache for operation '%v'. Please verify the route configuration.", args...),
+		},
+		constant.ErrAccountingAliasValidationFailed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingAliasValidationFailed.Error(),
+			Title:      "Accounting Alias Validation Failed",
+			Message:    fmt.Sprintf("The operation alias '%v' does not match the expected alias '%v' defined in the accounting route rule.", args...),
+		},
+		constant.ErrAccountingAccountTypeValidationFailed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingAccountTypeValidationFailed.Error(),
+			Title:      "Accounting Account Type Validation Failed",
+			Message:    fmt.Sprintf("The account type '%v' does not match any of the expected account types %v defined in the accounting route rule.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
