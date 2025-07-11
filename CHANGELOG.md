@@ -1,3 +1,27 @@
+## [v2.3.0-beta.16] - 2025-07-11
+
+This release of midaz introduces powerful new features in account and settings management, enhancing user control and efficiency. With improved database performance and comprehensive documentation updates, users can expect a more streamlined and responsive experience.
+
+### ✨ Features
+- **Comprehensive Account Management**: Users can now create accounts with enhanced validations, retrieve account types, and filter metadata in batches, simplifying account setup and management.
+- **Settings Management System**: Gain full control over your application settings with the ability to create, retrieve, update, and delete settings, allowing for a highly customizable user experience.
+
+### ⚡ Performance
+- **Database Enhancements**: New table migrations with indexes have been implemented, leading to faster data retrieval and improved application responsiveness.
+
+### 🔄 Changes
+- **Account Type Management**: Users can now list, update, and delete account types more efficiently, improving the overall user experience in managing account configurations.
+- **Settings Storage Optimization**: The introduction of a PostgreSQL repository for settings management enhances the reliability and speed of settings operations.
+
+### 📚 Documentation
+- **Onboarding Updates**: Documentation now includes detailed guides on new account type endpoints, ensuring users and developers have the latest information for seamless integration and use.
+
+### 🔧 Maintenance
+- **Code Simplification**: Redundant settings retrieval processes have been removed, streamlining the codebase for better maintainability.
+- **Expanded Testing**: Additional unit tests have been added across key components, ensuring new features are robust and reliable.
+
+In this changelog, we've highlighted the key new features and improvements that enhance user experience and performance. Each section focuses on the benefits and impact of the changes, using clear and accessible language. The documentation updates and maintenance improvements ensure users have the necessary resources and a reliable application environment.
+
 ## [v2.3.0-beta.15] - 2025-07-11
 
 This release introduces a significant enhancement in the deployment process, offering a more reliable and efficient release cycle for users.
