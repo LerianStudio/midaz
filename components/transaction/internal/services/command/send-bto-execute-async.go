@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -32,7 +31,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		ParseDSL:    parseDSL,
 	}
 
-	marshal, err := json.Marshal(value)
+	marshal, err := msgpack.Marshal(value)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 

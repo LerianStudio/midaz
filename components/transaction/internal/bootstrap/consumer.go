@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/vmihailenco/msgpack/v5"
 	"os"
 )
 
@@ -83,7 +84,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	var message mmodel.Queue
 
-	err := json.Unmarshal(body, &message)
+	err := msgpack.Unmarshal(body, &message)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
