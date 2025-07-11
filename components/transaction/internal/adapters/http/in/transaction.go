@@ -684,7 +684,15 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
 	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
-	if !libCommons.IsNilOrEmpty(value) {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+
+		logger.Infof("Redis idempotency key: %v", err.Error())
+
+		c.Set(libConstants.IdempotencyReplayed, "false")
+
+		return http.WithError(c, err)
+	} else if !libCommons.IsNilOrEmpty(value) {
 		t := transaction.Transaction{}
 		if err = json.Unmarshal([]byte(*value), &t); err != nil {
 			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization transaction json", err)
@@ -697,14 +705,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		c.Set(libConstants.IdempotencyReplayed, "true")
 
 		return http.Created(c, t)
-	} else if err != nil {
-		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
-
-		logger.Infof("Redis idempotency key: %v", err.Error())
-
-		c.Set(libConstants.IdempotencyReplayed, "false")
-
-		return http.WithError(c, err)
 	}
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)

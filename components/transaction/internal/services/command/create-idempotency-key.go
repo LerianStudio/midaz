@@ -35,7 +35,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
 
 		libOpentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)
-		logger.Errorf("Failed exists value on redis with this key: %v", err)
+		logger.Warnf("Failed exists value on redis with this key: %v", err)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
 		if !libCommons.IsNilOrEmpty(&value) {
