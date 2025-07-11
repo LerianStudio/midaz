@@ -7,6 +7,8 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"os"
@@ -45,6 +47,20 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		QueueData:      queueData,
+	}
+
+	redisMessage := redis.RedisMessage{
+		ID:        tran.ID,
+		Payload:   queueMessage,
+		Timestamp: tran.CreatedAt.Unix(),
+		Status:    constant.PENDING,
+	}
+
+	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to redis backup queue", err)
+
+		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
 	}
 
 	message, err := json.Marshal(queueMessage)
