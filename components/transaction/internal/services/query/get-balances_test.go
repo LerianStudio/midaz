@@ -3,9 +3,13 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"sort"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -14,8 +18,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"sort"
-	"testing"
 )
 
 func TestGetBalances(t *testing.T) {
@@ -25,11 +27,13 @@ func TestGetBalances(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockSettingsRepo := settings.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		BalanceRepo:  mockBalanceRepo,
 		RedisRepo:    mockRedisRepo,
 		RabbitMQRepo: mockRabbitMQRepo,
+		SettingsRepo: mockSettingsRepo,
 	}
 
 	ctx := context.Background()
@@ -149,6 +153,13 @@ func TestGetBalances(t *testing.T) {
 			EXPECT().
 			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{"alias2", "alias3"}).
 			Return(databaseBalances, nil).
+			Times(1)
+
+		settingsKey := libCommons.SettingsTransactionInternalKey(organizationID, ledgerID, "accounting_validation_enabled")
+		mockRedisRepo.
+			EXPECT().
+			Get(gomock.Any(), settingsKey).
+			Return("false", nil).
 			Times(1)
 
 		// 4) AddSumBalanceRedis para cada um (ignoramos o struct completo com Any())
@@ -300,6 +311,13 @@ func TestGetBalances(t *testing.T) {
 			Return(string(balance2JSON), nil).
 			Times(1)
 
+		// Mock settings cache call for accounting validation
+		settingsKey := libCommons.SettingsTransactionInternalKey(organizationID, ledgerID, "accounting_validation_enabled")
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), settingsKey).
+			Return("false", nil).
+			Times(1)
+
 		// Mock Redis.LockBalanceRedis for alias1 with DEBIT operation
 		mockRedisRepo.EXPECT().
 			AddSumBalanceRedis(
@@ -368,11 +386,13 @@ func TestGetAccountAndLock(t *testing.T) {
 	ctx := context.Background()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockSettingsRepo := settings.NewMockRepository(ctrl)
 
 	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
 	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
 	uc := UseCase{
-		RedisRepo: mockRedisRepo,
+		RedisRepo:    mockRedisRepo,
+		SettingsRepo: mockSettingsRepo,
 	}
 
 	t.Run("lock balances successfully", func(t *testing.T) {
@@ -411,6 +431,12 @@ func TestGetAccountAndLock(t *testing.T) {
 		}
 
 		internalKey1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
+
+		settingsKey := libCommons.SettingsTransactionInternalKey(organizationID, ledgerID, "accounting_validation_enabled")
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), settingsKey).
+			Return("false", nil).
+			Times(1)
 
 		mockRedisRepo.EXPECT().
 			AddSumBalanceRedis(
