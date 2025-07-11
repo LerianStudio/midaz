@@ -1,27 +1,33 @@
 name: "Pre-Release GitOps Update"
 
 on:
-  push:
-    tags:
-      - 'v*.*.*-beta.*'  
+  workflow_run:
+    workflows: ["Build midaz images"]
+    types:
+      - completed
 
 permissions:
-  id-token: write       # Needed for authentication
-  contents: write       # Needed to create releases and tags
-  pull-requests: write  # Needed to create/update PRs
+  contents: write
+  id-token: write
+  pull-requests: write
 
 jobs:
-  detect_changes:
-    name: Detect changed components
+  update_gitops:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    name: Update GitOps values.yaml
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.changed.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
 
-      # Detect which components have changed based on paths
-      - name: Detect changed paths
-        id: changed
+    steps:
+      # Checkout source repository to detect changed components
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: 0
+
+      # Detect which components changed (onboarding, transaction, console)
+      - name: Detect changed components
+        id: detect
         uses: LerianStudio/github-actions-changed-paths@main
         with:
           filter_paths: |
@@ -32,16 +38,7 @@ jobs:
           path_level: 2
           app_name_prefix: midaz
 
-  update_gitops:
-    name: Update GitOps with pre-release tag
-    needs: detect_changes
-    if: needs.detect_changes.outputs.matrix != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
-    steps:
-      # Import GPG key for signing commits
+      # Import GPG key for signed commit
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -54,34 +51,41 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      # Checkout the GitOps repo using the GitHub App token
+      # Checkout GitOps repo
       - uses: actions/checkout@v4
         with:
           repository: LerianStudio/midaz-firmino-gitops
           ref: main
           token: ${{ secrets.MANAGE_TOKEN }}
           fetch-depth: 0
+          path: gitops
 
-      # Extract the tag name from the Git reference (e.g., v2.3.0-beta.1)
-      - name: Extract tag
-        id: extract
-        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      # Update the appropriate image tag in the Helmfile values.yaml
-      - name: Update tag in values.yaml
+      # Extract last tag from source repo
+      - name: Get latest tag
+        id: tag
         run: |
-          yq e '.${{ matrix.app.name }}.image.tag = "${{ steps.extract.outputs.tag }}"' -i environments/firmino/helmfile/midaz/values.yaml
+          cd source
+          echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
 
-      # Commit the updated values.yaml with a signed commit using the GitHub App identity
-      - name: Commit and push on midaz-firmino-gitops
+      # Update tags for all changed components in a single values.yaml
+      - name: Update image tags for changed components
+        run: |
+          components=$(echo '${{ steps.detect.outputs.matrix }}' | jq -r '.[].name')
+          for component in $components; do
+            echo "🔄 Updating tag for $component to ${{ steps.tag.outputs.tag }}"
+            yq e ".$component.image.tag = \"${{ steps.tag.outputs.tag }}\"" -i gitops/environments/firmino/helmfile/midaz/values.yaml
+          done
+
+      # Commit and push all updates together
+      - name: Commit and push changes to GitOps
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
+          cd gitops
           git add environments/firmino/helmfile/midaz/values.yaml
-          git commit -S -m "ci: update ${{ matrix.app.name }} tag to ${{ steps.extract.outputs.tag }}"
+          git commit -S -m "ci: update image tags to ${{ steps.tag.outputs.tag }}"
           git push origin main
