@@ -196,8 +196,8 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
 // ackAndRemoveFromRedisQueue func that ack and remove message from redis
 func (uc *UseCase) ackAndRemoveFromRedisQueue(ctx context.Context, logger libLog.Logger, msgID string) {
 	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, msgID); err != nil {
-		logger.Infof("err to remove message on redis: %s", err.Error())
+		logger.Warnf("err to remove message on redis: %s", err.Error())
 	} else {
-		logger.Errorf("message removed from redis successfully: %s", msgID)
+		logger.Infof("message removed from redis successfully: %s", msgID)
 	}
 }

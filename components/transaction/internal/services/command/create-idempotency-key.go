@@ -39,7 +39,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
 		if !libCommons.IsNilOrEmpty(&value) {
-			return &value, err
+			return &value, nil
 		}
 
 		return nil, err
