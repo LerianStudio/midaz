@@ -35,7 +35,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 
-		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
+		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -63,6 +63,8 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
 	}
 
+	logger.Infof("Mensagem save on redis queue with ID: %s", tran.ID)
+
 	message, err := json.Marshal(queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
@@ -80,4 +82,6 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Errorf("Failed to send message: %s", err.Error())
 	}
+
+	logger.Infof("Mensagem send to queue: %s", tran.ID)
 }
