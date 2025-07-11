@@ -63,8 +63,6 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
 	}
 
-	logger.Infof("Mensagem save on redis queue with ID: %s", tran.ID)
-
 	message, err := json.Marshal(queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
