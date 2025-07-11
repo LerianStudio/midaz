@@ -21,7 +21,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	settings, err := uc.GetOrCreateSettingsCache(ctx, organizationID, ledgerID, "accounting_validation_enabled")
+	settings, err := uc.GetOrCreateSettingsCache(ctx, organizationID, ledgerID, constant.AccountingValidationEnabledKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get settings cache", err)
 
@@ -157,7 +157,7 @@ func findKeyIndex(m map[string]libTransaction.Amount, key string) int {
 // validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
 func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
-	case "alias":
+	case constant.AccountRuleTypeAlias:
 		expected, ok := account.ValidIf.(string)
 		if !ok {
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
@@ -172,7 +172,7 @@ func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache)
 			)
 		}
 
-	case "account_type":
+	case constant.AccountRuleTypeAccountType:
 		allowedTypes := extractStringSlice(account.ValidIf)
 		if allowedTypes == nil {
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
