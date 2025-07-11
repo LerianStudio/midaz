@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const CronTimeToRun = 15
+const CronTimeToRun = 15 * time.Minute
 
 type RedisQueueConsumer struct {
 	UseCase *command.UseCase
@@ -25,7 +25,7 @@ func NewRedisQueueConsumer(useCase *command.UseCase, logger libLog.Logger) *Redi
 
 // Run starts redis consumers for queues
 func (r *RedisQueueConsumer) Run(l *libCommons.Launcher) error {
-	ticker := time.NewTicker(CronTimeToRun * time.Minute)
+	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
 	for {
