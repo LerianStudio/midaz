@@ -41,7 +41,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          input.Title,
 		Description:    input.Description,
-		Type:           "debit",
+		OperationType:  "source",
 		Account:        input.Account,
 	}
 
@@ -97,7 +97,7 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          input.Title,
 		Description:    input.Description,
-		Type:           "debit",
+		OperationType:  "source",
 		Account:        input.Account,
 	}
 
@@ -149,7 +149,7 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Type:           "debit",
+		OperationType:  "source",
 		Account:        input.Account,
 	}
 
@@ -263,7 +263,7 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "", // Title not provided in input
 		Description:    input.Description,
-		Type:           "debit",
+		OperationType:  "source",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)

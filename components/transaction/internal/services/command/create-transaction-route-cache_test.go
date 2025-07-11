@@ -49,10 +49,8 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedCacheData := `{"` + operationRouteID.String() + `":{"account":{"ruleType":"alias","validIf":"@cash_account"},"operationType":"source"}}`
-
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), expectedCacheData, time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(nil).
 		Times(1)
 
@@ -61,7 +59,7 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestCreateAccountingRouteCache_SuccessWithoutAccountRule tests successful cache creation without account rules
+// TestCreateAccountingRouteCache_SuccessWithoutAccountRule tests successful cache creation without account rule
 func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -82,8 +80,8 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 				ID:             operationRouteID,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
-				OperationType:  "destination",
-				Account:        nil,
+				OperationType:  "source",
+				Account:        nil, // No account rule
 			},
 		},
 	}
@@ -93,10 +91,8 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedCacheData := `{"` + operationRouteID.String() + `":{"operationType":"destination"}}`
-
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), expectedCacheData, time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(nil).
 		Times(1)
 
@@ -120,7 +116,7 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 		LedgerID:        ledgerID,
 		Title:           "Test Route",
 		Description:     "Test transaction route",
-		OperationRoutes: []mmodel.OperationRoute{},
+		OperationRoutes: []mmodel.OperationRoute{}, // Empty operation routes
 	}
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -128,10 +124,8 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedCacheData := `{}`
-
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), expectedCacheData, time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(nil).
 		Times(1)
 
@@ -187,7 +181,7 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	}
 
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(nil).
 		Times(1)
 
@@ -196,8 +190,8 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	assert.NoError(t, err)
 }
 
-// TestCreateAccountingRouteCache_ToCacheDataError tests error handling when ToCacheData fails
-func TestCreateAccountingRouteCache_ToCacheDataError(t *testing.T) {
+// TestCreateAccountingRouteCache_ToMsgpackError tests error handling when ToMsgpack fails
+func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -205,7 +199,6 @@ func TestCreateAccountingRouteCache_ToCacheDataError(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	routeID := libCommons.GenerateUUIDv7()
 
-	// Create a route with an operation route that has an invalid UUID to force ToCacheData error
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
 		OrganizationID: organizationID,
@@ -220,7 +213,7 @@ func TestCreateAccountingRouteCache_ToCacheDataError(t *testing.T) {
 				OperationType:  "source",
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
-					ValidIf:  make(chan int), // Invalid data type that will cause JSON marshal error
+					ValidIf:  make(chan int), // Invalid data type that will cause msgpack encode error
 				},
 			},
 		},
@@ -236,7 +229,7 @@ func TestCreateAccountingRouteCache_ToCacheDataError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestCreateAccountingRouteCache_RedisSetError tests error handling when Redis Set fails
+// TestCreateAccountingRouteCache_RedisSetError tests error handling when Redis SetBytes fails
 func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -273,7 +266,7 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	}
 
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(redisError).
 		Times(1)
 
@@ -322,7 +315,7 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	cancel()
 
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(0)).
 		Return(context.Canceled).
 		Times(1)
 

@@ -25,7 +25,7 @@ func TestDeleteTransactionRouteCache_Success(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID.String())
+	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		Del(gomock.Any(), expectedKey).
@@ -52,7 +52,7 @@ func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
 		RedisRepo: mockRedisRepo,
 	}
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID.String())
+	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		Del(gomock.Any(), expectedKey).
@@ -82,7 +82,7 @@ func TestDeleteTransactionRouteCache_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID.String())
+	expectedKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	mockRedisRepo.EXPECT().
 		Del(gomock.Any(), expectedKey).

@@ -70,9 +70,8 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 		Return(transactionRoute2, nil).
 		Times(1)
 
-	// Mock Redis Set calls for CreateAccountingRouteCache
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		Times(2)
 
@@ -224,7 +223,7 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 	redisError := errors.New("redis connection error")
 
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(redisError).
 		Times(1)
 
@@ -280,7 +279,7 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 		Times(1)
 
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		Times(1)
 
