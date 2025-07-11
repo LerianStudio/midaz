@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -171,6 +172,10 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
+
+	if strings.ToLower(key) == "external" {
+		return nil
+	}
 
 	settings, err := uc.SettingsRepo.FindByKey(ctx, organizationID, ledgerID, constant.AccountingValidationEnabledKey)
 	if err != nil {
