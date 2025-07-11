@@ -1,3 +1,35 @@
+## [v2.3.0-beta.15] - 2025-07-11
+
+This release introduces a significant enhancement in the deployment process, offering a more reliable and efficient release cycle for users.
+
+### ✨ Features
+- **Streamlined Pre-Release Flow**: We've introduced a new configuration for pre-release flows, designed to optimize the deployment process. This feature ensures smoother transitions from development to production, minimizing downtime and reducing potential deployment issues. Users will benefit from a more predictable and reliable release cycle, enhancing overall operational efficiency.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements. This ensures transparency and keeps users informed about the project's evolution, highlighting new features and enhancements.
+
+### 🔧 Maintenance
+- **Release Management Improvements**: Regular updates to the changelog are part of our ongoing commitment to provide users with comprehensive and up-to-date documentation, supporting better decision-making and project tracking.
+
+This changelog is crafted to highlight the most impactful changes in version 2.3.0, focusing on user benefits and ensuring clarity and accessibility.
+
+## [v2.3.0-beta.14] - 2025-07-10
+
+This release introduces significant enhancements to streamline cross-repository operations, empowering users with greater flexibility and efficiency in managing their projects.
+
+### ✨ Features  
+- **Cross-Repository Operations**: You can now insert custom tokens to execute operations seamlessly across different repositories. This feature enhances workflow automation and integration across multiple codebases, making project management more efficient and flexible.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and enhancements. This ensures you have access to the most current information on updates, making it easier to track project evolution and understand new features.
+
+### 🔧 Maintenance
+- **Code Refinements**: The codebase has been refined with a net change of +33 additions and -25 deletions, focusing on adding new functionality while improving existing code quality.
+
+---
+
+This release contains no breaking changes, ensuring a smooth upgrade experience. Enjoy the new features and improvements!
+
 ## [v2.3.0-beta.13] - 2025-07-08
 
 This release introduces a significant enhancement to the configuration process, offering a streamlined approach to managing pre-release activities. Our focus is on improving the efficiency and reliability of release management.

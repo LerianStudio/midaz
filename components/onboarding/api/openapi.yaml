@@ -826,6 +826,389 @@ paths:
       tags:
       - Ledgers
       x-codegen-request-body-name: ledger
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
+    get:
+      description: Returns a paginated list of all account types for the specified
+        organization and ledger, optionally filtered by metadata
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: JSON string to filter account types by metadata fields
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: 'Limit of account types per page (default: 10, max: 100)'
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: 'Page number for offset pagination (default: 1)'
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: Cursor for cursor-based pagination
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: 'Sort order (asc or desc, default: asc)'
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Start date for filtering (YYYY-MM-DD)
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End date for filtering (YYYY-MM-DD)
+        in: query
+        name: end_date
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_2'
+          description: Successfully retrieved account types
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid query parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Organization, ledger, or account types not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get all account types
+      tags:
+      - Account Types
+    post:
+      description: Endpoint to create a new Account Type.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountTypeInput'
+        description: Account Type Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountType'
+          description: Successfully created account type
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict - account type key value already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Account Type
+      tags:
+      - Account Types
+      x-codegen-request-body-name: accountType
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}:
+    delete:
+      description: Deletes an existing account type identified by its UUID within
+        the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully deleted account type
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account type not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Delete an account type
+      tags:
+      - Account Types
+    get:
+      description: Returns detailed information about an account type identified by
+        its UUID within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountType'
+          description: Successfully retrieved account type
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account type, ledger, or organization not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Retrieve a specific account type
+      tags:
+      - Account Types
+    patch:
+      description: Endpoint to update an existing Account Type.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account Type ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountTypeInput'
+        description: Account Type Update Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountType'
+          description: Successfully updated account type
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account type not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Update Account Type
+      tags:
+      - Account Types
+      x-codegen-request-body-name: accountType
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
       description: Returns a paginated list of accounts within the specified ledger,
@@ -897,7 +1280,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/inline_response_200_3'
           description: Successfully retrieved accounts list
         "400":
           content:
@@ -1510,7 +1893,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_4'
           description: Successfully retrieved assets list
         "400":
           content:
@@ -1987,7 +2370,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_4'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: Successfully retrieved portfolios list
         "400":
           content:
@@ -2468,7 +2851,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_6'
           description: Successfully retrieved segments list
         "400":
           content:
@@ -2870,6 +3253,386 @@ paths:
       tags:
       - Segments
       x-codegen-request-body-name: segment
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
+    get:
+      description: Retrieves all settings from the specified ledger with cursor pagination
+        support
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: 'Maximum number of settings to return (default: 10)'
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: Cursor for pagination
+        in: query
+        name: cursor
+        schema:
+          type: string
+      - description: 'Sort order: ''asc'' or ''desc'' (default: ''asc'')'
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Start date for filtering (ISO 8601 format)
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End date for filtering (ISO 8601 format)
+        in: query
+        name: end_date
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_7'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Get all settings
+      tags:
+      - Settings
+    post:
+      description: Endpoint to create a new Setting.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingsInput'
+        description: Settings Input
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully created setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflict - setting key already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create Setting
+      tags:
+      - Settings
+      x-codegen-request-body-name: settings
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}:
+    delete:
+      description: Deletes an existing setting identified by its UUID within the specified
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: Successfully deleted setting
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Delete a setting
+      tags:
+      - Settings
+    get:
+      description: Retrieve a specific setting by its ID within an organization and
+        ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully retrieved setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Setting by ID
+      tags:
+      - Settings
+    patch:
+      description: Updates an existing setting's properties such as active status
+        and description within the specified ledger
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Setting ID in UUID format
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsInput'
+        description: Settings Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+          description: Successfully updated setting
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input, validation errors
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Setting not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Conflict: Setting with the same key already exists'
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Update a setting
+      tags:
+      - Settings
+      x-codegen-request-body-name: settings
 components:
   schemas:
     Account:
@@ -3016,6 +3779,68 @@ components:
             Timestamp when the account was last updated (RFC3339 format)
             example: 2021-01-01T00:00:00Z
             format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+      type: object
+    AccountType:
+      description: AccountType object
+      example:
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        metadata:
+          key: '{}'
+        keyValue: current_assets
+        name: Current Assets
+        description: Assets that are expected to be converted to cash within one year
+        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          description: The timestamp when the account type was created.
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        deletedAt:
+          description: The timestamp when the account type was deleted.
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        description:
+          description: Detailed description of the account type.
+          example: Assets that are expected to be converted to cash within one year
+          type: string
+        id:
+          description: The unique identifier of the Account Type.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        keyValue:
+          description: A unique key value identifier for the account type.
+          example: current_assets
+          type: string
+        ledgerId:
+          description: The unique identifier of the Ledger.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Custom key-value pairs for extending the account type information
+            example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+          type: object
+        name:
+          description: The name of the account type.
+          example: Current Assets
+          type: string
+        organizationId:
+          description: The unique identifier of the Organization.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        updatedAt:
+          description: The timestamp when the account type was last updated.
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
@@ -3253,6 +4078,42 @@ components:
       - assetCode
       - type
       type: object
+    CreateAccountTypeInput:
+      description: CreateAccountTypeInput payload
+      example:
+        metadata:
+          key: '{}'
+        keyValue: current_assets
+        name: Current Assets
+        description: Assets that are expected to be converted to cash within one year
+      properties:
+        description:
+          description: Detailed description of the account type.
+          example: Assets that are expected to be converted to cash within one year
+          maxLength: 500
+          type: string
+        keyValue:
+          description: A unique key value identifier for the account type.
+          example: current_assets
+          maxLength: 50
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Custom key-value pairs for extending the account type information
+            required: false
+            example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+          type: object
+        name:
+          description: The name of the account type.
+          example: Current Assets
+          maxLength: 100
+          type: string
+      required:
+      - keyValue
+      - name
+      type: object
     CreateAssetInput:
       description: CreateAssetInput is the input payload to create an asset within
         a ledger, such as a currency, cryptocurrency, or other financial instrument.
@@ -3473,6 +4334,33 @@ components:
           type: object
       required:
       - name
+      type: object
+    CreateSettingsInput:
+      description: CreateSettingsInput payload
+      example:
+        active: true
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+        key: accounting_validation_enabled
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: true
+          type: boolean
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          maxLength: 255
+          type: string
+        key:
+          description: The key identifier for the setting.
+          example: accounting_validation_enabled
+          maxLength: 30
+          type: string
+      required:
+      - active
+      - key
       type: object
     Error:
       description: Standardized error response format used across all API endpoints
@@ -3854,6 +4742,58 @@ components:
           format: date-time
           type: string
       type: object
+    Settings:
+      description: Settings object
+      example:
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2025-01-01T00:00:00Z
+        deletedAt: 2025-01-01T00:00:00Z
+        active: true
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        key: accounting_validation_enabled
+        updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: true
+          type: boolean
+        createdAt:
+          description: The timestamp when the setting was created.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          description: The timestamp when the setting was deleted.
+          example: 2025-01-01T00:00:00Z
+          type: string
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          type: string
+        id:
+          description: The unique identifier of the Settings.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        key:
+          description: The key identifier for the setting.
+          example: accounting_validation_enabled
+          type: string
+        ledgerId:
+          description: The unique identifier of the Ledger.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        organizationId:
+          description: The unique identifier of the Organization.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        updatedAt:
+          description: The timestamp when the setting was last updated.
+          example: 2025-01-01T00:00:00Z
+          type: string
+      type: object
     Status:
       description: 'Entity status information with a standardized code and optional
         description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,
@@ -3932,6 +4872,33 @@ components:
             Updated status of the account
             required: false
           type: object
+      type: object
+    UpdateAccountTypeInput:
+      description: UpdateAccountTypeInput payload
+      example:
+        metadata:
+          key: '{}'
+        name: Current Assets
+        description: Assets that are expected to be converted to cash within one year
+      properties:
+        description:
+          description: Detailed description of the account type.
+          example: Assets that are expected to be converted to cash within one year
+          maxLength: 500
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: |-
+            Custom key-value pairs for extending the account type information
+            required: false
+            example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
+          type: object
+        name:
+          description: The name of the account type.
+          example: Current Assets
+          maxLength: 100
+          type: string
       type: object
     UpdateAssetInput:
       description: UpdateAssetInput is the input payload to update an existing asset's
@@ -4117,6 +5084,24 @@ components:
           description: Updated status of the segment (active, inactive, pending)
           type: object
       type: object
+    UpdateSettingsInput:
+      description: UpdateSettingsInput payload
+      example:
+        active: false
+        description: Controls whether strict accounting validation rules are enforced
+          for transactions
+      properties:
+        active:
+          description: Whether the setting is active.
+          example: false
+          type: boolean
+        description:
+          description: A description for the setting.
+          example: Controls whether strict accounting validation rules are enforced
+            for transactions
+          maxLength: 255
+          type: string
+      type: object
     inline_response_200:
       example:
         Pagination:
@@ -4213,6 +5198,60 @@ components:
           limit: 10
           page: 1
           items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          keyValue: current_assets
+          name: Current Assets
+          description: Assets that are expected to be converted to cash within one
+            year
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          updatedAt: 2021-01-01T00:00:00Z
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          keyValue: current_assets
+          name: Current Assets
+          description: Assets that are expected to be converted to cash within one
+            year
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AccountType'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_3:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
         limit: 0
         page: 6
         items:
@@ -4262,7 +5301,7 @@ components:
         page:
           type: integer
       type: object
-    inline_response_200_3:
+    inline_response_200_4:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -4309,7 +5348,7 @@ components:
         page:
           type: integer
       type: object
-    inline_response_200_4:
+    inline_response_200_5:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -4354,7 +5393,7 @@ components:
         page:
           type: integer
       type: object
-    inline_response_200_5:
+    inline_response_200_6:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -4396,5 +5435,55 @@ components:
           type: integer
         page:
           type: integer
+      type: object
+    inline_response_200_7:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          active: true
+          description: Controls whether strict accounting validation rules are enforced
+            for transactions
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          key: accounting_validation_enabled
+          updatedAt: 2025-01-01T00:00:00Z
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2025-01-01T00:00:00Z
+          deletedAt: 2025-01-01T00:00:00Z
+          active: true
+          description: Controls whether strict accounting validation rules are enforced
+            for transactions
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          key: accounting_validation_enabled
+          updatedAt: 2025-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Settings'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
       type: object
 x-original-swagger-version: "2.0"
