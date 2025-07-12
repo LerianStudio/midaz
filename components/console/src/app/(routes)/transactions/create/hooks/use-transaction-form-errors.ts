@@ -45,7 +45,7 @@ export const useTransactionFormErrors = (
         message: intl.formatMessage({
           id: 'transactions.errors.debit',
           defaultMessage:
-            'The total of the debits differs from the transaction amount'
+            'The sum of the debits differs from the transaction amount'
         })
       })
       return true
@@ -64,7 +64,7 @@ export const useTransactionFormErrors = (
         message: intl.formatMessage({
           id: 'transactions.errors.credit',
           defaultMessage:
-            'The total of the credits differs from the transaction amount'
+            'The sum of the credits differs from the transaction amount'
         })
       })
       return true

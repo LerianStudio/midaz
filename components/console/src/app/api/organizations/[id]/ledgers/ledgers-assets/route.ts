@@ -14,14 +14,14 @@ export const GET = applyMiddleware(
       method: 'GET'
     })
   ],
-  async (request: Request, { params }: { params: { id: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     try {
       const fetchAllLedgersUseCases: FetchAllLedgersAssets =
         container.get<FetchAllLedgersAssets>(FetchAllLedgersAssetsUseCase)
       const { searchParams } = new URL(request.url)
       const limit = Number(searchParams.get('limit')) || 10
       const page = Number(searchParams.get('page')) || 1
-      const organizationId = params.id
+      const { id: organizationId } = await params
 
       const ledgers = await fetchAllLedgersUseCases.execute(
         organizationId,

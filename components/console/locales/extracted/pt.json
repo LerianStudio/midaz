@@ -605,7 +605,7 @@
   "transactions.create.source.sum": "Total Débito",
   "transactions.create.stepper.first.description": "Preencha os dados básicos da transação.",
   "transactions.create.stepper.second.description": "Preencha os dados de origem e destino",
-  "transactions.errors.account.duplicate": "",
+  "transactions.errors.account.duplicate": "Conta {alias} já existe",
   "transactions.errors.insufficientFunds": "Saldo insuficiente na conta {account}",
   "transactions.create.basicInformation.title": "Dados da Transação",
   "transactions.create.cancel.description": "Se você cancelar esta transação, todos os dados preenchidos serão perdidos e não poderão ser recuperados.",
@@ -643,5 +643,11 @@
   "homePage.nextSteps.transactions.description": "Visualize e crie transações, o elemento vital que encapsula cada movimentação financeira dentro do seu ledger.",
   "ledgers.current.name": "{name} <b>(atual)</b>",
   "ledgers.useLedger": "Mudar para este ledger",
-  "homePage.footer.devResources.lerianDocs": "Documentação Lerian"
+  "homePage.footer.devResources.lerianDocs": "Documentação Lerian",
+  "common.fee": "Taxa",
+  "transactions.fees.error.fallback": "A transação prosseguirá sem cálculo de taxa.",
+  "transactions.fees.error.title": "Falha no Cálculo da Taxa",
+  "transactions.fees.finalAmount": "Valor Final",
+  "transactions.fees.none": "Nenhuma taxa",
+  "transactions.fees.total": "Total de Taxas"
 }

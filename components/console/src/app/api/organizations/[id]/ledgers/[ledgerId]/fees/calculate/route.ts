@@ -16,7 +16,7 @@ export const POST = applyMiddleware(
   ],
   async (
     request: Request,
-    { params }: { params: { id: string; ledgerId: string } }
+    { params }: { params: Promise<{ id: string; ledgerId: string }> }
   ) => {
     try {
       const feesEnabled =
@@ -30,9 +30,8 @@ export const POST = applyMiddleware(
       }
 
       const body = await request.json()
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
-      const baseUrlFee = process.env.PLUGIN_FEES_BASE_PATH as string
+      const { id: organizationId, ledgerId } = await params
+      const baseUrlFee = process.env.PLUGIN_FEES_PATH as string
 
       if (!baseUrlFee) {
         return NextResponse.json(
@@ -77,6 +76,8 @@ export const POST = applyMiddleware(
         transactionEntity,
         ledgerId
       )
+
+      console.log('Fee DTO being sent:', JSON.stringify(feeDto, null, 2))
 
       // Get HTTP service from container
       const httpService = container.get<MidazHttpService>(MidazHttpService)

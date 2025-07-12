@@ -1,13 +1,10 @@
 import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
-import { omitBy } from 'lodash'
 
 export interface MidazFeeCreateTransactionDto {
   segmentId: string | null
   ledgerId: string
   transaction: {
-    chartOfAccountsGroupName?: string
     route: string
-    description?: string
     send: {
       asset: string
       value: string
@@ -18,10 +15,8 @@ export interface MidazFeeCreateTransactionDto {
             asset: string
             value: string
           }
-          route: 'DEBIT'
-          description?: string
-          chartOfAccounts?: string
-          metadata?: Record<string, any>
+          chartOfAccounts: string
+          metadata: Record<string, any> | null
         }[]
       }
       distribute: {
@@ -31,10 +26,8 @@ export interface MidazFeeCreateTransactionDto {
             asset: string
             value: string
           }
-          route: 'CREDIT'
-          description?: string
-          chartOfAccounts?: string
-          metadata?: Record<string, any>
+          chartOfAccounts: string
+          metadata: Record<string, any>
         }[]
       }
     }
@@ -47,7 +40,15 @@ export class MidazFeeTransactionMapper {
     objectToClean: T
   ): T {
     const cleaned: Record<string, any> = {}
+    const requiredFields = ['chartOfAccounts', 'accountAlias', 'asset', 'value']
+
     Object.entries(objectToClean).forEach(([key, value]) => {
+      // Keep required fields even if they're empty strings
+      if (requiredFields.includes(key)) {
+        cleaned[key] = value
+        return
+      }
+
       if (value === '' || value === undefined || value === null) {
         return
       }
@@ -88,72 +89,43 @@ export class MidazFeeTransactionMapper {
   public static toCreateDto(
     transaction: TransactionEntity,
     ledgerId: string,
-    route: string = 'international_transfer',
+    route?: string,
     segmentId: string | null = null
   ): MidazFeeCreateTransactionDto {
     const transactionBody: any = {
-      chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
-      route,
-      description: transaction.description,
       send: {
         asset: transaction.asset,
         value: transaction.amount,
         source: {
-          from: transaction.source.map((source) =>
-            omitBy(
-              {
-                accountAlias: source.accountAlias,
-                amount: {
-                  asset: transaction.asset,
-                  value: source.amount
-                },
-                route: 'DEBIT' as const,
-                description: source.description,
-                chartOfAccounts: source.chartOfAccounts,
-                metadata: source.metadata || undefined
-              },
-              (currentValue: any) =>
-                currentValue === '' ||
-                currentValue === undefined ||
-                currentValue === null
-            )
-          )
+          from: transaction.source.map((source) => ({
+            accountAlias: source.accountAlias,
+            amount: {
+              asset: transaction.asset,
+              value: source.amount
+            },
+            chartOfAccounts: source.chartOfAccounts || 'assets'
+          }))
         },
         distribute: {
-          to: transaction.destination.map((destination) =>
-            omitBy(
-              {
-                accountAlias: destination.accountAlias,
-                amount: {
-                  asset: transaction.asset,
-                  value: destination.amount
-                },
-                route: 'CREDIT' as const,
-                description: destination.description,
-                chartOfAccounts: destination.chartOfAccounts,
-                metadata: destination.metadata || undefined
-              },
-              (currentValue: any) =>
-                currentValue === '' ||
-                currentValue === undefined ||
-                currentValue === null
-            )
-          )
+          to: transaction.destination.map((destination) => ({
+            accountAlias: destination.accountAlias,
+            amount: {
+              asset: transaction.asset,
+              value: destination.amount
+            },
+            chartOfAccounts: destination.chartOfAccounts || 'assets'
+          }))
         }
       }
     }
 
-    if (transaction.metadata && Object.keys(transaction.metadata).length > 0) {
-      transactionBody.metadata = transaction.metadata
-    }
-
-    // Clean empty props recursively
-    const cleanedTransaction = this.cleanObject(transactionBody)
-
-    return {
-      segmentId,
+    const result = {
       ledgerId,
-      transaction: cleanedTransaction
+      transaction: transactionBody
     } as MidazFeeCreateTransactionDto
+
+    const cleanedResult = this.cleanObject(result)
+
+    return cleanedResult
   }
 }

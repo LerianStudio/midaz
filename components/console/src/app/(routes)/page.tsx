@@ -74,7 +74,7 @@ const Page = () => {
       <PageView>
         <Header />
         <PageContent className="p-0">
-          <div className="flex flex-col">
+          <div className="flex min-h-full flex-col">
             {/* Header Section */}
             <div className="bg-accent flex h-[262px] flex-col items-center gap-8 overflow-hidden">
               <div className="flex w-full gap-24 pr-24 pl-44">
@@ -171,7 +171,7 @@ const Page = () => {
             </div>
 
             {/* Footer Section */}
-            <div className="flex justify-between gap-2.5 bg-white py-8">
+            <div className="mt-auto flex justify-between gap-2.5 bg-white py-8">
               <div className="mx-auto w-full px-44">
                 <div className="flex items-center justify-between gap-6">
                   {/* Dev Resources */}
