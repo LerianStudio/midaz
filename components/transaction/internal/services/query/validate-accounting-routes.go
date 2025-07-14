@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"os"
 	"reflect"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -18,21 +20,13 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
-	defer span.End()
-
-	settings, err := uc.GetOrCreateSettingsCache(ctx, organizationID, ledgerID, constant.AccountingValidationEnabledKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get settings cache", err)
-
-		logger.Errorf("Failed to get settings cache: %v", err)
-
-		return err
-	}
-
-	if settings == nil || settings.Active == nil || !*settings.Active {
+	accountingValidation := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
+	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
 		return nil
 	}
+
+	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
+	defer span.End()
 
 	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
