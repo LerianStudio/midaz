@@ -884,6 +884,90 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Overflow Error",
 			Message:    "The request could not be completed due to an overflow. Please check the values, and try again.",
 		},
+		constant.ErrOperationRouteTitleAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteTitleAlreadyExists.Error(),
+			Title:      "Operation Route Title Already Exists",
+			Message:    "The 'title' provided already exists for the 'type' provided. Please redefine the operation route title.",
+		},
+		constant.ErrOperationRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteNotFound.Error(),
+			Title:      "Operation Route Not Found",
+			Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+		},
+		constant.ErrNoOperationRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoOperationRoutesFound.Error(),
+			Title:      "No Operation Routes Found",
+			Message:    "No operation routes were found in the search. Please review the search criteria and try again.",
+		},
+		constant.ErrInvalidOperationRouteType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidOperationRouteType.Error(),
+			Title:      "Invalid Operation Route Type",
+			Message:    "The provided 'type' is not valid. Accepted types are 'debit' or 'credit'. Please provide a valid type.",
+		},
+		constant.ErrMissingOperationRoutes: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingOperationRoutes.Error(),
+			Title:      "Missing Operation Routes in Request",
+			Message:    "Your request must include at least one operation route of each type (debit and credit). Please refer to the documentation to ensure these fields are properly populated.",
+		},
+		constant.ErrTransactionRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRouteNotFound.Error(),
+			Title:      "Transaction Route Not Found",
+			Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
+		},
+		constant.ErrNoTransactionRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoTransactionRoutesFound.Error(),
+			Title:      "No Transaction Routes Found",
+			Message:    "No transaction routes were found in the search. Please review the search criteria and try again.",
+		},
+		constant.ErrDuplicateSettingsKey: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateSettingsKey.Error(),
+			Title:      "Duplicate Settings Key Error",
+			Message:    "A setting with the specified key already exists for this organization and ledger. Please use a different key or update the existing setting.",
+		},
+		constant.ErrSettingsNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrSettingsNotFound.Error(),
+			Title:      "Settings Not Found",
+			Message:    "The provided setting does not exist in our records. Please verify the setting ID and try again.",
+		},
+		constant.ErrOperationRouteLinkedToTransactionRoutes: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteLinkedToTransactionRoutes.Error(),
+			Title:      "Operation Route Linked to Transaction Routes",
+			Message:    "The operation route cannot be deleted because it is linked to one or more transaction routes. Please remove the operation route from all transaction routes before attempting to delete it.",
+		},
+		constant.ErrMutuallyExclusiveFields: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMutuallyExclusiveFields.Error(),
+			Title:      "Mutually Exclusive Fields Error",
+			Message:    fmt.Sprintf("The fields '%v' and '%v' are mutually exclusive.", args...),
+		},
+		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),
+			Title:      "Duplicate Account Type Key Value Error",
+			Message:    "An account type with the specified key value already exists for this organization and ledger. Please use a different key value or update the existing account type.",
+		},
+		constant.ErrAccountTypeNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountTypeNotFound.Error(),
+			Title:      "Account Type Not Found Error",
+			Message:    "The account type you are trying to access does not exist or has been removed.",
+		},
+		constant.ErrNoAccountTypesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoAccountTypesFound.Error(),
+			Title:      "No Account Types Found",
+			Message:    "No account types were found in the search. Please review the search criteria and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
