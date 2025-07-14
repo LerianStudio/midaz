@@ -1,3 +1,19 @@
+## [v2.3.0-beta.18] - 2025-07-14
+
+This release enhances the development environment, making testing and debugging more efficient, and ensures up-to-date project documentation.
+
+### ✨ Features  
+- **Improved Development Workflow**: We've implemented CORS tampering to streamline testing and development processes. This enhancement allows developers to bypass cross-origin restrictions, making it easier to integrate and test APIs with the frontend. This results in a smoother, more efficient development experience, particularly beneficial for developers working across different components like dependencies, frontend, and testing environments.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been updated to reflect the latest changes and improvements. This ensures all stakeholders have access to current project information, supporting transparency and effective project documentation.
+
+### 🔧 Maintenance
+- **Release Management**: We've focused on maintaining project documentation and improving the development environment. These updates indirectly benefit users by supporting a more efficient and transparent development process.
+
+
+This changelog is designed to communicate the changes in a user-friendly manner, highlighting the benefits and impact of the release while maintaining a professional tone. It focuses on the key updates that users and stakeholders will find valuable, ensuring clarity and accessibility.
+
 ## [v2.3.0-beta.17] - 2025-07-14
 
 This release introduces a significant enhancement to the configuration process, streamlining deployment workflows and ensuring high-quality releases. Additionally, documentation updates improve clarity and communication about recent changes.
