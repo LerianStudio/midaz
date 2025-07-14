@@ -138,7 +138,7 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 	// Check if it's the proper business error for linked operation routes
 	var unprocessableOperationError pkg.UnprocessableOperationError
 	assert.True(t, errors.As(err, &unprocessableOperationError))
-	assert.Equal(t, "0109", unprocessableOperationError.Code)
+	assert.Equal(t, "0107", unprocessableOperationError.Code)
 }
 
 // TestDeleteOperationRouteByIDHasLinksCheckError tests deletion when checking for links fails
