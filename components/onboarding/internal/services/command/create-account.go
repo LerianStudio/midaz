@@ -174,7 +174,7 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
 
-	accountingValidation := os.Getenv("ACCOUNTING_VALIDATION")
+	accountingValidation := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
 		logger.Infof("Accounting validations are disabled")
 

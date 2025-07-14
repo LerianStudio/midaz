@@ -432,14 +432,14 @@ func TestCreateAccountScenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNTING_VALIDATION")
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNTING_VALIDATION", envValue)
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 			defer func() {
-				os.Setenv("ACCOUNTING_VALIDATION", originalEnv)
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
 			}()
 
 			// Reset controller for each test to avoid interference
@@ -819,10 +819,10 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNTING_VALIDATION")
-			os.Setenv("ACCOUNTING_VALIDATION", tt.envVar)
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
 			defer func() {
-				os.Setenv("ACCOUNTING_VALIDATION", originalEnv)
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
 			}()
 
 			// Reset controller for each test to avoid interference
@@ -1013,14 +1013,14 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variable
-			originalEnv := os.Getenv("ACCOUNTING_VALIDATION")
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
 			envValue := tt.envVar
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
-			os.Setenv("ACCOUNTING_VALIDATION", envValue)
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 			defer func() {
-				os.Setenv("ACCOUNTING_VALIDATION", originalEnv)
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
 			}()
 
 			ctrl := gomock.NewController(t)
