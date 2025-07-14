@@ -1,6 +1,6 @@
 package redis
 
-const TransactionBackupQueue = "transaction_backup_queue"
+const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisMessage is a struct that represents a redis message.
 type RedisMessage struct {

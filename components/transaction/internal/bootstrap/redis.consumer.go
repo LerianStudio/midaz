@@ -46,6 +46,8 @@ func (r *RedisQueueConsumer) Run(l *libCommons.Launcher) error {
 				continue
 			}
 
+			r.Logger.Infof("Total of read %d messages from queue", len(messages))
+
 			for _, msg := range messages {
 				r.Logger.Infof("Mensagem received from queue: %s", msg.ID)
 
