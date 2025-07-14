@@ -1,3 +1,19 @@
+## [v2.3.0-beta.17] - 2025-07-14
+
+This release introduces a significant enhancement to the configuration process, streamlining deployment workflows and ensuring high-quality releases. Additionally, documentation updates improve clarity and communication about recent changes.
+
+### ✨ Features  
+- **Pre-Release Step Flow Configuration**: We've added a new configuration feature that enhances deployment processes by automating pre-release checks. This ensures that all necessary validations are performed before a release, improving reliability and reducing manual errors. Ideal for teams looking to optimize their release management workflows.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest features and improvements. This ensures all stakeholders are informed about the project's progress, enhancing transparency and communication.
+
+### 🔧 Maintenance
+- **Release Management Enhancements**: Behind-the-scenes improvements have been made to ensure that the release management process is more efficient and reliable, contributing to smoother software development cycles.
+
+
+This changelog focuses on the user-centric benefits of the new configuration feature and the importance of updated documentation for effective communication. The structure and language are designed to be accessible to a broad audience, emphasizing the practical impact of the changes.
+
 ## [v2.3.0-beta.16] - 2025-07-11
 
 This release of midaz introduces powerful new features in account and settings management, enhancing user control and efficiency. With improved database performance and comprehensive documentation updates, users can expect a more streamlined and responsive experience.
