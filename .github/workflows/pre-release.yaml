@@ -18,14 +18,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout source repository to detect changed components
+      # Checkout the source repo to detect changed components and tags
       - name: Checkout source repo
         uses: actions/checkout@v4
         with:
           path: source
           fetch-depth: 0
 
-      # Detect which components changed (onboarding, transaction, console)
+      # Detect changed components
       - name: Detect changed components
         id: detect
         uses: LerianStudio/github-actions-changed-paths@main
@@ -38,7 +38,7 @@ jobs:
           path_level: 2
           app_name_prefix: midaz
 
-      # Import GPG key for signed commit
+      # Import GPG key for signing commits
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -51,8 +51,9 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      # Checkout GitOps repo
-      - uses: actions/checkout@v4
+      # Checkout the GitOps repository
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
         with:
           repository: LerianStudio/midaz-firmino-gitops
           ref: main
@@ -60,24 +61,30 @@ jobs:
           fetch-depth: 0
           path: gitops
 
-      # Extract last tag from source repo
-      - name: Get latest tag
-        id: tag
+      # Extract individual tags for each changed component and update values.yaml
+      - name: Update values.yaml with correct image tags
         run: |
           cd source
-          echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+          COMPONENTS=$(echo '${{ steps.detect.outputs.matrix }}' | jq -r '.[].name')
 
-      # Update tags for all changed components in a single values.yaml
-      - name: Update image tags for changed components
-        run: |
-          components=$(echo '${{ steps.detect.outputs.matrix }}' | jq -r '.[].name')
-          for component in $components; do
-            echo "🔄 Updating tag for $component to ${{ steps.tag.outputs.tag }}"
-            yq e ".$component.image.tag = \"${{ steps.tag.outputs.tag }}\"" -i gitops/environments/firmino/helmfile/midaz/values.yaml
+          for COMPONENT in $COMPONENTS; do
+            echo "🔍 Checking latest tag for component: $COMPONENT"
+            LAST_COMMIT=$(git log -1 --format="%H" -- components/${COMPONENT#midaz-})
+            TAG=$(git tag --contains "$LAST_COMMIT" | grep '^v' | sort -V | tail -n1)
+
+            if [ -z "$TAG" ]; then
+              echo "❌ No tag found for $COMPONENT, skipping..."
+              continue
+            fi
+
+            echo "✅ Found tag $TAG for $COMPONENT"
+
+            # Update the tag in the GitOps values.yaml
+            yq e ".$COMPONENT.image.tag = \"${TAG#v}\"" -i ../gitops/environments/firmino/helmfile/midaz/values.yaml
           done
 
-      # Commit and push all updates together
-      - name: Commit and push changes to GitOps
+      # Commit and push changes
+      - name: Commit and push updated values.yaml
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
@@ -87,5 +94,5 @@ jobs:
         run: |
           cd gitops
           git add environments/firmino/helmfile/midaz/values.yaml
-          git commit -S -m "ci: update image tags to ${{ steps.tag.outputs.tag }}"
+          git commit -S -m "ci: update image tags based on latest component releases"
           git push origin main
