@@ -2,11 +2,7 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"reflect"
-	"time"
-
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -17,7 +13,10 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.opentelemetry.io/otel/trace"
+	"reflect"
+	"time"
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
@@ -30,7 +29,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
-		err := json.Unmarshal(item.Value, &t)
+		err := msgpack.Unmarshal(item.Value, &t)
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
@@ -101,6 +100,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	go uc.SendTransactionEvents(ctxProcessBalances, tran)
+
+	go uc.ackAndRemoveFromRedisQueue(ctx, logger, tran.ID)
 
 	return nil
 }
@@ -188,5 +189,14 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
+	}
+}
+
+// ackAndRemoveFromRedisQueue func that ack and remove message from redis
+func (uc *UseCase) ackAndRemoveFromRedisQueue(ctx context.Context, logger libLog.Logger, msgID string) {
+	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, msgID); err != nil {
+		logger.Warnf("err to remove message on redis: %s", err.Error())
+	} else {
+		logger.Infof("message removed from redis successfully: %s", msgID)
 	}
 }
