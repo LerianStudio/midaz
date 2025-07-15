@@ -9,6 +9,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -23,7 +24,7 @@ func TestCreateSettingsSuccess(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 
 	payload := &mmodel.CreateSettingsInput{
-		Key:         "accounting_validation_enabled",
+		Key:         constant.AccountingValidationEnabledKey,
 		Active:      true,
 		Description: "Controls whether strict accounting validation rules are enforced",
 	}

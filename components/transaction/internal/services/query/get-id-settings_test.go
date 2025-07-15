@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -27,7 +28,7 @@ func TestGetSettingsByIDSuccess(t *testing.T) {
 		ID:             settingID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Key:            "accounting_validation_enabled",
+		Key:            constant.AccountingValidationEnabledKey,
 		Active:         &active,
 		Description:    "Controls whether strict accounting validation rules are enforced",
 	}
