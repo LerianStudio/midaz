@@ -1,3 +1,31 @@
+## [v2.3.0-beta.19] - 2025-07-15
+
+This release of midaz enhances the reliability and efficiency of message processing and queue management, introduces robust new features, and includes several bug fixes to improve overall system stability and performance.
+
+### ✨ Features
+- **Reliable Queue Management**: Implemented a persistent queue using Redis, ensuring that transaction messages are reliably stored and processed, even under high loads. This enhancement significantly reduces the risk of data loss and improves the system's ability to handle large volumes of transactions smoothly.
+- **Efficient Message Processing**: Introduced a cron job to consume messages from the Redis queue and send them to the transaction processor. This change increases message throughput and reliability, ensuring timely processing of transaction data.
+- **Robust Message Delivery**: Added retry logic with exponential backoff and jitter for RabbitMQ message production. This feature enhances message delivery reliability, especially during transient network failures, providing a more resilient messaging system.
+
+### 🐛 Bug Fixes
+- **Improved Code Organization**: Standardized server file naming conventions, enhancing code maintainability and readability.
+- **Cleaner Logging**: Adjusted logging levels and removed excessive logging to reduce noise, making logs clearer and more useful for monitoring and debugging.
+- **Accurate Logic Flow**: Corrected conditional statements to ensure logic flows as intended, preventing unexpected behavior and improving system reliability.
+- **Comprehensive Testing**: Fixed integration tests across backend, database, and frontend components, ensuring reliable and comprehensive test coverage.
+
+### ⚡ Performance
+- **Faster Message Handling**: Transitioned from JSON to MessagePack for message serialization, reducing message size and improving processing speed. This change results in faster data handling and reduced latency in message processing.
+- **Optimized Resource Utilization**: Enhanced backup queue management to occupy only one slot in the cluster, improving resource utilization and reducing potential conflicts.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: Revised documentation to reflect new message serialization format and Dockerfile updates, helping developers understand and implement the new configurations efficiently.
+
+### 🔧 Maintenance
+- **Code Quality Enhancements**: Made linting adjustments and resolved security warnings to maintain high code quality and security standards.
+- **Changelog Updates**: Ensured the changelog accurately reflects all recent changes and improvements, maintaining transparency and communication with users.
+
+This update is designed to provide users with a more reliable, efficient, and user-friendly experience, with significant improvements in message processing and system stability.
+
 ## [v2.3.0-beta.18] - 2025-07-14
 
 This release enhances the development environment, making testing and debugging more efficient, and ensures up-to-date project documentation.
