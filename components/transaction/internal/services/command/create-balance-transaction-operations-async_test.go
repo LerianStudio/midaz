@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -11,11 +10,13 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
 	"testing"
 )
@@ -57,6 +58,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -65,6 +67,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -138,7 +141,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -176,6 +179,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for cleanup
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), transactionID).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -191,6 +200,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with mock repositories
 		uc := &UseCase{
@@ -199,6 +209,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -257,7 +268,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -293,6 +304,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -301,6 +313,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -353,7 +366,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -380,13 +393,22 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, pgErr).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata (should not be called due to duplicate error)
-		// We don't need to mock this since the method returns early after handling the duplicate error
+		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
 		mockRabbitMQRepo.EXPECT().
 			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, nil).
+			AnyTimes()
+
+		// Mock RedisRepo.RemoveMessageFromQueue for cleanup
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), transactionID).
+			Return(nil).
 			AnyTimes()
 
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
@@ -403,6 +425,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -411,6 +434,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -515,7 +539,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -570,6 +594,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for cleanup
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), transactionID).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -585,6 +615,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -593,6 +624,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -683,7 +715,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -738,6 +770,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -746,6 +779,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -836,7 +870,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -893,6 +927,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for cleanup
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), transactionID).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -908,6 +948,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -916,6 +957,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -985,7 +1027,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -1091,6 +1133,7 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Create a real UseCase with mock repositories
 	uc := &UseCase{
@@ -1099,6 +1142,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		MetadataRepo:    mockMetadataRepo,
 		BalanceRepo:     mockBalanceRepo,
 		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -1150,7 +1194,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		ParseDSL:    parseDSL,
 	}
 
-	transactionBytes, _ := json.Marshal(transactionQueue)
+	transactionBytes, _ := msgpack.Marshal(transactionQueue)
 	queueData := []mmodel.QueueData{
 		{
 			ID:    uuid.New(),
@@ -1184,6 +1228,12 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockRabbitMQRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).
+		AnyTimes()
+
+	// Mock RedisRepo.RemoveMessageFromQueue for cleanup
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
 		AnyTimes()
 
 	// Call the method - this should not panic

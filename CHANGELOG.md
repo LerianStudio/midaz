@@ -1,3 +1,87 @@
+## [v2.3.0-beta.19] - 2025-07-15
+
+This release of midaz enhances the reliability and efficiency of message processing and queue management, introduces robust new features, and includes several bug fixes to improve overall system stability and performance.
+
+### ✨ Features
+- **Reliable Queue Management**: Implemented a persistent queue using Redis, ensuring that transaction messages are reliably stored and processed, even under high loads. This enhancement significantly reduces the risk of data loss and improves the system's ability to handle large volumes of transactions smoothly.
+- **Efficient Message Processing**: Introduced a cron job to consume messages from the Redis queue and send them to the transaction processor. This change increases message throughput and reliability, ensuring timely processing of transaction data.
+- **Robust Message Delivery**: Added retry logic with exponential backoff and jitter for RabbitMQ message production. This feature enhances message delivery reliability, especially during transient network failures, providing a more resilient messaging system.
+
+### 🐛 Bug Fixes
+- **Improved Code Organization**: Standardized server file naming conventions, enhancing code maintainability and readability.
+- **Cleaner Logging**: Adjusted logging levels and removed excessive logging to reduce noise, making logs clearer and more useful for monitoring and debugging.
+- **Accurate Logic Flow**: Corrected conditional statements to ensure logic flows as intended, preventing unexpected behavior and improving system reliability.
+- **Comprehensive Testing**: Fixed integration tests across backend, database, and frontend components, ensuring reliable and comprehensive test coverage.
+
+### ⚡ Performance
+- **Faster Message Handling**: Transitioned from JSON to MessagePack for message serialization, reducing message size and improving processing speed. This change results in faster data handling and reduced latency in message processing.
+- **Optimized Resource Utilization**: Enhanced backup queue management to occupy only one slot in the cluster, improving resource utilization and reducing potential conflicts.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: Revised documentation to reflect new message serialization format and Dockerfile updates, helping developers understand and implement the new configurations efficiently.
+
+### 🔧 Maintenance
+- **Code Quality Enhancements**: Made linting adjustments and resolved security warnings to maintain high code quality and security standards.
+- **Changelog Updates**: Ensured the changelog accurately reflects all recent changes and improvements, maintaining transparency and communication with users.
+
+This update is designed to provide users with a more reliable, efficient, and user-friendly experience, with significant improvements in message processing and system stability.
+
+## [v2.3.0-beta.18] - 2025-07-14
+
+This release enhances the development environment, making testing and debugging more efficient, and ensures up-to-date project documentation.
+
+### ✨ Features  
+- **Improved Development Workflow**: We've implemented CORS tampering to streamline testing and development processes. This enhancement allows developers to bypass cross-origin restrictions, making it easier to integrate and test APIs with the frontend. This results in a smoother, more efficient development experience, particularly beneficial for developers working across different components like dependencies, frontend, and testing environments.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been updated to reflect the latest changes and improvements. This ensures all stakeholders have access to current project information, supporting transparency and effective project documentation.
+
+### 🔧 Maintenance
+- **Release Management**: We've focused on maintaining project documentation and improving the development environment. These updates indirectly benefit users by supporting a more efficient and transparent development process.
+
+
+This changelog is designed to communicate the changes in a user-friendly manner, highlighting the benefits and impact of the release while maintaining a professional tone. It focuses on the key updates that users and stakeholders will find valuable, ensuring clarity and accessibility.
+
+## [v2.3.0-beta.17] - 2025-07-14
+
+This release introduces a significant enhancement to the configuration process, streamlining deployment workflows and ensuring high-quality releases. Additionally, documentation updates improve clarity and communication about recent changes.
+
+### ✨ Features  
+- **Pre-Release Step Flow Configuration**: We've added a new configuration feature that enhances deployment processes by automating pre-release checks. This ensures that all necessary validations are performed before a release, improving reliability and reducing manual errors. Ideal for teams looking to optimize their release management workflows.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest features and improvements. This ensures all stakeholders are informed about the project's progress, enhancing transparency and communication.
+
+### 🔧 Maintenance
+- **Release Management Enhancements**: Behind-the-scenes improvements have been made to ensure that the release management process is more efficient and reliable, contributing to smoother software development cycles.
+
+
+This changelog focuses on the user-centric benefits of the new configuration feature and the importance of updated documentation for effective communication. The structure and language are designed to be accessible to a broad audience, emphasizing the practical impact of the changes.
+
+## [v2.3.0-beta.16] - 2025-07-11
+
+This release of midaz introduces powerful new features in account and settings management, enhancing user control and efficiency. With improved database performance and comprehensive documentation updates, users can expect a more streamlined and responsive experience.
+
+### ✨ Features
+- **Comprehensive Account Management**: Users can now create accounts with enhanced validations, retrieve account types, and filter metadata in batches, simplifying account setup and management.
+- **Settings Management System**: Gain full control over your application settings with the ability to create, retrieve, update, and delete settings, allowing for a highly customizable user experience.
+
+### ⚡ Performance
+- **Database Enhancements**: New table migrations with indexes have been implemented, leading to faster data retrieval and improved application responsiveness.
+
+### 🔄 Changes
+- **Account Type Management**: Users can now list, update, and delete account types more efficiently, improving the overall user experience in managing account configurations.
+- **Settings Storage Optimization**: The introduction of a PostgreSQL repository for settings management enhances the reliability and speed of settings operations.
+
+### 📚 Documentation
+- **Onboarding Updates**: Documentation now includes detailed guides on new account type endpoints, ensuring users and developers have the latest information for seamless integration and use.
+
+### 🔧 Maintenance
+- **Code Simplification**: Redundant settings retrieval processes have been removed, streamlining the codebase for better maintainability.
+- **Expanded Testing**: Additional unit tests have been added across key components, ensuring new features are robust and reliable.
+
+In this changelog, we've highlighted the key new features and improvements that enhance user experience and performance. Each section focuses on the benefits and impact of the changes, using clear and accessible language. The documentation updates and maintenance improvements ensure users have the necessary resources and a reliable application environment.
+
 ## [v2.3.0-beta.15] - 2025-07-11
 
 This release introduces a significant enhancement in the deployment process, offering a more reliable and efficient release cycle for users.
