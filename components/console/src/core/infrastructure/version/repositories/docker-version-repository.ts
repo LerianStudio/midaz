@@ -51,6 +51,14 @@ export class DockerVersionRepository implements VersionRepository {
     }
   }
 
+  /**
+   * Fetchs from Dockker Hub API the tags paginated.
+   * Since it's paginated, it will recursively fetch until it finds the latest valid tag
+   * that does not contain 'latest', 'alpha' or 'beta' in the name, and the tag is marked as 'active'.
+   *
+   * @param url Base URL
+   * @returns
+   */
   private async _batchFetch(url: string): Promise<DockerTagDto | null> {
     const response = await fetch(url, {
       method: 'GET',
@@ -61,16 +69,19 @@ export class DockerVersionRepository implements VersionRepository {
 
     const data: DockerListRepositoryTagsDto = await response.json()
 
+    // Search for the latest valid tag in the current batch
     const latest = this._findLatest(data.results)
 
     if (latest) {
       return latest
     }
 
+    // If no valid tag is found at all, return null
     if (!data.next) {
       return null
     }
 
+    // If no valid tag is found, continue to the next page
     return await this._batchFetch(data.next || '')
   }
 
