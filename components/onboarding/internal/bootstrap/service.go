@@ -16,6 +16,6 @@ type Service struct {
 func (app *Service) Run() {
 	libCommons.NewLauncher(
 		libCommons.WithLogger(app.Logger),
-		libCommons.RunApp("HTTP server", app.Server),
+		libCommons.RunApp("Fiber Server", app.Server),
 	).Run()
 }
