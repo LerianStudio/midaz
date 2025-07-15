@@ -14,45 +14,6 @@ import { useGetMidazInfo } from '@/client/midaz-info'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import { CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react'
 import { VersionStatus } from '@/core/application/dto/midaz-info-dto'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '../ui/tooltip'
-
-const VersionIcon = ({ status }: { status: VersionStatus }) => {
-  const intl = useIntl()
-
-  return (
-    <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger className="absolute top-0 right-0">
-          {status === VersionStatus.UpToDate && (
-            <CheckCircle2 className="h-4 w-4 text-zinc-400" />
-          )}
-          {status === VersionStatus.Outdated && (
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          {status === VersionStatus.UpToDate &&
-            intl.formatMessage({
-              id: 'dialog.about.midaz.upToDate.tooltip',
-              defaultMessage:
-                'Your version is up to date and operating successfully.'
-            })}
-          {status === VersionStatus.Outdated &&
-            intl.formatMessage({
-              id: 'dialog.about.midaz.outdate.tooltip',
-              defaultMessage:
-                'A new version is available. We recommend updating.'
-            })}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
 
 const UpToDateAlert = () => {
   const intl = useIntl()
@@ -156,7 +117,6 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
                   { version: process.env.NEXT_PUBLIC_MIDAZ_VERSION }
                 )}
               </p>
-              <VersionIcon status={info?.versionStatus!} />
             </div>
           </div>
 

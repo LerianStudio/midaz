@@ -7,9 +7,52 @@ import Image from 'next/image'
 import LerianLogo from '@/svg/lerian-logo.svg'
 import { LedgerSelector } from '../ledger-selector'
 import { useIntl } from 'react-intl'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '../ui/tooltip'
+import { VersionStatus } from '@/core/application/dto/midaz-info-dto'
+import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { useGetMidazInfo } from '@/client/midaz-info'
+
+const VersionIcon = ({ status }: { status: VersionStatus }) => {
+  const intl = useIntl()
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={500}>
+        <TooltipTrigger>
+          {status === VersionStatus.UpToDate && (
+            <CheckCircle2 className="h-4 w-4 text-zinc-400" />
+          )}
+          {status === VersionStatus.Outdated && (
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          {status === VersionStatus.UpToDate &&
+            intl.formatMessage({
+              id: 'dialog.about.midaz.upToDate.tooltip',
+              defaultMessage:
+                'Your version is up to date and operating successfully.'
+            })}
+          {status === VersionStatus.Outdated &&
+            intl.formatMessage({
+              id: 'dialog.about.midaz.outdate.tooltip',
+              defaultMessage:
+                'A new version is available. We recommend updating.'
+            })}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 export const Header = () => {
   const intl = useIntl()
+  const { data: midazInfo } = useGetMidazInfo()
 
   return (
     <div className="flex h-[60px] w-full items-center border-b bg-white py-5 pr-16">
@@ -17,11 +60,11 @@ export const Header = () => {
         <LedgerSelector />
 
         <div className="flex items-center gap-6">
-          <p className="text-xs font-medium text-zinc-400">
-            Midaz Console{' '}
+          <p className="flex items-center gap-2 text-xs font-medium text-zinc-400">
             <span className="text-xs font-normal text-zinc-400">
-              v.{process.env.NEXT_PUBLIC_MIDAZ_VERSION}
+              Midaz Console v.{process.env.NEXT_PUBLIC_MIDAZ_VERSION}
             </span>
+            <VersionIcon status={midazInfo?.versionStatus!} />
           </p>
 
           <Separator orientation="vertical" className="h-10" />
