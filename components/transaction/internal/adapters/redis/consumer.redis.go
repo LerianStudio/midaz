@@ -331,7 +331,8 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		return nil, err
 	}
 
-	var messages []RedisMessage
+	var messages = make([]RedisMessage, 0, len(data))
+
 	for _, val := range data {
 		var msg RedisMessage
 		if err := msgpack.Unmarshal([]byte(val), &msg); err != nil {

@@ -25,47 +25,58 @@ func NewRedisQueueConsumer(useCase *command.UseCase, logger libLog.Logger) *Redi
 
 // Run starts redis consumers for queues
 func (r *RedisQueueConsumer) Run(l *libCommons.Launcher) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			r.Logger.Info("RedisQueueConsumer: shutting down...")
+			return nil
+
 		case <-ticker.C:
-			ctx := context.Background()
-			tracer := libCommons.NewTracerFromContext(ctx)
+			r.readMessagesAndProcess(ctx)
+		}
+	}
+}
 
-			ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
-			defer span.End()
+func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
+	tracer := libCommons.NewTracerFromContext(ctx)
 
-			r.Logger.Infof("Init cron to read messages from redis...")
+	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 
-			messages, err := r.UseCase.RedisRepo.ReadAllMessagesFromQueue(ctx)
-			if err != nil {
-				r.Logger.Errorf("Err to read messages from redis: %v", err)
+	r.Logger.Infof("Init cron to read messages from redis...")
 
-				continue
-			}
+	messages, err := r.UseCase.RedisRepo.ReadAllMessagesFromQueue(ctx)
+	if err != nil {
+		r.Logger.Errorf("Err to read messages from redis: %v", err)
 
-			r.Logger.Infof("Total of read %d messages from queue", len(messages))
+		span.End()
 
-			for _, msg := range messages {
-				r.Logger.Infof("Mensagem received from queue: %s", msg.ID)
+		return
+	}
 
-				data, ok := msg.Payload.(mmodel.Queue)
-				if !ok {
-					r.Logger.Errorf("Payload can't be casted to Queue: %v", msg.Payload)
+	r.Logger.Infof("Total of read %d messages from queue", len(messages))
 
-					continue
-				}
+	for _, msg := range messages {
+		r.Logger.Infof("Message received from queue: %s", msg.ID)
 
-				err := r.UseCase.CreateBalanceTransactionOperationsAsync(ctx, data)
-				if err != nil {
-					r.Logger.Errorf("Failed to create balance transaction operations: %v", err)
+		data, ok := msg.Payload.(mmodel.Queue)
+		if !ok {
+			r.Logger.Errorf("Payload can't be casted to Queue: %v", msg.Payload)
 
-					continue
-				}
-			}
+			continue
+		}
+
+		if err := r.UseCase.CreateBalanceTransactionOperationsAsync(ctx, data); err != nil {
+			r.Logger.Errorf("Failed to create balance transaction operations: %v", err)
+
+			continue
 		}
 	}
 
+	span.End()
 }
