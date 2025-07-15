@@ -1,30 +1,30 @@
 import { VersionRepository } from '@/core/domain/repositories/version-repository'
 import { inject, injectable } from 'inversify'
-import { VersionDto } from '../../dto/version-dto'
+import { MidazInfoDto } from '../../dto/midaz-info-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators'
 
-export interface GetVersion {
-  execute: () => Promise<VersionDto>
+export interface GetMidazInfo {
+  execute: () => Promise<MidazInfoDto>
 }
 
 @injectable()
-export class GetVersionUseCase implements GetVersion {
+export class GetMidazInfoUseCase implements GetMidazInfo {
   constructor(
     @inject(VersionRepository)
     private readonly versionRepository: VersionRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
-  async execute(): Promise<VersionDto> {
-    const current = process.env.VERSION || ''
+  async execute(): Promise<MidazInfoDto> {
+    const currentVersion = process.env.VERSION || '1.0.0'
     const versionEntity = await this.versionRepository.getLatestVersion()
 
     return {
-      current,
-      latest: versionEntity.latest,
-      status: await this.versionRepository.getVersionStatus(
+      currentVersion,
+      latestVersion: versionEntity.latest,
+      versionStatus: await this.versionRepository.getVersionStatus(
         versionEntity.latest,
-        current
+        currentVersion
       )
     }
   }

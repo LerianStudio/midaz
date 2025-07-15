@@ -10,10 +10,49 @@ import {
 import { Button } from '../ui/button'
 import { useIntl } from 'react-intl'
 import LerianFlag from '@/images/lerian-flag.jpg'
-import { useGetVersion } from '@/client/version'
+import { useGetMidazInfo } from '@/client/midaz-info'
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert'
 import { CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react'
-import { VersionStatus } from '@/core/application/dto/version-dto'
+import { VersionStatus } from '@/core/application/dto/midaz-info-dto'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '../ui/tooltip'
+
+const VersionIcon = ({ status }: { status: VersionStatus }) => {
+  const intl = useIntl()
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger className="absolute top-0 right-0">
+          {status === VersionStatus.UpToDate && (
+            <CheckCircle2 className="h-4 w-4 text-zinc-400" />
+          )}
+          {status === VersionStatus.Outdated && (
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          {status === VersionStatus.UpToDate &&
+            intl.formatMessage({
+              id: 'dialog.about.midaz.upToDate.tooltip',
+              defaultMessage:
+                'Your version is up to date and operating successfully.'
+            })}
+          {status === VersionStatus.Outdated &&
+            intl.formatMessage({
+              id: 'dialog.about.midaz.outdate.tooltip',
+              defaultMessage:
+                'A new version is available. We recommend updating.'
+            })}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 const UpToDateAlert = () => {
   const intl = useIntl()
@@ -93,7 +132,7 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
   const termsLink = ''
   const licenseLink = ''
 
-  const { data: version } = useGetVersion()
+  const { data: info } = useGetMidazInfo()
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -107,8 +146,8 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
             <DialogTitle className="text-lg font-bold text-zinc-900 sm:text-center">
               Midaz Console
             </DialogTitle>
-            <DialogDescription className="flex flex-col gap-2 text-zinc-500 sm:text-center">
-              <span>
+            <div className="relative flex flex-row items-center justify-center gap-2">
+              <p className="text-xs font-medium text-zinc-500 sm:text-center">
                 {intl.formatMessage(
                   {
                     id: 'dialog.about.midaz.version',
@@ -116,12 +155,13 @@ export const AboutMidazDialog = ({ open, setOpen }: any) => {
                   },
                   { version: process.env.NEXT_PUBLIC_MIDAZ_VERSION }
                 )}
-              </span>
-            </DialogDescription>
+              </p>
+              <VersionIcon status={info?.versionStatus!} />
+            </div>
           </div>
 
-          {version?.status === VersionStatus.UpToDate && <UpToDateAlert />}
-          {version?.status === VersionStatus.Outdated && <OutdateAlert />}
+          {info?.versionStatus === VersionStatus.UpToDate && <UpToDateAlert />}
+          {info?.versionStatus === VersionStatus.Outdated && <OutdateAlert />}
 
           {false && (
             <DialogDescription className="flex justify-center gap-4 text-zinc-800">

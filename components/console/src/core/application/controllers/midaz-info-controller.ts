@@ -1,16 +1,16 @@
 import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
 import { Controller } from '@/lib/http/server/decorators/controller-decorator'
 import { inject, injectable } from 'inversify'
-import { GetVersionUseCase } from '../use-cases/version/get-version'
+import { GetMidazInfoUseCase } from '../use-cases/midaz-info/get-version'
 import { NextResponse } from 'next/server'
 
 @injectable()
 @LoggerInterceptor()
 @Controller()
-export class VersionController {
+export class MidazInfoController {
   constructor(
-    @inject(GetVersionUseCase)
-    private readonly getVersionUseCase: GetVersionUseCase
+    @inject(GetMidazInfoUseCase)
+    private readonly getMidazInfoUseCase: GetMidazInfoUseCase
   ) {}
 
   /**
@@ -18,7 +18,7 @@ export class VersionController {
    * @returns The current version as a string.
    */
   async getVersion() {
-    const version = await this.getVersionUseCase.execute()
-    return NextResponse.json(version)
+    const info = await this.getMidazInfoUseCase.execute()
+    return NextResponse.json(info)
   }
 }
