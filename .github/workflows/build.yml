@@ -91,3 +91,13 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
+      
+      # Trigger GitOps update workflow
+      - name: Trigger GitOps Update workflow
+        if: success()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.MANAGE_TOKEN }}
+          repository: LerianStudio/midaz
+          event-type: trigger-gitops-update
+    

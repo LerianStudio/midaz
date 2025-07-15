@@ -1,10 +1,8 @@
 name: "Pre-Release GitOps Update"
 
 on:
-  workflow_run:
-    workflows: ["Build midaz images"]
-    types:
-      - completed
+  repository_dispatch:
+    types: [trigger-gitops-update]
 
 permissions:
   contents: write
@@ -13,7 +11,6 @@ permissions:
 
 jobs:
   update_gitops:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Update GitOps values.yaml
     runs-on: ubuntu-latest
 
@@ -25,7 +22,7 @@ jobs:
           path: source
           fetch-depth: 0
 
-      # Detect which components changed (onboarding, transaction, console)
+      # Detect which components changed
       - name: Detect changed components
         id: detect
         uses: LerianStudio/github-actions-changed-paths@main
@@ -51,8 +48,9 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      # Checkout GitOps repo
-      - uses: actions/checkout@v4
+      # Checkout GitOps repository
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
         with:
           repository: LerianStudio/midaz-firmino-gitops
           ref: main
@@ -60,14 +58,14 @@ jobs:
           fetch-depth: 0
           path: gitops
 
-      # Extract last tag from source repo
       - name: Get latest tag
         id: tag
         run: |
           cd source
+          git fetch --tags
           echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
 
-      # Update tags for all changed components in a single values.yaml
+      # Update values.yaml with the correct image tag
       - name: Update image tags for changed components
         run: |
           components=$(echo '${{ steps.detect.outputs.matrix }}' | jq -r '.[].name')
@@ -76,7 +74,7 @@ jobs:
             yq e ".$component.image.tag = \"${{ steps.tag.outputs.tag }}\"" -i gitops/environments/firmino/helmfile/midaz/values.yaml
           done
 
-      # Commit and push all updates together
+      # Commit and push changes to GitOps repo
       - name: Commit and push changes to GitOps
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
