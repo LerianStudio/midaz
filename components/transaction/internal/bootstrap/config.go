@@ -275,9 +275,12 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	redisConsumer := NewRedisQueueConsumer(useCase, logger)
+
 	return &Service{
 		Server:             server,
 		MultiQueueConsumer: multiQueueConsumer,
+		RedisQueueConsumer: redisConsumer,
 		Logger:             logger,
 	}
 }
