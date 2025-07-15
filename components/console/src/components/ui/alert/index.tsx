@@ -14,7 +14,9 @@ const alertVariants = cva(
         destructive:
           'border-red-500/50 text-red-500 dark:border-red-500 [&>svg]:text-red-500 dark:border-red-900/50 dark:text-red-900 dark:dark:border-red-900 dark:[&>svg]:text-red-900',
         warning:
-          'bg-yellow-50 border-yellow-200 text-yellow-800 [&>svg]:text-yellow-500 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-200 dark:[&>svg]:text-yellow-400'
+          'bg-yellow-50 border-yellow-200 text-yellow-800 [&>svg]:text-yellow-500 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-200 dark:[&>svg]:text-yellow-400',
+        success:
+          'bg-[#F0FDF4] border-green-500/50 text-green-800 [&>svg]:text-green-600'
       }
     },
     defaultVariants: {
