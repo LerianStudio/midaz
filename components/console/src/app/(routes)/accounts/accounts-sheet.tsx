@@ -38,7 +38,6 @@ import { Enforce } from '@/providers/permission-provider/enforce'
 import { AccountDto } from '@/core/application/dto/account-dto'
 import { useGetBalanceByAccountId } from '@/client/balances'
 import { useFormatCurrency } from '@/lib/intl/use-format-currency'
-import { ReadOnlyField } from '@/components/form/read-only-field'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -53,6 +52,7 @@ const initialValues = {
   portfolioId: '',
   segmentId: '',
   assetCode: '',
+  balance: '',
   alias: '',
   type: '',
   allowSending: true,
@@ -69,6 +69,7 @@ const FormSchema = z.object({
   segmentId: accounts.segmentId.nullable().optional(),
   metadata: accounts.metadata,
   type: accounts.type,
+  balance: z.string().optional(),
   allowSending: accounts.allowSending,
   allowReceiving: accounts.allowReceiving
 })
@@ -140,9 +141,20 @@ export const AccountSheet = ({
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
-    values: getInitialValues(initialValues, data!),
-    defaultValues: initialValues
+    defaultValues: getInitialValues(initialValues, data!)
   })
+
+  React.useEffect(() => {
+    if (balances?.items?.[0]) {
+      form.setValue(
+        'balance',
+        formatCurrency(
+          Number(balances.items[0].available ?? 0),
+          balances.items[0].assetCode
+        )
+      )
+    }
+  }, [balances, form, formatCurrency])
 
   const portfolioId = form.watch('portfolioId')
 
@@ -307,15 +319,14 @@ export const AccountSheet = ({
                     />
 
                     {mode === 'edit' && (
-                      <ReadOnlyField
+                      <InputField
+                        name="balance"
                         label={intl.formatMessage({
                           id: 'accounts.field.balance',
                           defaultMessage: 'Balance'
                         })}
-                        value={formatCurrency(
-                          Number(balances?.items?.[0]?.available ?? 0),
-                          balances?.items?.[0]?.assetCode
-                        )}
+                        control={form.control}
+                        readOnly
                       />
                     )}
 

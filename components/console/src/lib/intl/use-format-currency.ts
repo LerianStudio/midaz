@@ -19,4 +19,4 @@ export function useFormatCurrency() {
   )
 
   return { formatCurrency }
-} 
+}

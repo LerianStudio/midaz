@@ -25,6 +25,8 @@ const allowSending = z.boolean()
 
 const allowReceiving = z.boolean()
 
+const balance = z.string()
+
 export const accounts = {
   name,
   alias,
@@ -35,5 +37,6 @@ export const accounts = {
   metadata,
   type,
   allowSending,
-  allowReceiving
+  allowReceiving,
+  balance
 }

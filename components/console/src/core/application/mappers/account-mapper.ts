@@ -25,6 +25,7 @@ export class AccountMapper {
       deletedAt: account.deletedAt ?? null,
       alias: account.alias!,
       assetCode: account.assetCode,
+      balance: Number(account.available),
       parentAccountId: account.parentAccountId!,
       segmentId: account.segmentId!,
       portfolioId: account.portfolioId,
