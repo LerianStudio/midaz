@@ -308,7 +308,10 @@ export const AccountSheet = ({
 
                     {mode === 'edit' && (
                       <ReadOnlyField
-                        label="Balance"
+                        label={intl.formatMessage({
+                          id: 'accounts.field.balance',
+                          defaultMessage: 'Balance'
+                        })}
                         value={formatCurrency(
                           Number(balances?.items?.[0]?.available ?? 0),
                           balances?.items?.[0]?.assetCode

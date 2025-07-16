@@ -17,6 +17,7 @@
   "accounts.field.allowSending": "Allow Sending",
   "accounts.field.asset": "Asset",
   "accounts.field.asset.tooltip": "Asset or currency that will be operated in this Account using balance",
+  "accounts.field.balance": "Balance",
   "accounts.field.entityId": "Entity ID",
   "accounts.field.entityId.tooltip": "Identification number (EntityId) of the Account holder",
   "accounts.field.name": "Account Name",
