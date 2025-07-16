@@ -263,9 +263,9 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&opRoute.LedgerID,
 			&opRoute.Title,
 			&opRoute.Description,
-			&opRoute.Type,
-			&opRoute.AccountTypes,
-			&opRoute.AccountAlias,
+			&opRoute.OperationType,
+			&opRoute.AccountRuleType,
+			&opRoute.AccountRuleValidIf,
 			&opRoute.CreatedAt,
 			&opRoute.UpdatedAt,
 			&opRoute.DeletedAt,
@@ -493,7 +493,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	transactionRoutes := make([]*mmodel.TransactionRoute, 0)
+	var transactionRoutes []*mmodel.TransactionRoute
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)

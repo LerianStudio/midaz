@@ -3,6 +3,9 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"sort"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -14,8 +17,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"sort"
-	"testing"
 )
 
 func TestGetBalances(t *testing.T) {

@@ -3,11 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -24,11 +22,13 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:        "Test Operation Route",
-		Description:  "Test Description",
-		Type:         "debit",
-		AccountTypes: []string{"asset", "liability"},
-		// AccountAlias not provided to avoid mutual exclusion
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability"},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -37,9 +37,8 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
-			assert.Equal(t, payload.Type, operationRoute.Type)
-			assert.Equal(t, payload.AccountTypes, operationRoute.AccountTypes)
-			assert.Equal(t, payload.AccountAlias, operationRoute.AccountAlias)
+			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
+			assert.Equal(t, payload.Account, operationRoute.Account)
 			return operationRoute, nil
 		})
 
@@ -53,9 +52,8 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
-	assert.Equal(t, payload.Type, operationRoute.Type)
-	assert.Equal(t, payload.AccountTypes, operationRoute.AccountTypes)
-	assert.Equal(t, payload.AccountAlias, operationRoute.AccountAlias)
+	assert.Equal(t, payload.OperationType, operationRoute.OperationType)
+	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
 // TestCreateOperationRouteSuccessWithAccountAlias tests creating an operation route with account alias only
@@ -67,11 +65,13 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:        "Test Operation Route",
-		Description:  "Test Description",
-		Type:         "debit",
-		AccountAlias: "@cash_account",
-		// AccountTypes not provided to avoid mutual exclusion
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAlias,
+			ValidIf:  "@cash_account",
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -80,9 +80,8 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, payload.Title, operationRoute.Title)
 			assert.Equal(t, payload.Description, operationRoute.Description)
-			assert.Equal(t, payload.Type, operationRoute.Type)
-			assert.Equal(t, payload.AccountTypes, operationRoute.AccountTypes)
-			assert.Equal(t, payload.AccountAlias, operationRoute.AccountAlias)
+			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
+			assert.Equal(t, payload.Account, operationRoute.Account)
 			return operationRoute, nil
 		})
 
@@ -96,13 +95,12 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
-	assert.Equal(t, payload.Type, operationRoute.Type)
-	assert.Equal(t, payload.AccountTypes, operationRoute.AccountTypes)
-	assert.Equal(t, payload.AccountAlias, operationRoute.AccountAlias)
+	assert.Equal(t, payload.OperationType, operationRoute.OperationType)
+	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
-// TestCreateOperationRouteWithEmptyAccountTypes tests creating an operation route with empty account types
-func TestCreateOperationRouteWithEmptyAccountTypes(t *testing.T) {
+// TestCreateOperationRouteWithEmptyAccount tests creating an operation route with empty account
+func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -110,9 +108,9 @@ func TestCreateOperationRouteWithEmptyAccountTypes(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:       "Test Operation Route",
-		Description: "Test Description",
-		Type:        "debit",
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
 	}
 
 	expectedOperationRoute := &mmodel.OperationRoute{
@@ -121,7 +119,7 @@ func TestCreateOperationRouteWithEmptyAccountTypes(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          payload.Title,
 		Description:    payload.Description,
-		Type:           payload.Type,
+		OperationType:  payload.OperationType,
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -140,35 +138,6 @@ func TestCreateOperationRouteWithEmptyAccountTypes(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// TestCreateOperationRouteMutuallyExclusiveFieldsError tests that providing both AccountTypes and AccountAlias returns validation error
-func TestCreateOperationRouteMutuallyExclusiveFieldsError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	payload := &mmodel.CreateOperationRouteInput{
-		Title:        "Test Operation Route",
-		Description:  "Test Description",
-		Type:         "debit",
-		AccountTypes: []string{"asset", "liability"},
-		AccountAlias: "@cash_account", // Both fields provided - should trigger validation error
-	}
-
-	useCase := &UseCase{
-		OperationRouteRepo: nil, // Repository shouldn't be called
-	}
-
-	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
-
-	assert.Error(t, err)
-	assert.Nil(t, operationRoute)
-	// Verify it's the expected validation error
-	expectedError := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
-	assert.Equal(t, expectedError, err)
-}
-
 // TestCreateOperationRouteError is responsible to test CreateOperationRoute with error
 func TestCreateOperationRouteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -178,11 +147,13 @@ func TestCreateOperationRouteError(t *testing.T) {
 	ledgerID := uuid.New()
 
 	payload := &mmodel.CreateOperationRouteInput{
-		Title:        "Test Operation Route",
-		Description:  "Test Description",
-		Type:         "debit",
-		AccountTypes: []string{"asset", "liability"},
-		// AccountAlias not provided to avoid validation error
+		Title:         "Test Operation Route",
+		Description:   "Test Description",
+		OperationType: "source",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability"},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)

@@ -35,7 +35,6 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	// Fetch all operation routes in a single database call
 	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find operation routes", err)
@@ -71,7 +70,6 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	// Ensure operation routes are included in the response
 	createdTransactionRoute.OperationRoutes = operationRoutes
 
 	if payload.Metadata != nil {
@@ -105,22 +103,22 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both debit and credit types.
-// Returns an error if either debit or credit type is missing.
+// validateOperationRouteTypes validates that operation routes contain both source and destination types.
+// Returns an error if either source or destination type is missing.
 func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
-	hasDebit := false
-	hasCredit := false
+	hasSource := false
+	hasDestination := false
 
 	for _, operationRoute := range operationRoutes {
-		if operationRoute.Type == "debit" {
-			hasDebit = true
+		if operationRoute.OperationType == "source" {
+			hasSource = true
 		}
 
-		if operationRoute.Type == "credit" {
-			hasCredit = true
+		if operationRoute.OperationType == "destination" {
+			hasDestination = true
 		}
 
-		if hasDebit && hasCredit {
+		if hasSource && hasDestination {
 			return nil
 		}
 	}

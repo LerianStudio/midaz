@@ -1500,7 +1500,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/CreateOperationRouteInput"
+                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
                         }
                     }
                 ],
@@ -1760,482 +1760,6 @@
                     },
                     "409": {
                         "description": "Conflict: Operation Route with the same title already exists",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings": {
-            "get": {
-                "description": "Retrieves all settings from the specified ledger with cursor pagination support",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Settings"
-                ],
-                "summary": "Get all settings",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token with format: Bearer {token}",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID for tracing",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID in UUID format",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID in UUID format",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Maximum number of settings to return (default: 10)",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor for pagination",
-                        "name": "cursor",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Sort order: 'asc' or 'desc' (default: 'asc')",
-                        "name": "sort_order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start date for filtering (ISO 8601 format)",
-                        "name": "start_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date for filtering (ISO 8601 format)",
-                        "name": "end_date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/Pagination"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "items": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/Settings"
-                                            }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Endpoint to create a new Setting.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Settings"
-                ],
-                "summary": "Create Setting",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token with format: Bearer {token}",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID for tracing",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID in UUID format",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID in UUID format",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Settings Input",
-                        "name": "settings",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/CreateSettingsInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Successfully created setting",
-                        "schema": {
-                            "$ref": "#/definitions/Settings"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid input, validation errors",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict - setting key already exists",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}": {
-            "get": {
-                "description": "Retrieve a specific setting by its ID within an organization and ledger",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Settings"
-                ],
-                "summary": "Get Setting by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token with format: Bearer {token}",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID for tracing",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID in UUID format",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID in UUID format",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Setting ID in UUID format",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully retrieved setting",
-                        "schema": {
-                            "$ref": "#/definitions/Settings"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid input, validation errors",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Setting not found",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Deletes an existing setting identified by its UUID within the specified ledger",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Settings"
-                ],
-                "summary": "Delete a setting",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token with format: Bearer {token}",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID for tracing",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID in UUID format",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID in UUID format",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Setting ID in UUID format",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Successfully deleted setting"
-                    },
-                    "401": {
-                        "description": "Unauthorized access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Setting not found",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "description": "Updates an existing setting's properties such as active status and description within the specified ledger",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Settings"
-                ],
-                "summary": "Update a setting",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token with format: Bearer {token}",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID for tracing",
-                        "name": "X-Request-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID in UUID format",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID in UUID format",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Setting ID in UUID format",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Settings Input",
-                        "name": "settings",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/UpdateSettingsInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully updated setting",
-                        "schema": {
-                            "$ref": "#/definitions/Settings"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid input, validation errors",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden access",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "404": {
-                        "description": "Setting not found",
-                        "schema": {
-                            "$ref": "#/definitions/Error"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict: Setting with the same key already exists",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -3947,76 +3471,6 @@
                 }
             }
         },
-        "CreateOperationRouteInput": {
-            "description": "CreateOperationRouteInput payload",
-            "type": "object",
-            "required": [
-                "title",
-                "type"
-            ],
-            "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
-                    ]
-                },
-                "description": {
-                    "description": "Detailed description of the operation route purpose and usage.",
-                    "type": "string",
-                    "maxLength": 250,
-                    "example": "This operation route handles cash-in transactions from service charge collections"
-                },
-                "title": {
-                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
-                    "type": "string",
-                    "maxLength": 50,
-                    "example": "Cashin from service charge"
-                },
-                "type": {
-                    "description": "The type of the operation route.",
-                    "type": "string",
-                    "example": "debit"
-                }
-            }
-        },
-        "CreateSettingsInput": {
-            "description": "CreateSettingsInput payload",
-            "type": "object",
-            "required": [
-                "active",
-                "key"
-            ],
-            "properties": {
-                "active": {
-                    "description": "Whether the setting is active.",
-                    "type": "boolean",
-                    "example": true
-                },
-                "description": {
-                    "description": "A description for the setting.",
-                    "type": "string",
-                    "maxLength": 255,
-                    "example": "Controls whether strict accounting validation rules are enforced for transactions"
-                },
-                "key": {
-                    "description": "The key identifier for the setting.",
-                    "type": "string",
-                    "maxLength": 30,
-                    "example": "accounting_validation_enabled"
-                }
-            }
-        },
         "CreateTransactionInflowSwaggerModel": {
             "description": "Schema for creating inflow transaction with the complete SendInflow operation structure defined inline",
             "type": "object",
@@ -4409,20 +3863,12 @@
             "description": "OperationRoute object",
             "type": "object",
             "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
                     ]
                 },
                 "createdAt": {
@@ -4452,6 +3898,16 @@
                     "type": "string",
                     "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
                 },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationType": {
+                    "description": "The type of the operation route.",
+                    "type": "string",
+                    "example": "source"
+                },
                 "organizationId": {
                     "description": "The unique identifier of the Organization.",
                     "type": "string",
@@ -4461,11 +3917,6 @@
                     "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
                     "type": "string",
                     "example": "Cashin from service charge"
-                },
-                "type": {
-                    "description": "The type of the operation route.",
-                    "type": "string",
-                    "example": "debit"
                 },
                 "updatedAt": {
                     "description": "The timestamp when the operation route was last updated.",
@@ -4497,57 +3948,6 @@
                     "type": "string",
                     "x-omitempty": true,
                     "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                }
-            }
-        },
-        "Settings": {
-            "description": "Settings object",
-            "type": "object",
-            "properties": {
-                "active": {
-                    "description": "Whether the setting is active.",
-                    "type": "boolean",
-                    "example": true
-                },
-                "createdAt": {
-                    "description": "The timestamp when the setting was created.",
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
-                "deletedAt": {
-                    "description": "The timestamp when the setting was deleted.",
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
-                },
-                "description": {
-                    "description": "A description for the setting.",
-                    "type": "string",
-                    "example": "Controls whether strict accounting validation rules are enforced for transactions"
-                },
-                "id": {
-                    "description": "The unique identifier of the Settings.",
-                    "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-                },
-                "key": {
-                    "description": "The key identifier for the setting.",
-                    "type": "string",
-                    "example": "accounting_validation_enabled"
-                },
-                "ledgerId": {
-                    "description": "The unique identifier of the Ledger.",
-                    "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-                },
-                "organizationId": {
-                    "description": "The unique identifier of the Organization.",
-                    "type": "string",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-                },
-                "updatedAt": {
-                    "description": "The timestamp when the setting was last updated.",
-                    "type": "string",
-                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -4783,20 +4183,12 @@
             "description": "UpdateOperationRouteInput payload",
             "type": "object",
             "properties": {
-                "accountAlias": {
-                    "description": "Specific account alias for this operation route.",
-                    "type": "string",
-                    "example": "@cash_account"
-                },
-                "accountTypes": {
-                    "description": "Array of allowed account types for this operation route.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"asset\"",
-                        "\"liability\"]"
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
                     ]
                 },
                 "description": {
@@ -4805,28 +4197,16 @@
                     "maxLength": 250,
                     "example": "This operation route handles cash-in transactions from service charge collections"
                 },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
                 "title": {
                     "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
                     "type": "string",
                     "maxLength": 50,
                     "example": "Cashin from service charge"
-                }
-            }
-        },
-        "UpdateSettingsInput": {
-            "description": "UpdateSettingsInput payload",
-            "type": "object",
-            "properties": {
-                "active": {
-                    "description": "Whether the setting is active.",
-                    "type": "boolean",
-                    "example": false
-                },
-                "description": {
-                    "description": "A description for the setting.",
-                    "type": "string",
-                    "maxLength": 255,
-                    "example": "Controls whether strict accounting validation rules are enforced for transactions"
                 }
             }
         },
@@ -5012,6 +4392,9 @@
                 }
             }
         },
+        "mmodel.AccountRule": {
+            "type": "object"
+        },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
             "type": "object",
@@ -5111,6 +4494,9 @@
                     "example": 1
                 }
             }
+        },
+        "mmodel.CreateOperationRouteInput": {
+            "type": "object"
         }
     }
 }

@@ -37,6 +37,19 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
+	if operationRoute != nil {
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRoute.ID.String())
+		if err != nil {
+			logger.Errorf("Error get metadata on mongodb operation route: %v", err)
+
+			return nil, err
+		}
+
+		if metadata != nil {
+			operationRoute.Metadata = metadata.Data
+		}
+	}
+
 	logger.Infof("Successfully retrieved operation route for id: %s", id)
 
 	return operationRoute, nil

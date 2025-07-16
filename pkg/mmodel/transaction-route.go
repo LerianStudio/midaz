@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // TransactionRoute is a struct designed to store TransactionRoute data.
@@ -62,3 +63,62 @@ type UpdateTransactionRouteInput struct {
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
 } // @name UpdateTransactionRouteInput
+
+// TransactionRouteCache represents the cache structure for transaction routes in Redis
+type TransactionRouteCache struct {
+	Source      map[string]OperationRouteCache `json:"source"`
+	Destination map[string]OperationRouteCache `json:"destination"`
+}
+
+// OperationRouteCache represents the cached data for a single operation route
+type OperationRouteCache struct {
+	Account *AccountCache `json:"account,omitempty"`
+}
+
+// AccountCache represents the cached account rule data
+type AccountCache struct {
+	RuleType string `json:"ruleType"`
+	ValidIf  any    `json:"validIf"`
+}
+
+// ToCache converts the transaction route into a cache structure for Redis storage.
+// Returns a TransactionRouteCache struct with routes pre-categorized by type.
+func (tr *TransactionRoute) ToCache() TransactionRouteCache {
+	cacheData := TransactionRouteCache{
+		Source:      make(map[string]OperationRouteCache),
+		Destination: make(map[string]OperationRouteCache),
+	}
+
+	for _, operationRoute := range tr.OperationRoutes {
+		routeData := OperationRouteCache{}
+
+		if operationRoute.Account != nil {
+			routeData.Account = &AccountCache{
+				RuleType: operationRoute.Account.RuleType,
+				ValidIf:  operationRoute.Account.ValidIf,
+			}
+		}
+
+		// Categorize by operation type
+		routeID := operationRoute.ID.String()
+
+		switch operationRoute.OperationType {
+		case "source":
+			cacheData.Source[routeID] = routeData
+		case "destination":
+			cacheData.Destination[routeID] = routeData
+		}
+	}
+
+	return cacheData
+}
+
+// FromMsgpack parses msgpack binary data into TransactionRouteCache
+func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
+	return msgpack.Unmarshal(data, trcd)
+}
+
+// ToMsgpack converts TransactionRouteCache to msgpack binary data
+func (trcd TransactionRouteCache) ToMsgpack() ([]byte, error) {
+	return msgpack.Marshal(trcd)
+}

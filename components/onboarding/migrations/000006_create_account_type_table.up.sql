@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS account_type (
     key_value           VARCHAR(50) NOT NULL,
     created_at          TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-    deleted_at          TIMESTAMP WITH TIME ZONE
+    deleted_at          TIMESTAMP WITH TIME ZONE,
+    FOREIGN KEY (organization_id) REFERENCES organization (id),
+    FOREIGN KEY (ledger_id) REFERENCES ledger (id)
 );
 
 CREATE INDEX idx_account_type_organization_id_ledger_id ON account_type (organization_id, ledger_id);
