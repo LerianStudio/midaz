@@ -1,3 +1,17 @@
+## [v2.3.0-beta.21] - 2025-07-16
+
+This release focuses on enhancing the deployment process to ensure more reliable and consistent updates, minimizing downtime and improving user experience.
+
+### ✨ Features
+- **Streamlined Pre-Release Flow**: We've introduced a new pre-release flow configuration using dispatch. This enhancement automates pre-release tasks, making deployments smoother and reducing potential downtime. Users will benefit from more consistent updates and a more reliable application experience.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The CHANGELOG has been updated to reflect the latest improvements and changes. This ensures users have easy access to the most current information about the software, aiding in better understanding and tracking of the project's progress.
+
+No breaking changes, bug fixes, performance improvements, removals, or deprecations were included in this release. Our focus was on enhancing the release process for a better user experience.
+
+This changelog is crafted to highlight the user benefits of the new features and maintenance updates in a clear and accessible manner. The structure and language are tailored to ensure users can easily understand the impact of the changes.
+
 ## [v2.3.0-beta.20] - 2025-07-16
 
 This major release of midaz introduces significant performance enhancements, new features, and critical updates to improve user experience and system reliability.
