@@ -3,7 +3,12 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { useFormField } from '@/components/ui/form'
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+function Input({
+  className,
+  type,
+  value,
+  ...props
+}: React.ComponentProps<'input'>) {
   const { formItemId } = useFormField()
   return (
     <input
@@ -16,6 +21,7 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
         'disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:opacity-50',
         className
       )}
+      value={value === null ? '' : value}
       {...props}
     />
   )

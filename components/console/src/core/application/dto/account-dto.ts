@@ -35,6 +35,7 @@ export interface AccountDto {
   parentAccountId: string
   portfolioId?: string | null
   segmentId: string
+  balance: number
   allowSending?: boolean
   allowReceiving?: boolean
   portfolio?: PortfolioDto

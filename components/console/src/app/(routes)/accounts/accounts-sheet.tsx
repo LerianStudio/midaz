@@ -36,6 +36,9 @@ import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@/providers/permission-provider/enforce'
 import { AccountDto } from '@/core/application/dto/account-dto'
+import { useGetBalanceByAccountId } from '@/client/balances'
+import { useFormatCurrency } from '@/lib/intl/use-format-currency'
+import { ReadOnlyField } from '@/components/form/read-only-field'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -84,6 +87,14 @@ export const AccountSheet = ({
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
+  const { formatCurrency } = useFormatCurrency()
+
+  const { data: balances } = useGetBalanceByAccountId({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    accountId: data?.id!,
+    enabled: !!data?.id
+  })
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -292,8 +303,18 @@ export const AccountSheet = ({
                         defaultMessage:
                           'Nickname (@) for identifying the Account holder'
                       })}
-                      readOnly={isReadOnly || mode === 'edit'}
+                      readOnly={isReadOnly}
                     />
+
+                    {mode === 'edit' && (
+                      <ReadOnlyField
+                        label="Balance"
+                        value={formatCurrency(
+                          Number(balances?.items?.[0]?.available ?? 0),
+                          balances?.items?.[0]?.assetCode
+                        )}
+                      />
+                    )}
 
                     <SelectField
                       control={form.control}
@@ -364,7 +385,7 @@ export const AccountSheet = ({
                       control={form.control}
                       name="assetCode"
                       label={intl.formatMessage({
-                        id: 'accounts.field.asset',
+                        id: 'accounts.sheet.form.asset.label',
                         defaultMessage: 'Asset'
                       })}
                       tooltip={intl.formatMessage({
@@ -386,7 +407,7 @@ export const AccountSheet = ({
                       control={form.control}
                       name="segmentId"
                       label={intl.formatMessage({
-                        id: 'accounts.field.segment',
+                        id: 'accounts.sheet.form.segment.label',
                         defaultMessage: 'Segment'
                       })}
                       tooltip={intl.formatMessage({
@@ -482,12 +503,12 @@ export const AccountSheet = ({
                     control={form.control}
                     name="portfolioId"
                     label={intl.formatMessage({
-                      id: 'accounts.field.portfolio',
+                      id: 'accounts.sheet.form.portfolio.label',
                       defaultMessage: 'Portfolio'
                     })}
-                    tooltip={intl.formatMessage({
-                      id: 'accounts.field.portfolio.tooltip',
-                      defaultMessage: 'Portfolio that will receive this account'
+                    placeholder={intl.formatMessage({
+                      id: 'accounts.sheet.form.portfolio.placeholder',
+                      defaultMessage: 'Select a portfolio'
                     })}
                     readOnly={portfolioListData.length === 0 || isReadOnly}
                   >
