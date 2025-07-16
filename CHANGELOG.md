@@ -1,3 +1,39 @@
+## [v2.3.0-beta.20] - 2025-07-16
+
+This major release of midaz introduces significant performance enhancements, new features, and critical updates to improve user experience and system reliability.
+
+### ⚠️ Breaking Changes
+- **Settings Management Removal**: The settings management feature has been removed. Users must transition to using environment variables for configuration. Please update your integrations and workflows accordingly to avoid disruptions.
+
+### ✨ Features
+- **Transaction Route Caching**: Experience faster transaction processing with our new caching mechanism for transaction routes. This enhancement reduces server load and improves application responsiveness.
+- **Accounting Validation Enhancements**: Enjoy greater flexibility with new validation rules for accounting operations, now configured via environment variables for easier management.
+
+### 🐛 Bug Fixes
+- **Environment Variable Naming**: We've corrected environment variable names related to accounting validation, ensuring consistency and preventing configuration errors.
+- **Database Constraints**: Added foreign key constraints to the account type table, enhancing data integrity and preventing orphaned records.
+- **SQL Query Update**: Fixed SQL queries to include the 'operation_type' field, ensuring accurate data retrieval and preventing mismatches.
+
+### ⚡ Performance
+- **Redis Binary Data Handling**: Enhanced RedisRepository for efficient binary data storage and retrieval, supporting more complex operations and boosting performance.
+
+### 🔄 Changes
+- **Metadata Handling for Operation Routes**: Added metadata support for operation routes, providing detailed transaction information and improved data handling.
+
+### 🗑️ Removed
+- **Settings Management**: Transition to environment variables as settings management endpoints and models are no longer supported.
+
+### 📚 Documentation
+- Updated documentation to reflect new configuration methods and validation rules, providing clear guidance for users transitioning from deprecated features.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded core dependencies, including `lib-commons` to v1.17.0-beta.27, to maintain compatibility and support new functionalities.
+- **Code Refactoring**: Improved code maintainability by refactoring transaction-related code, enhancing clarity and reducing errors.
+- **Test Suite Enhancements**: Expanded test coverage for new caching and validation logic, ensuring robust software quality.
+
+This release focuses on delivering a more efficient, reliable, and user-friendly experience. Please review the breaking changes to ensure a smooth transition.
+
+
 ## [v2.3.0-beta.19] - 2025-07-15
 
 This release of midaz enhances the reliability and efficiency of message processing and queue management, introduces robust new features, and includes several bug fixes to improve overall system stability and performance.
