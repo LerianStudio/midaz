@@ -1109,7 +1109,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOperationRouteInput'
+              $ref: '#/components/schemas/mmodel.CreateOperationRouteInput'
         description: Operation Route Input
         required: true
       responses:
@@ -1343,386 +1343,6 @@ paths:
       tags:
       - Operation Route
       x-codegen-request-body-name: operation-route
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings:
-    get:
-      description: Retrieves all settings from the specified ledger with cursor pagination
-        support
-      parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID in UUID format
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID in UUID format
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: 'Maximum number of settings to return (default: 10)'
-        in: query
-        name: limit
-        schema:
-          type: integer
-      - description: Cursor for pagination
-        in: query
-        name: cursor
-        schema:
-          type: string
-      - description: 'Sort order: ''asc'' or ''desc'' (default: ''asc'')'
-        in: query
-        name: sort_order
-        schema:
-          type: string
-      - description: Start date for filtering (ISO 8601 format)
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End date for filtering (ISO 8601 format)
-        in: query
-        name: end_date
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_4'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not Found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal Server Error
-      summary: Get all settings
-      tags:
-      - Settings
-    post:
-      description: Endpoint to create a new Setting.
-      parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID in UUID format
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID in UUID format
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateSettingsInput'
-        description: Settings Input
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Settings'
-          description: Successfully created setting
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Conflict - setting key already exists
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Create Setting
-      tags:
-      - Settings
-      x-codegen-request-body-name: settings
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/settings/{id}:
-    delete:
-      description: Deletes an existing setting identified by its UUID within the specified
-        ledger
-      parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID in UUID format
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID in UUID format
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Setting ID in UUID format
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: Successfully deleted setting
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Setting not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Delete a setting
-      tags:
-      - Settings
-    get:
-      description: Retrieve a specific setting by its ID within an organization and
-        ledger
-      parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID in UUID format
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID in UUID format
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Setting ID in UUID format
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Settings'
-          description: Successfully retrieved setting
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Setting not found
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Get Setting by ID
-      tags:
-      - Settings
-    patch:
-      description: Updates an existing setting's properties such as active status
-        and description within the specified ledger
-      parameters:
-      - description: 'Authorization Bearer Token with format: Bearer {token}'
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID for tracing
-        in: header
-        name: X-Request-Id
-        schema:
-          type: string
-      - description: Organization ID in UUID format
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID in UUID format
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Setting ID in UUID format
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateSettingsInput'
-        description: Settings Input
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Settings'
-          description: Successfully updated setting
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid input, validation errors
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Unauthorized access
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden access
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Setting not found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: 'Conflict: Setting with the same key already exists'
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Internal server error
-      summary: Update a setting
-      tags:
-      - Settings
-      x-codegen-request-body-name: settings
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       description: Endpoint to get all Transaction Routes with optional metadata filtering.
@@ -1784,7 +1404,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_4'
           description: OK
         "400":
           content:
@@ -2158,7 +1778,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
         "400":
           content:
@@ -3194,77 +2814,6 @@ components:
       - rate
       - to
       type: object
-    CreateOperationRouteInput:
-      description: CreateOperationRouteInput payload
-      example:
-        accountAlias: '@cash_account'
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
-        description: This operation route handles cash-in transactions from service
-          charge collections
-        title: Cashin from service charge
-        type: debit
-      properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
-        description:
-          description: Detailed description of the operation route purpose and usage.
-          example: This operation route handles cash-in transactions from service
-            charge collections
-          maxLength: 250
-          type: string
-        title:
-          description: Short text summarizing the purpose of the operation. Used as
-            an entry note for identification.
-          example: Cashin from service charge
-          maxLength: 50
-          type: string
-        type:
-          description: The type of the operation route.
-          example: debit
-          type: string
-      required:
-      - title
-      - type
-      type: object
-    CreateSettingsInput:
-      description: CreateSettingsInput payload
-      example:
-        active: true
-        description: Controls whether strict accounting validation rules are enforced
-          for transactions
-        key: accounting_validation_enabled
-      properties:
-        active:
-          description: Whether the setting is active.
-          example: true
-          type: boolean
-        description:
-          description: A description for the setting.
-          example: Controls whether strict accounting validation rules are enforced
-            for transactions
-          maxLength: 255
-          type: string
-        key:
-          description: The key identifier for the setting.
-          example: accounting_validation_enabled
-          maxLength: 30
-          type: string
-      required:
-      - active
-      - key
-      type: object
     CreateTransactionInflowSwaggerModel:
       description: Schema for creating inflow transaction with the complete SendInflow
         operation structure defined inline
@@ -3660,33 +3209,25 @@ components:
     OperationRoute:
       description: OperationRoute object
       example:
-        accountAlias: '@cash_account'
         ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
+        metadata:
+          key: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
+        operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         title: Cashin from service charge
-        type: debit
+        account: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
+        account:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountRule'
+          description: The account selection rule configuration.
+          type: object
         createdAt:
           description: The timestamp when the operation route was created.
           example: 2021-01-01T00:00:00Z
@@ -3710,6 +3251,15 @@ components:
           description: The unique identifier of the Ledger.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
+        operationType:
+          description: The type of the operation route.
+          example: source
+          type: string
         organizationId:
           description: The unique identifier of the Organization.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -3718,10 +3268,6 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          type: string
-        type:
-          description: The type of the operation route.
-          example: debit
           type: string
         updatedAt:
           description: The timestamp when the operation route was last updated.
@@ -3755,58 +3301,6 @@ components:
           example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
           type: string
           x-omitempty: true
-      type: object
-    Settings:
-      description: Settings object
-      example:
-        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        createdAt: 2025-01-01T00:00:00Z
-        deletedAt: 2025-01-01T00:00:00Z
-        active: true
-        description: Controls whether strict accounting validation rules are enforced
-          for transactions
-        id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        key: accounting_validation_enabled
-        updatedAt: 2025-01-01T00:00:00Z
-      properties:
-        active:
-          description: Whether the setting is active.
-          example: true
-          type: boolean
-        createdAt:
-          description: The timestamp when the setting was created.
-          example: 2025-01-01T00:00:00Z
-          type: string
-        deletedAt:
-          description: The timestamp when the setting was deleted.
-          example: 2025-01-01T00:00:00Z
-          type: string
-        description:
-          description: A description for the setting.
-          example: Controls whether strict accounting validation rules are enforced
-            for transactions
-          type: string
-        id:
-          description: The unique identifier of the Settings.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        key:
-          description: The key identifier for the setting.
-          example: accounting_validation_enabled
-          type: string
-        ledgerId:
-          description: The unique identifier of the Ledger.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        organizationId:
-          description: The unique identifier of the Organization.
-          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          type: string
-        updatedAt:
-          description: The timestamp when the setting was last updated.
-          example: 2025-01-01T00:00:00Z
-          type: string
       type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
@@ -4042,33 +3536,31 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         description: Settlement route for service charges
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4170,55 +3662,34 @@ components:
     UpdateOperationRouteInput:
       description: UpdateOperationRouteInput payload
       example:
-        accountAlias: '@cash_account'
-        accountTypes:
-        - '["asset"'
-        - '"liability"]'
+        metadata:
+          key: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
+        account: '{}'
       properties:
-        accountAlias:
-          description: Specific account alias for this operation route.
-          example: '@cash_account'
-          type: string
-        accountTypes:
-          description: Array of allowed account types for this operation route.
-          example:
-          - '["asset"'
-          - '"liability"]'
-          items:
-            type: string
-          type: array
+        account:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountRule'
+          description: The account selection rule configuration.
+          type: object
         description:
           description: Detailed description of the operation route purpose and usage.
           example: This operation route handles cash-in transactions from service
             charge collections
           maxLength: 250
           type: string
+        metadata:
+          additionalProperties:
+            type: object
+          description: Additional metadata stored as JSON
+          type: object
         title:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
           maxLength: 50
-          type: string
-      type: object
-    UpdateSettingsInput:
-      description: UpdateSettingsInput payload
-      example:
-        active: false
-        description: Controls whether strict accounting validation rules are enforced
-          for transactions
-      properties:
-        active:
-          description: Whether the setting is active.
-          example: false
-          type: boolean
-        description:
-          description: A description for the setting.
-          example: Controls whether strict accounting validation rules are enforced
-            for transactions
-          maxLength: 255
           type: string
       type: object
     UpdateTransactionInput:
@@ -4318,6 +3789,8 @@ components:
           type: boolean
         send:
           $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
+      type: object
+    mmodel.AccountRule:
       type: object
     mmodel.Balance:
       description: Complete balance entity containing all fields including system-generated
@@ -4468,6 +3941,8 @@ components:
           example: 1
           minimum: 1
           type: integer
+      type: object
+    mmodel.CreateOperationRouteInput:
       type: object
     inline_response_200:
       example:
@@ -4664,33 +4139,31 @@ components:
         limit: 0
         page: '{}'
         items:
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@cash_account'
-          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          accountTypes:
-          - '["asset"'
-          - '"liability"]'
+          metadata:
+            key: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
+          operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           title: Cashin from service charge
-          type: debit
+          account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
         Pagination:
@@ -4726,86 +4199,34 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2025-01-01T00:00:00Z
           deletedAt: 2025-01-01T00:00:00Z
-          active: true
-          description: Controls whether strict accounting validation rules are enforced
-            for transactions
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          key: accounting_validation_enabled
-          updatedAt: 2025-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2025-01-01T00:00:00Z
-          deletedAt: 2025-01-01T00:00:00Z
-          active: true
-          description: Controls whether strict accounting validation rules are enforced
-            for transactions
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          key: accounting_validation_enabled
-          updatedAt: 2025-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Settings'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_5:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: '{}'
-        items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2025-01-01T00:00:00Z
-          deletedAt: 2025-01-01T00:00:00Z
           metadata:
             key: '{}'
           operationRoutes:
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4818,33 +4239,31 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - accountAlias: '@cash_account'
-            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            accountTypes:
-            - '["asset"'
-            - '"liability"]'
+            metadata:
+              key: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
+            operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             title: Cashin from service charge
-            type: debit
+            account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4867,7 +4286,7 @@ components:
         prev_cursor:
           type: string
       type: object
-    inline_response_200_6:
+    inline_response_200_5:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==

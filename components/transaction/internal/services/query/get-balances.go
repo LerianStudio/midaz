@@ -3,6 +3,9 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"sort"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -10,9 +13,15 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"sort"
 )
+
+// lockOperation represents a balance operation with associated metadata for transaction processing
+type lockOperation struct {
+	balance     *mmodel.Balance
+	alias       string
+	amount      libTransaction.Amount
+	internalKey string
+}
 
 // GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
@@ -131,13 +140,6 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	newBalances := make([]*mmodel.Balance, 0)
 
-	type lockOperation struct {
-		balance     *mmodel.Balance
-		alias       string
-		amount      libTransaction.Amount
-		internalKey string
-	}
-
 	operations := make([]lockOperation, 0)
 
 	for _, balance := range balances {
@@ -169,6 +171,15 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	sort.Slice(operations, func(i, j int) bool {
 		return operations[i].internalKey < operations[j].internalKey
 	})
+
+	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate accounting rules", err)
+
+		logger.Error("Failed to validate accounting rules", err)
+
+		return nil, err
+	}
 
 	for _, op := range operations {
 		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)

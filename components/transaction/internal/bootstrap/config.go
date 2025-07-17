@@ -20,7 +20,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
@@ -170,7 +169,6 @@ func InitServers() *Service {
 	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
 	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
-	settingsPostgreSQLRepository := settings.NewSettingsPostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -197,7 +195,6 @@ func InitServers() *Service {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		SettingsRepo:         settingsPostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
@@ -210,7 +207,6 @@ func InitServers() *Service {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		SettingsRepo:         settingsPostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
@@ -246,11 +242,6 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	settingsHandler := &in.SettingsHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
-
 	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -271,13 +262,16 @@ func InitServers() *Service {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, settingsHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
+
+	redisConsumer := NewRedisQueueConsumer(useCase, logger)
 
 	return &Service{
 		Server:             server,
 		MultiQueueConsumer: multiQueueConsumer,
+		RedisQueueConsumer: redisConsumer,
 		Logger:             logger,
 	}
 }

@@ -1,3 +1,105 @@
+## [v2.3.0-beta.22] - 2025-07-17
+
+This release introduces a new version management feature and several improvements to enhance user experience and system reliability.
+
+### ✨ Features  
+- **Version Management**: A new version endpoint is now available, providing real-time information about the software version you are using. This transparency ensures you are always informed about the software status and any updates. [Components: backend, deps, docs, frontend]
+
+### 🐛 Bug Fixes
+- **General Stability**: Resolved minor issues that were affecting system stability and performance, resulting in a smoother and more reliable user experience. [General]
+
+### 🔄 Changes
+- **User Interface Enhancements**: Improved icon alignment and visual consistency across the application for a more cohesive and pleasant user experience. [Component: config]
+- **Translation Support**: Enhanced localization to ensure all text is accurately translated, making the application more accessible to non-English speakers. [Component: frontend]
+- **System Notifications**: Introduced alerts to notify you of new updates or changes, ensuring you are always aware of the latest features and improvements. [Components: config, frontend]
+
+### 📚 Documentation
+- **API and Documentation Improvements**: Refined endpoint naming conventions and added detailed documentation to simplify integration processes and reduce potential errors. [Components: backend, config, docs, frontend]
+
+### 🔧 Maintenance
+- **Documentation and Code Quality**: Added comprehensive comments and documentation to enhance code readability and maintainability, supporting ongoing development and easier onboarding for new developers. [Component: docs]
+- **Release Management**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring you have access to the latest information about the software's evolution. [General]
+
+This changelog provides a clear and concise overview of the updates in version 2.3.0, focusing on user benefits and system enhancements. Each section is organized to highlight the most impactful changes, making it easy for users to understand the significance of the release.
+
+## [v2.3.0-beta.21] - 2025-07-16
+
+This release focuses on enhancing the deployment process to ensure more reliable and consistent updates, minimizing downtime and improving user experience.
+
+### ✨ Features
+- **Streamlined Pre-Release Flow**: We've introduced a new pre-release flow configuration using dispatch. This enhancement automates pre-release tasks, making deployments smoother and reducing potential downtime. Users will benefit from more consistent updates and a more reliable application experience.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The CHANGELOG has been updated to reflect the latest improvements and changes. This ensures users have easy access to the most current information about the software, aiding in better understanding and tracking of the project's progress.
+
+No breaking changes, bug fixes, performance improvements, removals, or deprecations were included in this release. Our focus was on enhancing the release process for a better user experience.
+
+This changelog is crafted to highlight the user benefits of the new features and maintenance updates in a clear and accessible manner. The structure and language are tailored to ensure users can easily understand the impact of the changes.
+
+## [v2.3.0-beta.20] - 2025-07-16
+
+This major release of midaz introduces significant performance enhancements, new features, and critical updates to improve user experience and system reliability.
+
+### ⚠️ Breaking Changes
+- **Settings Management Removal**: The settings management feature has been removed. Users must transition to using environment variables for configuration. Please update your integrations and workflows accordingly to avoid disruptions.
+
+### ✨ Features
+- **Transaction Route Caching**: Experience faster transaction processing with our new caching mechanism for transaction routes. This enhancement reduces server load and improves application responsiveness.
+- **Accounting Validation Enhancements**: Enjoy greater flexibility with new validation rules for accounting operations, now configured via environment variables for easier management.
+
+### 🐛 Bug Fixes
+- **Environment Variable Naming**: We've corrected environment variable names related to accounting validation, ensuring consistency and preventing configuration errors.
+- **Database Constraints**: Added foreign key constraints to the account type table, enhancing data integrity and preventing orphaned records.
+- **SQL Query Update**: Fixed SQL queries to include the 'operation_type' field, ensuring accurate data retrieval and preventing mismatches.
+
+### ⚡ Performance
+- **Redis Binary Data Handling**: Enhanced RedisRepository for efficient binary data storage and retrieval, supporting more complex operations and boosting performance.
+
+### 🔄 Changes
+- **Metadata Handling for Operation Routes**: Added metadata support for operation routes, providing detailed transaction information and improved data handling.
+
+### 🗑️ Removed
+- **Settings Management**: Transition to environment variables as settings management endpoints and models are no longer supported.
+
+### 📚 Documentation
+- Updated documentation to reflect new configuration methods and validation rules, providing clear guidance for users transitioning from deprecated features.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded core dependencies, including `lib-commons` to v1.17.0-beta.27, to maintain compatibility and support new functionalities.
+- **Code Refactoring**: Improved code maintainability by refactoring transaction-related code, enhancing clarity and reducing errors.
+- **Test Suite Enhancements**: Expanded test coverage for new caching and validation logic, ensuring robust software quality.
+
+This release focuses on delivering a more efficient, reliable, and user-friendly experience. Please review the breaking changes to ensure a smooth transition.
+
+
+## [v2.3.0-beta.19] - 2025-07-15
+
+This release of midaz enhances the reliability and efficiency of message processing and queue management, introduces robust new features, and includes several bug fixes to improve overall system stability and performance.
+
+### ✨ Features
+- **Reliable Queue Management**: Implemented a persistent queue using Redis, ensuring that transaction messages are reliably stored and processed, even under high loads. This enhancement significantly reduces the risk of data loss and improves the system's ability to handle large volumes of transactions smoothly.
+- **Efficient Message Processing**: Introduced a cron job to consume messages from the Redis queue and send them to the transaction processor. This change increases message throughput and reliability, ensuring timely processing of transaction data.
+- **Robust Message Delivery**: Added retry logic with exponential backoff and jitter for RabbitMQ message production. This feature enhances message delivery reliability, especially during transient network failures, providing a more resilient messaging system.
+
+### 🐛 Bug Fixes
+- **Improved Code Organization**: Standardized server file naming conventions, enhancing code maintainability and readability.
+- **Cleaner Logging**: Adjusted logging levels and removed excessive logging to reduce noise, making logs clearer and more useful for monitoring and debugging.
+- **Accurate Logic Flow**: Corrected conditional statements to ensure logic flows as intended, preventing unexpected behavior and improving system reliability.
+- **Comprehensive Testing**: Fixed integration tests across backend, database, and frontend components, ensuring reliable and comprehensive test coverage.
+
+### ⚡ Performance
+- **Faster Message Handling**: Transitioned from JSON to MessagePack for message serialization, reducing message size and improving processing speed. This change results in faster data handling and reduced latency in message processing.
+- **Optimized Resource Utilization**: Enhanced backup queue management to occupy only one slot in the cluster, improving resource utilization and reducing potential conflicts.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: Revised documentation to reflect new message serialization format and Dockerfile updates, helping developers understand and implement the new configurations efficiently.
+
+### 🔧 Maintenance
+- **Code Quality Enhancements**: Made linting adjustments and resolved security warnings to maintain high code quality and security standards.
+- **Changelog Updates**: Ensured the changelog accurately reflects all recent changes and improvements, maintaining transparency and communication with users.
+
+This update is designed to provide users with a more reliable, efficient, and user-friendly experience, with significant improvements in message processing and system stability.
+
 ## [v2.3.0-beta.18] - 2025-07-14
 
 This release enhances the development environment, making testing and debugging more efficient, and ensures up-to-date project documentation.

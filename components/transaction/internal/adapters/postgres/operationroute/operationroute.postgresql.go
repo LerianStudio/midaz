@@ -36,6 +36,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error)
 	HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error)
+	FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error)
 }
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
@@ -91,9 +92,9 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		&record.LedgerID,
 		&record.Title,
 		&record.Description,
-		&record.Type,
-		&record.AccountTypes,
-		&record.AccountAlias,
+		&record.OperationType,
+		&record.AccountRuleType,
+		&record.AccountRuleValidIf,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	)
@@ -143,7 +144,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := `SELECT id, organization_id, ledger_id, title, description, type, account_types, account_alias, created_at, updated_at, deleted_at 
+	query := `SELECT id, organization_id, ledger_id, title, description, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at 
 		FROM operation_route 
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
 	args := []any{organizationID, ledgerID, id}
@@ -162,9 +163,9 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		&operationRoute.LedgerID,
 		&operationRoute.Title,
 		&operationRoute.Description,
-		&operationRoute.Type,
-		&operationRoute.AccountTypes,
-		&operationRoute.AccountAlias,
+		&operationRoute.OperationType,
+		&operationRoute.AccountRuleType,
+		&operationRoute.AccountRuleValidIf,
 		&operationRoute.CreatedAt,
 		&operationRoute.UpdatedAt,
 		&operationRoute.DeletedAt,
@@ -200,7 +201,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
-	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "type", "account_types", "account_alias", "created_at", "updated_at", "deleted_at").
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "operation_type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
 		From("operation_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -240,9 +241,9 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 			&operationRoute.LedgerID,
 			&operationRoute.Title,
 			&operationRoute.Description,
-			&operationRoute.Type,
-			&operationRoute.AccountTypes,
-			&operationRoute.AccountAlias,
+			&operationRoute.OperationType,
+			&operationRoute.AccountRuleType,
+			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
@@ -313,14 +314,16 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		args = append(args, record.Description)
 	}
 
-	if operationRoute.AccountTypes != nil {
-		updates = append(updates, "account_types = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AccountTypes)
-	}
+	if operationRoute.Account != nil {
+		if operationRoute.Account.RuleType != "" {
+			updates = append(updates, "account_rule_type = $"+strconv.Itoa(len(args)+1))
+			args = append(args, record.AccountRuleType)
+		}
 
-	if operationRoute.AccountAlias != "" {
-		updates = append(updates, "account_alias = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AccountAlias)
+		if operationRoute.Account.ValidIf != nil {
+			updates = append(updates, "account_rule_valid_if = $"+strconv.Itoa(len(args)+1))
+			args = append(args, record.AccountRuleValidIf)
+		}
 	}
 
 	record.UpdatedAt = time.Now()
@@ -422,7 +425,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	operationRoutes := make([]*mmodel.OperationRoute, 0)
+	var operationRoutes []*mmodel.OperationRoute
 
 	decodedCursor := libHTTP.Cursor{}
 	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
@@ -475,9 +478,9 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.LedgerID,
 			&operationRoute.Title,
 			&operationRoute.Description,
-			&operationRoute.Type,
-			&operationRoute.AccountTypes,
-			&operationRoute.AccountAlias,
+			&operationRoute.OperationType,
+			&operationRoute.AccountRuleType,
+			&operationRoute.AccountRuleValidIf,
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
@@ -546,4 +549,56 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 	}
 
 	return exists, nil
+}
+
+// FindTransactionRouteIDs retrieves all transaction route IDs associated with a specific operation route.
+// It returns a slice of transaction route UUIDs that are linked to the given operation route ID.
+func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query := `SELECT transaction_route_id FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL ORDER BY created_at`
+	args := []any{operationRouteID}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_route_ids.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactionRouteIDs []uuid.UUID
+
+	for rows.Next() {
+		var transactionRouteID uuid.UUID
+
+		if err := rows.Scan(&transactionRouteID); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan transaction route ID", err)
+
+			return nil, err
+		}
+
+		transactionRouteIDs = append(transactionRouteIDs, transactionRouteID)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, err
+	}
+
+	return transactionRouteIDs, nil
 }

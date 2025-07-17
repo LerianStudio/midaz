@@ -41,4 +41,5 @@ networks:
     name: infra-network
     driver: bridge
   proxy-network:
-    external: true
+    name: proxy-network
+    driver: bridge

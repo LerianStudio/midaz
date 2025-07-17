@@ -5,6 +5,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
@@ -13,23 +17,26 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
-	"strconv"
-	"strings"
-	"time"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
 // RedisRepository provides an interface for redis.
-// It defines methods for setting, getting, deleting keys, and incrementing values.
+// It defines methods for setting, getting keys, and incrementing values.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
+	GetBytes(ctx context.Context, key string) ([]byte, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	AddMessageToQueue(ctx context.Context, msg RedisMessage) error
+	ReadAllMessagesFromQueue(ctx context.Context) ([]RedisMessage, error)
+	RemoveMessageFromQueue(ctx context.Context, id string) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -270,4 +277,155 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
+}
+
+// AddMessageToQueue add message to redis queue
+func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, msg RedisMessage) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to get redis client", err)
+
+		return err
+	}
+
+	data, err := msgpack.Marshal(msg)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to marshal msgpack", err)
+
+		return err
+	}
+
+	if err := rds.HSet(ctx, TransactionBackupQueue, msg.ID, data).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to hset message", err)
+
+		return err
+	}
+
+	logger.Infof("Mensagem save on redis queue with ID: %s", msg.ID)
+
+	return nil
+}
+
+// ReadAllMessagesFromQueue read all messages from redis queue
+func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) ([]RedisMessage, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to get redis client", err)
+
+		return nil, err
+	}
+
+	data, err := rds.HGetAll(ctx, TransactionBackupQueue).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to hgetall", err)
+
+		return nil, err
+	}
+
+	var messages = make([]RedisMessage, 0, len(data))
+
+	for _, val := range data {
+		var msg RedisMessage
+		if err := msgpack.Unmarshal([]byte(val), &msg); err != nil {
+			logger.Warnf("Error to deserializar mensagem: %v", err)
+
+			continue
+		}
+
+		messages = append(messages, msg)
+	}
+
+	logger.Infof("Total read %d messages on redis queue", len(messages))
+
+	return messages, nil
+}
+
+// RemoveMessageFromQueue remove message from redis queue
+func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, id string) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to get redis client", err)
+
+		return err
+	}
+
+	if err := rds.HDel(ctx, TransactionBackupQueue, id).Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to hdel", err)
+
+		return err
+	}
+
+	logger.Infof("Message with ID %s is removed from redis queue", id)
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.set_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return err
+	}
+
+	logger.Infof("Setting binary data with TTL: %v", ttl*time.Second)
+
+	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return nil, err
+	}
+
+	val, err := rds.Get(ctx, key).Bytes()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get bytes on redis", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
+
+	return val, nil
 }

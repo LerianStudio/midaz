@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -26,51 +27,50 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountTypes: []string{"asset", "liability", "equity"},
-		// AccountAlias not provided to avoid mutual exclusion
+		Title:       "Updated Operation Route",
+		Description: "Updated Description",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability", "equity"},
+		},
 	}
 
-	existingOperationRoute := &mmodel.OperationRoute{
+	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{"asset"},
-		AccountAlias:   "", // Empty to avoid conflict
+		Title:          input.Title,
+		Description:    input.Description,
+		OperationType:  "source",
+		Account:        input.Account,
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
 	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, orgID, ledID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
-			assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
-			assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
-			return operationRoute, nil
+			assert.Equal(t, input.Account, operationRoute.Account)
+			return expectedOperationRoute, nil
 		})
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
+		MetadataRepo:       mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
-	assert.Equal(t, input.Title, operationRoute.Title)
-	assert.Equal(t, input.Description, operationRoute.Description)
-	assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
-	assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
+	assert.Equal(t, expectedOperationRoute, operationRoute)
 }
 
 // TestUpdateOperationRouteSuccessWithAccountAlias tests updating an operation route with account alias only
@@ -83,51 +83,50 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountAlias: "@updated_cash_account",
-		// AccountTypes not provided to avoid mutual exclusion
+		Title:       "Updated Operation Route",
+		Description: "Updated Description",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAlias,
+			ValidIf:  "@updated_cash_account",
+		},
 	}
 
-	existingOperationRoute := &mmodel.OperationRoute{
+	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{}, // Empty to avoid conflict
-		AccountAlias:   "@old_account",
+		Title:          input.Title,
+		Description:    input.Description,
+		OperationType:  "source",
+		Account:        input.Account,
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
 	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		DoAndReturn(func(ctx context.Context, orgID, ledID, opID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
-			assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
-			assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
-			return operationRoute, nil
+			assert.Equal(t, input.Account, operationRoute.Account)
+			return expectedOperationRoute, nil
 		})
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
+		MetadataRepo:       mockMetadataRepo,
 	}
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, operationRoute)
-	assert.Equal(t, input.Title, operationRoute.Title)
-	assert.Equal(t, input.Description, operationRoute.Description)
-	assert.Equal(t, input.AccountTypes, operationRoute.AccountTypes)
-	assert.Equal(t, input.AccountAlias, operationRoute.AccountAlias)
+	assert.Equal(t, expectedOperationRoute, operationRoute)
 }
 
 // TestUpdateOperationRouteAccountTypesOnly tests updating only account types
@@ -140,164 +139,41 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		AccountTypes: []string{"asset", "liability"},
-	}
-
-	existingOperationRoute := &mmodel.OperationRoute{
-		ID:             operationRouteID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Type:           "debit",
-		AccountTypes:   []string{"asset"},
-		AccountAlias:   "", // Empty to avoid conflict
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability"},
+		},
 	}
 
 	updatedRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
-		Type:           "debit",
-		AccountTypes:   input.AccountTypes,
+		OperationType:  "source",
+		Account:        input.Account,
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
-	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
 
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+		MetadataRepo:       mockMetadataRepo,
+	}
+
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
 	assert.NoError(t, err)
 	assert.Equal(t, updatedRoute, result)
-}
-
-// TestUpdateOperationRouteMutuallyExclusiveFieldsInInput tests providing both AccountTypes and AccountAlias in input
-func TestUpdateOperationRouteMutuallyExclusiveFieldsInInput(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	operationRouteID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountTypes: []string{"asset", "liability"},
-		AccountAlias: "@updated_cash_account", // Both fields provided - should trigger validation error
-	}
-
-	useCase := &UseCase{
-		OperationRouteRepo: nil, // Repository shouldn't be called
-	}
-
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
-
-	assert.Error(t, err)
-	assert.Nil(t, operationRoute)
-	// Verify it's the expected validation error
-	expectedError := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
-	assert.Equal(t, expectedError, err)
-}
-
-// TestUpdateOperationRouteConflictExistingAccountTypesWithNewAccountAlias tests conflict when existing has AccountTypes and input has AccountAlias
-func TestUpdateOperationRouteConflictExistingAccountTypesWithNewAccountAlias(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	operationRouteID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountAlias: "@updated_cash_account", // Trying to set AccountAlias
-	}
-
-	existingOperationRoute := &mmodel.OperationRoute{
-		ID:             operationRouteID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{"asset", "liability"}, // Existing has AccountTypes
-		AccountAlias:   "",
-	}
-
-	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
-	useCase := &UseCase{
-		OperationRouteRepo: mockOperationRouteRepo,
-	}
-
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
-
-	assert.Error(t, err)
-	assert.Nil(t, operationRoute)
-	// Verify it's the expected validation error
-	expectedError := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
-	assert.Equal(t, expectedError, err)
-}
-
-// TestUpdateOperationRouteConflictExistingAccountAliasWithNewAccountTypes tests conflict when existing has AccountAlias and input has AccountTypes
-func TestUpdateOperationRouteConflictExistingAccountAliasWithNewAccountTypes(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	operationRouteID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountTypes: []string{"asset", "liability"}, // Trying to set AccountTypes
-	}
-
-	existingOperationRoute := &mmodel.OperationRoute{
-		ID:             operationRouteID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{},
-		AccountAlias:   "@existing_account", // Existing has AccountAlias
-	}
-
-	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
-	useCase := &UseCase{
-		OperationRouteRepo: mockOperationRouteRepo,
-	}
-
-	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
-
-	assert.Error(t, err)
-	assert.Nil(t, operationRoute)
-	// Verify it's the expected validation error
-	expectedError := pkg.ValidateBusinessError(constant.ErrMutuallyExclusiveFields, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "accountTypes", "accountAlias")
-	assert.Equal(t, expectedError, err)
 }
 
 // TestUpdateOperationRouteNotFound tests updating a non-existent operation route
@@ -310,15 +186,17 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountTypes: []string{"asset", "liability"},
-		// AccountAlias not provided to avoid validation error
+		Title:       "Updated Operation Route",
+		Description: "Updated Description",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability"},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
+		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
@@ -343,29 +221,15 @@ func TestUpdateOperationRouteError(t *testing.T) {
 	ledgerID := uuid.New()
 
 	input := &mmodel.UpdateOperationRouteInput{
-		Title:        "Updated Operation Route",
-		Description:  "Updated Description",
-		AccountTypes: []string{"asset", "liability"},
-		// AccountAlias not provided to avoid validation error
-	}
-
-	existingOperationRoute := &mmodel.OperationRoute{
-		ID:             operationRouteID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{"asset"},
-		AccountAlias:   "", // Empty to avoid conflict
+		Title:       "Updated Operation Route",
+		Description: "Updated Description",
+		Account: &mmodel.AccountRule{
+			RuleType: constant.AccountRuleTypeAccountType,
+			ValidIf:  []string{"asset", "liability"},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockOperationRouteRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
 	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(nil, errors.New("failed to update operation route"))
@@ -393,40 +257,31 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 		Description: "Updated Description Only",
 	}
 
-	existingOperationRoute := &mmodel.OperationRoute{
-		ID:             operationRouteID,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          "Original Title",
-		Description:    "Original Description",
-		Type:           "debit",
-		AccountTypes:   []string{"asset"},
-		AccountAlias:   "", // Empty to avoid conflict
-	}
-
 	updatedRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Title:          "", // Title not provided in input
 		Description:    input.Description,
-		Type:           "debit",
+		OperationType:  "source",
 	}
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
-	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
-	}
-
-	mockRepo.EXPECT().
-		FindByID(gomock.Any(), organizationID, ledgerID, operationRouteID).
-		Return(existingOperationRoute, nil).
-		Times(1)
-
 	mockRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
 		Return(updatedRoute, nil).
 		Times(1)
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Update(gomock.Any(), "OperationRoute", operationRouteID.String(), map[string]any{}).
+		Return(nil).
+		Times(1)
+
+	uc := &UseCase{
+		OperationRouteRepo: mockRepo,
+		MetadataRepo:       mockMetadataRepo,
+	}
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 

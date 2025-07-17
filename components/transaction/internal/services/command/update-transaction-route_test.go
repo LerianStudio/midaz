@@ -222,12 +222,10 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	}
 
 	currentTransactionRoute := &mmodel.TransactionRoute{
-		ID:          transactionRouteID,
-		Title:       "Current Title",
-		Description: "Current Description",
+		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: libCommons.GenerateUUIDv7(), Type: "debit"},
-			{ID: libCommons.GenerateUUIDv7(), Type: "credit"},
+			{ID: libCommons.GenerateUUIDv7(), OperationType: "source"},
+			{ID: libCommons.GenerateUUIDv7(), OperationType: "destination"},
 		},
 	}
 
@@ -236,8 +234,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 		Title:       input.Title,
 		Description: input.Description,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: (*input.OperationRoutes)[0], Type: "debit"},
-			{ID: (*input.OperationRoutes)[1], Type: "credit"},
+			{ID: (*input.OperationRoutes)[0], OperationType: "source"},
+			{ID: (*input.OperationRoutes)[1], OperationType: "destination"},
 		},
 	}
 
@@ -248,8 +246,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
-		{ID: (*input.OperationRoutes)[0], Type: "debit"},
-		{ID: (*input.OperationRoutes)[1], Type: "credit"},
+		{ID: (*input.OperationRoutes)[0], OperationType: "source"},
+		{ID: (*input.OperationRoutes)[1], OperationType: "destination"},
 	}
 
 	uc.TransactionRouteRepo.(*transactionroute.MockRepository).
@@ -327,7 +325,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteCount(t *testing.T) {
 	assert.Nil(t, result)
 
 	// Should return business error for insufficient operation routes
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, "Cannot update TransactionRoute to have less than 2 operation routes - must maintain at least 1 debit and 1 credit operation route")
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedBusinessError, err)
 }
 
@@ -421,8 +419,8 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 		Times(1)
 
 	operationRoutes := []*mmodel.OperationRoute{
-		{ID: operationRouteIDs[0], Type: "debit"},
-		{ID: operationRouteIDs[1], Type: "debit"}, // Both are debit, missing credit
+		{ID: operationRouteIDs[0], OperationType: "source"},
+		{ID: operationRouteIDs[1], OperationType: "source"}, // Both are source, missing destination
 	}
 
 	uc.OperationRouteRepo.(*operationroute.MockRepository).
@@ -465,10 +463,10 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 		Title:       input.Title,
 		Description: input.Description,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: operationRouteIDs[0], Type: "debit"},
-			{ID: operationRouteIDs[1], Type: "debit"},
-			{ID: operationRouteIDs[2], Type: "credit"},
-			{ID: operationRouteIDs[3], Type: "credit"},
+			{ID: operationRouteIDs[0], OperationType: "source"},
+			{ID: operationRouteIDs[1], OperationType: "source"},
+			{ID: operationRouteIDs[2], OperationType: "destination"},
+			{ID: operationRouteIDs[3], OperationType: "destination"},
 		},
 	}
 
@@ -479,10 +477,10 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
-		{ID: operationRouteIDs[0], Type: "debit"},
-		{ID: operationRouteIDs[1], Type: "debit"},
-		{ID: operationRouteIDs[2], Type: "credit"},
-		{ID: operationRouteIDs[3], Type: "credit"},
+		{ID: operationRouteIDs[0], OperationType: "source"},
+		{ID: operationRouteIDs[1], OperationType: "source"},
+		{ID: operationRouteIDs[2], OperationType: "destination"},
+		{ID: operationRouteIDs[3], OperationType: "destination"},
 	}
 
 	uc.TransactionRouteRepo.(*transactionroute.MockRepository).
@@ -556,6 +554,6 @@ func TestUpdateTransactionRouteEmptyOperationRoutes(t *testing.T) {
 	assert.Nil(t, result)
 
 	// Should return business error for insufficient operation routes
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, "Cannot update TransactionRoute to have less than 2 operation routes - must maintain at least 1 debit and 1 credit operation route")
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedBusinessError, err)
 }

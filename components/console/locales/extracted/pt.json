@@ -649,5 +649,12 @@
   "transactions.fees.error.title": "Falha no Cálculo da Taxa",
   "transactions.fees.finalAmount": "Valor Final",
   "transactions.fees.none": "Nenhuma taxa",
-  "transactions.fees.total": "Total de Taxas"
+  "transactions.fees.total": "Total de Taxas",
+  "dialog.about.midaz.outdate.button": "Acessar Documentação",
+  "dialog.about.midaz.outdate.description": "Uma nova versão está disponível. Recomendamos a atualização.",
+  "dialog.about.midaz.outdate.title": "Nova versão disponível",
+  "dialog.about.midaz.upToDate.description": "A sua versão está atualizada e operando com sucesso.",
+  "dialog.about.midaz.upToDate.title": "Aviso sobre a versão",
+  "dialog.about.midaz.outdate.tooltip": "Uma nova versão está disponível. Recomendamos a atualização.",
+  "dialog.about.midaz.upToDate.tooltip": "A sua versão está atualizada e operando com sucesso."
 }

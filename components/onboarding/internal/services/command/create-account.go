@@ -3,7 +3,9 @@ package command
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -172,28 +174,20 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
 
-	settings, err := uc.SettingsRepo.FindByKey(ctx, organizationID, ledgerID, constant.AccountingValidationEnabledKey)
-	if err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Infof("Settings not found, accounting validations are disabled")
-
-			return nil
-		}
-
-		libOpentelemetry.HandleSpanError(&span, "Failed to find settings", err)
-
-		logger.Errorf("Error finding settings: %v", err)
-
-		return err
-	}
-
-	if settings == nil || settings.Active == nil || !*settings.Active {
+	accountingValidation := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
 		logger.Infof("Accounting validations are disabled")
 
 		return nil
 	}
 
-	_, err = uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, key)
+	if strings.ToLower(key) == "external" {
+		logger.Infof("External account type, skipping validation")
+
+		return nil
+	}
+
+	_, err := uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, key)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			libOpentelemetry.HandleSpanError(&span, "Not found, invalid account type", constant.ErrInvalidAccountType)

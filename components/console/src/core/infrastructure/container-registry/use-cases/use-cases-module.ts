@@ -15,6 +15,7 @@ import { PortfolioUseCaseModule } from './portfolios-module'
 import { SegmentUseCaseModule } from './segment-module'
 import { TransactionUseCaseModule } from './transactions-module'
 import { UserUseCaseModule } from './user-module'
+import { MidazInfoUseCaseModule } from './midaz-info-module'
 
 export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(AuthUseCaseModule)
@@ -33,4 +34,5 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(PluginMenuModule)
   container.load(PluginManifestModule)
   container.load(HomeUseCaseModule)
+  container.load(MidazInfoUseCaseModule)
 })

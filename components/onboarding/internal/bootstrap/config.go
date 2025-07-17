@@ -22,7 +22,6 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
@@ -174,7 +173,6 @@ func InitServers() *Service {
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	settingsPostgreSQLRepository := settings.NewSettingsPostgreSQLRepository(postgresConnection)
 	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
@@ -188,7 +186,6 @@ func InitServers() *Service {
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
-		SettingsRepo:     settingsPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
@@ -202,7 +199,6 @@ func InitServers() *Service {
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
-		SettingsRepo:     settingsPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
@@ -238,11 +234,6 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	settingsHandler := &httpin.SettingsHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
 	accountTypeHandler := &httpin.AccountTypeHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
@@ -250,7 +241,7 @@ func InitServers() *Service {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, settingsHandler, accountTypeHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

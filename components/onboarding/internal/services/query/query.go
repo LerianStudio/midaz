@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/settings"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 )
 
@@ -32,9 +31,6 @@ type UseCase struct {
 
 	// AssetRepo provides an abstraction on top of the asset data source.
 	AssetRepo asset.Repository
-
-	// SettingsRepo provides an abstraction on top of the settings data source.
-	SettingsRepo settings.Repository
 
 	// AccountTypeRepo provides an abstraction on top of the account type data source.
 	AccountTypeRepo accounttype.Repository
