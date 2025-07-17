@@ -117,7 +117,9 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
 
 		return "", err
 	}
@@ -125,6 +127,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	val, err := rds.Get(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+
+		logger.Errorf("Failed to get on redis: %v", err)
 
 		return "", err
 	}
