@@ -82,7 +82,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				logger.Infof("Skiping to create operation, oepration already exists: %v", oper.ID)
+				logger.Infof("Skiping to create operation, operation already exists: %v", oper.ID)
 
 				continue
 			} else {
