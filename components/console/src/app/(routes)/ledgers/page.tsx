@@ -16,6 +16,10 @@ import { useQueryParams } from '@/hooks/use-query-params'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useToast } from '@/hooks/use-toast'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { InputField } from '@/components/form/input-field'
 
 const Page = () => {
   const intl = useIntl()
@@ -25,7 +29,10 @@ const Page = () => {
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
   })
-  const { form, searchValues, pagination } = useQueryParams({ total })
+  const { form, searchValues, pagination } = useQueryParams({
+    total,
+    initialValues: { id: '' }
+  })
 
   const {
     data: ledgers,
@@ -33,8 +40,7 @@ const Page = () => {
     isLoading
   } = useListLedgers({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
 
   React.useEffect(() => {
@@ -93,7 +99,6 @@ const Page = () => {
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   }
@@ -178,11 +183,27 @@ const Page = () => {
 
       <LedgersSheet onSuccess={refetch} {...sheetProps} />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isLoading && <LedgersSkeleton />}
 
         {!isLoading && ledgers && <LedgersDataTable {...ledgersProps} />}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

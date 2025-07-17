@@ -6,8 +6,10 @@ import { HomeController } from '@/core/application/controllers/home-controller'
 import { MidazInfoController } from '@/core/application/controllers/midaz-info-controller'
 import { AccountController } from '@/core/application/controllers/account-controller'
 import { PortfolioController } from '@/core/application/controllers/portfolio-controller'
+import { LedgerController } from '@/core/application/controllers/ledger-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
+  container.bind<LedgerController>(LedgerController).toSelf()
   container.bind<AccountController>(AccountController).toSelf()
   container.bind<PortfolioController>(PortfolioController).toSelf()
   container.bind<SegmentController>(SegmentController).toSelf()

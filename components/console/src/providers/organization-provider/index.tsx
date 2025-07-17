@@ -42,7 +42,9 @@ export const OrganizationProvider = ({ children }: PropsWithChildren) => {
   const [currentLedger, setCurrentLedger] = useState<LedgerDto>({} as LedgerDto)
   const { data: ledgers, isPending: loadingLedgers } = useListLedgers({
     organizationId: current?.id!,
-    limit: 100
+    query: {
+      limit: 100
+    }
   })
 
   useEffect(() => {

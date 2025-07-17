@@ -38,7 +38,7 @@ export class MidazSegmentRepository implements SegmentRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    filters: SegmentSearchEntity
+    filters: SegmentSearchEntity = { page: 1, limit: 10 }
   ): Promise<PaginationEntity<SegmentEntity>> {
     if (filters.id) {
       try {
@@ -49,14 +49,14 @@ export class MidazSegmentRepository implements SegmentRepository {
         )
         return {
           items: response ? [response] : [],
-          limit: filters.limit,
-          page: filters.page
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
         }
       } catch (error) {
         return {
           items: [],
-          limit: filters.limit,
-          page: filters.page
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
         }
       }
     }
