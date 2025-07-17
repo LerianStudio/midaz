@@ -3,6 +3,7 @@ import { isNil } from 'lodash'
 import { AlignLeft, ArrowRight } from 'lucide-react'
 import { forwardRef, HTMLAttributes, ReactNode } from 'react'
 import { useIntl } from 'react-intl'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export type TransactionReceiptProps = HTMLAttributes<HTMLDivElement> & {
   type?: 'main' | 'ticket'
@@ -31,20 +32,58 @@ export type TransactionReceiptValueProps =
   HTMLAttributes<HTMLParagraphElement> & {
     asset: string
     value: string | number
+    finalAmount?: string | number
+    isCalculatingFees?: boolean
   }
 
 export const TransactionReceiptValue = forwardRef<
   HTMLDivElement,
   TransactionReceiptValueProps
->(({ className, asset, value, children, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn('text-4xl font-bold text-neutral-600', className)}
-    {...props}
-  >
-    <span className="text-2xl">{asset}</span> {value}
-  </p>
-))
+>(
+  (
+    {
+      className,
+      asset,
+      value,
+      finalAmount,
+      isCalculatingFees,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const intl = useIntl()
+
+    if (isCalculatingFees) {
+      return (
+        <div className={cn('flex flex-col items-center gap-2', className)}>
+          <Skeleton className="h-12 w-48" />
+          <div className="text-sm text-neutral-500">
+            {intl.formatMessage({
+              id: 'transactions.fees.calculating',
+              defaultMessage: 'Calculating final amount'
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    const displayAmount = finalAmount ?? value
+    const label = intl.formatMessage({
+      id: 'transactions.fees.finalAmount',
+      defaultMessage: 'Transaction final amount'
+    })
+
+    return (
+      <div className={cn('flex flex-col items-center gap-2', className)}>
+        <p ref={ref} className="text-4xl font-bold text-neutral-600" {...props}>
+          <span className="text-2xl">{asset}</span> {displayAmount}
+        </p>
+        <div className="text-sm text-neutral-500">{label}</div>
+      </div>
+    )
+  }
+)
 TransactionReceiptValue.displayName = 'TransactionReceiptValue'
 
 export const TransactionReceiptDescription = forwardRef<
@@ -183,7 +222,7 @@ export const TransactionReceiptOperation = forwardRef<
                 ? 'text-red-500'
                 : type === 'credit'
                   ? 'text-green-500'
-                  : 'text-blue-500'
+                  : 'text-blue-800'
             )}
           >
             {type === 'debit' ? '-' : '+'} {asset} {value}

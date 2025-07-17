@@ -228,6 +228,16 @@ export const TransactionReview = () => {
               value={intl.formatNumber(values.value, {
                 roundingPriority: 'morePrecision'
               })}
+              finalAmount={
+                calculatedFees?.transaction &&
+                intl.formatNumber(
+                  Number(calculatedFees.transaction.send.value),
+                  {
+                    roundingPriority: 'morePrecision'
+                  }
+                )
+              }
+              isCalculatingFees={calculatingFees}
             />
             <TransactionReceiptSubjects
               sources={values.source?.map((source) => source.accountAlias)}
@@ -275,11 +285,38 @@ export const TransactionReview = () => {
             />
             <TransactionReceiptItem
               label={intl.formatMessage({
-                id: 'common.value',
-                defaultMessage: 'Value'
+                id: 'transactions.originalAmount',
+                defaultMessage: 'Original amount'
               })}
               value={`${values.asset} ${intl.formatNumber(values.value, { roundingPriority: 'morePrecision' })}`}
             />
+
+            {hasCalculatedFees && feesError && (
+              <div className="mx-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <div className="text-red-500">⚠️</div>
+                  <div>
+                    <p className="text-sm font-medium text-red-800">
+                      {intl.formatMessage({
+                        id: 'transactions.fees.error.title',
+                        defaultMessage: 'Fee Calculation Failed'
+                      })}
+                    </p>
+                    <p className="mt-1 text-sm text-red-600">
+                      {feesErrorMessage}
+                    </p>
+                    <p className="mt-1 text-xs text-red-500">
+                      {intl.formatMessage({
+                        id: 'transactions.fees.error.fallback',
+                        defaultMessage:
+                          'Transaction will proceed without fee calculation.'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Separator orientation="horizontal" />
             {values.source?.map((source, index) => (
               <TransactionReceiptOperation
@@ -337,60 +374,8 @@ export const TransactionReview = () => {
               )}
             />
 
-            {/* Fee Breakdown Section - Integrated into the receipt */}
-            {(hasCalculatedFees || calculatingFees) && (
-              <>
-                <Separator orientation="horizontal" />
-                {calculatingFees ? (
-                  <>
-                    <TransactionReceiptItem
-                      label="Total Fees"
-                      value={
-                        <div className="h-4 w-16 animate-pulse rounded bg-gray-200"></div>
-                      }
-                    />
-                    <TransactionReceiptItem
-                      label="Final Amount"
-                      value={
-                        <div className="h-4 w-20 animate-pulse rounded bg-gray-200"></div>
-                      }
-                    />
-                  </>
-                ) : (
-                  hasCalculatedFees &&
-                  calculatedFees &&
-                  !feesError &&
-                  calculatedFees !== null && (
-                    <FeeBreakdown transaction={calculatedFees} />
-                  )
-                )}
-              </>
-            )}
-
-            {hasCalculatedFees && feesError && (
-              <div className="mx-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3 transition-all duration-300">
-                <div className="flex items-center gap-2">
-                  <div className="text-red-500">⚠️</div>
-                  <div>
-                    <p className="text-sm font-medium text-red-800">
-                      {intl.formatMessage({
-                        id: 'transactions.fees.error.title',
-                        defaultMessage: 'Fee Calculation Failed'
-                      })}
-                    </p>
-                    <p className="mt-1 text-sm text-red-600">
-                      {feesErrorMessage}
-                    </p>
-                    <p className="mt-1 text-xs text-red-500">
-                      {intl.formatMessage({
-                        id: 'transactions.fees.error.fallback',
-                        defaultMessage:
-                          'Transaction will proceed without fee calculation.'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            {hasCalculatedFees && !feesError && calculatedFees && (
+              <FeeBreakdown transaction={calculatedFees} />
             )}
           </TransactionReceipt>
 

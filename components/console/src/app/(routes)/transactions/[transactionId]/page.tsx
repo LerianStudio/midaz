@@ -30,6 +30,7 @@ import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TransactionDataTab } from './transaction-data-tab'
 import { truncate } from 'lodash'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
+import { FeeBreakdown } from '@/components/transactions/fee-breakdown'
 
 export const TRANSACTION_DETAILS_TAB_VALUES = {
   SUMMARY: 'summary',
@@ -75,6 +76,16 @@ export default function TransactionDetailsPage() {
   const nonFeeDestinations = transaction.destination.filter(
     (destination) => !isFeeOperation(destination)
   )
+
+  const feeOperations = transaction.destination.filter((destination) =>
+    isFeeOperation(destination)
+  )
+  const originalAmount = Number(transaction.amount)
+  const totalFees = feeOperations.reduce(
+    (sum, operation) => sum + Number(operation.amount),
+    0
+  )
+  const finalAmount = originalAmount + totalFees
 
   return (
     <div className="p-16">
@@ -160,6 +171,7 @@ export default function TransactionDetailsPage() {
               <TransactionReceiptValue
                 asset={transaction.asset!}
                 value={formatNumber(transaction.amount)}
+                finalAmount={formatNumber(finalAmount.toString())}
               />
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
@@ -229,17 +241,17 @@ export default function TransactionDetailsPage() {
                   />
                 )
               )}
-              {transaction.destination?.map(
-                (operation: TransactionOperationDto, index: number) => (
+              {transaction.destination
+                ?.filter((operation) => !isFeeOperation(operation))
+                .map((operation: TransactionOperationDto, index: number) => (
                   <TransactionReceiptOperation
                     key={index}
-                    type={isFeeOperation(operation) ? 'fee' : 'credit'}
+                    type="credit"
                     account={operation.accountAlias!}
                     asset={operation.asset}
                     value={formatNumber(operation?.amount)}
                   />
-                )
-              )}
+                ))}
               <Separator orientation="horizontal" />
               <TransactionReceiptItem
                 label={intl.formatMessage({
@@ -265,6 +277,8 @@ export default function TransactionDetailsPage() {
                   }
                 )}
               />
+
+              <FeeBreakdown transaction={transaction} />
             </TransactionReceipt>
 
             <TransactionReceiptTicket />

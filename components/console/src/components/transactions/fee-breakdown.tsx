@@ -17,21 +17,28 @@ type AppliedFee = {
 }
 
 const feeMessages = defineMessages({
+  originalAmount: {
+    id: 'transactions.fees.originalAmount',
+    defaultMessage: 'Original amount'
+  },
   totalFees: {
     id: 'transactions.fees.total',
     defaultMessage: 'Total Fees'
   },
+  finalAmount: {
+    id: 'transactions.fees.finalAmount',
+    defaultMessage: 'Transaction final amount'
+  },
   noFees: {
     id: 'transactions.fees.none',
     defaultMessage: 'No fees'
-  },
-  finalAmount: {
-    id: 'transactions.fees.finalAmount',
-    defaultMessage: 'Final Amount'
   }
 })
 
-const isFeeOperation = (operation: TransactionOperationDto): boolean => {
+const isFeeOperation = (
+  operation: TransactionOperationDto,
+  transaction?: TransactionDto | { transaction: any }
+): boolean => {
   const descriptionLowerCase = operation.description?.toLowerCase() ?? ''
   const chartOfAccountsLowerCase = (
     operation.chartOfAccounts ?? ''
@@ -41,7 +48,12 @@ const isFeeOperation = (operation: TransactionOperationDto): boolean => {
   return (
     descriptionLowerCase.includes('fee') ||
     chartOfAccountsLowerCase.includes('fee') ||
-    accountAliasLowerCase.includes('fee')
+    accountAliasLowerCase.includes('fee') ||
+    Boolean(
+      transaction &&
+        'source' in transaction &&
+        transaction.source?.[0]?.accountAlias === operation.accountAlias
+    )
   )
 }
 
@@ -158,7 +170,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
       }
     } else {
       // Standard TransactionDto format
-      const { source, destination } = transaction
+      const { source, destination } = transaction as TransactionDto
       if (!source || !destination) {
         return {
           originalAmount: 0,
@@ -178,7 +190,10 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
         0
       )
 
-      const feeOperations = destination.filter(isFeeOperation)
+      const feeOperations = destination.filter(
+        (operation: TransactionOperationDto) =>
+          isFeeOperation(operation, transaction)
+      )
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
         (operation: TransactionOperationDto) => ({
@@ -199,16 +214,12 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
 
   const asset = isFeesResponse(transaction)
     ? (transaction as any).transaction?.send?.asset || 'USD'
-    : transaction.asset || 'USD'
+    : (transaction as TransactionDto).asset || 'USD'
 
   const formatFeeAmount = (amount: number) => {
     return amount > 0
       ? `+ ${asset} ${formatAmount(amount)}`
       : `(${intl.formatMessage(feeMessages.noFees)})`
-  }
-
-  const formatFinalAmount = (original: number, fees: number) => {
-    return `${asset} ${formatAmount(original + fees)}`
   }
 
   if (!transaction) {
@@ -222,25 +233,29 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
     return null
   }
 
+  const finalAmount = originalAmount + totalFees
+
   return (
     <React.Fragment>
+      <Separator orientation="horizontal" />
+
       <TransactionReceiptItem
         label={intl.formatMessage(feeMessages.totalFees)}
         value={
-          <span className={totalFees > 0 ? 'text-blue-500' : 'text-green-500'}>
+          <span className={totalFees > 0 ? 'text-blue-800' : 'text-green-500'}>
             {formatFeeAmount(totalFees)}
           </span>
         }
       />
+
       <TransactionReceiptItem
         label={intl.formatMessage(feeMessages.finalAmount)}
         value={
-          <span className="font-semibold text-zinc-700">
-            {formatFinalAmount(originalAmount, totalFees)}
+          <span className="font-bold">
+            {asset} {formatAmount(finalAmount)}
           </span>
         }
       />
-      <Separator orientation="horizontal" />
     </React.Fragment>
   )
 }
