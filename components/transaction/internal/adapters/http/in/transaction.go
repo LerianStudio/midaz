@@ -3,6 +3,7 @@ package in
 import (
 	"encoding/json"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	"golang.org/x/exp/maps"
 	"reflect"
 	"time"
 
@@ -645,8 +646,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 // handleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
-	result := make([]libTransaction.FromTo, 0, len(entries))
+func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) map[string]libTransaction.FromTo {
+	result := make(map[string]libTransaction.FromTo, len(entries))
 
 	for i := range entries {
 		var newAlias string
@@ -658,7 +659,7 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 
 		entries[i].AccountAlias = newAlias
 
-		result = append(result, entries[i])
+		result[newAlias] = entries[i]
 	}
 
 	return result
@@ -668,6 +669,7 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -763,14 +765,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		parentTransactionID = &value
 	}
 
-	var fromTo []libTransaction.FromTo
+	var fromTo = make(map[string]libTransaction.FromTo)
 
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true))
+	maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false))
 
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true))
+		maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false))
 	}
 
 	tran := &transaction.Transaction{
@@ -792,55 +794,53 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	var operations []*operation.Operation
 
 	for _, blc := range balances {
-		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
-				logger.Infof("Creating operation for account id: %s", blc.ID)
+		if ft, exists := fromTo[blc.Alias]; exists {
+			logger.Infof("Creating operation for account id: %s", blc.AccountID)
 
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-				}
-
-				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
-				if er != nil {
-					logger.Errorf("Failed to validate balance: %v", er.Error())
-				}
-
-				amount := operation.Amount{
-					Value: &amt.Value,
-				}
-
-				balanceAfter := operation.Balance{
-					Available: &bat.Available,
-					OnHold:    &bat.OnHold,
-				}
-
-				descr := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
-					descr = parserDSL.Description
-				}
-
-				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
-					TransactionID:   tran.ID,
-					Description:     descr,
-					Type:            amt.Operation,
-					AssetCode:       parserDSL.Send.Asset,
-					ChartOfAccounts: fromTo[i].ChartOfAccounts,
-					Amount:          amount,
-					Balance:         balance,
-					BalanceAfter:    balanceAfter,
-					BalanceID:       blc.ID,
-					AccountID:       blc.AccountID,
-					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
-					OrganizationID:  blc.OrganizationID,
-					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
-					Route:           fromTo[i].Route,
-					Metadata:        fromTo[i].Metadata,
-				})
+			balance := operation.Balance{
+				Available: &blc.Available,
+				OnHold:    &blc.OnHold,
 			}
+
+			amt, bat, er := libTransaction.ValidateFromToOperation(ft, *validate, blc.ConvertToLibBalance())
+			if er != nil {
+				logger.Errorf("Failed to validate balance: %v", er.Error())
+			}
+
+			amount := operation.Amount{
+				Value: &amt.Value,
+			}
+
+			balanceAfter := operation.Balance{
+				Available: &bat.Available,
+				OnHold:    &bat.OnHold,
+			}
+
+			descr := ft.Description
+			if libCommons.IsNilOrEmpty(&ft.Description) {
+				descr = parserDSL.Description
+			}
+
+			operations = append(operations, &operation.Operation{
+				ID:              libCommons.GenerateUUIDv7().String(),
+				TransactionID:   tran.ID,
+				Description:     descr,
+				Type:            amt.Operation,
+				AssetCode:       parserDSL.Send.Asset,
+				ChartOfAccounts: ft.ChartOfAccounts,
+				Amount:          amount,
+				Balance:         balance,
+				BalanceAfter:    balanceAfter,
+				BalanceID:       blc.ID,
+				AccountID:       blc.AccountID,
+				AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+				OrganizationID:  blc.OrganizationID,
+				LedgerID:        blc.LedgerID,
+				CreatedAt:       time.Now(),
+				UpdatedAt:       time.Now(),
+				Route:           ft.Route,
+				Metadata:        ft.Metadata,
+			})
 		}
 	}
 
@@ -924,14 +924,14 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Status = status
 	tran.UpdatedAt = time.Now()
 
-	var fromTo []libTransaction.FromTo
+	var fromTo = make(map[string]libTransaction.FromTo)
 
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true))
+	maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false))
 
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true))
+		maps.Copy(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false))
 	}
 
 	var operations []*operation.Operation
@@ -939,57 +939,55 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	var preBalances []*mmodel.Balance
 
 	for _, blc := range balances {
-		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
-				logger.Infof("Creating operation for account id: %s", blc.ID)
+		if ft, exists := fromTo[blc.Alias]; exists {
+			logger.Infof("Creating operation for account id: %s", blc.ID)
 
-				preBalances = append(preBalances, blc)
+			preBalances = append(preBalances, blc)
 
-				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
-				if er != nil {
-					logger.Errorf("Failed to validate balance: %v", er.Error())
-				}
-
-				amount := operation.Amount{
-					Value: &amt.Value,
-				}
-
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-				}
-
-				balanceAfter := operation.Balance{
-					Available: &bat.Available,
-					OnHold:    &bat.OnHold,
-				}
-
-				descr := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
-					descr = parserDSL.Description
-				}
-
-				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
-					TransactionID:   tran.ID,
-					Description:     descr,
-					Type:            amt.Operation,
-					AssetCode:       parserDSL.Send.Asset,
-					ChartOfAccounts: fromTo[i].ChartOfAccounts,
-					Amount:          amount,
-					Balance:         balance,
-					BalanceAfter:    balanceAfter,
-					BalanceID:       blc.ID,
-					AccountID:       blc.AccountID,
-					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
-					OrganizationID:  blc.OrganizationID,
-					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
-					Route:           fromTo[i].Route,
-					Metadata:        fromTo[i].Metadata,
-				})
+			amt, bat, er := libTransaction.ValidateFromToOperation(ft, *validate, blc.ConvertToLibBalance())
+			if er != nil {
+				logger.Errorf("Failed to validate balance: %v", er.Error())
 			}
+
+			amount := operation.Amount{
+				Value: &amt.Value,
+			}
+
+			balance := operation.Balance{
+				Available: &blc.Available,
+				OnHold:    &blc.OnHold,
+			}
+
+			balanceAfter := operation.Balance{
+				Available: &bat.Available,
+				OnHold:    &bat.OnHold,
+			}
+
+			descr := ft.Description
+			if libCommons.IsNilOrEmpty(&ft.Description) {
+				descr = parserDSL.Description
+			}
+
+			operations = append(operations, &operation.Operation{
+				ID:              libCommons.GenerateUUIDv7().String(),
+				TransactionID:   tran.ID,
+				Description:     descr,
+				Type:            amt.Operation,
+				AssetCode:       parserDSL.Send.Asset,
+				ChartOfAccounts: ft.ChartOfAccounts,
+				Amount:          amount,
+				Balance:         balance,
+				BalanceAfter:    balanceAfter,
+				BalanceID:       blc.ID,
+				AccountID:       blc.AccountID,
+				AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+				OrganizationID:  blc.OrganizationID,
+				LedgerID:        blc.LedgerID,
+				CreatedAt:       time.Now(),
+				UpdatedAt:       time.Now(),
+				Route:           ft.Route,
+				Metadata:        ft.Metadata,
+			})
 		}
 	}
 
