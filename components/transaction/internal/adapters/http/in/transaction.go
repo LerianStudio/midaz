@@ -850,9 +850,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to send BTO to rabbitmq", err)
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to send BTO to rabbitmq/redis")
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		libOpentelemetry.HandleSpanError(&span, "failed to send BTO to rabbitmq/redis", err)
+
+		logger.Errorf("failed to send BTO to rabbitmq/redis - transaction: %s - Error: %v", tran.ID, err)
 
 		return http.WithError(c, err)
 	}
@@ -997,7 +999,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to send BTO to rabbitmq", err)
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to send BTO to rabbitmq/redis")
+
+		libOpentelemetry.HandleSpanError(&span, "failed to send BTO to rabbitmq/redis", err)
+
+		logger.Errorf("failed to send BTO to rabbitmq/redis - transaction: %s - Error: %v", tran.ID, err)
 
 		return http.WithError(c, err)
 	}
