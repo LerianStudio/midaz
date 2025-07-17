@@ -20,8 +20,6 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { isNil } from 'lodash'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
@@ -40,7 +38,6 @@ type SegmentsTableProps = {
   handleCreate: () => void
   handleEdit: (asset: SegmentDto) => void
   refetch: () => void
-  form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
 }
@@ -107,7 +104,6 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
     handleDialogOpen,
     handleCreate,
     handleEdit,
-    form,
     pagination,
     total
   } = props

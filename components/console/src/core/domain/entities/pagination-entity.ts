@@ -1,6 +1,6 @@
 export type PaginationSearchEntity = {
-  limit: number
-  page: number
+  limit?: number
+  page?: number
 }
 
 export interface PaginationEntity<T> {

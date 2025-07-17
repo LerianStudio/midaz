@@ -121,7 +121,6 @@ const Page = () => {
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   }

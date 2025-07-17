@@ -5,9 +5,11 @@ import { PluginMenuController } from '@/core/application/controllers/plugin-menu
 import { HomeController } from '@/core/application/controllers/home-controller'
 import { MidazInfoController } from '@/core/application/controllers/midaz-info-controller'
 import { AccountController } from '@/core/application/controllers/account-controller'
+import { PortfolioController } from '@/core/application/controllers/portfolio-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<AccountController>(AccountController).toSelf()
+  container.bind<PortfolioController>(PortfolioController).toSelf()
   container.bind<SegmentController>(SegmentController).toSelf()
   container.bind<PluginManifestController>(PluginManifestController).toSelf()
   container.bind<PluginMenuController>(PluginMenuController).toSelf()
