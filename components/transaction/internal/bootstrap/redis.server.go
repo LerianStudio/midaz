@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const CronTimeToRun = 1 * time.Minute
+const CronTimeToRun = 15 * time.Minute
 
 type RedisQueueConsumer struct {
 	UseCase *command.UseCase
@@ -73,7 +73,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		}
 
 		var data mmodel.Queue
-		
+
 		err = msgpack.Unmarshal(payloadBytes, &data)
 		if err != nil {
 			r.Logger.Errorf("failed to unmarshal payload into queue: %v", err)
