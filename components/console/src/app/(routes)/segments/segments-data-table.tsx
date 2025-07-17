@@ -113,11 +113,7 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
   } = props
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(segments?.items) || segments.items.length === 0 ? (
           <EmptyResource
@@ -197,6 +193,6 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

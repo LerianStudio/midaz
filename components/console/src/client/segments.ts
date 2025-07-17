@@ -1,5 +1,8 @@
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { SegmentDto } from '@/core/application/dto/segment-dto'
+import {
+  SegmentDto,
+  SegmentSearchParamDto
+} from '@/core/application/dto/segment-dto'
 import {
   deleteFetcher,
   getPaginatedFetcher,
@@ -36,22 +39,27 @@ export const useCreateSegment = ({
   })
 }
 
-type UseListSegmentsProps = UseCreateSegmentProps & PaginationRequest
+type UseListSegmentsProps = UseCreateSegmentProps & {
+  query?: SegmentSearchParamDto
+}
 
 export const useListSegments = ({
   organizationId,
   ledgerId,
-  limit,
-  page,
+  query,
   ...options
 }: UseListSegmentsProps) => {
   return useQuery<PaginationDto<SegmentDto>>({
-    queryKey: [organizationId, ledgerId, limit, page],
+    queryKey: [
+      organizationId,
+      ledgerId,
+      'segments',
+      ...Object.values(query ?? {})
+    ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/segments`,
-      { limit, page }
+      query
     ),
-    enabled: !!organizationId && !!ledgerId,
     placeholderData: keepPreviousData,
     ...options
   })

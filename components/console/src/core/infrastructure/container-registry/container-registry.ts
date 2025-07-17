@@ -10,7 +10,7 @@ import { UseCasesModule } from './use-cases/use-cases-module'
 import { ControllersModule } from './controllers/controllers-module'
 import { VersionModule } from './version/version-module'
 
-export const container = new Container()
+const container = new Container()
 
 container.load(ControllersModule)
 container.load(MidazPluginsModule)
@@ -20,3 +20,5 @@ container.load(VersionModule)
 container.load(DatabaseModule)
 container.load(UseCasesModule)
 container.load(OtelModule)
+
+export { container }

@@ -4,13 +4,13 @@ import { SegmentDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import type { SegmentSearchEntity } from '@/core/domain/entities/segment-entity'
 
 export interface FetchAllSegments {
   execute: (
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: SegmentSearchEntity
   ) => Promise<PaginationDto<SegmentDto>>
 }
 
@@ -25,14 +25,12 @@ export class FetchAllSegmentsUseCase implements FetchAllSegments {
   async execute(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: SegmentSearchEntity
   ): Promise<PaginationDto<SegmentDto>> {
     const segmentsResult = await this.segmentRepository.fetchAll(
       organizationId,
       ledgerId,
-      limit,
-      page
+      filters
     )
 
     return SegmentMapper.toPaginationResponseDto(segmentsResult)
