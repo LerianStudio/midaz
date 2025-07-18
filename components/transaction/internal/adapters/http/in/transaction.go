@@ -668,6 +668,7 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -791,9 +792,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var operations []*operation.Operation
 
+	_, spanCreateTransactionOperations := tracer.Start(ctx, "handler.create_transaction.create_transaction_operations")
+	defer spanCreateTransactionOperations.End()
+
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
+			if blc.Alias == fromTo[i].AccountAlias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
@@ -803,7 +807,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
 				if er != nil {
+					libOpentelemetry.HandleSpanError(&spanCreateTransactionOperations, "Failed to validate balances", er)
+
 					logger.Errorf("Failed to validate balance: %v", er.Error())
+
+					return http.WithError(c, err)
 				}
 
 				amount := operation.Amount{
@@ -848,13 +856,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to send BTO to rabbitmq/redis")
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
-		libOpentelemetry.HandleSpanError(&span, "failed to send BTO to rabbitmq/redis", err)
+		libOpentelemetry.HandleSpanError(&span, "failed to update BTO", err)
 
-		logger.Errorf("failed to send BTO to rabbitmq/redis - transaction: %s - Error: %v", tran.ID, err)
+		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
 
 		return http.WithError(c, err)
 	}
@@ -938,16 +946,23 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	var preBalances []*mmodel.Balance
 
+	_, spanCreateTransactionOperations := tracer.Start(ctx, "handler.commit_or_cancel_transaction.create_transaction_operations")
+	defer spanCreateTransactionOperations.End()
+
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
+			if blc.Alias == fromTo[i].AccountAlias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				preBalances = append(preBalances, blc)
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
 				if er != nil {
+					libOpentelemetry.HandleSpanError(&spanCreateTransactionOperations, "Failed to validate balances", er)
+
 					logger.Errorf("Failed to validate balance: %v", er.Error())
+
+					return http.WithError(c, err)
 				}
 
 				amount := operation.Amount{
@@ -997,13 +1012,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	err = handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to send BTO to rabbitmq/redis")
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
-		libOpentelemetry.HandleSpanError(&span, "failed to send BTO to rabbitmq/redis", err)
+		libOpentelemetry.HandleSpanError(&span, "failed to update BTO", err)
 
-		logger.Errorf("failed to send BTO to rabbitmq/redis - transaction: %s - Error: %v", tran.ID, err)
+		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
 
 		return http.WithError(c, err)
 	}

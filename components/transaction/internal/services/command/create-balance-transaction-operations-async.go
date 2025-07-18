@@ -190,13 +190,17 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 }
 
 // CreateBTOSync func that create balance transaction operations synchronously
-func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) {
+func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
+
+		return err
 	}
+
+	return nil
 }
 
 // ackAndRemoveFromRedisQueue func that ack and remove message from redis
