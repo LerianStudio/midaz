@@ -25,14 +25,12 @@ export class MidazTransactionRepository implements TransactionRepository {
     transaction: TransactionEntity
   ): Promise<TransactionEntity> {
     const dto = MidazTransactionMapper.toCreateDto(transaction)
-    console.log(dto)
     const response = await this.httpService.post<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
       {
         body: JSON.stringify(dto)
       }
     )
-    console.log(response)
     return MidazTransactionMapper.toEntity(response)
   }
 

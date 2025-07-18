@@ -45,7 +45,6 @@ export class MidazPortfolioRepository implements PortfolioRepository {
       limit: 10
     }
   ): Promise<PaginationEntity<PortfolioEntity>> {
-    console.log(filters)
     if (filters.id) {
       try {
         const response = await this.fetchById(
