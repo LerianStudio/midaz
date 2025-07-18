@@ -40,7 +40,10 @@ export class MidazPortfolioRepository implements PortfolioRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    filters: PortfolioSearchEntity
+    filters: PortfolioSearchEntity = {
+      page: 1,
+      limit: 10
+    }
   ): Promise<PaginationEntity<PortfolioEntity>> {
     console.log(filters)
     if (filters.id) {
@@ -53,14 +56,14 @@ export class MidazPortfolioRepository implements PortfolioRepository {
 
         return {
           items: [response],
-          page: filters.page,
-          limit: filters.limit
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
         }
       } catch (error) {
         return {
           items: [],
-          page: filters.page,
-          limit: filters.limit
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
         }
       }
     }

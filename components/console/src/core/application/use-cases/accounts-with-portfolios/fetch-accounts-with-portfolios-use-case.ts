@@ -86,8 +86,10 @@ export class FetchAccountsWithPortfoliosUseCase
     const portfoliosResult = await this.portfolioRepository.fetchAll(
       organizationId,
       ledgerId,
-      limit,
-      page
+      {
+        limit,
+        page
+      }
     )
 
     const portfolioMap = new Map<string, PortfolioEntity>()
