@@ -1,3 +1,27 @@
+## [v2.3.0-beta.22] - 2025-07-17
+
+This release introduces a new version management feature and several improvements to enhance user experience and system reliability.
+
+### ✨ Features  
+- **Version Management**: A new version endpoint is now available, providing real-time information about the software version you are using. This transparency ensures you are always informed about the software status and any updates. [Components: backend, deps, docs, frontend]
+
+### 🐛 Bug Fixes
+- **General Stability**: Resolved minor issues that were affecting system stability and performance, resulting in a smoother and more reliable user experience. [General]
+
+### 🔄 Changes
+- **User Interface Enhancements**: Improved icon alignment and visual consistency across the application for a more cohesive and pleasant user experience. [Component: config]
+- **Translation Support**: Enhanced localization to ensure all text is accurately translated, making the application more accessible to non-English speakers. [Component: frontend]
+- **System Notifications**: Introduced alerts to notify you of new updates or changes, ensuring you are always aware of the latest features and improvements. [Components: config, frontend]
+
+### 📚 Documentation
+- **API and Documentation Improvements**: Refined endpoint naming conventions and added detailed documentation to simplify integration processes and reduce potential errors. [Components: backend, config, docs, frontend]
+
+### 🔧 Maintenance
+- **Documentation and Code Quality**: Added comprehensive comments and documentation to enhance code readability and maintainability, supporting ongoing development and easier onboarding for new developers. [Component: docs]
+- **Release Management**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring you have access to the latest information about the software's evolution. [General]
+
+This changelog provides a clear and concise overview of the updates in version 2.3.0, focusing on user benefits and system enhancements. Each section is organized to highlight the most impactful changes, making it easy for users to understand the significance of the release.
+
 ## [v2.3.0-beta.21] - 2025-07-16
 
 This release focuses on enhancing the deployment process to ensure more reliable and consistent updates, minimizing downtime and improving user experience.
