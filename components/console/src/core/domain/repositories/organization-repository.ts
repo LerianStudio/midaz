@@ -1,4 +1,7 @@
-import { OrganizationEntity } from '../entities/organization-entity'
+import {
+  OrganizationEntity,
+  OrganizationSearchEntity
+} from '../entities/organization-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class OrganizationRepository {
@@ -6,8 +9,7 @@ export abstract class OrganizationRepository {
     organization: OrganizationEntity
   ) => Promise<OrganizationEntity>
   abstract fetchAll: (
-    limit: number,
-    page: number
+    filters: OrganizationSearchEntity
   ) => Promise<PaginationEntity<OrganizationEntity>>
   abstract fetchById: (id: string) => Promise<OrganizationEntity>
   abstract update: (

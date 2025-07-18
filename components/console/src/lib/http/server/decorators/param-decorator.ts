@@ -13,13 +13,13 @@ export async function paramDecoratorHandler(
   propertyKey: string | symbol,
   args: any[]
 ): Promise<any> {
-  const metadatas: ParamMetadata[] = Reflect.getOwnMetadata(
+  const metadatas: ParamMetadata[] | undefined = Reflect.getOwnMetadata(
     paramKey,
     target,
     propertyKey
   )
 
-  if (metadatas.length > 0) {
+  if (metadatas && metadatas.length > 0) {
     const params: { [key: string]: any } = await getNextParamArgument(args)
 
     return metadatas.map((metadata) => {

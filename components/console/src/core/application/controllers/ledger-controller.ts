@@ -6,7 +6,9 @@ import { type LedgerSearchParamDto } from '../dto/ledger-dto'
 import { FetchAllLedgersUseCase } from '../use-cases/ledgers/fetch-all-ledgers-use-case'
 import { FetchAllLedgersAssetsUseCase } from '../use-cases/ledgers-assets/fetch-ledger-assets-use-case'
 import { NextResponse } from 'next/server'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
 
+@LoggerInterceptor()
 @Controller()
 export class LedgerController extends BaseController {
   constructor(

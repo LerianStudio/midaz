@@ -19,7 +19,10 @@ export class FetchParentOrganizationsUseCase
 
   @LogOperation({ layer: 'application' })
   async execute(organizationId?: string): Promise<OrganizationDto[]> {
-    const organizations = await this.organizationRepository.fetchAll(100, 1)
+    const organizations = await this.organizationRepository.fetchAll({
+      limit: 100,
+      page: 1
+    })
 
     const parentOrganizationsFiltered = organizations.items.filter(
       (organization) => organization.id !== organizationId

@@ -8,8 +8,10 @@ import { AccountController } from '@/core/application/controllers/account-contro
 import { PortfolioController } from '@/core/application/controllers/portfolio-controller'
 import { LedgerController } from '@/core/application/controllers/ledger-controller'
 import { TransactionController } from '@/core/application/controllers/transaction-controller'
+import { OrganizationController } from '@/core/application/controllers/organization-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
+  container.bind<OrganizationController>(OrganizationController).toSelf()
   container.bind<LedgerController>(LedgerController).toSelf()
   container.bind<AccountController>(AccountController).toSelf()
   container.bind<PortfolioController>(PortfolioController).toSelf()

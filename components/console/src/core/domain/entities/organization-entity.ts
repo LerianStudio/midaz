@@ -1,4 +1,9 @@
 import { MetadataEntity } from './metadata-entity'
+import { PaginationSearchEntity } from './pagination-entity'
+
+export type OrganizationSearchEntity = PaginationSearchEntity & {
+  id?: string
+}
 
 type Address = {
   line1: string

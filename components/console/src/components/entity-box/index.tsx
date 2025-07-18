@@ -29,7 +29,7 @@ function EntityBoxRoot({
     <div
       data-slot="entity-box-root"
       className={cn(
-        'shadow-entity-box mb-2 flex justify-between rounded-lg bg-white p-6',
+        'shadow-entity-box mb-2 flex items-center justify-between rounded-lg bg-white p-6',
         className
       )}
       {...props}

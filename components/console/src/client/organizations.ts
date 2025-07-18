@@ -1,8 +1,12 @@
-import { OrganizationDto } from '@/core/application/dto/organization-dto'
+import {
+  OrganizationDto,
+  OrganizationSearchParamDto
+} from '@/core/application/dto/organization-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
   getFetcher,
+  getPaginatedFetcher,
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
@@ -13,10 +17,17 @@ import {
   useQueryClient
 } from '@tanstack/react-query'
 
-export const useListOrganizations = ({ ...options }) => {
+export type UseListOrganizationsProps = {
+  query?: OrganizationSearchParamDto
+}
+
+export const useListOrganizations = ({
+  query,
+  ...options
+}: UseListOrganizationsProps) => {
   return useQuery<PaginationDto<OrganizationDto>>({
-    queryKey: ['organizations'],
-    queryFn: getFetcher(`/api/organizations`),
+    queryKey: ['organizations', Object.values(query ?? {})],
+    queryFn: getPaginatedFetcher(`/api/organizations`, query),
     ...options
   })
 }

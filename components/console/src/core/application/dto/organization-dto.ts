@@ -1,5 +1,10 @@
 import { AddressDto } from './address-dto'
 import { MetadataDto } from './metadata-dto'
+import { SearchParamDto } from './request-dto'
+
+export type OrganizationSearchParamDto = SearchParamDto & {
+  id?: string
+}
 
 export type CreateOrganizationDto = {
   legalName: string
