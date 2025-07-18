@@ -3,14 +3,11 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"sort"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -30,16 +27,6 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
 	defer span.End()
-
-	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
-
-		logger.Errorf("Message Broker is unavailable: %v", err)
-
-		return nil, err
-	}
 
 	balances := make([]*mmodel.Balance, 0)
 
