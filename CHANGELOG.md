@@ -1,3 +1,27 @@
+## [v2.3.0-beta.24] - 2025-07-18
+
+This release of midaz introduces a more robust transaction processing system, enhancing reliability and performance. Users will experience improved error handling and system observability, ensuring smoother operations under varying loads.
+
+### ✨ Features
+- **Refactored Transaction Processing**: The system now supports both synchronous and asynchronous execution, improving transaction reliability and efficiency. This is especially beneficial for applications requiring high availability. Users can configure this feature using the new `RABBITMQ_TRANSACTION_ASYNC` environment variable.
+
+### 🐛 Bug Fixes
+- **Accurate Balance Retrieval**: Resolved issues in the `get-balances` functionality, ensuring users receive correct balance information consistently.
+- **Streamlined Health Checks**: Removed unnecessary health check operations, reducing false alerts and improving system monitoring.
+- **Configuration and Documentation Corrections**: Fixed logic errors to enhance system setup and user guidance, ensuring a smoother onboarding process.
+
+### ⚡ Performance
+- **Error Reporting Enhancements**: Improved error span adjustments in the backend, which aids in more precise error reporting and faster debugging.
+
+### 📚 Documentation
+- **Updated Best Practices**: Documentation has been revised to reflect the latest best practices and performance improvements, helping developers optimize their use of midaz.
+
+### 🔧 Maintenance
+- **Library Update**: Upgraded to lib-commons v1.17.0, incorporating the latest improvements for better performance and security.
+- **Improved Logging**: Enhanced logging for Redis errors, facilitating quicker issue diagnosis and resolution.
+
+These updates collectively enhance the midaz system's performance, reliability, and user experience, ensuring smoother operations and easier maintenance for developers and users alike.
+
 ## [v2.3.0-beta.23] - 2025-07-18
 
 This release focuses on improving the reliability of transaction searches and enhancing project documentation for better user transparency.
