@@ -669,14 +669,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
 
+	_, span := tracer.Start(ctx, "handler.create_transaction")
+	defer span.End()
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
-	_, span := tracer.Start(ctx, "handler.create_transaction")
-	defer span.End()
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	if transactionStatus != constant.PENDING {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+	}
 
 	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 	defer spanIdempotency.End()
@@ -764,13 +771,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		parentTransactionID = &value
 	}
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
@@ -879,13 +881,20 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	organizationID := uuid.MustParse(tran.OrganizationID)
-	ledgerID := uuid.MustParse(tran.LedgerID)
-
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()
 
+	organizationID := uuid.MustParse(tran.OrganizationID)
+	ledgerID := uuid.MustParse(tran.LedgerID)
+
 	parserDSL := tran.Body
+
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	if transactionStatus != constant.PENDING {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+	}
 
 	if tran.Status.Code != constant.PENDING {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
@@ -932,13 +941,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Status = status
 	tran.UpdatedAt = time.Now()
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-
-	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 

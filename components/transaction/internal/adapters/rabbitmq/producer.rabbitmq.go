@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxRetries     = 5
+	maxRetries     = 3
 	initialBackoff = 500 * time.Millisecond
 	maxBackoff     = 10 * time.Second
 	backoffFactor  = 2.0

@@ -92,7 +92,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
 		message,
 	); err != nil {
-		logger.Warnf("Failed to send message: %s", err.Error())
+		logger.Warnf("Failed to send message to queue: %s", err.Error())
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
