@@ -1,3 +1,18 @@
+## [v2.3.0-beta.23] - 2025-07-18
+
+This release focuses on improving the reliability of transaction searches and enhancing project documentation for better user transparency.
+
+### 🐛 Bug Fixes
+- **Improved Transaction Handling**: We've fixed an issue with alias index search functionality in the backend and test components. This fix ensures that transaction searches return accurate and complete results, enhancing the reliability of your data queries. Users will no longer encounter incorrect or incomplete search results due to alias indexing errors.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements. This update supports better project documentation and keeps users informed about recent updates and fixes, promoting transparency and effective communication.
+
+### 🔧 Maintenance
+- **Release Management**: Behind-the-scenes improvements have been made to ensure that project documentation is up-to-date, contributing to a more organized and user-friendly experience.
+
+
+
 ## [v2.3.0-beta.22] - 2025-07-17
 
 This release introduces a new version management feature and several improvements to enhance user experience and system reliability.

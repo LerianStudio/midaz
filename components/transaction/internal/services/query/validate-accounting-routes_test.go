@@ -9,7 +9,6 @@ import (
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -315,33 +314,22 @@ func TestUniqueValues(t *testing.T) {
 	})
 }
 
-func TestFindKeyIndex(t *testing.T) {
-	t.Run("Find key at index 0", func(t *testing.T) {
-		m := map[string]libTransaction.Amount{
-			"first":  {Value: decimal.NewFromInt(100)},
-			"second": {Value: decimal.NewFromInt(200)},
-			"third":  {Value: decimal.NewFromInt(300)},
-		}
-		// Note: map iteration order is not guaranteed, but we test the logic
-		result := findKeyIndex(m, "first")
-		assert.True(t, result >= 0 && result < len(m))
+func TestFindIndex(t *testing.T) {
+	t.Run("Find alias at index 0", func(t *testing.T) {
+		aliases := []string{"first", "second", "third"}
+		result := findIndex(aliases, "first")
+		assert.Equal(t, 0, result)
 	})
 
-	t.Run("Find key that exists", func(t *testing.T) {
-		m := map[string]libTransaction.Amount{
-			"alpha": {Value: decimal.NewFromInt(100)},
-			"beta":  {Value: decimal.NewFromInt(200)},
-			"gamma": {Value: decimal.NewFromInt(300)},
-		}
-		result := findKeyIndex(m, "beta")
-		assert.True(t, result >= 0 && result < len(m))
+	t.Run("Find alias that exists", func(t *testing.T) {
+		aliases := []string{"alpha", "beta", "gamma"}
+		result := findIndex(aliases, "beta")
+		assert.Equal(t, 1, result)
 	})
 
-	t.Run("Find key in single element map", func(t *testing.T) {
-		m := map[string]libTransaction.Amount{
-			"only": {Value: decimal.NewFromInt(100)},
-		}
-		result := findKeyIndex(m, "only")
+	t.Run("Find alias in single element slice", func(t *testing.T) {
+		aliases := []string{"only"}
+		result := findIndex(aliases, "only")
 		assert.Equal(t, 0, result)
 	})
 }
