@@ -82,8 +82,21 @@ jobs:
         id: extract_tag
 
       # Scan the built image for security vulnerabilities
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner (fail on release)
+        if: "!contains(github.ref, '-beta')"
         uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
+          format: 'table'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Run Trivy vulnerability scanner (non-blocking on pre-release)
+        if: contains(github.ref, '-beta')
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
           format: 'table'
