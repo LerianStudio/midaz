@@ -1,3 +1,19 @@
+## [v2.3.0-beta.25] - 2025-07-18
+
+This release enhances the build process for smoother development workflows and updates project documentation to keep you informed.
+
+### ✨ Features
+- **Enhanced Build Process**: We've implemented a new condition to prevent errors during the image build process when targeting the develop branch. This improvement ensures a more reliable and seamless integration and deployment experience, reducing potential disruptions for developers working on ongoing projects.
+
+### 📚 Documentation
+- **Changelog Update**: We've updated the CHANGELOG to accurately reflect the latest changes. This ensures transparency and keeps all stakeholders informed about the project's evolution.
+
+### 🔧 Maintenance
+- **Release Management**: Regular updates to project documentation help maintain clarity and keep users and developers aligned with the latest developments.
+
+
+This changelog is designed to clearly communicate the improvements and updates in version 2.3.0 of the midaz project. It highlights the key feature enhancement and documentation update, focusing on the benefits to users and developers.
+
 ## [v2.3.0-beta.24] - 2025-07-18
 
 This release of midaz introduces a more robust transaction processing system, enhancing reliability and performance. Users will experience improved error handling and system observability, ensuring smoother operations under varying loads.
