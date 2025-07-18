@@ -89,11 +89,11 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		var isSource bool
 
 		if _, exists := validate.From[operation.alias]; exists {
-			index := findKeyIndex(validate.From, operation.alias)
+			index := findIndex(validate.Sources, operation.alias)
 			routeID = validate.OperationRoutesFrom[libTransaction.ConcatAlias(index, operation.alias)]
 			isSource = true
 		} else if _, existsTo := validate.To[operation.alias]; existsTo {
-			index := findKeyIndex(validate.To, operation.alias)
+			index := findIndex(validate.Destinations, operation.alias)
 			routeID = validate.OperationRoutesTo[libTransaction.ConcatAlias(index, operation.alias)]
 			isSource = false
 		} else {
@@ -133,19 +133,15 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 	return nil
 }
 
-// findKeyIndex finds the index of a key in a map based on iteration order
-func findKeyIndex(m map[string]libTransaction.Amount, key string) int {
-	index := 0
-
-	for k := range m {
-		if k == key {
-			break
+// findIndex finds the index of a key in a slice of aliases
+func findIndex(aliases []string, key string) int {
+	for i, alias := range aliases {
+		if alias == key {
+			return i
 		}
-
-		index++
 	}
 
-	return index
+	return -1
 }
 
 // validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
