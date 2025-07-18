@@ -1,4 +1,7 @@
-import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
+import {
+  TransactionEntity,
+  TransactionSearchEntity
+} from '@/core/domain/entities/transaction-entity'
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -22,26 +25,50 @@ export class MidazTransactionRepository implements TransactionRepository {
     transaction: TransactionEntity
   ): Promise<TransactionEntity> {
     const dto = MidazTransactionMapper.toCreateDto(transaction)
+    console.log(dto)
     const response = await this.httpService.post<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
       {
         body: JSON.stringify(dto)
       }
     )
+    console.log(response)
     return MidazTransactionMapper.toEntity(response)
   }
 
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: TransactionSearchEntity = { limit: 10, page: 1 }
   ): Promise<PaginationEntity<TransactionEntity>> {
+    if (filters.id) {
+      try {
+        const response = await this.fetchById(
+          organizationId,
+          ledgerId,
+          filters.id
+        )
+
+        return {
+          items: [response],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      } catch (error) {
+        return {
+          items: [],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      }
+    }
+
     const response = await this.httpService.get<
       MidazPaginationDto<MidazTransactionDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions${createQueryString({ limit, page })}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions${createQueryString(filters)}`
     )
+
     return MidazTransactionMapper.toPaginationEntity(response)
   }
 

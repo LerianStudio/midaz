@@ -16,14 +16,15 @@ import { PaginationRequest } from '@/types/pagination-request-type'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   CreateTransactionDto,
-  TransactionDto
+  TransactionDto,
+  TransactionSearchDto
 } from '@/core/application/dto/transaction-dto'
 
 export type UseListTransactionsProps = {
   organizationId: string
   ledgerId: string | null
-  enabled?: boolean
-} & PaginationRequest
+  query: TransactionSearchDto
+}
 
 export type UseCreateTransactionProps = {
   organizationId: string
@@ -72,15 +73,19 @@ export const useGetTransactionById = ({
 export const useListTransactions = ({
   organizationId,
   ledgerId,
-  page,
-  limit,
+  query,
   ...options
 }: UseListTransactionsProps) => {
   return useQuery<PaginationDto<TransactionDto>>({
-    queryKey: ['transactions-list', organizationId, ledgerId, page, limit],
+    queryKey: [
+      'transactions-list',
+      organizationId,
+      ledgerId,
+      Object.values(query)
+    ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
-      { page, limit }
+      query
     ),
     ...options
   })
