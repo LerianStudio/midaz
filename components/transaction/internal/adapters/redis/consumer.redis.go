@@ -4,11 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
@@ -18,6 +15,9 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"github.com/vmihailenco/msgpack/v5"
+	"strconv"
+	"strings"
+	"time"
 )
 
 //go:embed scripts/add_sub.lua
@@ -117,14 +117,18 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
 
 		return "", err
 	}
 
 	val, err := rds.Get(ctx, key).Result()
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+
+		logger.Errorf("Failed to get on redis: %v", err)
 
 		return "", err
 	}

@@ -8,11 +8,13 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"math/rand"
+	"os"
+	"strings"
 	"time"
 )
 
 const (
-	maxRetries     = 5
+	maxRetries     = 3
 	initialBackoff = 500 * time.Millisecond
 	maxBackoff     = 10 * time.Second
 	backoffFactor  = 2.0
@@ -47,6 +49,10 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 
 // CheckRabbitMQHealth checks the health of the rabbitmq connection.
 func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "false" {
+		return true
+	}
+
 	return prmq.conn.HealthCheck()
 }
 

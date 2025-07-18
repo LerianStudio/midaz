@@ -6,6 +6,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/vmihailenco/msgpack/v5"
 	"time"
 )
 
@@ -64,14 +65,23 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	for _, msg := range messages {
 		r.Logger.Infof("Message received from queue: %s", msg.ID)
 
-		data, ok := msg.Payload.(mmodel.Queue)
-		if !ok {
-			r.Logger.Errorf("Payload can't be casted to Queue: %v", msg.Payload)
+		payloadBytes, err := msgpack.Marshal(msg.Payload)
+		if err != nil {
+			r.Logger.Errorf("failed to marshal payload to casto in queue: %v", err)
 
 			continue
 		}
 
-		if err := r.UseCase.CreateBalanceTransactionOperationsAsync(ctx, data); err != nil {
+		var data mmodel.Queue
+
+		err = msgpack.Unmarshal(payloadBytes, &data)
+		if err != nil {
+			r.Logger.Errorf("failed to unmarshal payload into queue: %v", err)
+
+			continue
+		}
+
+		if err = r.UseCase.CreateBalanceTransactionOperationsAsync(ctx, data); err != nil {
 			r.Logger.Errorf("Failed to create balance transaction operations: %v", err)
 
 			continue

@@ -117,13 +117,6 @@ func TestGetBalances(t *testing.T) {
 
 		// --- expectativas ---
 
-		// 1) Health check do RabbitMQ
-		mockRabbitMQRepo.
-			EXPECT().
-			CheckRabbitMQHealth().
-			Return(true).
-			Times(1)
-
 		// 2) Get de Redis para cada alias
 		key1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
 		key2 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias2")
@@ -282,11 +275,6 @@ func TestGetBalances(t *testing.T) {
 			AssetCode:      "EUR",
 		}
 		balance2JSON, _ := json.Marshal(balance2)
-
-		mockRabbitMQRepo.EXPECT().
-			CheckRabbitMQHealth().
-			Return(true).
-			Times(1)
 
 		// Mock Redis.Get for both aliases (found in Redis)
 		internalKey1 := libCommons.TransactionInternalKey(organizationID, ledgerID, "alias1")
