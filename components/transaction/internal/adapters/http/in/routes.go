@@ -20,7 +20,11 @@ const midazName = "midaz"
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			return libHTTP.HandleFiberError(ctx, err)
+		},
 	})
+
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))

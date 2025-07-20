@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 
 ARG TARGETPLATFORM
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/onboarding/cmd/app/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -tags netgo -ldflags '-s -w -extldflags "-static"' -o /app components/onboarding/cmd/app/main.go
 
 FROM gcr.io/distroless/static-debian12
 
