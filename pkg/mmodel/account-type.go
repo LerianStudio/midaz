@@ -44,7 +44,7 @@ type CreateAccountTypeInput struct {
 	// Detailed description of the account type.
 	Description string `json:"description,omitempty" validate:"max=500" example:"Assets that are expected to be converted to cash within one year"`
 	// A unique key value identifier for the account type.
-	KeyValue string `json:"keyValue" validate:"required,max=50" example:"current_assets"`
+	KeyValue string `json:"keyValue" validate:"required,max=50,invalidaccounttype" example:"current_assets"`
 	// Custom key-value pairs for extending the account type information
 	// required: false
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}

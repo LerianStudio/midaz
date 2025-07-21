@@ -62,6 +62,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	}
 
 	redisMessage := redis.RedisMessage{
+		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
 		ID:        tran.ID,
 		Payload:   queueMessage,
 		Timestamp: tran.CreatedAt.Unix(),
@@ -153,6 +154,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 	}
 
 	redisMessage := redis.RedisMessage{
+		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
 		ID:        tran.ID,
 		Payload:   queueMessage,
 		Timestamp: tran.CreatedAt.Unix(),
