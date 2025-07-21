@@ -1,3 +1,18 @@
+## [v2.3.0-beta.26] - 2025-07-21
+
+This release of midaz enhances user onboarding and boosts backend performance, ensuring a smoother and more efficient experience for all users.
+
+### ✨ Features
+- **Enhanced Onboarding Validation**: We've improved the onboarding process by adding validation for the account type field. This ensures users provide correct information, reducing errors and improving data integrity.
+
+### ⚡ Performance
+- **Optimized Transaction Processing**: Our backend now processes transactions more efficiently with enhanced concurrency and header ID tracking in Redis message handling. This results in faster transaction processing, especially under high load conditions, improving overall system reliability.
+
+### 🔧 Maintenance
+- **Updated Documentation**: The CHANGELOG has been updated to reflect the latest changes, keeping users informed and ensuring that documentation remains current and useful.
+
+This update focuses on enhancing the user experience and backend performance, contributing to a more robust and user-friendly application.
+
 ## [v2.3.0-beta.25] - 2025-07-18
 
 This release enhances the build process for smoother development workflows and updates project documentation to keep you informed.
