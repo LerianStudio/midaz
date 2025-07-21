@@ -986,6 +986,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Accounting Account Type Validation Failed",
 			Message:    fmt.Sprintf("The account type '%v' does not match any of the expected account types %v defined in the accounting route rule.", args...),
 		},
+		constant.ErrInvalidAccountTypeKeyValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountTypeKeyValue.Error(),
+			Title:      "Invalid Characters",
+			Message:    "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens.",
+		},
 		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),

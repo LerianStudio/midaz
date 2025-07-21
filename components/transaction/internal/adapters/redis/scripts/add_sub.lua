@@ -188,11 +188,14 @@ local function main()
         AccountID = ARGV[13],
     }
 
-    local current = redis.call("GET", key)
-    if not current then
-        local balanceEncoded = cjson.encode(balance)
-        redis.call("SET", key, balanceEncoded, "EX", ttl)
-    else
+    local newBalanceEncoded = cjson.encode(balance)
+    local ok = redis.call("SET", key, newBalanceEncoded, "EX", ttl, "NX")
+    if not ok then
+        local current = redis.call("GET", key)
+        if not current then
+            return redis.error_reply("0061")
+        end
+
         balance = cjson.decode(current)
     end
 

@@ -127,4 +127,5 @@ var (
 	ErrAccountingRouteNotFound                  = errors.New("0117")
 	ErrAccountingAliasValidationFailed          = errors.New("0118")
 	ErrAccountingAccountTypeValidationFailed    = errors.New("0119")
+	ErrInvalidAccountTypeKeyValue               = errors.New("0120")
 )
