@@ -199,7 +199,10 @@ export const TransactionDataTab = ({
           </div>
 
           {/* Fee Breakdown section (visible only when fees are present) */}
-          <FeeBreakdown transaction={data} />
+          <FeeBreakdown 
+            transaction={data} 
+            originalAmount={Number(data.amount)}
+          />
 
           <div>
             <MetaAccordionTransactionDetails

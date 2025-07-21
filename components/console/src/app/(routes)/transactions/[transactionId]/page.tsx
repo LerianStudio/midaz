@@ -82,10 +82,16 @@ export default function TransactionDetailsPage() {
   )
   const originalAmount = Number(transaction.amount)
   const totalFees = feeOperations.reduce(
-    (sum, operation) => sum + Number(operation.amount),
+    (accumulator, operation) => accumulator + Number(operation.amount),
     0
   )
-  const finalAmount = originalAmount + totalFees
+  
+  const recipientReceives = nonFeeDestinations.reduce(
+    (accumulator, operation) => accumulator + Number(operation.amount), 0
+  )
+  const isDeductibleFrom = recipientReceives < originalAmount
+  
+  const finalAmount = isDeductibleFrom ? recipientReceives : originalAmount + totalFees
 
   return (
     <div className="p-16">
@@ -172,6 +178,7 @@ export default function TransactionDetailsPage() {
                 asset={transaction.asset!}
                 value={formatNumber(transaction.amount)}
                 finalAmount={formatNumber(finalAmount.toString())}
+                isDeductibleFrom={totalFees > 0 ? isDeductibleFrom : undefined}
               />
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
@@ -278,7 +285,10 @@ export default function TransactionDetailsPage() {
                 )}
               />
 
-              <FeeBreakdown transaction={transaction} />
+              <FeeBreakdown 
+                transaction={transaction} 
+                originalAmount={originalAmount}
+              />
             </TransactionReceipt>
 
             <TransactionReceiptTicket />

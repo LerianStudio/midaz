@@ -8,7 +8,8 @@ import { TransactionReceiptItem } from '@/components/transactions/primitives/tra
 import { Separator } from '@/components/ui/separator'
 
 type FeeBreakdownProps = {
-  transaction: TransactionDto | any // Allow fee service response format
+  transaction: TransactionDto | any
+  originalAmount?: number
 }
 
 type AppliedFee = {
@@ -28,6 +29,22 @@ const feeMessages = defineMessages({
   finalAmount: {
     id: 'transactions.fees.finalAmount',
     defaultMessage: 'Transaction final amount'
+  },
+  senderPays: {
+    id: 'transactions.fees.senderPays',
+    defaultMessage: 'Amount sender pays'
+  },
+  recipientReceives: {
+    id: 'transactions.fees.recipientReceives',
+    defaultMessage: 'Amount recipient receives'
+  },
+  feeDeductedFromRecipient: {
+    id: 'transactions.fees.deductedFromRecipient',
+    defaultMessage: 'Fee deducted from recipient'
+  },
+  feeChargedToSender: {
+    id: 'transactions.fees.chargedToSender',
+    defaultMessage: 'Fee charged to sender'
   },
   noFees: {
     id: 'transactions.fees.none',
@@ -67,15 +84,37 @@ const isFeesResponse = (data: any): boolean => {
   return data && 'transaction' in data && data.transaction?.send
 }
 
-export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
+const getIsDeductibleFrom = (transaction: any): boolean => {
+  if (!isFeesResponse(transaction)) return false
+
+  const feeData = transaction.transaction
+  return feeData.isDeductibleFrom === true
+}
+
+export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
+  transaction,
+  originalAmount: providedOriginalAmount
+}) => {
   const intl = useIntl()
 
-  const { originalAmount, totalFees, appliedFees } = useMemo(() => {
+  const {
+    originalAmount,
+    totalFees,
+    appliedFees,
+    isDeductibleFrom,
+    feeCollector,
+    sourceAccount,
+    destinationAccount
+  } = useMemo(() => {
     if (!transaction) {
       return {
         originalAmount: 0,
         totalFees: 0,
-        appliedFees: []
+        appliedFees: [],
+        isDeductibleFrom: false,
+        feeCollector: null,
+        sourceAccount: null,
+        destinationAccount: null
       }
     }
 
@@ -85,12 +124,17 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
       const feeData = (transaction as any).transaction
       const sourceOperations = feeData.send?.source?.from || []
       const destinationOperations = feeData.send?.distribute?.to || []
+      const isDeductibleFromFlag = getIsDeductibleFrom(transaction)
 
       if (sourceOperations.length === 0 || destinationOperations.length === 0) {
         return {
           originalAmount: 0,
           totalFees: 0,
-          appliedFees: []
+          appliedFees: [],
+          isDeductibleFrom: isDeductibleFromFlag,
+          feeCollector: null,
+          sourceAccount: null,
+          destinationAccount: null
         }
       }
 
@@ -105,109 +149,131 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
           !operation.description?.toLowerCase().includes('fee')
       )
 
-      let originalAmount = 0
-      if (originalDestinationOperation) {
-        originalAmount = Number(originalDestinationOperation.amount?.value || 0)
-      } else {
-        const largestDestinationOperation = destinationOperations.reduce(
-          (largest: any, current: any) => {
-            const currentValue = Number(current.amount?.value || 0)
-            const largestValue = Number(largest?.amount?.value || 0)
-            return currentValue > largestValue ? current : largest
-          },
-          null
-        )
-        originalAmount = largestDestinationOperation
-          ? Number(largestDestinationOperation.amount?.value || 0)
-          : sourceOperations.reduce(
-              (sum: number, operation: any) =>
-                sum + Number(operation.amount?.value || 0),
-              0
-            )
-      }
+      const originalAmount = providedOriginalAmount ?? enhancedTotalValue
+      const operations = destinationOperations
+      const mainRecipient = operations.find(
+        (operation: any) =>
+          !operation.metadata?.source &&
+          operation.accountAlias !== feeData.send.source.from[0]?.accountAlias
+      )
 
-      const totalFeesAmount = enhancedTotalValue - originalAmount
-
-      const feeOperations = destinationOperations.filter((operation: any) => {
-        if (operation === originalDestinationOperation) return false
-        return (
+      const feeOperations = operations.filter(
+        (operation: any) =>
           operation.metadata?.source ||
-          operation.amount?.asset !== feeData.send?.asset ||
-          operation.accountAlias?.toLowerCase().includes('fee') ||
-          operation.description?.toLowerCase().includes('fee')
-        )
-      })
+          operation.accountAlias === feeData.send.source.from[0]?.accountAlias
+      )
+
+      const recipientReceives = mainRecipient
+        ? Number(mainRecipient.amount.value)
+        : originalAmount
+      const totalFeesAmount = feeOperations.reduce(
+        (accumulator: number, operation: any) =>
+          accumulator + Number(operation.amount.value),
+        0
+      )
+
+      const isActuallyDeductible = recipientReceives < originalAmount
+
+      const sourceAccount = feeData.send.source.from[0]?.accountAlias
+      const destinationAccount = mainRecipient?.accountAlias
+      const feeCollector = feeOperations[0]?.accountAlias
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
         (operation: any) => ({
           feeLabel:
             operation.description ||
-            (operation.metadata?.source
-              ? `${operation.metadata.source} Fee`
-              : 'Fee') ||
-            `${operation.amount?.asset} Fee`,
+            `Fee collected by ${operation.accountAlias}`,
           calculatedAmount: operation.amount?.value || '0'
         })
       )
 
-      if (
-        feeOperations.length === 0 ||
-        (destinationOperations.length === 1 &&
-          sourceOperations.length === 1 &&
-          totalFeesAmount === 0)
-      ) {
+      if (totalFeesAmount === 0) {
         return {
-          originalAmount: enhancedTotalValue,
+          originalAmount,
           totalFees: 0,
-          appliedFees: []
+          appliedFees: [],
+          isDeductibleFrom: false,
+          feeCollector: null,
+          sourceAccount: feeData.send.source.from[0]?.accountAlias,
+          destinationAccount: mainRecipient?.accountAlias
         }
       }
 
       return {
         originalAmount,
         totalFees: totalFeesAmount,
-        appliedFees: appliedFeesList
+        appliedFees: appliedFeesList,
+        isDeductibleFrom: isActuallyDeductible,
+        feeCollector,
+        sourceAccount,
+        destinationAccount
       }
     } else {
-      // Standard TransactionDto format
       const { source, destination } = transaction as TransactionDto
       if (!source || !destination) {
         return {
           originalAmount: 0,
           totalFees: 0,
-          appliedFees: []
+          appliedFees: [],
+          isDeductibleFrom: false,
+          feeCollector: null,
+          sourceAccount: null,
+          destinationAccount: null
         }
       }
 
-      const sourceTotal = source.reduce(
-        (sum: number, operation: TransactionOperationDto) =>
-          sum + Number(operation.amount),
-        0
+      const originalAmount =
+        providedOriginalAmount ?? Number((transaction as TransactionDto).amount)
+
+      const sourceAccountAlias = source[0]?.accountAlias
+      const feeOperations = destination.filter(
+        (operation: TransactionOperationDto) =>
+          isFeeOperation(operation, transaction) ||
+          operation.accountAlias === sourceAccountAlias
       )
-      const destinationTotal = destination.reduce(
-        (sum: number, operation: TransactionOperationDto) =>
-          sum + Number(operation.amount),
+
+      const mainDestinationOps = destination.filter(
+        (operation: TransactionOperationDto) =>
+          !isFeeOperation(operation, transaction) &&
+          operation.accountAlias !== sourceAccountAlias
+      )
+
+      const recipientReceives = mainDestinationOps.reduce(
+        (accumulator: number, operation: TransactionOperationDto) =>
+          accumulator + Number(operation.amount),
         0
       )
 
-      const feeOperations = destination.filter(
-        (operation: TransactionOperationDto) =>
-          isFeeOperation(operation, transaction)
+      const totalFeesAmount = feeOperations.reduce(
+        (accumulator: number, operation: TransactionOperationDto) =>
+          accumulator + Number(operation.amount),
+        0
       )
+
+      const isDeductibleFromDetected =
+        recipientReceives < originalAmount && totalFeesAmount > 0
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
         (operation: TransactionOperationDto) => ({
-          feeLabel: operation.description ?? operation.accountAlias ?? 'Fee',
+          feeLabel:
+            operation.description ||
+            `Fee collected by ${operation.accountAlias}`,
           calculatedAmount: operation.amount
         })
       )
 
-      const totalFeesAmount = destinationTotal - sourceTotal
+      const sourceAccount = source[0]?.accountAlias
+      const destinationAccount = mainDestinationOps[0]?.accountAlias
+      const feeCollector = feeOperations[0]?.accountAlias
 
       return {
-        originalAmount: sourceTotal,
+        originalAmount,
         totalFees: totalFeesAmount,
-        appliedFees: appliedFeesList
+        appliedFees: appliedFeesList,
+        isDeductibleFrom: isDeductibleFromDetected,
+        feeCollector,
+        sourceAccount,
+        destinationAccount
       }
     }
   }, [transaction])
@@ -233,29 +299,113 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({ transaction }) => {
     return null
   }
 
-  const finalAmount = originalAmount + totalFees
+  const originalAmountNumber = Number(originalAmount)
+  const totalFeesNumber = Number(totalFees)
+
+  const senderPaysAmount =
+    feeCollector === sourceAccount
+      ? originalAmountNumber + totalFeesNumber
+      : originalAmountNumber
+
+  const recipientReceivesAmount =
+    feeCollector === destinationAccount
+      ? isDeductibleFrom
+        ? originalAmountNumber - totalFeesNumber // Destination receives less (fee deducted)
+        : originalAmountNumber - totalFeesNumber // Destination pays fee from what they receive
+      : originalAmountNumber // Destination gets full amount
 
   return (
     <React.Fragment>
       <Separator orientation="horizontal" />
 
       <TransactionReceiptItem
-        label={intl.formatMessage(feeMessages.totalFees)}
+        label={intl.formatMessage({
+          id: 'transactions.fees.description',
+          defaultMessage:
+            feeCollector === sourceAccount
+              ? 'Fee paid by sender'
+              : feeCollector === destinationAccount
+                ? isDeductibleFrom
+                  ? 'Fee deducted from transaction'
+                  : 'Fee paid by destination'
+                : isDeductibleFrom
+                  ? 'Fee deducted from transaction'
+                  : 'Fee added to total cost'
+        })}
         value={
-          <span className={totalFees > 0 ? 'text-blue-800' : 'text-green-500'}>
-            {formatFeeAmount(totalFees)}
+          <span className="font-medium text-blue-600">
+            {asset} {formatAmount(totalFees)}
+          </span>
+        }
+      />
+
+      {appliedFees.map((fee, index) => (
+        <TransactionReceiptItem
+          key={index}
+          label={fee.feeLabel}
+          value={
+            <span className="text-blue-600">
+              + {asset} {formatAmount(Number(fee.calculatedAmount))}
+            </span>
+          }
+        />
+      ))}
+
+      <Separator orientation="horizontal" />
+
+      <TransactionReceiptItem
+        label={intl.formatMessage({
+          id: 'transactions.breakdown.senderPays',
+          defaultMessage:
+            feeCollector === sourceAccount
+              ? 'Sender pays (including fees)'
+              : 'Sender sends (original amount)'
+        })}
+        value={
+          <span className="font-medium text-neutral-700">
+            {asset} {formatAmount(senderPaysAmount)}
           </span>
         }
       />
 
       <TransactionReceiptItem
-        label={intl.formatMessage(feeMessages.finalAmount)}
+        label={intl.formatMessage({
+          id: 'transactions.breakdown.destinationReceives',
+          defaultMessage:
+            feeCollector === destinationAccount
+              ? isDeductibleFrom
+                ? 'Destination receives (after fee deduction)'
+                : 'Destination pays fee and receives'
+              : isDeductibleFrom
+                ? 'Destination receives (reduced amount)'
+                : 'Destination receives (full amount)'
+        })}
         value={
-          <span className="font-bold">
-            {asset} {formatAmount(finalAmount)}
+          <span
+            className={
+              isDeductibleFrom
+                ? 'font-medium text-orange-600'
+                : 'font-medium text-green-600'
+            }
+          >
+            {asset} {formatAmount(recipientReceivesAmount)}
           </span>
         }
       />
+
+      {isDeductibleFrom && (
+        <TransactionReceiptItem
+          label=""
+          value={
+            <span className="text-xs text-gray-500 italic">
+              {intl.formatMessage({
+                id: 'transactions.breakdown.deductibleExplanation',
+                defaultMessage: 'Fee was deducted from the transaction amount'
+              })}
+            </span>
+          }
+        />
+      )}
     </React.Fragment>
   )
 }

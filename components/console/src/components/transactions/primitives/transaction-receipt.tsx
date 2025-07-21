@@ -34,6 +34,8 @@ export type TransactionReceiptValueProps =
     value: string | number
     finalAmount?: string | number
     isCalculatingFees?: boolean
+    isDeductibleFrom?: boolean
+    showOriginalAmount?: boolean
   }
 
 export const TransactionReceiptValue = forwardRef<
@@ -47,6 +49,8 @@ export const TransactionReceiptValue = forwardRef<
       value,
       finalAmount,
       isCalculatingFees,
+      isDeductibleFrom,
+      showOriginalAmount = false,
       children,
       ...props
     },
@@ -68,11 +72,35 @@ export const TransactionReceiptValue = forwardRef<
       )
     }
 
-    const displayAmount = finalAmount ?? value
-    const label = intl.formatMessage({
-      id: 'transactions.fees.finalAmount',
-      defaultMessage: 'Transaction final amount'
+    // Determine display amount and label based on fee scenario
+    let displayAmount = value
+    let label = intl.formatMessage({
+      id: 'transactions.amount.original',
+      defaultMessage: 'Original amount'
     })
+
+    if (finalAmount && !showOriginalAmount) {
+      displayAmount = finalAmount
+      
+      if (isDeductibleFrom !== undefined) {
+        label = intl.formatMessage(
+          isDeductibleFrom 
+            ? {
+                id: 'transactions.amount.destinationReceives',
+                defaultMessage: 'Amount destination receives'
+              }
+            : {
+                id: 'transactions.amount.senderPays',
+                defaultMessage: 'Amount sender pays'
+              }
+        )
+      } else {
+        label = intl.formatMessage({
+          id: 'transactions.fees.finalAmount',
+          defaultMessage: 'Transaction final amount'
+        })
+      }
+    }
 
     return (
       <div className={cn('flex flex-col items-center gap-2', className)}>
@@ -80,6 +108,18 @@ export const TransactionReceiptValue = forwardRef<
           <span className="text-2xl">{asset}</span> {displayAmount}
         </p>
         <div className="text-sm text-neutral-500">{label}</div>
+        
+        {finalAmount && !showOriginalAmount && (
+          <div className="text-xs text-neutral-400">
+            {intl.formatMessage({
+              id: 'transactions.amount.originalWas',
+              defaultMessage: 'Original: {asset} {amount}'
+            }, {
+              asset,
+              amount: value
+            })}
+          </div>
+        )}
       </div>
     )
   }

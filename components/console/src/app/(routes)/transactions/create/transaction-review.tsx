@@ -53,7 +53,6 @@ export const TransactionReview = () => {
     ledgerId: currentLedger.id!
   })
 
-  // Derived state - no need for separate useState
   const hasCalculatedFees =
     calculatedFees !== undefined || feesError !== undefined
   const feesErrorMessage = feesError ? 'Failed to calculate fees' : null
@@ -76,21 +75,14 @@ export const TransactionReview = () => {
           return
         }
 
-        // Navigate to the transaction details page
         if (data.id) {
-          // Found the actual transaction, navigate to its details page
           router.push(`/transactions/${data.id}`)
         } else {
-          // Could not find the actual transaction, navigate to transactions list
-          console.log(
-            'No transaction ID found, navigating to transactions list'
-          )
           router.push('/transactions')
         }
       }
     })
 
-  // Calculate fees when component loads (only if fees are enabled)
   useEffect(() => {
     if (values && currentOrganization.id && currentLedger.id) {
       const feesEnabled = process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED === 'true'
@@ -114,8 +106,9 @@ export const TransactionReview = () => {
     }))
   })
 
+  const isDeductibleFrom = calculatedFees?.transaction?.isDeductibleFrom
+
   const getTransactionPayload = () => {
-    // If fees are calculated, convert the fee service response to CreateTransactionDto format
     if (calculatedFees && calculatedFees.transaction) {
       const feeTransaction = calculatedFees.transaction
       return {
@@ -144,7 +137,6 @@ export const TransactionReview = () => {
         metadata: feeTransaction.metadata || {}
       }
     }
-    // Otherwise, use the original transaction data
     return parse(values)
   }
 
@@ -230,14 +222,98 @@ export const TransactionReview = () => {
               })}
               finalAmount={
                 calculatedFees?.transaction &&
-                intl.formatNumber(
-                  Number(calculatedFees.transaction.send.value),
-                  {
-                    roundingPriority: 'morePrecision'
-                  }
-                )
+                (() => {
+                  const originalAmount = values.value
+                  const operations =
+                    calculatedFees.transaction.send.distribute.to
+
+                  // Find the main recipient (not fee operations)
+                  // Use source account alias to identify fee operations correctly
+                  const sourceAccountAlias = values.source?.[0]?.accountAlias
+                  const mainRecipient = operations.find(
+                    (operation: any) =>
+                      !operation.metadata?.source &&
+                      operation.accountAlias !== sourceAccountAlias
+                  )
+
+                  const feeOperations = operations.filter(
+                    (operation: any) =>
+                      operation.metadata?.source ||
+                      operation.accountAlias === sourceAccountAlias
+                  )
+
+                  const recipientReceives = mainRecipient
+                    ? Number(mainRecipient.amount.value)
+                    : originalAmount
+                  const totalFees = feeOperations.reduce(
+                    (accumulator: number, operation: any) =>
+                      accumulator + Number(operation.amount.value),
+                    0
+                  )
+
+                  const actualIsDeductibleFrom = isDeductibleFrom
+                  const isDeductibleFromDetected =
+                    actualIsDeductibleFrom !== undefined
+                      ? actualIsDeductibleFrom
+                      : recipientReceives < originalAmount
+
+                  const originalAmountNumber = Number(originalAmount)
+                  const senderPays = originalAmountNumber + totalFees
+                  const senderDifference = senderPays - originalAmountNumber
+                  const recipientDifference =
+                    originalAmountNumber - recipientReceives
+
+                  const feeOperationsText = operations
+                    .map(
+                      (operation: any) =>
+                        `${operation.accountAlias}:${operation.metadata?.source || 'direct'}`
+                    )
+                    .join(',')
+
+                  const finalAmount = actualIsDeductibleFrom 
+                    ? recipientReceives 
+                    : senderPays
+
+                  const roundedFinalAmount = Math.round(finalAmount * 100) / 100
+
+                  return intl.formatNumber(roundedFinalAmount)
+                })()
               }
               isCalculatingFees={calculatingFees}
+              isDeductibleFrom={
+                calculatedFees
+                  ? (() => {
+                      const operations =
+                        calculatedFees.transaction.send.distribute.to
+                      const originalAmountNumber = Number(values.value)
+                      const totalFees = operations
+                        .filter(
+                          (operation: any) =>
+                            operation.metadata?.source ||
+                            operation.accountAlias ===
+                              values.source?.[0]?.accountAlias
+                        )
+                        .reduce(
+                          (accumulator: number, operation: any) =>
+                            accumulator + Number(operation.amount.value),
+                          0
+                        )
+
+                      const senderPays = originalAmountNumber + totalFees
+                      const mainRecipient = operations.find(
+                        (operation: any) =>
+                          !operation.metadata?.source &&
+                          operation.accountAlias !==
+                            values.source?.[0]?.accountAlias
+                      )
+                      const recipientReceives = mainRecipient
+                        ? Number(mainRecipient.amount.value)
+                        : originalAmountNumber
+
+                      return isDeductibleFrom
+                    })()
+                  : undefined
+              }
             />
             <TransactionReceiptSubjects
               sources={values.source?.map((source) => source.accountAlias)}
@@ -375,7 +451,10 @@ export const TransactionReview = () => {
             />
 
             {hasCalculatedFees && !feesError && calculatedFees && (
-              <FeeBreakdown transaction={calculatedFees} />
+              <FeeBreakdown
+                transaction={calculatedFees}
+                originalAmount={values.value}
+              />
             )}
           </TransactionReceipt>
 

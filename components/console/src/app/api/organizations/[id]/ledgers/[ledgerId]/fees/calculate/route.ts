@@ -77,7 +77,6 @@ export const POST = applyMiddleware(
         ledgerId
       )
 
-      console.log('Fee DTO being sent:', JSON.stringify(feeDto, null, 2))
 
       // Get HTTP service from container
       const httpService = container.get<MidazHttpService>(MidazHttpService)
@@ -90,6 +89,44 @@ export const POST = applyMiddleware(
         },
         body: JSON.stringify(feeDto)
       })
+
+      let isDeductibleFromValue = false
+      if (feeResponse.packages && Array.isArray(feeResponse.packages)) {
+        isDeductibleFromValue = feeResponse.packages.some((feePackage: any) => 
+          feePackage.isDeductibleFrom === true
+        )
+      }
+      
+      if (feeResponse.transaction?.metadata?.packageAppliedID) {
+      }
+      if (feeResponse.isDeductibleFrom !== undefined) {
+        isDeductibleFromValue = feeResponse.isDeductibleFrom
+      }
+      
+      if (feeResponse.transaction) {
+        const sourceOperations = feeResponse.transaction.send?.source?.from || []
+        const destinationOperations = feeResponse.transaction.send?.distribute?.to || []
+        const enhancedTotal = Number(feeResponse.transaction.send?.value || 0)
+        
+        const mainRecipient = destinationOperations.find((operation: any) => 
+          !operation.metadata?.source && 
+          operation.accountAlias !== sourceOperations[0]?.accountAlias
+        )
+        
+        if (mainRecipient) {
+          const recipientAmount = Number(mainRecipient.amount?.value || 0)
+          const sourceAmount = sourceOperations.reduce((accumulator: number, operation: any) => 
+            accumulator + Number(operation.amount?.value || 0), 0
+          )
+          
+          
+          isDeductibleFromValue = recipientAmount < sourceAmount
+        }
+        
+        
+        feeResponse.transaction.isDeductibleFrom = isDeductibleFromValue
+      }
+      
 
       return NextResponse.json(feeResponse)
     } catch (error: any) {
