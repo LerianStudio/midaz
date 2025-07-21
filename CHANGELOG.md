@@ -1,3 +1,18 @@
+## [v2.3.0-beta.27] - 2025-07-21
+
+This release introduces a significant enhancement to our deployment process, streamlining software releases and ensuring greater reliability.
+
+### ✨ Features  
+- **Enhanced Deployment Process**: A new pre-release step has been integrated into the build flow. This feature automatically conducts pre-release checks, ensuring that deployments are more reliable and consistent. It is particularly beneficial for developers and operations teams, as it simplifies the release cycle and minimizes deployment errors.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to provide users and developers with the latest information on project changes and improvements. This update supports better understanding and communication within the community.
+
+### 🔧 Maintenance
+- **Documentation Improvements**: Routine updates to ensure documentation reflects current project status and changes, facilitating transparency and ease of use for all stakeholders.
+
+This changelog provides a clear and concise overview of the most impactful changes in this release, focusing on the benefits to users and maintaining a professional and accessible tone.
+
 ## [v2.3.0-beta.26] - 2025-07-21
 
 This release of midaz enhances user onboarding and boosts backend performance, ensuring a smoother and more efficient experience for all users.
