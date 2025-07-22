@@ -25,7 +25,7 @@ import {
   SidebarRoot
 } from './primitive'
 import { Separator } from '../ui/separator'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useGetPluginMenus } from '@/client/plugin-menu'
 import { PluginManifestDto } from '@/core/application/dto/plugin-manifest-dto'
 

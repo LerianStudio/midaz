@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { useGetTransactionById } from '@/client/transactions'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { PageHeader } from '@/components/page-header'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'

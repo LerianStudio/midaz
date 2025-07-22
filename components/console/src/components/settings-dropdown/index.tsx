@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu'
 import { AboutMidazDialog } from './about-midaz-dialog'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 
 export const SettingsDropdown = () => {
   const intl = useIntl()

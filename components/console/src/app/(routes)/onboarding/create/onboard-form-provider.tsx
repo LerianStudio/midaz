@@ -4,7 +4,7 @@ import { FormData } from './schemas'
 import { useRouter } from 'next/navigation'
 import { createQueryString } from '@/lib/search'
 import { OrganizationDto } from '@/core/application/dto/organization-dto'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useCreateOnboardingOrganization } from '@/client/onboarding'
 
 type OnboardFormContextProps = ReturnType<typeof useStepper> & {

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
 import {
   getCoreRowModel,

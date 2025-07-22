@@ -4,7 +4,7 @@ import { Paper } from '@/components/ui/paper'
 import { SelectItem } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 
