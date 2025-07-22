@@ -1,3 +1,16 @@
+## [v3.0.0-beta.2] - 2025-07-22
+
+This release focuses on essential maintenance updates to ensure that users and developers have the most up-to-date and accurate information for a seamless experience with the midaz project.
+
+### 📚 Documentation
+- Updated version number in the `.env.example` file to v3.0.0, ensuring that all users start with the correct configuration for their setups.
+- Refreshed the CHANGELOG to include recent updates, providing clarity and transparency about the project's evolution and current state.
+
+### 🔧 Maintenance
+- These updates are crucial for maintaining the project's integrity and ensuring that all documentation reflects the latest version, facilitating smoother setup and deployment processes.
+
+No new features, bug fixes, or performance improvements were introduced in this release cycle. The focus was on maintaining the accuracy and relevance of project documentation and configuration files.
+
 ## [v3.0.0-beta.1] - 2025-07-22
 
 This major release of midaz introduces significant improvements to data handling and system performance, along with crucial updates to dependencies and bug fixes that enhance reliability.
