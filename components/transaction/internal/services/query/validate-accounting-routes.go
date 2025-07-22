@@ -89,12 +89,10 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		var isSource bool
 
 		if _, exists := validate.From[operation.alias]; exists {
-			index := findIndex(validate.Sources, operation.alias)
-			routeID = validate.OperationRoutesFrom[libTransaction.ConcatAlias(index, operation.alias)]
+			routeID = validate.OperationRoutesFrom[operation.alias]
 			isSource = true
 		} else if _, existsTo := validate.To[operation.alias]; existsTo {
-			index := findIndex(validate.Destinations, operation.alias)
-			routeID = validate.OperationRoutesTo[libTransaction.ConcatAlias(index, operation.alias)]
+			routeID = validate.OperationRoutesTo[operation.alias]
 			isSource = false
 		} else {
 			continue
@@ -133,17 +131,6 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 	return nil
 }
 
-// findIndex finds the index of a key in a slice of aliases
-func findIndex(aliases []string, key string) int {
-	for i, alias := range aliases {
-		if alias == key {
-			return i
-		}
-	}
-
-	return -1
-}
-
 // validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
 func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
@@ -153,11 +140,13 @@ func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache)
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
-		if op.alias != expected {
+		alias := libTransaction.SplitAlias(op.alias)
+
+		if alias != expected {
 			return pkg.ValidateBusinessError(
 				constant.ErrAccountingAliasValidationFailed,
 				reflect.TypeOf(mmodel.AccountRule{}).Name(),
-				op.alias,
+				alias,
 				expected,
 			)
 		}
