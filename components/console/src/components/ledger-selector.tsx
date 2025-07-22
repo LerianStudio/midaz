@@ -115,7 +115,9 @@ export const LedgerSelector = () => {
 
   const { data: ledgers } = useListLedgers({
     organizationId: currentOrganization?.id!,
-    limit: 100
+    query: {
+      limit: 100
+    }
   })
 
   React.useEffect(() => {

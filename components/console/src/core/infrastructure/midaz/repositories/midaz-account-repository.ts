@@ -1,4 +1,7 @@
-import { AccountEntity } from '@/core/domain/entities/account-entity'
+import {
+  AccountEntity,
+  AccountSearchEntity
+} from '@/core/domain/entities/account-entity'
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -9,7 +12,6 @@ import { MidazAccountMapper } from '../mappers/midaz-account-mapper'
 import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
 import { isEmpty } from 'lodash'
-import { AccountSearchParamDto } from '@/core/application/dto/account-dto'
 import { externalAccountAliasPrefix } from '../config/config'
 
 @injectable()
@@ -40,10 +42,11 @@ export class MidazAccountRepository implements AccountRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    query?: AccountSearchParamDto
+    query?: AccountSearchEntity
   ): Promise<PaginationEntity<AccountEntity>> {
-    const { alias, page = 1, limit = 10 } = query ?? {}
+    const { id, alias, page = 1, limit = 10 } = query ?? {}
 
+    // If alias starts with the external account prefix, fetch external account
     if (alias && alias.includes(externalAccountAliasPrefix)) {
       const asset = alias.replace(externalAccountAliasPrefix, '')
 
@@ -59,8 +62,34 @@ export class MidazAccountRepository implements AccountRepository {
       }
     }
 
+    // If alias (or ID) is provided, fetch by alias
     if (alias) {
       const response = await this.fetchByAlias(organizationId, ledgerId, alias)
+
+      // If no result was found by alias, this means it's a normal by ID fetch
+      if (isEmpty(response)) {
+        const responseById = await this.fetchById(
+          organizationId,
+          ledgerId,
+          alias
+        )
+
+        return {
+          items: isEmpty(responseById) ? [] : [responseById],
+          page,
+          limit
+        }
+      }
+
+      return {
+        items: isEmpty(response) ? [] : [response],
+        page,
+        limit
+      }
+    }
+
+    if (id) {
+      const response = await this.fetchById(organizationId, ledgerId, id)
       return {
         items: isEmpty(response) ? [] : [response],
         page,

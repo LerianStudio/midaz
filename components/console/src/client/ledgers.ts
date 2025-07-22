@@ -1,12 +1,15 @@
-import { LedgerDto } from '@/core/application/dto/ledger-dto'
+import {
+  LedgerDto,
+  LedgerSearchParamDto
+} from '@/core/application/dto/ledger-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
   getFetcher,
+  getPaginatedFetcher,
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
-import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   useMutation,
   UseMutationOptions,
@@ -21,7 +24,7 @@ type UseCreateLedgerProps = UseMutationOptions & {
 
 type UseListLedgersProps = {
   organizationId: string
-  enabled?: boolean
+  query: LedgerSearchParamDto
 }
 
 type UseLedgerByIdProps = UseMutationOptions & {
@@ -63,15 +66,12 @@ const useCreateLedger = ({
   })
 }
 
-const useListLedgers = ({
-  organizationId,
-  limit = 10,
-  page = 1
-}: UseListLedgersProps & PaginationRequest) => {
+const useListLedgers = ({ organizationId, query }: UseListLedgersProps) => {
   return useQuery<PaginationDto<LedgerDto>>({
-    queryKey: ['ledgers', organizationId, { limit, page }],
-    queryFn: getFetcher(
-      `/api/organizations/${organizationId}/ledgers/ledgers-assets?limit=${limit}&page=${page}`
+    queryKey: ['ledgers', organizationId, Object.values(query)],
+    queryFn: getPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/ledgers-assets`,
+      query
     ),
     enabled: !!organizationId
   })

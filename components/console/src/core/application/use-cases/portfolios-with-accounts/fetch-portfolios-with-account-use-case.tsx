@@ -4,14 +4,14 @@ import { PaginationDto } from '../../dto/pagination-dto'
 import { inject, injectable } from 'inversify'
 import { groupBy } from 'lodash'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
-import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
+import { type PortfolioSearchEntity } from '@/core/domain/entities/portfolios-entity'
 
 export interface FetchPortfoliosWithAccounts {
   execute: (
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: PortfolioSearchEntity
   ) => Promise<PaginationDto<any>>
 }
 
@@ -30,22 +30,20 @@ export class FetchPortfoliosWithAccountsUseCase
   async execute(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: PortfolioSearchEntity
   ): Promise<PaginationDto<any>> {
     const portfoliosResult = await this.portfolioRepository.fetchAll(
       organizationId,
       ledgerId,
-      limit,
-      page
+      filters
     )
 
     const allAccountsResult = await this.accountRepository.fetchAll(
       organizationId,
       ledgerId,
       {
-        limit,
-        page
+        limit: 100,
+        page: 1
       }
     )
 

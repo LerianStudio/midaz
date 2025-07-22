@@ -1,4 +1,9 @@
 import { MetadataDto } from './metadata-dto'
+import { SearchParamDto } from './request-dto'
+
+export type SegmentSearchParamDto = SearchParamDto & {
+  id?: string
+}
 
 export type CreateSegmentDto = {
   name: string

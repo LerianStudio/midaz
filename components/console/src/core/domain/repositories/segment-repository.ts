@@ -1,5 +1,5 @@
 import { PaginationEntity } from '../entities/pagination-entity'
-import { SegmentEntity } from '../entities/segment-entity'
+import { SegmentEntity, SegmentSearchEntity } from '../entities/segment-entity'
 
 export abstract class SegmentRepository {
   abstract create: (
@@ -10,8 +10,7 @@ export abstract class SegmentRepository {
   abstract fetchAll: (
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: SegmentSearchEntity
   ) => Promise<PaginationEntity<SegmentEntity>>
   abstract fetchById: (
     organizationId: string,

@@ -1,8 +1,15 @@
-import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
+import {
+  PortfolioEntity,
+  PortfolioSearchEntity
+} from '@/core/domain/entities/portfolios-entity'
 import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
+import { createQueryString } from '@/lib/search'
+import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazPortfolioDto } from '../dto/midaz-portfolio-dto'
+import { MidazPortfolioMapper } from '../mappers/midaz-portfolio-mapper'
 
 @injectable()
 export class MidazPortfolioRepository implements PortfolioRepository {
@@ -18,27 +25,55 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     ledgerId: string,
     portfolio: PortfolioEntity
   ): Promise<PortfolioEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios`
+    const dto = MidazPortfolioMapper.toCreateDto(portfolio)
 
-    const response = await this.httpService.post<PortfolioEntity>(url, {
-      body: JSON.stringify(portfolio)
-    })
+    const response = await this.httpService.post<MidazPortfolioDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
 
-    return response
+    return MidazPortfolioMapper.toEntity(response)
   }
 
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: PortfolioSearchEntity = {
+      page: 1,
+      limit: 10
+    }
   ): Promise<PaginationEntity<PortfolioEntity>> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios?limit=${limit}&page=${page}`
+    if (filters.id) {
+      try {
+        const response = await this.fetchById(
+          organizationId,
+          ledgerId,
+          filters.id
+        )
 
-    const response =
-      await this.httpService.get<PaginationEntity<PortfolioEntity>>(url)
+        return {
+          items: [response],
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
+        }
+      } catch (error) {
+        return {
+          items: [],
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
+        }
+      }
+    }
 
-    return response
+    const response = await this.httpService.get<
+      MidazPaginationDto<MidazPortfolioDto>
+    >(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios${createQueryString(filters)}`
+    )
+
+    return MidazPortfolioMapper.toPaginationEntity(response)
   }
 
   async fetchById(
@@ -48,9 +83,9 @@ export class MidazPortfolioRepository implements PortfolioRepository {
   ): Promise<PortfolioEntity> {
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`
 
-    const response = await this.httpService.get<PortfolioEntity>(url)
+    const response = await this.httpService.get<MidazPortfolioDto>(url)
 
-    return response
+    return MidazPortfolioMapper.toEntity(response)
   }
 
   async update(
@@ -59,13 +94,16 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     portfolioId: string,
     portfolio: Partial<PortfolioEntity>
   ): Promise<PortfolioEntity> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`
+    const dto = MidazPortfolioMapper.toUpdateDto(portfolio)
 
-    const response = await this.httpService.patch<PortfolioEntity>(url, {
-      body: JSON.stringify(portfolio)
-    })
+    const response = await this.httpService.patch<MidazPortfolioDto>(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`,
+      {
+        body: JSON.stringify(dto)
+      }
+    )
 
-    return response
+    return MidazPortfolioMapper.toEntity(response)
   }
 
   async delete(
@@ -73,9 +111,9 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     ledgerId: string,
     portfolioId: string
   ): Promise<void> {
-    const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`
-
-    await this.httpService.delete(url)
+    await this.httpService.delete(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`
+    )
   }
 
   async count(

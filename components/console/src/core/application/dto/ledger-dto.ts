@@ -1,5 +1,10 @@
 import { MetadataDto } from './metadata-dto'
 import { AssetDto } from './asset-dto'
+import { SearchParamDto } from './request-dto'
+
+export type LedgerSearchParamDto = SearchParamDto & {
+  id?: string
+}
 
 export type CreateLedgerDto = {
   name: string
