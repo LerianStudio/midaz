@@ -1,3 +1,27 @@
+## [v3.0.0-beta.1] - 2025-07-22
+
+This major release of midaz introduces significant improvements to data handling and system performance, along with crucial updates to dependencies and bug fixes that enhance reliability.
+
+### ⚠️ Breaking Changes
+- **Transition to Numeric Handling**: This update changes how amounts and scales are processed, moving to a numeric system for enhanced precision. Users need to review and update any custom data handling logic to align with this new format. Please refer to our migration guide [here](#) for detailed steps.
+- **Core Dependency Updates**: We've upgraded several core dependencies, which may affect compatibility with existing plugins. Ensure all extensions are updated to avoid potential issues. Check our compatibility guide [here](#).
+
+### ✨ Features
+- **Advanced Numeric Handling**: Our new numeric system for financial calculations ensures greater precision and consistency. This aligns with industry standards, offering users more reliable data processing capabilities. Learn more about setting up this feature [here](#).
+
+### 🐛 Bug Fixes
+- **Transaction Reliability**: Fixed an issue with alias index concatenation that occasionally caused errors in operation route fetching. This fix enhances transaction processing reliability, reducing errors in data retrieval.
+
+### ⚡ Performance
+- **Library Update**: The update to lib-commons v1.18.0 introduces performance improvements, offering faster processing speeds and new utility functions that boost developer productivity.
+
+### 🔧 Maintenance
+- **Routine Dependency Updates**: Regular updates to our dependencies ensure the system remains secure and up-to-date, preventing vulnerabilities and ensuring future compatibility.
+- **Changelog Enhancements**: We've updated our CHANGELOG documentation to provide a clear and transparent history of changes, aiding users in troubleshooting and understanding software evolution.
+
+For any questions or further assistance, please refer to our support documentation or contact our support team.
+
+
 ## [v2.3.0-beta.27] - 2025-07-21
 
 This release introduces a significant enhancement to our deployment process, streamlining software releases and ensuring greater reliability.
