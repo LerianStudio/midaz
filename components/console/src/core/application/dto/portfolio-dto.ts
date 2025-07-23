@@ -1,5 +1,10 @@
 import { type AccountDto } from './account-dto'
 import { MetadataDto } from './metadata-dto'
+import { SearchParamDto } from './request-dto'
+
+export type PortfolioSearchParamDto = SearchParamDto & {
+  id?: string
+}
 
 export type CreatePortfolioDto = {
   entityId: string

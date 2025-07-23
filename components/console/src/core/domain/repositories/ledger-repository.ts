@@ -1,4 +1,4 @@
-import { LedgerEntity } from '../entities/ledger-entity'
+import { LedgerEntity, LedgerSearchEntity } from '../entities/ledger-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class LedgerRepository {
@@ -8,8 +8,7 @@ export abstract class LedgerRepository {
   ) => Promise<LedgerEntity>
   abstract fetchAll: (
     organizationId: string,
-    limit: number,
-    page: number
+    filters: LedgerSearchEntity
   ) => Promise<PaginationEntity<LedgerEntity>>
   abstract fetchById: (
     organizationId: string,

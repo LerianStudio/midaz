@@ -1,4 +1,7 @@
-import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
+import {
+  LedgerEntity,
+  LedgerSearchEntity
+} from '@/core/domain/entities/ledger-entity'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { injectable } from 'inversify'
 import { inject } from 'inversify'
@@ -34,13 +37,30 @@ export class MidazLedgerRepository implements LedgerRepository {
 
   async fetchAll(
     organizationId: string,
-    limit: number,
-    page: number
+    filters: LedgerSearchEntity = { page: 1, limit: 10 }
   ): Promise<PaginationEntity<LedgerEntity>> {
+    if (filters.id) {
+      try {
+        const response = await this.fetchById(organizationId, filters.id)
+
+        return {
+          items: [response],
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
+        }
+      } catch (error) {
+        return {
+          items: [],
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 10
+        }
+      }
+    }
+
     const response = await this.httpService.get<
       MidazPaginationDto<MidazLedgerDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers${createQueryString({ limit, page })}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers${createQueryString(filters)}`
     )
     return MidazLedgerMapper.toPaginationEntity(response)
   }

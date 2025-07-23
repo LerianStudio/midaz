@@ -27,9 +27,7 @@ import { isNil } from 'lodash'
 import { MoreVertical } from 'lucide-react'
 import React from 'react'
 import { useIntl } from 'react-intl'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
@@ -37,7 +35,6 @@ import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 
 type PortfoliosDataTableProps = {
   portfolios: PaginationDto<PortfolioDto> | undefined
-  form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
   handleCreate: () => void
@@ -129,7 +126,6 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
     handleCreate,
     handleDialogOpen,
     handleEdit,
-    form,
     pagination,
     total
   } = props
@@ -150,11 +146,7 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
   })
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(portfolios?.items) || portfolios.items.length === 0 ? (
           <EmptyResource
@@ -240,6 +232,6 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

@@ -1,3 +1,39 @@
+## [v3.0.0-beta.3] - 2025-07-22
+
+This release of midaz introduces powerful new search capabilities and significant improvements to the user interface and backend architecture, enhancing overall usability and system performance.
+
+### ✨ Features  
+- **Comprehensive Search Functionality**: Users can now efficiently search across Organizations, Transactions, Ledgers, Portfolios, Accounts, and Segments. This new feature streamlines data access and management, providing a consistent and intuitive search experience across the application.
+
+### 🐛 Bug Fixes
+- **Frontend Performance**: Removed unnecessary console logs to improve application performance and reduce clutter, enhancing the overall user experience.
+
+### 🔄 Changes
+- **User Interface Enhancements**: Improved translation keys for more accurate and contextually relevant language support, ensuring a polished and user-friendly interface.
+- **Backend Architecture**: Introduced new controller decorators to enhance code modularity and maintainability, supporting a more robust system architecture.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the CHANGELOG to reflect recent changes, ensuring users have access to current and informative project documentation.
+
+### 🔧 Maintenance
+- **Testing Improvements**: Expanded test coverage in the backend, ensuring robust functionality and preventing regressions in future updates.
+- **EntityBox Component Update**: Enhanced this component's functionality and integration within the frontend, contributing to a smoother user experience.
+
+These updates collectively enhance the midaz project by introducing significant new features, refining existing functionalities, and maintaining high code quality standards. Users will experience improved search capabilities, a more polished interface, and increased reliability due to the expanded test coverage and backend improvements.
+
+## [v3.0.0-beta.2] - 2025-07-22
+
+This release focuses on essential maintenance updates to ensure that users and developers have the most up-to-date and accurate information for a seamless experience with the midaz project.
+
+### 📚 Documentation
+- Updated version number in the `.env.example` file to v3.0.0, ensuring that all users start with the correct configuration for their setups.
+- Refreshed the CHANGELOG to include recent updates, providing clarity and transparency about the project's evolution and current state.
+
+### 🔧 Maintenance
+- These updates are crucial for maintaining the project's integrity and ensuring that all documentation reflects the latest version, facilitating smoother setup and deployment processes.
+
+No new features, bug fixes, or performance improvements were introduced in this release cycle. The focus was on maintaining the accuracy and relevance of project documentation and configuration files.
+
 ## [v3.0.0-beta.1] - 2025-07-22
 
 This major release of midaz introduces significant improvements to data handling and system performance, along with crucial updates to dependencies and bug fixes that enhance reliability.

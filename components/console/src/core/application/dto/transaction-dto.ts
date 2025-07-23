@@ -1,5 +1,10 @@
 import { MetadataDto } from './metadata-dto'
+import { SearchParamDto } from './request-dto'
 import { StatusDto } from './status-dto'
+
+export type TransactionSearchDto = SearchParamDto & {
+  id?: string
+}
 
 export type AmountDto = {
   value: number

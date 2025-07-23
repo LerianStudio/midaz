@@ -1,19 +1,17 @@
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
-import { LedgerDto } from '../../dto/ledger-dto'
+import { type LedgerDto, type LedgerSearchParamDto } from '../../dto/ledger-dto'
 import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { inject, injectable } from 'inversify'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 
 export interface FetchAllLedgersAssets {
   execute: (
     organizationId: string,
-    limit: number,
-    page: number
+    filters: LedgerSearchParamDto
   ) => Promise<PaginationDto<LedgerDto>>
 }
 
@@ -29,11 +27,12 @@ export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
   @LogOperation({ layer: 'application' })
   async execute(
     organizationId: string,
-    limit: number,
-    page: number
+    filters: LedgerSearchParamDto
   ): Promise<PaginationDto<LedgerDto>> {
-    const ledgersResult: PaginationEntity<LedgerEntity> =
-      await this.ledgerRepository.fetchAll(organizationId, limit, page)
+    const ledgersResult = await this.ledgerRepository.fetchAll(
+      organizationId,
+      filters
+    )
 
     let ledgersAssetResponseDTO: PaginationDto<LedgerDto> = {
       items: [],
