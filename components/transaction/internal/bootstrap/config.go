@@ -91,6 +91,15 @@ type Config struct {
 	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
 	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
 	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 }
@@ -159,6 +168,15 @@ func InitServers() *Service {
 		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
 		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
 		Logger:                       logger,
+		PoolSize:                     cfg.RedisPoolSize,
+		MinIdleConns:                 cfg.RedisMinIdleConns,
+		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
+		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
+		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
+		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
+		MaxRetries:                   cfg.RedisMaxRetries,
+		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)

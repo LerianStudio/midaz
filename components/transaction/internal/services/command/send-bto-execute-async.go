@@ -73,9 +73,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to redis backup queue", err)
 
-		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
-
-		return err
+		logger.Warnf("Failed to send BTO to redis backup queue: %s", err.Error())
 	}
 
 	message, err := msgpack.Marshal(queueMessage)
@@ -165,9 +163,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to send BTO to redis backup queue", err)
 
-		logger.Errorf("Failed to send message to redis backup queue: %s", err.Error())
-
-		return err
+		logger.Warnf("Failed to send BTO to redis backup queue: %s", err.Error())
 	}
 
 	err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTODirect, queueMessage)
