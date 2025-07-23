@@ -9,6 +9,7 @@ import { PortfolioController } from '@/core/application/controllers/portfolio-co
 import { LedgerController } from '@/core/application/controllers/ledger-controller'
 import { TransactionController } from '@/core/application/controllers/transaction-controller'
 import { OrganizationController } from '@/core/application/controllers/organization-controller'
+import { PermissionController } from '@/core/application/controllers/permission-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<OrganizationController>(OrganizationController).toSelf()
@@ -21,4 +22,5 @@ export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<PluginMenuController>(PluginMenuController).toSelf()
   container.bind<HomeController>(HomeController).toSelf()
   container.bind<MidazInfoController>(MidazInfoController).toSelf()
+  container.bind<PermissionController>(PermissionController).toSelf()
 })

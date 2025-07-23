@@ -26,8 +26,8 @@ export const DatabaseModule = new ContainerModule((container: Container) => {
     .inSingletonScope()
   container
     .bind<OrganizationAvatarRepository>(OrganizationAvatarRepository)
-    .to(MongoOrganizationAvatarRepository),
-    container
-      .bind<PluginManifestRepository>(PluginManifestRepository)
-      .to(MongoPluginManifestRepository)
+    .to(MongoOrganizationAvatarRepository)
+  container
+    .bind<PluginManifestRepository>(PluginManifestRepository)
+    .to(MongoPluginManifestRepository)
 })
