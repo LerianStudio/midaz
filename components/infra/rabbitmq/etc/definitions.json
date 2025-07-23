@@ -23,6 +23,12 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
+    },
+    {
+      "name":"stream",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -58,6 +64,13 @@
       "configure": ".*",
       "write": ".*",
       "read": ".*"
+    },
+    {
+      "user": "stream",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
     }
   ],
   "queues": [
@@ -70,6 +83,17 @@
       "name": "transaction.transaction_balance_operation.queue",
       "vhost": "/",
       "durable": true
+    },
+    {
+      "name": "transaction.transaction_balance_operation.stream.queue",
+      "vhost": "/",
+      "durable": true,
+      "arguments": {
+        "x-queue-type": "stream",
+        "x-max-length-bytes": 100000000,
+        "x-stream-max-segment-size-bytes": 10000000,
+        "x-stream-max-age": 86400000
+      }
     }
   ],
   "exchanges": [
@@ -82,7 +106,7 @@
     {
       "name": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
-      "type": "direct",
+      "type": "topic",
       "durable": true
     },
     {
@@ -103,7 +127,7 @@
     {
       "source": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
-      "destination": "transaction.transaction_balance_operation.queue",
+      "destination": "transaction.transaction_balance_operation.stream.queue",
       "destination_type": "queue",
       "routing_key": "transaction.transaction_balance_operation.key"
     }

@@ -151,7 +151,7 @@ services:
       - infra-network
 
   midaz-rabbitmq:
-    image: rabbitmq:4.0-management-alpine
+    image: rabbitmq:4.1.2-management-alpine
     container_name: midaz-rabbitmq
     restart: always
     environment:
@@ -160,9 +160,11 @@ services:
     ports:
       - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
       - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
+      - ${RABBITMQ_PORT_STREAM}:${RABBITMQ_PORT_STREAM}
     volumes:
-      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
       - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
+      - ./rabbitmq/etc/enabled_plugins:/etc/rabbitmq/enabled_plugins
       - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
       - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
     networks:

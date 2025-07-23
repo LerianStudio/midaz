@@ -40,4 +40,7 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// RabbitMQStreamRepo provides an abstraction on top of the producer rabbitmq stream.
+	RabbitMQStreamRepo rabbitmq.ProducerStreamRepository
 }

@@ -65,6 +65,7 @@ type Config struct {
 	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
 	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQPortStream           int    `env:"RABBITMQ_PORT_STREAM"`
 	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
@@ -188,6 +189,13 @@ func InitServers() *Service {
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
+	steamProducerInstance, _ := rabbitmq.NewProducerStreamRabbit(
+		cfg.RabbitMQHost,
+		"stream",
+		"lerian",
+		cfg.RabbitMQPortStream,
+	)
+
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
@@ -198,6 +206,7 @@ func InitServers() *Service {
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
+		RabbitMQStreamRepo:   steamProducerInstance,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -256,6 +265,17 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
+	rabbitStreamConsumerConnection, err := rabbitmq.NewConsumerStreamRabbit(
+		cfg.RabbitMQHost,
+		"stream",
+		"lerian",
+		cfg.RabbitMQPortStream,
+	)
+	if err != nil {
+		logger.Errorf("Failed to create stream consumer: %v", err)
+		rabbitStreamConsumerConnection = nil
+	}
+
 	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
@@ -268,10 +288,13 @@ func InitServers() *Service {
 
 	redisConsumer := NewRedisQueueConsumer(useCase, logger)
 
+	streamQueueConsumer := NewStreamQueueConsumer(rabbitStreamConsumerConnection, useCase)
+
 	return &Service{
-		Server:             server,
-		MultiQueueConsumer: multiQueueConsumer,
-		RedisQueueConsumer: redisConsumer,
-		Logger:             logger,
+		Server:              server,
+		MultiQueueConsumer:  multiQueueConsumer,
+		RedisQueueConsumer:  redisConsumer,
+		StreamQueueConsumer: streamQueueConsumer,
+		Logger:              logger,
 	}
 }
