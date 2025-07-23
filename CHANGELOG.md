@@ -1,3 +1,22 @@
+## [v3.0.0-beta.4] - 2025-07-23
+
+This release brings significant improvements to the configuration and backend systems, enhancing user experience with more robust and flexible options. Documentation updates ensure smooth adoption of these new features.
+
+### ✨ Features
+- **Unified Redis Configuration for Onboarding**: Simplifies the setup process by ensuring consistent Redis settings across onboarding components, reducing potential errors and saving setup time.
+- **Enhanced Backend Options**: New configuration options for Redis, including connection pooling and retry mechanisms, provide greater flexibility and control, improving system performance and reliability under varying loads.
+
+### 🐛 Bug Fixes
+- **Transaction Management**: Corrected the status code returned when canceling a transaction, ensuring accurate reflection of transaction states and enhancing user trust in the system's reliability.
+
+### 📚 Documentation
+- **Updated Configuration and Onboarding Guides**: Documentation now includes the latest configuration options and onboarding changes, helping users implement and troubleshoot new features more effectively.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect recent changes, keeping users informed and facilitating easier version tracking.
+
+These updates collectively contribute to a more robust and user-friendly application, ensuring that users can take full advantage of the enhanced capabilities with minimal disruption.
+
 ## [v3.0.0-beta.3] - 2025-07-22
 
 This release of midaz introduces powerful new search capabilities and significant improvements to the user interface and backend architecture, enhancing overall usability and system performance.
