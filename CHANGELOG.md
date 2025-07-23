@@ -1,3 +1,16 @@
+## [v3.0.0-beta.5] - 2025-07-23
+
+This release of midaz focuses on enhancing the user interface for smoother navigation and interaction, alongside crucial maintenance updates for a cleaner and more efficient system.
+
+### ✨ Features
+- **New ConsoleLayout**: Experience a revamped user interface that simplifies navigation and interaction within the console. This enhancement is particularly beneficial for users managing authentication and configuration tasks, providing a more intuitive and streamlined experience.
+
+### 🔧 Maintenance
+- **System Cleanup**: We've removed unused files across various components, including config, database, deps, frontend, and test. This cleanup reduces clutter and improves system maintainability, potentially enhancing performance by eliminating obsolete code and resources.
+- **Documentation & Dependencies**: The changelog has been updated to reflect the latest system changes, ensuring you have access to the most current information. Additionally, dependencies across components like auth, backend, and config have been reviewed and updated to maintain compatibility and security.
+
+This update prioritizes user experience improvements and system maintenance, ensuring a more polished interaction with the console and a streamlined performance.
+
 ## [v3.0.0-beta.4] - 2025-07-23
 
 This release brings significant improvements to the configuration and backend systems, enhancing user experience with more robust and flexible options. Documentation updates ensure smooth adoption of these new features.
