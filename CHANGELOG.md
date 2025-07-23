@@ -1,3 +1,21 @@
+## [v3.0.0-beta.6] - 2025-07-23
+
+This release focuses on enhancing the stability and setup process of the application through updated dependencies and configuration improvements.
+
+### ⚡ Performance
+- **Dependency Updates**: We've updated several dependencies to their latest versions to boost both performance and security. This means a more stable and secure application experience, with the latest features and bug fixes from third-party libraries.
+
+### 🔄 Changes
+- **Environment Configuration**: We've refined the environment setup for the console, making it easier and less error-prone to configure. This change enhances the reliability of the application setup process, ensuring a smoother experience for new and existing users.
+
+### 📚 Documentation
+- **Configuration Updates**: The documentation has been updated to reflect the latest environment configuration changes. This ensures that users have accurate and up-to-date information, reducing potential confusion during setup.
+
+### 🔧 Maintenance
+- **Changelog Update**: We've updated the CHANGELOG to provide users with the latest information on project developments and improvements, supporting transparency and keeping you informed about the ongoing progress of the project.
+
+This changelog is designed to clearly communicate the benefits and impacts of the latest release, focusing on improvements that enhance user experience and application reliability.
+
 ## [v3.0.0-beta.5] - 2025-07-23
 
 This release of midaz focuses on enhancing the user interface for smoother navigation and interaction, alongside crucial maintenance updates for a cleaner and more efficient system.
