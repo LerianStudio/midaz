@@ -64,6 +64,8 @@ const nextConfig = {
     return config
   },
 
+  transpilePackages: ['@lerianstudio/console-layout'],
+
   serverExternalPackages: [
     'pino',
     'pino-pretty',

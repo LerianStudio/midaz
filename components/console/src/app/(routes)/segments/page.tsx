@@ -12,7 +12,7 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { SegmentsSheet } from './segments-sheet'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'

@@ -1,4 +1,4 @@
-import { usePermissions } from '@/providers/permission-provider/permission-provider-client'
+import { usePermissions } from '@lerianstudio/console-layout'
 
 /**
  * Hook to determine form permissions based on user's resource permissions
