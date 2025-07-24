@@ -1,3 +1,16 @@
+## [v3.0.0-beta.7] - 2025-07-24
+
+This release focuses on improving the deployment process and enhancing the overall stability and reliability of the application. Users will experience smoother setup and integration, making it easier to maintain and deploy the application across various environments.
+
+### 🐛 Bug Fixes
+- **Deployment Stability**: Resolved an issue with the Docker Compose configuration that was causing deployment challenges. This fix ensures a more reliable setup process, reducing the time and effort required for developers and users to deploy the application.
+
+### 🔧 Maintenance
+- **Documentation Updates**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring transparency and keeping users informed about the latest modifications.
+- **Dependency Alignment**: Updated dependencies within the Docker Compose setup to match the latest standards. This change enhances system stability and ensures compatibility with the latest software versions, providing a more seamless user experience.
+
+These updates collectively contribute to a more stable and user-friendly experience, particularly in terms of deployment and setup processes.
+
 ## [v3.0.0-beta.6] - 2025-07-23
 
 This release focuses on enhancing the stability and setup process of the application through updated dependencies and configuration improvements.
