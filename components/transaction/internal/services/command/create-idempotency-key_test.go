@@ -35,12 +35,12 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), internalKey, "", ttl).
+			SetNX(gomock.Any(), internalKey, hash, ttl).
 			Return(true, nil).
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, ttl, hash)
 
 		// Assertions
 		assert.NoError(t, err)
@@ -48,17 +48,18 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 	})
 
 	t.Run("success with empty key", func(t *testing.T) {
-		// When key is empty, it should use the hash value
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
+		// When key is empty, the function uses empty key for IdempotencyInternalKey (not hash)
+		// The hash replacement logic happens at HTTP handler level
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, "")
 
 		// Mock Redis.SetNX - success case (key doesn't exist)
 		mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), internalKey, "", ttl).
+			SetNX(gomock.Any(), internalKey, hash, ttl).
 			Return(true, nil).
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
+		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", ttl, hash)
 
 		// Assertions
 		assert.NoError(t, err)
@@ -72,7 +73,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 		// Mock Redis.SetNX - failure case (key already exists)
 		mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), internalKey, "", ttl).
+			SetNX(gomock.Any(), internalKey, hash, ttl).
 			Return(false, nil).
 			Times(1)
 
@@ -83,7 +84,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, ttl, hash)
 
 		// Assertions
 		assert.NoError(t, err) // Based on the actual implementation, this should not error when value is found
@@ -97,7 +98,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 
 		// Mock Redis.SetNX - redis error
 		mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), internalKey, "", ttl).
+			SetNX(gomock.Any(), internalKey, hash, ttl).
 			Return(false, nil).
 			Times(1)
 
@@ -108,7 +109,7 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, ttl, hash)
 
 		// Assertions
 		assert.Error(t, err)
@@ -130,7 +131,6 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	hash := "test-hash-value"
 	ttl := 24 * time.Hour
 
 	t.Run("success with key", func(t *testing.T) {
@@ -156,11 +156,12 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, txn, ttl)
+		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, ttl, txn)
 	})
 
 	t.Run("success with empty key", func(t *testing.T) {
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
+		// When key is empty, function uses empty key for IdempotencyInternalKey (not hash)
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, "")
 
 		txn := transaction.Transaction{
 			ID:                       uuid.New().String(),
@@ -181,7 +182,7 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, "", hash, txn, ttl)
+		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, "", ttl, txn)
 	})
 
 	t.Run("redis set error", func(t *testing.T) {
@@ -207,6 +208,6 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method - should not panic or return error
-		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, txn, ttl)
+		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, ttl, txn)
 	})
 }
