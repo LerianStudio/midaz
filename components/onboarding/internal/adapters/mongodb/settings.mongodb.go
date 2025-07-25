@@ -1,5 +1,7 @@
 package mongodb
 
+//go:generate mockgen --destination=settings.mongodb_mock.go --package=mongodb . SettingsRepository
+
 import (
 	"context"
 	"errors"
@@ -10,17 +12,19 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"reflect"
+	"time"
 )
 
 const (
 	Database = "settings"
+	Table    = "settings"
 )
 
 // SettingsRepository is an interface for operations related to settings entities.
 type SettingsRepository interface {
-	Upsert(ctx context.Context, upsert bool, settings *mmodel.Settings) error
-	Find(ctx context.Context, organizationID, ledgerID, applicationName string) (*mmodel.Settings, error)
+	Create(ctx context.Context, settings *mmodel.Settings) error
+	Update(ctx context.Context, settings *mmodel.Settings) error
+	FindAll(ctx context.Context, organizationID, ledgerID string) ([]*mmodel.Settings, error)
 	Delete(ctx context.Context, organizationID, ledgerID, applicationName string) error
 }
 
@@ -36,21 +40,21 @@ func NewSettingsMongoDBRepository(mc *libMongo.MongoConnection) *SettingsMongoDB
 		panic("Failed to connect mongodb")
 	}
 
-	collection := db.Database(Database).Collection(reflect.TypeOf(mmodel.SettingsMongoDBModel{}).Name())
+	collection := db.Database(Database).Collection(Table)
 
 	return &SettingsMongoDBRepository{
 		collection: collection,
 	}
 }
 
-func (smr *SettingsMongoDBRepository) Upsert(ctx context.Context, upsert bool, settings *mmodel.Settings) error {
+func (smr *SettingsMongoDBRepository) Create(ctx context.Context, settings *mmodel.Settings) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_settings")
 	defer span.End()
 
-	_, err := smr.collection.UpdateOne(ctx, settings.ToDTO(), options.Update().SetUpsert(upsert))
+	_, err := smr.collection.InsertOne(ctx, settings.ToEntity())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to upsert settings", err)
 
@@ -62,17 +66,43 @@ func (smr *SettingsMongoDBRepository) Upsert(ctx context.Context, upsert bool, s
 	return nil
 }
 
-func (smr *SettingsMongoDBRepository) Find(ctx context.Context, organizationID, ledgerID, applicationName string) (*mmodel.Settings, error) {
+func (smr *SettingsMongoDBRepository) Update(ctx context.Context, settings *mmodel.Settings) error {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.update_settings")
+	defer span.End()
+
+	filter := bson.M{"organization_id": settings.OrganizationID, "ledger_id": settings.LedgerID, "application_name": settings.ApplicationName}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "settings", Value: settings.Settings}, {Key: "updated_at", Value: time.Now()}}}}
+
+	updated, err := smr.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update settings", err)
+
+		logger.Errorf("Failed to update settings: %v", err)
+
+		return err
+	}
+
+	if updated.ModifiedCount > 0 {
+		logger.Infoln("updated a settings with entity_id: ")
+	}
+
+	return nil
+}
+
+func (smr *SettingsMongoDBRepository) FindAll(ctx context.Context, organizationID, ledgerID string) ([]*mmodel.Settings, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_settings")
 	defer span.End()
 
-	filter := bson.M{"organization_id": organizationID, "ledger_id": ledgerID, "application_name": applicationName}
-	record := mmodel.SettingsMongoDBModel{}
+	filter := bson.M{"organization_id": organizationID, "ledger_id": ledgerID}
 
-	if err := smr.collection.FindOne(ctx, filter).Decode(&record); err != nil {
+	cur, err := smr.collection.Find(ctx, filter, options.Find())
+	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find settings", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -84,7 +114,37 @@ func (smr *SettingsMongoDBRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return record.ToEntity(), nil
+	settings := make([]*mmodel.Settings, 0)
+	for cur.Next(ctx) {
+		var record mmodel.SettingsMongoDBModel
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to decode metadata", err)
+
+			logger.Errorf("Failed to decode metadata: %v", err)
+
+			return nil, err
+		}
+
+		settings = append(settings, record.ToDTO())
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate metadata", err)
+
+		logger.Errorf("Failed to iterate metadata: %v", err)
+
+		return nil, err
+	}
+
+	if err := cur.Close(ctx); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to close cursor", err)
+
+		logger.Errorf("Failed to close cursor: %v", err)
+
+		return nil, err
+	}
+
+	return settings, nil
 }
 
 func (smr *SettingsMongoDBRepository) Delete(ctx context.Context, organizationID, ledgerID, applicationName string) error {

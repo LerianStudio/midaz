@@ -50,7 +50,7 @@ func (smr *SettingsMongoDBRepository) Upsert(ctx context.Context, upsert bool, s
 	ctx, span := tracer.Start(ctx, "mongodb.create_settings")
 	defer span.End()
 
-	_, err := smr.collection.UpdateOne(ctx, settings.ToDTO(), options.Update().SetUpsert(upsert))
+	_, err := smr.collection.UpdateOne(ctx, settings.ToEntity(), options.Update().SetUpsert(upsert))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to upsert settings", err)
 
@@ -84,7 +84,7 @@ func (smr *SettingsMongoDBRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return record.ToEntity(), nil
+	return record.ToDTO(), nil
 }
 
 func (smr *SettingsMongoDBRepository) Delete(ctx context.Context, organizationID, ledgerID, applicationName string) error {

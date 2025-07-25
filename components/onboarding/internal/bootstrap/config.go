@@ -194,6 +194,7 @@ func InitServers() *Service {
 	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	settingsMongoDBRepository := mongodb.NewSettingsMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
@@ -208,6 +209,7 @@ func InitServers() *Service {
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
+		SettingsRepo:     settingsMongoDBRepository,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -220,6 +222,7 @@ func InitServers() *Service {
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
+		SettingsRepo:     settingsMongoDBRepository,
 	}
 
 	accountHandler := &httpin.AccountHandler{
@@ -257,9 +260,14 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	settingsHandler := &httpin.SettingsHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, settingsHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

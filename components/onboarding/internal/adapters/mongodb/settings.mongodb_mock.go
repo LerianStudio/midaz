@@ -41,6 +41,20 @@ func (m *MockSettingsRepository) EXPECT() *MockSettingsRepositoryMockRecorder {
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockSettingsRepository) Create(ctx context.Context, settings *mmodel.Settings) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, settings)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockSettingsRepositoryMockRecorder) Create(ctx, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockSettingsRepository)(nil).Create), ctx, settings)
+}
+
 // Delete mocks base method.
 func (m *MockSettingsRepository) Delete(ctx context.Context, organizationID, ledgerID, applicationName string) error {
 	m.ctrl.T.Helper()
@@ -55,31 +69,31 @@ func (mr *MockSettingsRepositoryMockRecorder) Delete(ctx, organizationID, ledger
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockSettingsRepository)(nil).Delete), ctx, organizationID, ledgerID, applicationName)
 }
 
-// Find mocks base method.
-func (m *MockSettingsRepository) Find(ctx context.Context, organizationID, ledgerID, applicationName string) (*mmodel.Settings, error) {
+// FindAll mocks base method.
+func (m *MockSettingsRepository) FindAll(ctx context.Context, organizationID, ledgerID string) ([]*mmodel.Settings, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, organizationID, ledgerID, applicationName)
-	ret0, _ := ret[0].(*mmodel.Settings)
+	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].([]*mmodel.Settings)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Find indicates an expected call of Find.
-func (mr *MockSettingsRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, applicationName any) *gomock.Call {
+// FindAll indicates an expected call of FindAll.
+func (mr *MockSettingsRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockSettingsRepository)(nil).Find), ctx, organizationID, ledgerID, applicationName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockSettingsRepository)(nil).FindAll), ctx, organizationID, ledgerID)
 }
 
-// Upsert mocks base method.
-func (m *MockSettingsRepository) Upsert(ctx context.Context, upsert bool, settings *mmodel.Settings) error {
+// Update mocks base method.
+func (m *MockSettingsRepository) Update(ctx context.Context, settings *mmodel.Settings) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Upsert", ctx, upsert, settings)
+	ret := m.ctrl.Call(m, "Update", ctx, settings)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Upsert indicates an expected call of Upsert.
-func (mr *MockSettingsRepositoryMockRecorder) Upsert(ctx, upsert, settings any) *gomock.Call {
+// Update indicates an expected call of Update.
+func (mr *MockSettingsRepositoryMockRecorder) Update(ctx, settings any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Upsert", reflect.TypeOf((*MockSettingsRepository)(nil).Upsert), ctx, upsert, settings)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockSettingsRepository)(nil).Update), ctx, settings)
 }

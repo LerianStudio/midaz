@@ -40,4 +40,7 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// SettingsRepo provides an abstraction on top of the settings data source.
+	SettingsRepo mongodb.SettingsRepository
 }

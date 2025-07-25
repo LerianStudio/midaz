@@ -16,7 +16,7 @@ import (
 const midazName = "midaz"
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, sth *SettingsHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -86,6 +86,12 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(midazName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAccountTypeByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(midazName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAllAccountTypes)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(midazName, "account-types", "delete"), http.ParseUUIDPathParameters, ath.DeleteAccountTypeByID)
+
+	// Settings
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", auth.Authorize(midazName, "settings", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSettingsInput), sth.CreateSettings))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", auth.Authorize(midazName, "settings", "get"), http.ParseUUIDPathParameters, sth.GetSettings)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:application_name", auth.Authorize(midazName, "settings", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSettingsInput), sth.UpdateSettings))
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/settings/:application_name", auth.Authorize(midazName, "settings", "delete"), http.ParseUUIDPathParameters, sth.DeleteSettings)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
