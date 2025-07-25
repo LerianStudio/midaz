@@ -46,8 +46,8 @@ func (mj *JSON) Scan(value any) error {
 	return json.Unmarshal(b, &mj)
 }
 
-// ToEntity converts an MetadataMongoDBModel to entity.Metadata
-func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
+// ToDTO converts an MetadataMongoDBModel entity to Metadata dto.
+func (mmm *MetadataMongoDBModel) ToDTO() *Metadata {
 	return &Metadata{
 		ID:         mmm.ID,
 		EntityID:   mmm.EntityID,
@@ -58,14 +58,14 @@ func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
 	}
 }
 
-// FromEntity converts an entity.Metadata to MetadataMongoDBModel
-func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
-	mmm.ID = md.ID
-	mmm.EntityID = md.EntityID
-	mmm.EntityName = md.EntityName
-	mmm.Data = md.Data
-	mmm.CreatedAt = md.CreatedAt
-	mmm.UpdatedAt = md.UpdatedAt
-
-	return nil
+// ToEntity is a func that convert Metadata dto to MetadataMongoDBModel entity.
+func (metadata *Metadata) ToEntity() *MetadataMongoDBModel {
+	return &MetadataMongoDBModel{
+		ID:         metadata.ID,
+		EntityID:   metadata.EntityID,
+		EntityName: metadata.EntityName,
+		Data:       metadata.Data,
+		CreatedAt:  metadata.CreatedAt,
+		UpdatedAt:  metadata.UpdatedAt,
+	}
 }
