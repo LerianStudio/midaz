@@ -3,18 +3,17 @@ package command
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"time"
-
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"time"
 )
 
-func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
+func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string, ttl time.Duration, t string) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -23,13 +22,9 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 	logger.Infof("Trying to create or check idempotency key in redis")
 
-	if key == "" {
-		key = hash
-	}
-
 	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
-	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
+	success, err := uc.RedisRepo.SetNX(ctx, internalKey, t, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error to lock idempotency key on redis failed", err)
 
@@ -65,7 +60,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 }
 
 // SetValueOnExistingIdempotencyKey func that set value on idempotency key to return to user.
-func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
+func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string, ttl time.Duration, t transaction.Transaction) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -73,10 +68,6 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 	defer span.End()
 
 	logger.Infof("Trying to set value on idempotency key in redis")
-
-	if key == "" {
-		key = hash
-	}
 
 	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 

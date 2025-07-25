@@ -690,9 +690,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	ts, _ := libCommons.StructToJSONString(parserDSL)
 	hash := libCommons.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c, hash)
 
-	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, idempotencyKey, idempotencyTTL, ts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanIdempotency, "Error on create or check redis idempotency key", err)
 
@@ -726,7 +726,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 		}
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, idempotencyKey)
 
 		return http.WithError(c, err)
 	}
@@ -740,7 +740,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, idempotencyKey)
 
 		return http.WithError(c, err)
 	}
@@ -754,7 +754,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, idempotencyKey)
 
 		return http.WithError(c, err)
 	}
@@ -869,7 +869,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
+	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, idempotencyKey, idempotencyTTL, *tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
