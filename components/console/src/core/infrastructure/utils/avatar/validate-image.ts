@@ -3,6 +3,7 @@ import { downloadFile } from '../files/download-file'
 import { validateSVG } from '../svgs/validate-svg'
 import { BadRequestApiException } from '@/lib/http'
 import { IntlShape } from 'react-intl'
+import { getRuntimeEnv } from '@lerianstudio/console-layout'
 
 /**
  * Main function to validate an avatar. Performs multiple validation steps:
@@ -59,9 +60,10 @@ export function validateImageBase64(avatar: string, intl: IntlShape): void {
  */
 export function validateImageFormat(avatar: string, intl: IntlShape): string {
   const allowedFormats =
-    process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',').map(
-      (e) => e.trim().toLowerCase()
-    ) ?? process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(',')
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT')
+      ?.split(',')
+      .map((e) => e.trim().toLowerCase()) ??
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT')?.split(',')
 
   const format = avatar.split(';')[0].split('/')[1]
 
