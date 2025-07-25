@@ -1,3 +1,20 @@
+## [v3.0.0-beta.8] - 2025-07-25
+
+This release focuses on improving the reliability and clarity of date and time handling across the system, enhancing data consistency and user experience.
+
+### 🐛 Bug Fixes
+- **Improved Date Handling**: Updated the `NormalizeDate` function to `NormalizeDateTime`, ensuring more accurate date and time normalization. This change enhances data consistency and reliability across the system, reducing errors in data processing.
+- **Resolved Date Filtering Issues**: Fixed problems with date filtering and timestamp handling across various components. Users will experience improved data integrity and accuracy in date-related operations, leading to fewer errors in data display and processing.
+- **Enhanced Error Messaging**: Corrected grammar and spelling in backend error messages and comments, improving the clarity and professionalism of system messages. This enhancement aids in better user understanding and reduces confusion during error resolution.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes, ensuring users are informed of recent updates and improvements.
+
+### 🔧 Maintenance
+- **Documentation Refresh**: Regular updates to maintain current and accurate documentation, supporting users with the latest information and guidance.
+
+These updates prioritize the accuracy of date and time data, ensuring users have dependable information and a more seamless experience.
+
 ## [v3.0.0-beta.7] - 2025-07-24
 
 This release focuses on improving the deployment process and enhancing the overall stability and reliability of the application. Users will experience smoother setup and integration, making it easier to maintain and deploy the application across various environments.
