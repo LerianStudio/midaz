@@ -81,9 +81,18 @@ function Button({
   iconPlacement = 'start',
   fullWidth = false,
   readOnly = false,
+  onClick,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : 'button'
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (readOnly) {
+      e.preventDefault()
+      return
+    }
+    onClick?.(e)
+  }
 
   return (
     <Comp
@@ -93,13 +102,14 @@ function Button({
           'w-full': fullWidth
         },
         {
-          'data-read-only:cursor-default data-read-only:bg-zinc-100 data-read-only:opacity-50 data-read-only:select-text data-read-only:focus:ring-0 data-read-only:focus:outline-hidden':
+          'data-read-only:bg-shadcn-200 data-read-only:text-shadcn-600 data-read-only:cursor-default data-read-only:opacity-50 data-read-only:focus:ring-0 data-read-only:focus:outline-hidden':
             readOnly
         }
       )}
-      data-read-only={readOnly ? '' : undefined}
+      data-read-only={readOnly}
       data-slot="button"
       {...props}
+      onClick={handleClick}
     >
       {icon && iconPlacement === 'start' && (
         <span className={cn(iconVariants({ position: iconPlacement }))}>

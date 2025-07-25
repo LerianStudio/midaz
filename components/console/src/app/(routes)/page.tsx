@@ -13,40 +13,68 @@ import { useRouter } from 'next/navigation'
 import { MetricSection } from './metric-section'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 
 // Next Steps Card Component
 const NextStepsCard = ({
   title,
   description,
   buttonText,
-  onButtonClick
+  onButtonClick,
+  disabled
 }: {
   title: string
   description: string
   buttonText: string
   onButtonClick: () => void
-}) => (
-  <Card className="flex flex-1 flex-col gap-6 p-6">
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm leading-5 font-medium text-zinc-900">{title}</h3>
+  disabled?: boolean
+}) => {
+  const intl = useIntl()
+
+  return (
+    <Card className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
+          <h3 className="text-sm leading-5 font-medium text-zinc-900">
+            {title}
+          </h3>
+        </div>
+        <div className="flex flex-col">
+          <p className="text-sm leading-[1.4] font-medium text-zinc-500">
+            {description}
+          </p>
+        </div>
       </div>
-      <div className="flex flex-col">
-        <p className="text-sm leading-[1.4] font-medium text-zinc-500">
-          {description}
-        </p>
+      <div className="flex justify-center">
+        <TooltipProvider>
+          <Tooltip disabled={!disabled}>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={onButtonClick}
+                className="h-[37px] w-[280px] text-sm font-medium"
+                readOnly={disabled}
+              >
+                {buttonText}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {intl.formatMessage({
+                id: 'homePage.nextSteps.disabled',
+                defaultMessage:
+                  'You must have an organization and ledger to access this page.'
+              })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-    </div>
-    <div className="flex justify-center">
-      <Button
-        onClick={onButtonClick}
-        className="h-[37px] w-[280px] text-sm font-medium"
-      >
-        {buttonText}
-      </Button>
-    </div>
-  </Card>
-)
+    </Card>
+  )
+}
 
 // Dev Resource Link Component
 const DevResourceLink = ({ title, href }: { title: string; href: string }) => (
@@ -65,7 +93,9 @@ const DevResourceLink = ({ title, href }: { title: string; href: string }) => (
 const Page = () => {
   const intl = useIntl()
   const router = useRouter()
-  const { currentLedger } = useOrganization()
+  const { currentOrganization, currentLedger } = useOrganization()
+
+  const disabled = !currentOrganization || !currentLedger
 
   return (
     <PageRoot>
@@ -128,6 +158,7 @@ const Page = () => {
                         defaultMessage: 'Manage Assets'
                       })}
                       onButtonClick={() => router.push('/assets')}
+                      disabled={disabled}
                     />
                     <NextStepsCard
                       title={intl.formatMessage({
@@ -144,6 +175,7 @@ const Page = () => {
                         defaultMessage: 'Manage Accounts'
                       })}
                       onButtonClick={() => router.push('/accounts')}
+                      disabled={disabled}
                     />
                     <NextStepsCard
                       title={intl.formatMessage({
@@ -160,6 +192,7 @@ const Page = () => {
                         defaultMessage: 'View Transactions'
                       })}
                       onButtonClick={() => router.push('/transactions')}
+                      disabled={disabled}
                     />
                   </div>
                 </div>
