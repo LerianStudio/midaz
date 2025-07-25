@@ -17,7 +17,6 @@ jobs:
       matrix: ${{ steps.changed-paths.outputs.matrix }}
     name: Detect changed paths
     steps:
-      # Detect which components have changed
       - name: Get changed paths
         id: changed-paths
         uses: LerianStudio/github-actions-changed-paths@main
@@ -74,6 +73,19 @@ jobs:
         shell: bash
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      - name: Write tag to file for GitOps
+        if: contains(github.ref, '-beta')
+        run: |
+          mkdir -p gitops-tags
+          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}
+
+      - name: Upload GitOps tag artifact
+        if: contains(github.ref, '-beta')
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitops-tags
+          path: gitops-tags/
+
       - name: Run Trivy vulnerability scanner (fail on release)
         if: "!contains(github.ref, '-beta')"
         uses: aquasecurity/trivy-action@master
@@ -97,38 +109,37 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
 
-      # GitOps update - only for beta tags
-    update_gitops:
-      needs: [build_and_publish]
-      if: contains(github.ref, '-beta')
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            repository: LerianStudio/midaz-firmino-gitops
-            token: ${{ secrets.MANAGE_TOKEN }}
-            path: gitops
-            fetch-depth: 0
+  update_gitops:
+    needs: [build_and_publish]
+    if: contains(github.ref, '-beta')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: LerianStudio/midaz-firmino-gitops
+          token: ${{ secrets.MANAGE_TOKEN }}
+          path: gitops
+          fetch-depth: 0
 
-        - name: Download tags from artifacts
-          uses: actions/download-artifact@v4
-          with:
-            name: gitops-tags
-            path: .gitops-tags
+      - name: Download tags from artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gitops-tags
+          path: .gitops-tags
 
-        - name: Apply image tags to values.yaml
-          run: |
-            for tagfile in .gitops-tags/*; do
-              name=$(basename "$tagfile" | cut -d= -f1)
-              tag=$(basename "$tagfile" | cut -d= -f2)
-              echo "🔧 Updating tag for $name to $tag"
-              yq e ".$name.image.tag = \"$tag\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
-            done
+      - name: Apply image tags to values.yaml
+        run: |
+          for tagfile in .gitops-tags/*; do
+            name=$(basename "$tagfile" | cut -d= -f1)
+            tag=$(basename "$tagfile" | cut -d= -f2)
+            echo "🔧 Updating tag for $name to $tag"
+            yq e ".$name.image.tag = \"$tag\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
+          done
 
-        - name: Commit and push GitOps update
-          run: |
-            cd gitops
-            git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
-            git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
-            git commit -am "ci: update image tags"
-            git push origin main
+      - name: Commit and push GitOps update
+        run: |
+          cd gitops
+          git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
+          git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
+          git commit -am "ci: update image tags"
+          git push origin main
