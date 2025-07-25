@@ -3,6 +3,7 @@ package mmodel
 import (
 	"encoding/json"
 	"github.com/google/uuid"
+	"time"
 )
 
 // Queue is a struct designed for internal message queueing.
@@ -58,7 +59,7 @@ type Event struct {
 	Source         string          `json:"source" example:"midaz"`
 	EventType      string          `json:"eventType" example:"transaction"`
 	Action         string          `json:"action" example:"APPROVED"`
-	TimeStamp      string          `json:"timeStamp" example:"2025-06-26T16:00:00Z"`
+	TimeStamp      time.Time       `json:"timestamp" example:"2025-06-26T16:00:00Z"`
 	Version        string          `json:"version" example:"v2.2.2"`
 	OrganizationID string          `json:"organizationId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID       string          `json:"ledgerId" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
