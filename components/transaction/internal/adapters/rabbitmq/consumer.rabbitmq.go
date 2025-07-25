@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
@@ -105,14 +106,25 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 						log,
 					)
 
+					ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
+
+					tracer := libCommons.NewTracerFromContext(ctx)
+					ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
+
 					err := handlerFunc(ctx, msg.Body)
 					if err != nil {
+						libOpentelemetry.HandleSpanError(&spanConsumer, "Error processing message from queue", err)
+
+						spanConsumer.End()
+
 						cr.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
 						_ = msg.Nack(false, true)
 
 						continue
 					}
+
+					spanConsumer.End()
 
 					_ = msg.Ack(false)
 				}

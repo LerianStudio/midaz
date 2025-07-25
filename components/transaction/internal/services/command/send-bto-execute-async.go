@@ -62,11 +62,12 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	}
 
 	redisMessage := redis.RedisMessage{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ID:        tran.ID,
-		Payload:   queueMessage,
-		Timestamp: tran.CreatedAt.Unix(),
-		Status:    constant.PENDING,
+		HeaderID:    libCommons.NewHeaderIDFromContext(ctx),
+		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTOQueue)["Traceparent"],
+		ID:          tran.ID,
+		Payload:     queueMessage,
+		Timestamp:   tran.CreatedAt.Unix(),
+		Status:      constant.PENDING,
 	}
 
 	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)
@@ -152,11 +153,12 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 	}
 
 	redisMessage := redis.RedisMessage{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ID:        tran.ID,
-		Payload:   queueMessage,
-		Timestamp: tran.CreatedAt.Unix(),
-		Status:    constant.PENDING,
+		HeaderID:    libCommons.NewHeaderIDFromContext(ctx),
+		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTODirect)["Traceparent"],
+		ID:          tran.ID,
+		Payload:     queueMessage,
+		Timestamp:   tran.CreatedAt.Unix(),
+		Status:      constant.PENDING,
 	}
 
 	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)

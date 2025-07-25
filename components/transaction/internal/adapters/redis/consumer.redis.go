@@ -311,7 +311,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, msg Re
 		return err
 	}
 
-	logger.Infof("Mensagem save on redis queue with ID: %s", msg.ID)
+	logger.Infof("Message saved on redis queue with ID: %s", msg.ID)
 
 	return nil
 }

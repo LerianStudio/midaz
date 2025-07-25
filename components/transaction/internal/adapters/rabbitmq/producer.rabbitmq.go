@@ -62,12 +62,18 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
-	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
+	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
 	var err error
 
 	backoff := initialBackoff
+
+	headers := amqp.Table{
+		libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
+	}
+
+	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		err = prmq.conn.Channel.Publish(
@@ -78,10 +84,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			amqp.Publishing{
 				ContentType:  "application/json",
 				DeliveryMode: amqp.Persistent,
-				Headers: amqp.Table{
-					libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
-				},
-				Body: message,
+				Headers:      headers,
+				Body:         message,
 			},
 		)
 

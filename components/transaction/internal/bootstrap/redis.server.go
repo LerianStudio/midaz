@@ -2,13 +2,15 @@ package bootstrap
 
 import (
 	"context"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
@@ -93,8 +95,14 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			log,
 		)
 
+		ctxWithBackground = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctxWithBackground, map[string]any{"Traceparent": msg.Traceparent})
+
+		ctxWithBackground, span = tracer.Start(ctxWithBackground, "redis.consumer.process_message")
+
 		if msg.Timestamp > cutoff {
 			totalMessagesLessThanOneHour++
+
+			span.End()
 
 			continue
 		}
@@ -112,6 +120,8 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				log.Warn("Message processing cancelled due to shutdown signal")
+				span.End()
+
 				return
 			default:
 			}
@@ -119,22 +129,30 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			payloadBytes, err := msgpack.Marshal(m.Payload)
 			if err != nil {
 				log.Errorf("failed to marshal msg.Payload: %v", err)
+				span.End()
+
 				return
 			}
 
 			var data mmodel.Queue
 			if err := msgpack.Unmarshal(payloadBytes, &data); err != nil {
 				log.Errorf("failed to unmarshal payload into mmodel.Queue: %v", err)
+				span.End()
+
 				return
 			}
 
 			if err := r.UseCase.CreateBalanceTransactionOperationsAsync(ctx, data); err != nil {
 				log.Errorf("Failed to create balance transaction operations: %v", err)
+				span.End()
+
 				return
 			}
 
 			log.Infof("Message processed: %s", m.ID)
 		}(msg, ctxWithBackground, log)
+
+		span.End()
 	}
 
 	wg.Wait()

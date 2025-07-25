@@ -3,14 +3,16 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	amqp "github.com/rabbitmq/amqp091-go"
-	"math/rand"
-	"time"
 )
 
 const (
@@ -58,7 +60,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	logger.Infof("Init sent message")
 
-	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
+	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
 	var err error
@@ -74,6 +76,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		return nil, err
 	}
 
+	headers := amqp.Table{
+		libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
+	}
+
+	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		err = prmq.conn.Channel.Publish(
 			exchange,
@@ -83,10 +91,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			amqp.Publishing{
 				ContentType:  "application/json",
 				DeliveryMode: amqp.Persistent,
-				Headers: amqp.Table{
-					libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
-				},
-				Body: message,
+				Headers:      headers,
+				Body:         message,
 			},
 		)
 
