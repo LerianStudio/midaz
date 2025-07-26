@@ -9,5 +9,5 @@ echo "window.RUNTIME_ENV = $(node -p 'JSON.stringify({
   NEXT_PUBLIC_MIDAZ_VERSION: process.env.NEXT_PUBLIC_MIDAZ_VERSION
 })');" > ./public/runtime-env.js
 
-# Executa o comando original (start do Next.js, ou qualquer comando passado)
+# Executes the original command (Next.js start or any passed command)
 exec "$@"
