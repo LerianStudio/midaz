@@ -47,7 +47,6 @@ export const ComboBoxField = ({
   const intl = useIntl()
   const [open, setOpen] = React.useState(false)
 
-  // Transforms the children into an array of options
   // with the value and label
   const options = React.useMemo(
     () =>

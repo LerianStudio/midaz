@@ -235,7 +235,7 @@ const Page = () => {
               disabled={!hasAssets}
             >
               {intl.formatMessage({
-                id: 'accounts.listingTemplate.addButton',
+                id: 'accounts.sheet.create.title',
                 defaultMessage: 'New Account'
               })}
             </Button>
@@ -290,7 +290,7 @@ const Page = () => {
             handleCreate={handleCreate}
             handleEdit={handleEdit}
             onDelete={handleDialogOpen}
-            refetch={refetchAccounts}
+            _refetch={refetchAccounts}
             total={total}
             pagination={pagination}
             form={form}

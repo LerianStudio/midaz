@@ -17,7 +17,6 @@ import {
 /**
  * TODO: Find a way to avoid the <any, any, any>
  */
-
 type UseCreateSegmentProps = UseMutationOptions & {
   organizationId: string
   ledgerId: string

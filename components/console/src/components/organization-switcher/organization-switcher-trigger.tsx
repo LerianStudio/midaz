@@ -85,7 +85,7 @@ export const SwitcherTrigger = ({
 
   return (
     <PopoverTrigger>
-      <Logo button active={open} {...others} />
+      <Logo button singleOrg={singleOrg} active={open} {...others} />
     </PopoverTrigger>
   )
 }

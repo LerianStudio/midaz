@@ -1,11 +1,17 @@
-import { apiErrorHandler } from '@/app/api/utils/api-error-handler'
-import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { loggerMiddleware } from '@/utils/logger-middleware-config'
 import { applyMiddleware } from '@/lib/middleware'
 import { NextResponse } from 'next/server'
+import { loggerMiddleware } from '@/utils/logger-middleware-config'
+import { container } from '@/core/infrastructure/container-registry/container-registry'
 import { MidazHttpService } from '@/core/infrastructure/midaz/services/midaz-http-service'
-import { MidazFeeTransactionMapper } from '@/core/infrastructure/midaz/mappers/midaz-fee-transaction-mapper'
-import { TransactionMapper } from '@/core/application/mappers/transaction-mapper'
+import { getIntl } from '@/lib/intl'
+import { apiErrorMessages } from '@/core/infrastructure/midaz/messages/messages'
+import {
+  FeeCalculationRequest,
+  FeeCalculationResponse,
+  isSuccessResponse
+} from '@/types/fee-engine-transaction.types'
+import { convertConsoleToFeeEngine } from '@/utils/console-to-fee-engine-converter'
+import { transformFeeEngineResponse } from '@/utils/fee-engine-response-transformer'
 
 export const POST = applyMiddleware(
   [
@@ -18,122 +24,133 @@ export const POST = applyMiddleware(
     request: Request,
     { params }: { params: Promise<{ id: string; ledgerId: string }> }
   ) => {
+    const intl = await getIntl()
+
     try {
       const feesEnabled =
         (process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED ?? 'false') === 'true'
 
       if (!feesEnabled) {
         return NextResponse.json(
-          { error: 'Fees service is not enabled' },
+          { error: intl.formatMessage(apiErrorMessages.feesServiceNotEnabled) },
           { status: 400 }
+        )
+      }
+
+      const baseUrlFee = process.env.PLUGIN_FEES_PATH as string
+      if (!baseUrlFee) {
+        return NextResponse.json(
+          {
+            error: intl.formatMessage(
+              apiErrorMessages.feesServiceUrlNotConfigured
+            )
+          },
+          { status: 500 }
         )
       }
 
       const body = await request.json()
       const { id: organizationId, ledgerId } = await params
-      const baseUrlFee = process.env.PLUGIN_FEES_PATH as string
 
-      if (!baseUrlFee) {
-        return NextResponse.json(
-          { error: 'Fees service URL not configured' },
-          { status: 500 }
-        )
+      const feeEngineTransaction = convertConsoleToFeeEngine(body.transaction)
+
+      const segmentId = body.transaction?.metadata?.segmentId || body.segmentId
+
+      const feeEngineRequest: FeeCalculationRequest = {
+        ledgerId,
+        transaction: feeEngineTransaction,
+        ...(segmentId && { segmentId })
       }
 
-      // Transform frontend transaction data to CreateTransactionDto format
-      const { transaction } = body
-      const createTransactionDto = {
-        description: transaction.description,
-        chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
-        amount: transaction.value?.toString() || '0',
-        asset: transaction.asset,
-        source:
-          transaction.source?.map((source: any) => ({
-            accountAlias: source.accountAlias,
-            asset: transaction.asset,
-            amount: source.value?.toString() || '0',
-            description: source.description,
-            chartOfAccounts: source.chartOfAccounts,
-            metadata: source.metadata || {}
-          })) || [],
-        destination:
-          transaction.destination?.map((destination: any) => ({
-            accountAlias: destination.accountAlias,
-            asset: transaction.asset,
-            amount: destination.value?.toString() || '0',
-            description: destination.description,
-            chartOfAccounts: destination.chartOfAccounts,
-            metadata: destination.metadata || {}
-          })) || [],
-        metadata: transaction.metadata || {}
-      }
-
-      // Convert to TransactionEntity
-      const transactionEntity = TransactionMapper.toDomain(createTransactionDto)
-
-      // Convert TransactionEntity to fee service format
-      const feeDto = MidazFeeTransactionMapper.toCreateDto(
-        transactionEntity,
-        ledgerId
-      )
-
-
-      // Get HTTP service from container
       const httpService = container.get<MidazHttpService>(MidazHttpService)
 
-      // Call the plugin-fees service
-      const feeResponse = await httpService.post<any>(`${baseUrlFee}/fees`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Organization-Id': organizationId
-        },
-        body: JSON.stringify(feeDto)
-      })
-
-      let isDeductibleFromValue = false
-      if (feeResponse.packages && Array.isArray(feeResponse.packages)) {
-        isDeductibleFromValue = feeResponse.packages.some((feePackage: any) => 
-          feePackage.isDeductibleFrom === true
-        )
-      }
-      
-      if (feeResponse.transaction?.metadata?.packageAppliedID) {
-      }
-      if (feeResponse.isDeductibleFrom !== undefined) {
-        isDeductibleFromValue = feeResponse.isDeductibleFrom
-      }
-      
-      if (feeResponse.transaction) {
-        const sourceOperations = feeResponse.transaction.send?.source?.from || []
-        const destinationOperations = feeResponse.transaction.send?.distribute?.to || []
-        const enhancedTotal = Number(feeResponse.transaction.send?.value || 0)
-        
-        const mainRecipient = destinationOperations.find((operation: any) => 
-          !operation.metadata?.source && 
-          operation.accountAlias !== sourceOperations[0]?.accountAlias
-        )
-        
-        if (mainRecipient) {
-          const recipientAmount = Number(mainRecipient.amount?.value || 0)
-          const sourceAmount = sourceOperations.reduce((accumulator: number, operation: any) => 
-            accumulator + Number(operation.amount?.value || 0), 0
-          )
-          
-          
-          isDeductibleFromValue = recipientAmount < sourceAmount
+      const feeEngineResponse = await httpService.post<FeeCalculationResponse>(
+        `${baseUrlFee}/fees`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Organization-Id': organizationId
+          },
+          body: JSON.stringify(feeEngineRequest)
         }
-        
-        
-        feeResponse.transaction.isDeductibleFrom = isDeductibleFromValue
+      )
+
+      const consoleResponse = transformFeeEngineResponse(
+        feeEngineResponse,
+        body.transaction
+      )
+
+      if (
+        isSuccessResponse(feeEngineResponse) &&
+        feeEngineResponse.transaction?.metadata?.packageAppliedID
+      ) {
+        try {
+          const packageId =
+            feeEngineResponse.transaction.metadata.packageAppliedID
+          const pluginFeesUrl = process.env.NEXT_PUBLIC_PLUGIN_FEES_FRONTEND_URL
+
+          if (pluginFeesUrl) {
+            const pluginUIBasePath =
+              process.env.NEXT_PUBLIC_PLUGIN_UI_BASE_PATH || '/plugin-fees-ui'
+            const packageResponse = await fetch(
+              `${pluginFeesUrl}${pluginUIBasePath}/api/fees/packages/${packageId}`,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Organization-Id': organizationId
+                }
+              }
+            )
+
+            if (packageResponse.ok) {
+              const packageData = await packageResponse.json()
+
+              if (
+                packageData?.fees &&
+                consoleResponse &&
+                'transaction' in consoleResponse
+              ) {
+                const feeRules = Object.entries(packageData.fees).map(
+                  ([feeId, fee]: [string, any]) => ({
+                    feeId,
+                    feeLabel: fee.feeLabel,
+                    isDeductibleFrom: fee.isDeductibleFrom || false,
+                    creditAccount: fee.creditAccount,
+                    priority: fee.priority,
+                    referenceAmount: fee.referenceAmount || 'originalAmount',
+                    applicationRule: fee.applicationRule || 'percentual',
+                    calculations: fee.calculations
+                  })
+                )
+
+                ;(consoleResponse as any).transaction.feeRules = feeRules
+                ;(consoleResponse as any).transaction.isDeductibleFrom =
+                  feeRules.some((rule) => rule.isDeductibleFrom === true)
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch fee package details:', error)
+        }
       }
-      
 
-      return NextResponse.json(feeResponse)
+      return NextResponse.json(consoleResponse)
     } catch (error: any) {
-      console.error('Error calculating fees', error)
-      const { message, status } = await apiErrorHandler(error)
+      console.error('Fee calculation error:', error)
 
-      return NextResponse.json({ message }, { status })
+      if (error.response?.status) {
+        return NextResponse.json(
+          error.response.data || {
+            error: intl.formatMessage(apiErrorMessages.feeCalculationFailed)
+          },
+          { status: error.response.status }
+        )
+      }
+
+      return NextResponse.json(
+        { error: intl.formatMessage(apiErrorMessages.internalServerError) },
+        { status: 500 }
+      )
     }
   }
 )

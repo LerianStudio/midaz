@@ -64,34 +64,22 @@ export default function TransactionDetailsPage() {
     return <SkeletonTransactionDialog />
   }
 
+  // Use simplified fee detection logic focusing only on explicit fee markers
   const isFeeOperation = (operation: TransactionOperationDto) => {
-    const description = operation.description?.toLowerCase() ?? ''
+    const description = (operation.description ?? '').toLowerCase()
     const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
-    return (
-      description.includes('fee') ||
-      chartOfAccounts.includes('fee') ||
-      operation.accountAlias === transaction.source[0]?.accountAlias
-    )
+
+    // Check for fee markers (case insensitive)
+    return description.includes('fee') || chartOfAccounts.includes('fee')
   }
+
+  // Filter destinations to exclude fee operations
   const nonFeeDestinations = transaction.destination.filter(
     (destination) => !isFeeOperation(destination)
   )
 
-  const feeOperations = transaction.destination.filter((destination) =>
-    isFeeOperation(destination)
-  )
-  const originalAmount = Number(transaction.amount)
-  const totalFees = feeOperations.reduce(
-    (accumulator, operation) => accumulator + Number(operation.amount),
-    0
-  )
-  
-  const recipientReceives = nonFeeDestinations.reduce(
-    (accumulator, operation) => accumulator + Number(operation.amount), 0
-  )
-  const isDeductibleFrom = recipientReceives < originalAmount
-  
-  const finalAmount = isDeductibleFrom ? recipientReceives : originalAmount + totalFees
+  const displayAmount = Number(transaction.amount)
+  const finalAmount = displayAmount
 
   return (
     <div className="p-16">
@@ -176,16 +164,19 @@ export default function TransactionDetailsPage() {
               />
               <TransactionReceiptValue
                 asset={transaction.asset!}
-                value={formatNumber(transaction.amount)}
+                value={formatNumber(displayAmount.toString())}
                 finalAmount={formatNumber(finalAmount.toString())}
-                isDeductibleFrom={totalFees > 0 ? isDeductibleFrom : undefined}
               />
               <StatusDisplay status={transaction.status?.code ?? ''} />
               <TransactionReceiptSubjects
                 sources={transaction.source.map((s) => s.accountAlias!)!}
-                destinations={nonFeeDestinations.map(
-                  (destination) => destination.accountAlias!
-                )}
+                destinations={[
+                  ...new Set(
+                    transaction.destination
+                      .filter((dest) => !isFeeOperation(dest))
+                      .map((destination) => destination.accountAlias!)
+                  )
+                ]}
               />
               {transaction.description && (
                 <TransactionReceiptDescription>
@@ -248,17 +239,22 @@ export default function TransactionDetailsPage() {
                   />
                 )
               )}
-              {transaction.destination
-                ?.filter((operation) => !isFeeOperation(operation))
-                .map((operation: TransactionOperationDto, index: number) => (
-                  <TransactionReceiptOperation
-                    key={index}
-                    type="credit"
-                    account={operation.accountAlias!}
-                    asset={operation.asset}
-                    value={formatNumber(operation?.amount)}
-                  />
-                ))}
+              {transaction.destination?.map(
+                (operation: TransactionOperationDto, index: number) => {
+                  // Show all credit operations including fees
+                  const displayValue = operation.amount
+
+                  return (
+                    <TransactionReceiptOperation
+                      key={index}
+                      type="credit"
+                      account={operation.accountAlias!}
+                      asset={operation.asset}
+                      value={formatNumber(displayValue)}
+                    />
+                  )
+                }
+              )}
               <Separator orientation="horizontal" />
               <TransactionReceiptItem
                 label={intl.formatMessage({
@@ -285,9 +281,13 @@ export default function TransactionDetailsPage() {
                 )}
               />
 
-              <FeeBreakdown 
-                transaction={transaction} 
-                originalAmount={originalAmount}
+              <FeeBreakdown
+                transaction={transaction}
+                originalAmount={
+                  transaction.metadata?.originalTransactionAmount
+                    ? Number(transaction.metadata.originalTransactionAmount)
+                    : Number(transaction.amount)
+                }
               />
             </TransactionReceipt>
 

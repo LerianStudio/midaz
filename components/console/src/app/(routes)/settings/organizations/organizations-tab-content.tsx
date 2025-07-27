@@ -99,7 +99,7 @@ export const OrganizationsTabContent = () => {
         <EntityBox.Actions>
           <Button onClick={() => handleCreateOrganization()}>
             {intl.formatMessage({
-              id: 'organizations.listingTemplate.addButton',
+              id: 'organizations.organizationView.newOrganization.title',
               defaultMessage: 'New Organization'
             })}
           </Button>

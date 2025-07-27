@@ -24,7 +24,6 @@ import { OperationAccordion } from './operation-accordion'
 import { MetaAccordionTransactionDetails } from './meta-accordion-transaction-details'
 import { SectionTitle } from './primitives'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
-import { FeeBreakdown } from '@/components/transactions/fee-breakdown'
 
 const initialValues = {
   description: '',
@@ -197,12 +196,6 @@ export const TransactionDataTab = ({
               )
             )}
           </div>
-
-          {/* Fee Breakdown section (visible only when fees are present) */}
-          <FeeBreakdown 
-            transaction={data} 
-            originalAmount={Number(data.amount)}
-          />
 
           <div>
             <MetaAccordionTransactionDetails

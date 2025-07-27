@@ -30,21 +30,21 @@ const feeMessages = defineMessages({
     id: 'transactions.fees.finalAmount',
     defaultMessage: 'Transaction final amount'
   },
-  senderPays: {
-    id: 'transactions.fees.senderPays',
-    defaultMessage: 'Amount sender pays'
+  sourcePays: {
+    id: 'transactions.fees.sourcePays',
+    defaultMessage: 'Amount source pays'
   },
-  recipientReceives: {
-    id: 'transactions.fees.recipientReceives',
-    defaultMessage: 'Amount recipient receives'
+  destinationReceives: {
+    id: 'transactions.fees.destinationReceives',
+    defaultMessage: 'Amount destination receives'
   },
-  feeDeductedFromRecipient: {
-    id: 'transactions.fees.deductedFromRecipient',
-    defaultMessage: 'Fee deducted from recipient'
+  feeDeductedFromDestination: {
+    id: 'transactions.fees.deductedFromDestination',
+    defaultMessage: 'Fee deducted from destination'
   },
-  feeChargedToSender: {
-    id: 'transactions.fees.chargedToSender',
-    defaultMessage: 'Fee charged to sender'
+  feeChargedToSource: {
+    id: 'transactions.fees.chargedToSource',
+    defaultMessage: 'Fee charged to source'
   },
   noFees: {
     id: 'transactions.fees.none',
@@ -140,7 +140,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
 
       const enhancedTotalValue = Number(feeData.send?.value || 0)
 
-      const originalDestinationOperation = destinationOperations.find(
+      const _originalDestinationOperation = destinationOperations.find(
         (operation: any) =>
           operation.amount?.asset === feeData.send?.asset &&
           operation.amount?.operation === 'CREDIT' &&
@@ -163,7 +163,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
           operation.accountAlias === feeData.send.source.from[0]?.accountAlias
       )
 
-      const recipientReceives = mainRecipient
+      const destinationReceives = mainRecipient
         ? Number(mainRecipient.amount.value)
         : originalAmount
       const totalFeesAmount = feeOperations.reduce(
@@ -172,7 +172,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
         0
       )
 
-      const isActuallyDeductible = recipientReceives < originalAmount
+      const isActuallyDeductible = destinationReceives < originalAmount
 
       const sourceAccount = feeData.send.source.from[0]?.accountAlias
       const destinationAccount = mainRecipient?.accountAlias
@@ -238,7 +238,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
           operation.accountAlias !== sourceAccountAlias
       )
 
-      const recipientReceives = mainDestinationOps.reduce(
+      const destinationReceives = mainDestinationOps.reduce(
         (accumulator: number, operation: TransactionOperationDto) =>
           accumulator + Number(operation.amount),
         0
@@ -251,7 +251,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
       )
 
       const isDeductibleFromDetected =
-        recipientReceives < originalAmount && totalFeesAmount > 0
+        destinationReceives < originalAmount && totalFeesAmount > 0
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
         (operation: TransactionOperationDto) => ({
@@ -264,7 +264,11 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
 
       const sourceAccount = source[0]?.accountAlias
       const destinationAccount = mainDestinationOps[0]?.accountAlias
-      const feeCollector = feeOperations[0]?.accountAlias
+      // For non-deductible fees, the source effectively pays the fees
+      // For deductible fees, the destination effectively pays by receiving less
+      const feeCollector = isDeductibleFromDetected
+        ? destinationAccount
+        : sourceAccount
 
       return {
         originalAmount,
@@ -282,7 +286,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
     ? (transaction as any).transaction?.send?.asset || 'USD'
     : (transaction as TransactionDto).asset || 'USD'
 
-  const formatFeeAmount = (amount: number) => {
+  const _formatFeeAmount = (amount: number) => {
     return amount > 0
       ? `+ ${asset} ${formatAmount(amount)}`
       : `(${intl.formatMessage(feeMessages.noFees)})`
@@ -302,12 +306,12 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
   const originalAmountNumber = Number(originalAmount)
   const totalFeesNumber = Number(totalFees)
 
-  const senderPaysAmount =
+  const sourcePaysAmount =
     feeCollector === sourceAccount
       ? originalAmountNumber + totalFeesNumber
       : originalAmountNumber
 
-  const recipientReceivesAmount =
+  const destinationReceivesAmount =
     feeCollector === destinationAccount
       ? isDeductibleFrom
         ? originalAmountNumber - totalFeesNumber // Destination receives less (fee deducted)
@@ -317,27 +321,6 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
   return (
     <React.Fragment>
       <Separator orientation="horizontal" />
-
-      <TransactionReceiptItem
-        label={intl.formatMessage({
-          id: 'transactions.fees.description',
-          defaultMessage:
-            feeCollector === sourceAccount
-              ? 'Fee paid by sender'
-              : feeCollector === destinationAccount
-                ? isDeductibleFrom
-                  ? 'Fee deducted from transaction'
-                  : 'Fee paid by destination'
-                : isDeductibleFrom
-                  ? 'Fee deducted from transaction'
-                  : 'Fee added to total cost'
-        })}
-        value={
-          <span className="font-medium text-blue-600">
-            {asset} {formatAmount(totalFees)}
-          </span>
-        }
-      />
 
       {appliedFees.map((fee, index) => (
         <TransactionReceiptItem
@@ -356,14 +339,11 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
       <TransactionReceiptItem
         label={intl.formatMessage({
           id: 'transactions.breakdown.senderPays',
-          defaultMessage:
-            feeCollector === sourceAccount
-              ? 'Sender pays (including fees)'
-              : 'Sender sends (original amount)'
+          defaultMessage: 'Source pays'
         })}
         value={
           <span className="font-medium text-neutral-700">
-            {asset} {formatAmount(senderPaysAmount)}
+            {asset} {formatAmount(sourcePaysAmount)}
           </span>
         }
       />
@@ -371,14 +351,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
       <TransactionReceiptItem
         label={intl.formatMessage({
           id: 'transactions.breakdown.destinationReceives',
-          defaultMessage:
-            feeCollector === destinationAccount
-              ? isDeductibleFrom
-                ? 'Destination receives (after fee deduction)'
-                : 'Destination pays fee and receives'
-              : isDeductibleFrom
-                ? 'Destination receives (reduced amount)'
-                : 'Destination receives (full amount)'
+          defaultMessage: 'Destination receives'
         })}
         value={
           <span
@@ -388,7 +361,7 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
                 : 'font-medium text-green-600'
             }
           >
-            {asset} {formatAmount(recipientReceivesAmount)}
+            {asset} {formatAmount(destinationReceivesAmount)}
           </span>
         }
       />

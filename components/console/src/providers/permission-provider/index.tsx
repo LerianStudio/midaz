@@ -17,7 +17,7 @@ const authPermissionUseCase = container.get<AuthPermission>(
 export const PermissionProvider = async ({
   children
 }: React.PropsWithChildren) => {
-  const session = await getServerSession(nextAuthOptions)
+  const _session = await getServerSession(nextAuthOptions)
 
   const permissions = await serverFetcher(
     async () => await authPermissionUseCase.execute()

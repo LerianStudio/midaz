@@ -49,7 +49,7 @@ type AccountsTableProps = {
     }
   }
   onDelete: (id: string, account: AccountDto) => void
-  refetch: () => void
+  _refetch: () => void
   handleCreate: () => void
   handleEdit: (account: AccountDto) => void
   total: number
@@ -140,7 +140,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
   onDelete,
   handleCreate,
   handleEdit,
-  refetch,
+  _refetch,
   total,
   pagination,
   form,
@@ -208,7 +208,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
                       <div className="inline-block">
                         <Button onClick={handleCreate} disabled>
                           {intl.formatMessage({
-                            id: 'common.new.account',
+                            id: 'accounts.sheet.create.title',
                             defaultMessage: 'New Account'
                           })}
                         </Button>
@@ -226,7 +226,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
               ) : (
                 <Button onClick={handleCreate}>
                   {intl.formatMessage({
-                    id: 'common.new.account',
+                    id: 'accounts.sheet.create.title',
                     defaultMessage: 'New Account'
                   })}
                 </Button>

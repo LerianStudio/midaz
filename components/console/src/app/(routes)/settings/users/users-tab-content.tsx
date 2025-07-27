@@ -98,7 +98,7 @@ export const UsersTabContent = () => {
         <EntityBox.Actions>
           <Button onClick={handleCreate}>
             {intl.formatMessage({
-              id: 'users.listingTemplate.addButton',
+              id: 'users.sheetCreate.title',
               defaultMessage: 'New User'
             })}
           </Button>

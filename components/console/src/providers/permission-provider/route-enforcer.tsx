@@ -30,7 +30,7 @@ export const RouteEnforcer = ({
             <Link href="/">
               <Button>
                 {intl.formatMessage({
-                  id: 'notAuthorized.backToHome',
+                  id: 'notFound.backToHome',
                   defaultMessage: 'Back to Home'
                 })}
               </Button>

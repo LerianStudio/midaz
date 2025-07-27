@@ -85,7 +85,6 @@ export class MidazTransactionMapper {
 
       filteredOperations.forEach((operation) => {
         if (isFee(operation)) {
-          // keep fee operations separate
           operationsMap.set(`${operation.accountAlias}-${Math.random()}`, {
             ...operation
           })

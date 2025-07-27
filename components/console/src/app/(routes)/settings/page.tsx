@@ -31,21 +31,21 @@ const Page = () => {
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.organizations`,
+        id: `organizations.title`,
         defaultMessage: 'Organizations'
       }),
       active: () => activeTab === 'organizations'
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.users`,
+        id: `users.title`,
         defaultMessage: 'Users'
       }),
       active: () => activeTab === 'users'
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.applications`,
+        id: `applications.title`,
         defaultMessage: 'Applications'
       }),
       active: () => activeTab === 'applications'
@@ -78,7 +78,7 @@ const Page = () => {
         <TabsList>
           <TabsTrigger value="organizations">
             {intl.formatMessage({
-              id: 'settings.tabs.organizations',
+              id: 'organizations.title',
               defaultMessage: 'Organizations'
             })}
           </TabsTrigger>
@@ -86,7 +86,7 @@ const Page = () => {
           <Enforce resource="users" action="get">
             <TabsTrigger value="users">
               {intl.formatMessage({
-                id: 'settings.tabs.users',
+                id: 'users.title',
                 defaultMessage: 'Users'
               })}
             </TabsTrigger>
@@ -95,7 +95,7 @@ const Page = () => {
           <Enforce resource="applications" action="get">
             <TabsTrigger value="applications">
               {intl.formatMessage({
-                id: 'settings.tabs.applications',
+                id: 'applications.title',
                 defaultMessage: 'Applications'
               })}
             </TabsTrigger>

@@ -198,7 +198,7 @@ export const EditUserForm = ({
                     <InputField
                       name="firstName"
                       label={intl.formatMessage({
-                        id: 'entity.user.name',
+                        id: 'common.name',
                         defaultMessage: 'Name'
                       })}
                       control={form.control}

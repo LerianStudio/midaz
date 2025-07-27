@@ -11,12 +11,9 @@ export async function getIntl() {
 
   let locale = ''
 
-  // If the user hasn't set a prefered language yet
   if (await hasCookie('locale', { cookies })) {
-    // If the user selected a locale, use it
     locale = (await getCookie('locale', { cookies })) as string
   } else {
-    // Set locale by looking for Accept Language header, as system defaults
     // If it fails to find, defaults to I18N default
     locale = await getLocale()
   }

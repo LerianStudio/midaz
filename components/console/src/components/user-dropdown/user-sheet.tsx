@@ -172,7 +172,7 @@ export const UserSheet = ({
             <TabsList className="mb-8 px-0">
               <TabsTrigger value="personal-information">
                 {intl.formatMessage({
-                  id: 'user.sheet.tabs.personal-information',
+                  id: 'users.sheet.tabs.personal-information',
                   defaultMessage: 'Personal Information'
                 })}
               </TabsTrigger>
@@ -196,7 +196,7 @@ export const UserSheet = ({
                       <InputField
                         name="firstName"
                         label={intl.formatMessage({
-                          id: 'entity.user.firstName',
+                          id: 'common.name',
                           defaultMessage: 'Name'
                         })}
                         control={profileForm.control}

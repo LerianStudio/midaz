@@ -21,14 +21,14 @@ export const GET = applyMiddleware(
     request: Request,
     {
       params
-    }: { params: { id: string; ledgerId: string; transactionId: string } }
+    }: {
+      params: Promise<{ id: string; ledgerId: string; transactionId: string }>
+    }
   ) => {
     try {
       const getTransactionByIdUseCase: FetchTransactionById =
         container.get<FetchTransactionById>(FetchTransactionByIdUseCase)
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
-      const transactionId = params.transactionId
+      const { id: organizationId, ledgerId, transactionId } = await params
 
       const transaction = await getTransactionByIdUseCase.execute(
         organizationId,

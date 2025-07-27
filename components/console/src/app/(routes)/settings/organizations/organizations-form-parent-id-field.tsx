@@ -29,7 +29,7 @@ export type OrganizationsFormParentIdFieldProps = {
   readOnly?: boolean
   control: Control<OrganizationFormData>
   value?: string | null
-  onChange?: (value: string | null) => void
+  onChange?: (_value: string | null) => void
 }
 
 export const OrganizationsFormParentIdField = ({
@@ -37,8 +37,8 @@ export const OrganizationsFormParentIdField = ({
   placeholder,
   description,
   readOnly,
-  value,
-  onChange,
+  value: _value,
+  onChange: _onChange,
   ...others
 }: OrganizationsFormParentIdFieldProps) => {
   const intl = useIntl()

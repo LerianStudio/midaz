@@ -57,7 +57,6 @@ export function useQueryParams<SearchParams = {}>({
       limit: pagination.limit.toString()
     }
 
-    // Avoid updating the URL if the searchParams are empty and the pagination is at the first page
     // Always update after that
     if (!(isEmpty(searchParams) && pagination.page === 1)) {
       updateSearchParams(newValues)
@@ -73,9 +72,7 @@ export function useQueryParams<SearchParams = {}>({
    * @see https://react-hook-form.com/docs/useform/watch
    */
   useEffect(() => {
-    // This subscription happens after the first render
     // In order to update this code, full page refresh is needed
-    // The form changes are debounced to avoid multiple calls from TextFields.
     const { unsubscribe } = form.watch(
       debounce((values) => {
         updateSearchParams(values)
@@ -90,12 +87,10 @@ export function useQueryParams<SearchParams = {}>({
    * Responsible to sync the URL with internal state at the first render
    */
   useEffect(() => {
-    // Do nothing if no searchParams are found
     if (isEmpty(searchParams)) {
       return
     }
 
-    // Pick only the values that are present in the form:
     // page, limit and anything inside initialValues
     const value = pick(searchParams, [
       'page',
@@ -103,7 +98,6 @@ export function useQueryParams<SearchParams = {}>({
       ...Object.keys(initialValues || [])
     ])
 
-    // Do nothing even if there are params present in the URL
     // but none is related to this form
     if (isEmpty(value)) {
       return

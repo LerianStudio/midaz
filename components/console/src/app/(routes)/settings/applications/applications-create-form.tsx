@@ -88,7 +88,7 @@ export const CreateApplicationForm = ({
               defaultMessage: 'Application Name'
             })}
             placeholder={intl.formatMessage({
-              id: 'combobox.placeholder',
+              id: 'common.typePlaceholder',
               defaultMessage: 'Type...'
             })}
             required

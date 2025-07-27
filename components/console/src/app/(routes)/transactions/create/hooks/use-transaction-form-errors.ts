@@ -81,11 +81,9 @@ export const useTransactionFormErrors = (
     const asset = values.asset
     const sources = values.source
 
-    // Check if source if has enough funds to
     // complete the transaction
     return sources
       .map((source) => {
-        // External accounts has untrusted balances
         if (source.accountAlias.includes(externalAccountAliasPrefix)) {
           return false
         }

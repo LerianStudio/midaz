@@ -13,7 +13,11 @@ export const SectionTitle = ({
   <h6 className={cn('text-xl font-bold text-zinc-700', className)} {...props} />
 )
 
-export const NextButton = ({ className, children, ...props }: ButtonProps) => (
+export const NextButton = ({
+  className,
+  children: _children,
+  ...props
+}: ButtonProps) => (
   <Button
     variant="plain"
     className={cn(

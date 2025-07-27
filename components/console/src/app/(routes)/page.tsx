@@ -15,7 +15,6 @@ import { MetricSection } from './metric-section'
 import { useOrganization } from '@/providers/organization-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Next Steps Card Component
 const NextStepsCard = ({
   title,
   description,
@@ -49,7 +48,6 @@ const NextStepsCard = ({
   </Card>
 )
 
-// Dev Resource Link Component
 const DevResourceLink = ({ title, href }: { title: string; href: string }) => (
   <div className="flex h-[18px] items-center gap-1.5">
     <a

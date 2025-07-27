@@ -37,38 +37,31 @@ export function useDefaultLedger({
   }
 
   useEffect(() => {
-    // Check if is there a organization selected
     if (current?.id) {
-      // Check if ledgers have been fetched
       // If not, we should not do anything
       if (!ledgers) {
         return
       }
 
-      // If this organization has no ledgers, set the current ledger to empty
       if (ledgers.length === 0) {
         setCurrentLedger({} as LedgerDto)
         return
       }
 
-      // Check if there is a default ledger saved onto local storage
       const ledger = ledgers?.find(
         ({ id }) => defaultLedgers[current.id!] === id
       )
 
       if (ledger) {
-        // If the ledger is found, set it as the current ledger
         setCurrentLedger(ledger)
         return
       }
 
-      // If the ledger is not found, set the first ledger as the current ledger
       setCurrentLedger(ledgers?.[0]!)
     }
   }, [current?.id, ledgers?.length])
 
   useEffect(() => {
-    // Update storage according to the current ledger
     if (currentLedger?.id) {
       save(current.id!, currentLedger.id!)
     }

@@ -1,6 +1,6 @@
 import { redirect, RedirectType } from 'next/navigation'
 import '@/app/globals.css'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 import React from 'react'
 import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 

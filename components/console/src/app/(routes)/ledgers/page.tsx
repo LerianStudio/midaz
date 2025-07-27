@@ -136,7 +136,7 @@ const Page = () => {
             />
             <Button onClick={handleCreate} data-testid="new-ledger">
               {intl.formatMessage({
-                id: 'ledgers.listingTemplate.addButton',
+                id: 'ledgers.sheetCreate.title',
                 defaultMessage: 'New Ledger'
               })}
             </Button>

@@ -77,7 +77,7 @@ export const BasicInformationPaper = ({
             name="value"
             type="number"
             label={intl.formatMessage({
-              id: 'entity.transaction.value',
+              id: 'common.value',
               defaultMessage: 'Value'
             })}
             control={control}

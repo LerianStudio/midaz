@@ -7,7 +7,7 @@ export type SidebarHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
 }
 
 const SidebarHeader = React.forwardRef<HTMLDivElement, SidebarHeaderProps>(
-  ({ className, collapsed, ...props }: SidebarHeaderProps, ref) => (
+  ({ collapsed, ...props }: SidebarHeaderProps, ref) => (
     <div
       ref={ref}
       data-collapsed={collapsed}

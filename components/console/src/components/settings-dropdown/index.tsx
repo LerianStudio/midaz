@@ -37,7 +37,7 @@ export const SettingsDropdown = () => {
         <DropdownMenuContent className="min-w-[241px]">
           <DropdownMenuLabel>
             {intl.formatMessage({
-              id: 'settingsDropdown.settings',
+              id: 'settings.title',
               defaultMessage: 'Settings'
             })}
           </DropdownMenuLabel>
@@ -47,7 +47,7 @@ export const SettingsDropdown = () => {
               <Building />
             </DropdownMenuItemIcon>
             {intl.formatMessage({
-              id: 'settingsDropdown.organizations',
+              id: 'organizations.title',
               defaultMessage: 'Organizations'
             })}
           </DropdownMenuItem>
@@ -59,7 +59,7 @@ export const SettingsDropdown = () => {
                 <Users />
               </DropdownMenuItemIcon>
               {intl.formatMessage({
-                id: 'settingsDropdown.users',
+                id: 'users.title',
                 defaultMessage: 'Users'
               })}
             </DropdownMenuItem>
@@ -72,7 +72,7 @@ export const SettingsDropdown = () => {
                 <Layers />
               </DropdownMenuItemIcon>
               {intl.formatMessage({
-                id: 'settingsDropdown.applications',
+                id: 'applications.title',
                 defaultMessage: 'Applications'
               })}
             </DropdownMenuItem>
@@ -82,7 +82,7 @@ export const SettingsDropdown = () => {
               <Globe />
             </DropdownMenuItemIcon>
             {intl.formatMessage({
-              id: 'settingsDropdown.system',
+              id: 'settings.tabs.system',
               defaultMessage: 'System'
             })}
           </DropdownMenuItem>

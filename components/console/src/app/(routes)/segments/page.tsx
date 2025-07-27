@@ -146,7 +146,7 @@ const Page = () => {
 
             <Button onClick={handleCreate} data-testid="new-segment">
               {intl.formatMessage({
-                id: 'segments.listingTemplate.addButton',
+                id: 'ledgers.segments.sheet.title',
                 defaultMessage: 'New Segment'
               })}
             </Button>

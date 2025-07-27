@@ -183,7 +183,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const { type, assetCode, entityId, ...updateData } = cleanedData
+      const { ...updateData } = cleanedData
       updateAccount(updateData)
     }
   }
@@ -252,7 +252,7 @@ export const AccountSheet = ({
                   </TabsTrigger>
                   <TabsTrigger value="portfolio">
                     {intl.formatMessage({
-                      id: 'entity.portfolio',
+                      id: 'common.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                   </TabsTrigger>
@@ -482,7 +482,7 @@ export const AccountSheet = ({
                     control={form.control}
                     name="portfolioId"
                     label={intl.formatMessage({
-                      id: 'accounts.field.portfolio',
+                      id: 'common.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                     tooltip={intl.formatMessage({

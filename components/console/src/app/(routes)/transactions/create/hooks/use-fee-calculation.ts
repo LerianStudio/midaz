@@ -16,7 +16,6 @@ export type FeeCalculationRequest = {
 }
 
 export type FeeCalculationResponse = {
-  // This should match the response structure from plugin-fees service
   // For now, we'll leave it as any until we understand the response format better
   [key: string]: any
 }

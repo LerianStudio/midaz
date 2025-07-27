@@ -84,7 +84,7 @@ export const CreateUserForm = ({
   })
 
   const handleSubmit = (formData: FormData) => {
-    const { confirmPassword, ...userData } = formData
+    const { ...userData } = formData
     createUser(userData)
   }
 
@@ -99,7 +99,7 @@ export const CreateUserForm = ({
             <InputField
               name="firstName"
               label={intl.formatMessage({
-                id: 'entity.user.name',
+                id: 'common.name',
                 defaultMessage: 'Name'
               })}
               control={form.control}

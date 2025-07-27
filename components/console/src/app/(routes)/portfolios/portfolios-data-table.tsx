@@ -165,7 +165,7 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'common.new.portfolio',
+                id: 'ledgers.portfolio.sheet.title',
                 defaultMessage: 'New Portfolio'
               })}
             </Button>

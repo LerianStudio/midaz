@@ -1,6 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
 import { useTransactionFormErrors } from './use-transaction-form-errors'
-import { TransactionMode } from './use-transaction-mode'
 import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
 
 jest.mock('react-intl', () => {

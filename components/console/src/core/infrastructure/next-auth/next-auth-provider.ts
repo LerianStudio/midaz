@@ -26,8 +26,8 @@ export const nextAuthOptions: NextAuthOptions = {
     warn(code) {
       console.warn(code)
     },
-    debug(code, metadata) {
-      console.debug(code, metadata)
+    debug() {
+      // Intentionally empty - debug logging disabled
     }
   },
 
@@ -40,7 +40,7 @@ export const nextAuthOptions: NextAuthOptions = {
       },
       type: 'credentials',
 
-      async authorize(credentials, req) {
+      async authorize(credentials, _req) {
         const midazLogger = container.get<LoggerAggregator>(LoggerAggregator)
         const requestIdRepository: RequestIdRepository =
           container.get<RequestIdRepository>(RequestIdRepository)
@@ -99,7 +99,13 @@ export const nextAuthOptions: NextAuthOptions = {
       return token
     },
     session: async ({ session, token }) => {
-      session.user = token
+      session.user = {
+        ...session.user,
+        id: token.id as string,
+        username: token.username as string,
+        access_token: token.access_token as string,
+        refresh_token: token.refresh_token as string
+      }
       return session
     }
   }

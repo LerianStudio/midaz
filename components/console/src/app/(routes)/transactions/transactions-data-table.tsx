@@ -100,7 +100,6 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     destination = []
   } = transaction.original
 
-  // Identify potential fee operations among destinations
   const sourceAliases = new Set(
     source.map((sourceItem) => sourceItem.accountAlias?.toLowerCase())
   )
@@ -298,7 +297,7 @@ export const TransactionsDataTable = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.transactions.value',
+                      id: 'common.value',
                       defaultMessage: 'Value'
                     })}
                   </TableHead>

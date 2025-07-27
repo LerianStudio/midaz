@@ -7,9 +7,6 @@ interface ClientLocalizationProviderProps extends React.PropsWithChildren {
   messages: React.ComponentProps<typeof IntlProvider>['messages']
 }
 
-/**
- * Client side of LocalizationProvider, to allow hooks usage on client side components
- */
 export const ClientLocalizationProvider = ({
   messages,
   locale,

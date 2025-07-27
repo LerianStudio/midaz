@@ -155,7 +155,7 @@ const Page = () => {
 
             <Button onClick={handleCreate} data-testid="new-ledger">
               {intl.formatMessage({
-                id: 'assets.listingTemplate.addButton',
+                id: 'ledgers.assets.sheet.title',
                 defaultMessage: 'New Asset'
               })}
             </Button>
@@ -194,7 +194,7 @@ const Page = () => {
         {...dialogProps}
       />
 
-      <AssetsSheet ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
+      <AssetsSheet _ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
 
       <div className="mt-10">
         {isLoading && <AssetsSkeleton />}

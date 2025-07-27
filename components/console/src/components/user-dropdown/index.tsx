@@ -20,7 +20,7 @@ import { useUserById } from '@/client/users'
 export const UserDropdown = () => {
   const intl = useIntl()
   const { data: session } = useSession()
-  const { handleEdit, sheetProps } = useCreateUpdateSheet<any>({
+  const { handleEdit, sheetProps: _sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
   })
   const [openSettings, setOpenSettings] = useState(false)
@@ -28,11 +28,12 @@ export const UserDropdown = () => {
   const isAuthPluginEnabled =
     process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
 
-  const userData = isAuthPluginEnabled
-    ? useUserById({ userId: session?.user?.id })
-    : null
+  const userData =
+    isAuthPluginEnabled && session?.user?.id
+      ? useUserById({ userId: session.user.id })
+      : null
 
-  const handleOpenUserSheet = () => {
+  const _handleOpenUserSheet = () => {
     handleEdit(userData?.data)
   }
 

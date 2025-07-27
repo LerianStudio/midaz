@@ -27,34 +27,26 @@ export function useDefaultOrg({
     setDefaultOrg(id)
   }
 
-  // Initialize a current organization
   useEffect(() => {
-    // We should never set a default if no organization is found
     if (isNil(organizations)) {
       return
     }
 
-    // Check if there is a default organization saved onto local storage
     if (defaultOrg) {
-      // Search for the organization with the id
       const org = organizations.find(({ id }) => defaultOrg === id)
 
-      // If the organization is found, set it as the current organization
       if (org) {
         setCurrent(org)
         return
       }
     }
 
-    // If there is no default organization saved or the organization is not found
     if (organizations.length > 0) {
-      // Set the first organization as the current one
       setCurrent(organizations[0])
     }
   }, [organizations])
 
   useEffect(() => {
-    // Update storage according to the current organization
     if (current?.id) {
       save(current.id)
     }

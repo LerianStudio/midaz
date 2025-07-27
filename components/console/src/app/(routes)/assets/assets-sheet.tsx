@@ -29,7 +29,7 @@ import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { AssetDto } from '@/core/application/dto/asset-dto'
 
 export type AssetsSheetProps = DialogProps & {
-  ledgerId: string
+  _ledgerId: string
   mode: 'create' | 'edit'
   data?: any
   onSuccess?: () => void
@@ -52,7 +52,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>
 
 export const AssetsSheet = ({
-  ledgerId,
+  _ledgerId,
   mode,
   data,
   onSuccess,
@@ -114,7 +114,7 @@ export const AssetsSheet = ({
     if (mode === 'create') {
       createAsset(data)
     } else if (mode === 'edit') {
-      const { type, code, ...payload } = data
+      const { ...payload } = data
       updateAsset(payload)
     }
   }

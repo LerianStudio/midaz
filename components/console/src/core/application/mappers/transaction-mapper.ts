@@ -18,18 +18,7 @@ export class TransactionMapper {
   }
 
   static toResponseDto(transaction: TransactionEntity): TransactionDto {
-
-    // Check if this is a fee API response (has segmentId and transaction properties)
-    if (
-      transaction &&
-      typeof transaction === 'object' &&
-      'segmentId' in transaction &&
-      'transaction' in transaction
-    ) {
-      return transaction as any
-    }
-
-    const result = {
+    return {
       id: transaction.id!,
       ledgerId: transaction.ledgerId!,
       organizationId: transaction.organizationId!,
@@ -45,8 +34,6 @@ export class TransactionMapper {
       updatedAt: transaction.updatedAt,
       deletedAt: transaction.deletedAt
     }
-
-    return result
   }
 
   static toPaginatedResponseDto(

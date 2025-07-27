@@ -166,7 +166,7 @@ export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
           >
             <Button variant="default" onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'ledgers.assets.emptyResource.createButton',
+                id: 'ledgers.assets.sheet.title',
                 defaultMessage: 'New Asset'
               })}
             </Button>

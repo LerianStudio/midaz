@@ -128,7 +128,7 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'common.new.segment',
+                id: 'ledgers.segments.sheet.title',
                 defaultMessage: 'New Segment'
               })}
             </Button>

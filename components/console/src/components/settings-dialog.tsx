@@ -29,7 +29,7 @@ const SettingsDialog = ({ open, setOpen }: Props) => {
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">
             {intl.formatMessage({
-              id: 'settingsDialog.title',
+              id: 'settings.title',
               defaultMessage: 'Settings'
             })}
           </DialogTitle>
@@ -46,7 +46,7 @@ const SettingsDialog = ({ open, setOpen }: Props) => {
           <div className="mt-4 grid grid-cols-5 items-center gap-4">
             <Label htmlFor="name" className="text-right font-semibold">
               {intl.formatMessage({
-                id: 'entity.user.name',
+                id: 'common.name',
                 defaultMessage: 'Name'
               })}
             </Label>

@@ -1,7 +1,6 @@
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { CreateOrganizationDto } from '../dto/organization-dto'
 import { OrganizationDto } from '../dto/organization-dto'
-import { PaginationMapper } from './pagination-mapper'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 
