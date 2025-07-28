@@ -1,3 +1,23 @@
+## [v3.0.0-beta.10] - 2025-07-28
+
+This release of midaz enhances deployment and configuration processes, addresses critical authentication issues, and updates documentation to streamline user setup and experience.
+
+### ✨ Features  
+- **Streamlined Deployment**: The build and configuration processes have been enhanced to simplify new installations and improve compatibility with various environments. This makes it easier for users to deploy and integrate midaz into their systems efficiently.
+
+### 🐛 Bug Fixes
+- **Authentication Reliability**: Fixed issues in the authentication component that previously caused failures under certain conditions. Users will now experience more reliable and consistent access.
+- **Configuration Accuracy**: Corrected configuration examples in the documentation, preventing potential runtime errors and reducing user frustration during setup.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: The `.env.local.example` file has been revised to reflect the latest configuration options, offering clearer guidance for setting up local environments and minimizing errors.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: General updates to the authentication scripts enhance code maintainability, ensuring a robust foundation for future development.
+- **Changelog Updates**: The changelog has been meticulously updated to document all recent changes, supporting transparency and aiding in tracking the project's evolution.
+
+This release focuses on improving the user setup experience, ensuring reliable authentication, and maintaining up-to-date documentation for seamless integration and operation.
+
 ## [v3.0.0-beta.9] - 2025-07-28
 
 This release of the Firmino platform introduces significant enhancements to performance and user experience, focusing on parallel processing and thread flow updates.
