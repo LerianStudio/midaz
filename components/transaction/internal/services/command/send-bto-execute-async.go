@@ -61,21 +61,6 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		QueueData:      queueData,
 	}
 
-	redisMessage := redis.RedisMessage{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ID:        tran.ID,
-		Payload:   queueMessage,
-		Timestamp: tran.CreatedAt.Unix(),
-		Status:    constant.PENDING,
-	}
-
-	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to redis backup queue", err)
-
-		logger.Warnf("Failed to send BTO to redis backup queue: %s", err.Error())
-	}
-
 	message, err := msgpack.Marshal(queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal exchange message struct", err)
