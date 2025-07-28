@@ -34,8 +34,9 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
     {
       name,
       value,
-      format = getRuntimeEnv(
-        'NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT'
+      format = (
+        getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT') ||
+        process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT
       )?.split(',') ?? ['png', 'svg'],
       onChange,
       readOnly
