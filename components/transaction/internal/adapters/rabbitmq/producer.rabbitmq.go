@@ -2,15 +2,17 @@ package rabbitmq
 
 import (
 	"context"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"math/rand"
-	"os"
-	"strings"
-	"time"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -64,6 +66,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
+
+	spanProducer.SetAttributes(
+		attribute.String("exchange", exchange),
+		attribute.String("key", key),
+		attribute.String("message", string(message)),
+	)
 
 	var err error
 

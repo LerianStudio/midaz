@@ -111,7 +111,14 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					tracer := libCommons.NewTracerFromContext(ctx)
 					ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-					err := handlerFunc(ctx, msg.Body)
+					obfuscator := libOpentelemetry.NewDefaultObfuscator()
+
+					err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "message", msg, obfuscator)
+					if err != nil {
+						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
+					}
+
+					err = handlerFunc(ctx, msg.Body)
 					if err != nil {
 						libOpentelemetry.HandleSpanError(&spanConsumer, "Error processing message from queue", err)
 

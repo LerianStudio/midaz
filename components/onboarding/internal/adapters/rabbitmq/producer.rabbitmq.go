@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -63,7 +64,19 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
+	spanProducer.SetAttributes(
+		attribute.String("exchange", exchange),
+		attribute.String("key", key),
+	)
+
 	var err error
+
+	obfuscator := libOpentelemetry.NewDefaultObfuscator()
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanProducer, "message", queueMessage, obfuscator)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
+	}
 
 	backoff := initialBackoff
 

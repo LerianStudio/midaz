@@ -99,6 +99,13 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 		ctxWithBackground, span = tracer.Start(ctxWithBackground, "redis.consumer.process_message")
 
+		obfuscator := libOpentelemetry.NewDefaultObfuscator()
+
+		err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "message", msg, obfuscator)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert message to JSON string", err)
+		}
+
 		if msg.Timestamp > cutoff {
 			totalMessagesLessThanOneHour++
 

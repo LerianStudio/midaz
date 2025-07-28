@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
@@ -15,9 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"github.com/vmihailenco/msgpack/v5"
-	"strconv"
-	"strings"
-	"time"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 //go:embed scripts/add_sub.lua
@@ -63,6 +65,12 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
+	span.SetAttributes(
+		attribute.String("key", key),
+		attribute.String("value", value),
+		attribute.Int64("ttl", int64(ttl)),
+	)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -88,6 +96,12 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("key", key),
+		attribute.String("value", value),
+		attribute.Int64("ttl", int64(ttl)),
+	)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -115,6 +129,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
+	span.SetAttributes(attribute.String("key", key))
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
@@ -133,6 +149,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 		return "", err
 	}
 
+	span.SetAttributes(attribute.String("value", val))
+
 	logger.Infof("value : %v", val)
 
 	return val, nil
@@ -144,6 +162,8 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
+
+	span.SetAttributes(attribute.String("key", key))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -170,6 +190,8 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
 
+	span.SetAttributes(attribute.String("key", key))
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -186,6 +208,24 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("key", key),
+		attribute.String("transactionStatus", transactionStatus),
+		attribute.Bool("pending", pending),
+	)
+
+	obfuscator := libOpentelemetry.NewDefaultObfuscator()
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "amount", amount, obfuscator)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert amount to JSON string", err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "balance", balance, obfuscator)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance to JSON string", err)
+	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -291,6 +331,14 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, msg Re
 	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
 	defer span.End()
 
+	span.SetAttributes(
+		attribute.String("redis.message.header_id", msg.HeaderID),
+		attribute.String("redis.message.traceparent", msg.Traceparent),
+		attribute.String("redis.message.id", msg.ID),
+		attribute.String("redis.message.status", msg.Status),
+		attribute.Int64("redis.message.timestamp", msg.Timestamp),
+	)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "failed to get redis client", err)
@@ -351,6 +399,8 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		messages = append(messages, msg)
 	}
 
+	span.SetAttributes(attribute.Int("total_messages", len(messages)))
+
 	logger.Infof("Total read %d messages on redis queue", len(messages))
 
 	return messages, nil
@@ -363,6 +413,8 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, i
 
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
 	defer span.End()
+
+	span.SetAttributes(attribute.String("id", id))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -388,6 +440,12 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("key", key),
+		attribute.Int("len", len(value)),
+		attribute.Int64("ttl", int64(ttl)),
+	)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -415,6 +473,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
 
+	span.SetAttributes(attribute.String("key", key))
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -428,6 +488,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.Int("len", len(val)))
 
 	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
 
