@@ -169,6 +169,8 @@ end
 local function main()
     local ttl = 3600
     local key = KEYS[1]
+    local lockKey = KEYS[2]
+    local lockValue = KEYS[3]
 
     local isPending = tonumber(ARGV[1])
     local transactionStatus = ARGV[2]
@@ -187,6 +189,11 @@ local function main()
         AssetCode = ARGV[12],
         AccountID = ARGV[13],
     }
+
+    local acquired = redis.call("SETNX", lockKey, lockValue)
+    if acquired ~= 1 then
+        return redis.error_reply("0086")
+    end
 
     local newBalanceEncoded = cjson.encode(balance)
     local ok = redis.call("SET", key, newBalanceEncoded, "EX", ttl, "NX")
@@ -244,6 +251,10 @@ local function main()
 
     local finalBalanceEncoded = cjson.encode(balance)
     redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
+
+    if redis.call("GET", lockKey) == lockValue then
+        redis.call("DEL", lockKey)
+    end
 
     return balanceEncoded
 end

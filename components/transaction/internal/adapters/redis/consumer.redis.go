@@ -229,7 +229,16 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	script := redis.NewScript(addSubLua)
 
-	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	lockBalanceKey := libCommons.BalanceInternalKey(balance.OrganizationID, balance.LedgerID, balance.Alias)
+	lockBalanceValue := libCommons.GenerateUUIDv7().String()
+
+	keys := []string{
+		key,
+		lockBalanceKey,
+		lockBalanceValue,
+	}
+
+	result, err := script.Run(ctx, rds, keys, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
