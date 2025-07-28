@@ -1,3 +1,18 @@
+## [v3.0.0-beta.9] - 2025-07-28
+
+This release of the Firmino platform introduces significant enhancements to performance and user experience, focusing on parallel processing and thread flow updates.
+
+### ✨ Features
+- **Parallel Processing Configuration**: Experience faster performance with our new parallel processing feature. This update allows multiple operations to run concurrently, drastically reducing wait times and enhancing system efficiency for a smoother user experience.
+
+### ⚡ Performance
+- **Thread Flow Updates**: We've optimized the way updates are processed in the Firmino platform, ensuring that system responsiveness and reliability are improved. This means smoother operations and less downtime for users, contributing to a more seamless experience.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest enhancements, ensuring you have access to the most current information about system updates.
+
+These updates are designed to improve the efficiency and reliability of the Firmino platform, providing a more seamless and responsive experience for users. No user intervention is required to benefit from these enhancements.
+
 ## [v3.0.0-beta.8] - 2025-07-25
 
 This release focuses on improving the reliability and clarity of date and time handling across the system, enhancing data consistency and user experience.
