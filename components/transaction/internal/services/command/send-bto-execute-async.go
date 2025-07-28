@@ -6,8 +6,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
@@ -59,21 +57,6 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		QueueData:      queueData,
-	}
-
-	redisMessage := redis.RedisMessage{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ID:        tran.ID,
-		Payload:   queueMessage,
-		Timestamp: tran.CreatedAt.Unix(),
-		Status:    constant.PENDING,
-	}
-
-	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to redis backup queue", err)
-
-		logger.Warnf("Failed to send BTO to redis backup queue: %s", err.Error())
 	}
 
 	message, err := msgpack.Marshal(queueMessage)
@@ -149,21 +132,6 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		QueueData:      queueData,
-	}
-
-	redisMessage := redis.RedisMessage{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ID:        tran.ID,
-		Payload:   queueMessage,
-		Timestamp: tran.CreatedAt.Unix(),
-		Status:    constant.PENDING,
-	}
-
-	err = uc.RedisRepo.AddMessageToQueue(ctx, redisMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to send BTO to redis backup queue", err)
-
-		logger.Warnf("Failed to send BTO to redis backup queue: %s", err.Error())
 	}
 
 	err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTODirect, queueMessage)

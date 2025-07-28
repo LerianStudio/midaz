@@ -45,7 +45,16 @@ services:
     environment:
       - REDIS_USER=${REDIS_USER}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}",  "--port", "${REDIS_PORT}"]
+    command:
+      [
+        "redis-server",
+        "--requirepass", "${REDIS_PASSWORD}",
+        "--port", "${REDIS_PORT}",
+        "--lua-time-limit", "3000",
+        "--stop-writes-on-bgsave-error", "no",
+        "--appendonly", "yes",
+        "--appendfsync", "everysec"
+      ]
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
     volumes:
