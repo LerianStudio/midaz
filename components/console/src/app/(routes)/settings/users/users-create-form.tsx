@@ -12,7 +12,7 @@ import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { PasswordField } from '@/components/form/password-field'
 import { useToast } from '@/hooks/use-toast'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 import { UserDto } from '@/core/application/dto/user-dto'
 
 const FormSchema = z

@@ -135,26 +135,21 @@ export type TransactionReceiptSubjectsProps = HTMLAttributes<HTMLDivElement> & {
 export const TransactionReceiptSubjects = forwardRef<
   HTMLDivElement,
   TransactionReceiptSubjectsProps
->(
-  (
-    { className, sources, destinations, children: _children, ...props },
-    ref
-  ) => (
-    <div
-      ref={ref}
-      className={cn('flex flex-row items-center gap-5', className)}
-      {...props}
-    >
-      <div className="flex flex-col text-base font-normal">
-        {sources?.map((source, index) => <p key={index}>{source}</p>)}
-      </div>
-      <ArrowRight className="h-3 w-3 text-zinc-800" />
-      <div className="flex flex-col text-base font-normal">
-        {destinations?.map((source, index) => <p key={index}>{source}</p>)}
-      </div>
+>(({ className, sources, destinations, children, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn('flex flex-row items-center gap-5', className)}
+    {...props}
+  >
+    <div className="flex flex-col text-base font-normal">
+      {sources?.map((source, index) => <p key={index}>{source}</p>)}
     </div>
-  )
-)
+    <ArrowRight className="h-3 w-3 text-zinc-800" />
+    <div className="flex flex-col text-base font-normal">
+      {destinations?.map((source, index) => <p key={index}>{source}</p>)}
+    </div>
+  </div>
+))
 TransactionReceiptSubjects.displayName = 'TransactionReceiptSubjects'
 
 export type TransactionReceiptItemProps = HTMLAttributes<HTMLDivElement> & {

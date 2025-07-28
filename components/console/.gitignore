@@ -62,3 +62,7 @@ node_modules/
 
 # AI Rules
 .cursor/
+
+# YALC
+.yalc/
+yalc.lock

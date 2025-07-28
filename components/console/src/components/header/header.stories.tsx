@@ -1,10 +1,10 @@
 import React from 'react'
 import { Meta, StoryObj } from '@storybook/nextjs'
-import { Header, StaticHeader } from '.'
+import { StaticHeader } from '.'
 
 const meta: Meta = {
   title: 'Components/Header',
-  component: Header,
+  component: StaticHeader,
   parameters: {
     nextjs: {
       appDirectory: true
@@ -13,14 +13,6 @@ const meta: Meta = {
 }
 
 export default meta
-
-export const Primary: StoryObj = {
-  render: (args) => (
-    <div className="flex-column flex h-80 bg-zinc-100 p-6">
-      <Header {...args} />
-    </div>
-  )
-}
 
 export const StaticHeaderExample: StoryObj = {
   render: (args) => (

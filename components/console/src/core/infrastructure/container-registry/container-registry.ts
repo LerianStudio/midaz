@@ -11,7 +11,7 @@ import { ControllersModule } from './controllers/controllers-module'
 import { VersionModule } from './version/version-module'
 import { FeeModule } from './fee/fee-module'
 
-export const container = new Container()
+const container = new Container()
 
 container.load(ControllersModule)
 container.load(MidazPluginsModule)
@@ -22,3 +22,5 @@ container.load(DatabaseModule)
 container.load(UseCasesModule)
 container.load(OtelModule)
 container.load(FeeModule)
+
+export { container }

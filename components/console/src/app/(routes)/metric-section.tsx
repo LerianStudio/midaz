@@ -1,7 +1,7 @@
 'use client'
 
 import { useIntl } from 'react-intl'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useHomeMetrics } from '@/client/home'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
 import {
   getCoreRowModel,
@@ -23,6 +23,10 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { useListAssets } from '@/client/assets'
 import { useToast } from '@/hooks/use-toast'
 import { AccountDto } from '@/core/application/dto/account-dto'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { InputField } from '@/components/form'
 
 const Page = () => {
   const intl = useIntl()
@@ -33,7 +37,10 @@ const Page = () => {
   const [total, setTotal] = useState(0)
 
   const { form, searchValues, pagination } = useQueryParams({
-    total
+    total,
+    initialValues: {
+      alias: ''
+    }
   })
 
   const {
@@ -43,7 +50,7 @@ const Page = () => {
   } = useAccountsWithPortfolios({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
 
   useEffect(() => {
@@ -279,7 +286,23 @@ const Page = () => {
         {...sheetProps}
       />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="alias"
+              placeholder={intl.formatMessage({
+                id: 'accounts.search.placeholder',
+                defaultMessage: 'Search by ID or Alias...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isAccountsLoading && <AccountsSkeleton />}
 
         {!isAccountsLoading && accountsList && !isAssetsLoading && (
@@ -293,11 +316,10 @@ const Page = () => {
             _refetch={refetchAccounts}
             total={total}
             pagination={pagination}
-            form={form}
             hasAssets={hasAssets || false}
           />
         )}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

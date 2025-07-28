@@ -1,11 +1,11 @@
 import { inject, injectable } from 'inversify'
 import { AuthPermissionRepository } from '@/core/domain/repositories/auth/auth-permission-repository'
-import { AuthPermissionResponseDto } from '../../dto/auth-dto'
+import { AuthPermissionDto } from '../../dto/auth-dto'
 import { AuthPermissionMapper } from '../../mappers/auth-permission-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface AuthPermission {
-  execute: () => Promise<AuthPermissionResponseDto>
+  execute: () => Promise<AuthPermissionDto>
 }
 
 @injectable()
@@ -16,7 +16,7 @@ export class AuthPermissionUseCase implements AuthPermission {
   ) {}
 
   @LogOperation({ layer: 'application' })
-  async execute(): Promise<AuthPermissionResponseDto> {
+  async execute(): Promise<AuthPermissionDto> {
     const authPermissionResponse =
       await this.authPermissionRepository.getPermissions()
 

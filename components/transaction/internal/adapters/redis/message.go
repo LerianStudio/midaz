@@ -4,6 +4,7 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisMessage is a struct that represents a redis message.
 type RedisMessage struct {
+	HeaderID  string `msgpack:"header_id"`
 	ID        string `msgpack:"id"`
 	Payload   any    `msgpack:"payload"`
 	Timestamp int64  `msgpack:"timestamp"`

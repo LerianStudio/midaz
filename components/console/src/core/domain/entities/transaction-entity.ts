@@ -1,5 +1,10 @@
 import { MetadataEntity } from './metadata-entity'
+import { PaginationSearchEntity } from './pagination-entity'
 import { StatusEntity } from './status-entity'
+
+export type TransactionSearchEntity = PaginationSearchEntity & {
+  id?: string
+}
 
 type TransactionSourceDto = {
   accountAlias: string

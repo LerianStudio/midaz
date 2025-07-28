@@ -1,8 +1,9 @@
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
-import { OrganizationDto } from '../../dto/organization-dto'
+import {
+  OrganizationDto,
+  type OrganizationSearchParamDto
+} from '../../dto/organization-dto'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationDto } from '../../dto/pagination-dto'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
@@ -11,8 +12,7 @@ import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-av
 
 export interface FetchAllOrganizations {
   execute: (
-    limit: number,
-    page: number
+    query: OrganizationSearchParamDto
   ) => Promise<PaginationDto<OrganizationDto>>
 }
 
@@ -27,17 +27,15 @@ export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
 
   @LogOperation({ layer: 'application' })
   async execute(
-    limit: number,
-    page: number
+    query: OrganizationSearchParamDto
   ): Promise<PaginationDto<OrganizationDto>> {
-    const organizationsResult: PaginationEntity<OrganizationEntity> =
-      await this.organizationRepository.fetchAll(limit, page)
+    const organizations = await this.organizationRepository.fetchAll(query)
 
-    if (!organizationsResult.items.length) {
-      return OrganizationMapper.toPaginationResponseDto(organizationsResult)
+    if (!organizations?.items?.length) {
+      return OrganizationMapper.toPaginationResponseDto(organizations)
     }
 
-    const organizationIds: string[] = organizationsResult.items.map(
+    const organizationIds: string[] = organizations.items.map(
       (organization) => organization.id
     ) as string[]
 
@@ -47,7 +45,7 @@ export class FetchAllOrganizationsUseCase implements FetchAllOrganizations {
       )
 
     return OrganizationMapper.toPaginationResponseDto(
-      organizationsResult,
+      organizations,
       organizationAvatars
     )
   }

@@ -5,14 +5,13 @@ import grafismo from 'public/svg/grafismo.svg'
 import banner from 'public/svg/banner.svg'
 import { useIntl } from 'react-intl'
 import { PageContent, PageRoot, PageView } from '@/components/page'
-import { Sidebar } from '@/components/sidebar'
-import { Header } from '@/components/header'
+import { Sidebar, Header } from '@lerianstudio/console-layout'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Link2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { MetricSection } from './metric-section'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const NextStepsCard = ({
@@ -78,7 +77,7 @@ const Page = () => {
               <div className="flex w-full gap-24 pr-24 pl-44">
                 <div className="flex flex-col gap-4 pt-24">
                   <h1 className="text-4xl leading-[1.21] font-bold text-zinc-900">
-                    {currentLedger.name ?? <Skeleton className="h-11 w-64" />}
+                    {currentLedger?.name ?? <Skeleton className="h-11 w-64" />}
                   </h1>
                   <p className="text-sm leading-6 font-medium -tracking-[1.1%] text-zinc-800/80">
                     {intl.formatMessage({

@@ -13,6 +13,7 @@ import { HTMLInputTypeAttribute, ReactNode } from 'react'
 import { Control } from 'react-hook-form'
 
 export type InputFieldProps = {
+  className?: string
   name: string
   type?: HTMLInputTypeAttribute
   label?: ReactNode
@@ -33,6 +34,7 @@ export type InputFieldProps = {
   ) => void
 }
 export const InputField = ({
+  className,
   type,
   label,
   tooltip,
@@ -65,6 +67,7 @@ export const InputField = ({
           <FormControl>
             {textArea ? (
               <AutosizeTextarea
+                className={className}
                 placeholder={placeholder}
                 readOnly={readOnly}
                 minHeight={minHeight}
@@ -78,6 +81,7 @@ export const InputField = ({
               />
             ) : (
               <Input
+                className={className}
                 type={type}
                 placeholder={placeholder}
                 readOnly={readOnly}

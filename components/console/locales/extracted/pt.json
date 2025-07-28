@@ -732,5 +732,7 @@
   "users.showing": "Mostrando {count} {number, plural, =0 {usuários} one {usuário} other {usuários}}.",
   "users.subtitle": "Gerencie os usuários do Midaz.",
   "users.title": "Usuários",
-  "users.tooltip": "Usuários que poderão interagir com as Organizações e Ledgers que você criar."
+  "users.tooltip": "Usuários que poderão interagir com as Organizações e Ledgers que você criar.",
+  "accounts.search.placeholder": "Buscar por ID ou Alias...",
+  "common.searchById": "Buscar por ID..."
 }

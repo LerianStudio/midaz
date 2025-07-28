@@ -1,6 +1,5 @@
 import { ReactNode } from 'react'
-import { Header } from '@/components/header'
-import { Sidebar } from '@/components/sidebar'
+import { Header, Sidebar } from '@lerianstudio/console-layout'
 import { PageContent, PageRoot, PageView } from '@/components/page'
 
 export default function RootLayout({ children }: { children: ReactNode }) {

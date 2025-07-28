@@ -40,7 +40,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		Source:         Source,
 		EventType:      EventType,
 		Action:         tran.Status.Code,
-		TimeStamp:      time.Now().String(),
+		TimeStamp:      time.Now(),
 		Version:        os.Getenv("VERSION"),
 		OrganizationID: tran.OrganizationID,
 		LedgerID:       tran.LedgerID,

@@ -3,6 +3,11 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/pkg"
@@ -14,10 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gopkg.in/go-playground/validator.v9"
-	"reflect"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -157,6 +158,8 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
 			case "invalidaliascharacters":
 				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaccounttype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
 			}
 		}
 
@@ -217,6 +220,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
 	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
+	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -294,6 +298,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("invalidaliascharacters", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaliascharacters", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("invalidaccounttype", trans, func(ut ut.Translator) error {
+		return ut.Add("invalidaccounttype", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("invalidaccounttype", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -390,6 +402,18 @@ func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
+}
+
+// validateAccountType checks if the string contains only alphanumeric characters, _ or -, and no spaces.
+func validateAccountType(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	match, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, f)
+
+	return match
 }
 
 // formatErrorFieldName formats metadata field error names for error messages

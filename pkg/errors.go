@@ -10,7 +10,7 @@ import (
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
-// You can use it to representing a Database not found, cache not found or any other repository.
+// You can use it to represent a Database not found, cache not found or any other repository.
 type EntityNotFoundError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -41,8 +41,8 @@ func (e EntityNotFoundError) Unwrap() error {
 	return e.Err
 }
 
-// ValidationError records an error indicating an entity was not found in any case that caused it.
-// You can use it to representing a Database not found, cache not found or any other repository.
+// ValidationError records an error indicating some validation have failed in any case that caused it.
+// You can use it to represent a validation error or any other repository.
 type ValidationError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -66,7 +66,7 @@ func (e ValidationError) Unwrap() error {
 }
 
 // EntityConflictError records an error indicating an entity already exists in some repository
-// You can use it to representing a Database conflict, cache or any other repository.
+// You can use it to represent a Database conflict, cache or any other repository.
 type EntityConflictError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -89,7 +89,7 @@ func (e EntityConflictError) Unwrap() error {
 	return e.Err
 }
 
-// UnauthorizedError indicates an operation that couldn't be performant because there's no user authenticated.
+// UnauthorizedError indicates an operation that couldn't be performed because there's no user authenticated.
 type UnauthorizedError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -102,7 +102,7 @@ func (e UnauthorizedError) Error() string {
 	return e.Message
 }
 
-// ForbiddenError indicates an operation that couldn't be performant because the authenticated user has no sufficient privileges.
+// ForbiddenError indicates an operation that couldn't be performed because the authenticated user has no sufficient privileges.
 type ForbiddenError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -115,7 +115,7 @@ func (e ForbiddenError) Error() string {
 	return e.Message
 }
 
-// UnprocessableOperationError indicates an operation that couldn't be performant because it's invalid.
+// UnprocessableOperationError indicates an operation that couldn't be performed because it's invalid.
 type UnprocessableOperationError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -154,7 +154,7 @@ func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
 
-// InternalServerError indicates a precondition failed during an operation.
+// InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -205,7 +205,7 @@ func (r ValidationKnownFieldsError) Error() string {
 // FieldValidations is a map of known fields and their validation errors.
 type FieldValidations map[string]string
 
-// ValidationUnknownFieldsError records an error that occurred during a validation of known fields.
+// ValidationUnknownFieldsError records an error that occurred during a validation of unknown fields.
 type ValidationUnknownFieldsError struct {
 	EntityType string        `json:"entityType,omitempty"`
 	Title      string        `json:"title,omitempty"`
@@ -380,13 +380,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Inactive Account Type Error",
 			Message:    "The account type specified cannot be set to INACTIVE. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrAccountBalanceDeletion: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrAccountBalanceDeletion.Error(),
-			Title:      "Account Balance Deletion Error",
-			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
-		},
-
 		constant.ErrAccountBalanceDeletion: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceDeletion.Error(),
@@ -691,7 +684,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidPathParameter.Error(),
 			Title:      "Invalid Path Parameter",
-			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args),
+			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args...),
 		},
 		constant.ErrInvalidAccountType: ValidationError{
 			EntityType: entityType,
@@ -793,7 +786,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidQueryParameter.Error(),
 			Title:      "Invalid Query Parameter",
-			Message:    fmt.Sprintf("One or more query parameters are in an incorrect format. Please check the following parameters '%v' and ensure they meet the required format before trying again.", args),
+			Message:    fmt.Sprintf("One or more query parameters are in an incorrect format. Please check the following parameters '%v' and ensure they meet the required format before trying again.", args...),
 		},
 		constant.ErrInvalidDateRange: ValidationError{
 			EntityType: entityType,
@@ -805,7 +798,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrIdempotencyKey.Error(),
 			Title:      "Duplicate Idempotency Key",
-			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
+			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args...),
 		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -816,7 +809,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrLockVersionAccountBalance: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLockVersionAccountBalance.Error(),
-			Title:      "Race conditioning detected",
+			Title:      "Race condition detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
 		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
@@ -841,7 +834,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
-			Message:    "Transaction can't be used same account in sources ans destinations",
+			Message:    "Transaction can't use the same account in sources and destinations",
 		},
 		constant.ErrBalancesCantDeleted: ValidationError{
 			EntityType: entityType,
@@ -985,6 +978,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAccountingAccountTypeValidationFailed.Error(),
 			Title:      "Accounting Account Type Validation Failed",
 			Message:    fmt.Sprintf("The account type '%v' does not match any of the expected account types %v defined in the accounting route rule.", args...),
+		},
+		constant.ErrInvalidAccountTypeKeyValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountTypeKeyValue.Error(),
+			Title:      "Invalid Characters",
+			Message:    "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens.",
 		},
 		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
 			EntityType: entityType,

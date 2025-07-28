@@ -22,19 +22,17 @@ import {
 import { isNil } from 'lodash'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { EntityDataTable } from '@/components/entity-data-table'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import {
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
 import { LedgerDto } from '@/core/application/dto/ledger-dto'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { AssetsSheet } from '../assets/assets-sheet'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { cn } from '@/lib/utils'
 import { AssetTableCell } from './asset-table-cell'
 import { NameTableCell } from '@/components/table/name-table-cell'
@@ -184,7 +182,6 @@ type LedgersTableProps = {
   handleCreate: () => void
   handleEdit: (ledger: LedgerDto) => void
   refetch: () => void
-  form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
 }
@@ -199,7 +196,6 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   } = props
@@ -223,11 +219,7 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
   })
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(ledgers?.items) || ledgers.items.length === 0 ? (
           <EmptyResource
@@ -316,6 +308,6 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

@@ -12,7 +12,7 @@ import { SystemTabContent } from './system-tab-content'
 import React from 'react'
 import { UsersTabContent } from './users/users-tab-content'
 import { ApplicationsTabContent } from './applications/applications-tab-content'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 
 const Page = () => {
   const intl = useIntl()

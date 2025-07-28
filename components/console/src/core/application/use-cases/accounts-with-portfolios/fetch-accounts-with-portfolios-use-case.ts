@@ -1,7 +1,6 @@
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { AccountEntity } from '@/core/domain/entities/account-entity'
 import { PortfolioDto } from '../../dto/portfolio-dto'
@@ -12,12 +11,17 @@ import { BalanceMapper } from '../../mappers/balance-mapper'
 import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
+export type AccountWithPortfolioParams = {
+  organizationId: string
+  ledgerId: string
+  limit: number
+  page: number
+  alias?: string
+}
+
 export interface FetchAccountsWithPortfolios {
   execute: (
-    organizationId: string,
-    ledgerId: string,
-    limit: number,
-    page: number
+    params: AccountWithPortfolioParams
   ) => Promise<PaginationDto<PortfolioDto>>
 }
 
@@ -38,27 +42,23 @@ export class FetchAccountsWithPortfoliosUseCase
 
   @LogOperation({ layer: 'application' })
   async execute(
-    organizationId: string,
-    ledgerId: string,
-    limit: number,
-    page: number
+    params: AccountWithPortfolioParams
   ): Promise<PaginationDto<PortfolioDto>> {
-    const accountsResult = await this.fetchPaginatedAccounts(
-      organizationId,
-      ledgerId,
-      limit,
-      page
+    const accountsResult = await this.accountRepository.fetchAll(
+      params.organizationId,
+      params.ledgerId,
+      params
     )
 
     if (!accountsResult?.items?.length) {
-      return { items: [], limit, page }
+      return { items: [], limit: params.limit, page: params.page }
     }
 
     const portfolioMap = await this.fetchAndCreatePortfolioMap(
-      organizationId,
-      ledgerId,
-      limit,
-      page
+      params.organizationId,
+      params.ledgerId,
+      params.limit,
+      params.page
     )
 
     let accountsWithPortfolio: any[] = []
@@ -66,8 +66,8 @@ export class FetchAccountsWithPortfoliosUseCase
     accountsWithPortfolio = await this.mergeAccountData(
       accountsResult.items,
       portfolioMap,
-      organizationId,
-      ledgerId
+      params.organizationId,
+      params.ledgerId
     )
 
     return {
@@ -75,18 +75,6 @@ export class FetchAccountsWithPortfoliosUseCase
       limit: accountsResult?.limit || 0,
       page: accountsResult?.page || 0
     }
-  }
-
-  private async fetchPaginatedAccounts(
-    organizationId: string,
-    ledgerId: string,
-    limit: number,
-    page: number
-  ): Promise<PaginationEntity<AccountEntity>> {
-    return this.accountRepository.fetchAll(organizationId, ledgerId, {
-      limit,
-      page
-    })
   }
 
   private async fetchAndCreatePortfolioMap(
@@ -98,8 +86,10 @@ export class FetchAccountsWithPortfoliosUseCase
     const portfoliosResult = await this.portfolioRepository.fetchAll(
       organizationId,
       ledgerId,
-      limit,
-      page
+      {
+        limit,
+        page
+      }
     )
 
     const portfolioMap = new Map<string, PortfolioEntity>()

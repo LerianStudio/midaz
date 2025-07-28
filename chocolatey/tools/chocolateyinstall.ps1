@@ -1,4 +1,4 @@
-$version = 'v2.3.0'
+$version = 'v3.0.0'
 
 $ErrorActionPreference = 'Stop';
 

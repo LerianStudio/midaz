@@ -36,9 +36,7 @@ import Link from 'next/link'
 import React from 'react'
 import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import {
@@ -49,7 +47,6 @@ import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 type TransactionsDataTableProps = {
   transactions: PaginationDto<TransactionDto> | undefined
-  form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
   onCreateTransaction: () => void
@@ -214,7 +211,6 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
 
 export const TransactionsDataTable = ({
   transactions,
-  form,
   total,
   pagination,
   onCreateTransaction
@@ -240,11 +236,7 @@ export const TransactionsDataTable = ({
   })
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(transactions?.items) || transactions.items.length === 0 ? (
           <EmptyResource
@@ -342,6 +334,6 @@ export const TransactionsDataTable = ({
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

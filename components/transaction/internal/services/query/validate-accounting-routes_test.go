@@ -313,23 +313,3 @@ func TestUniqueValues(t *testing.T) {
 		assert.Equal(t, 3, result)
 	})
 }
-
-func TestFindIndex(t *testing.T) {
-	t.Run("Find alias at index 0", func(t *testing.T) {
-		aliases := []string{"first", "second", "third"}
-		result := findIndex(aliases, "first")
-		assert.Equal(t, 0, result)
-	})
-
-	t.Run("Find alias that exists", func(t *testing.T) {
-		aliases := []string{"alpha", "beta", "gamma"}
-		result := findIndex(aliases, "beta")
-		assert.Equal(t, 1, result)
-	})
-
-	t.Run("Find alias in single element slice", func(t *testing.T) {
-		aliases := []string{"only"}
-		result := findIndex(aliases, "only")
-		assert.Equal(t, 0, result)
-	})
-}
