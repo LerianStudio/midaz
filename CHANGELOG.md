@@ -1,3 +1,20 @@
+## [v3.0.0-beta.13] - 2025-07-28
+
+This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
+
+### 🐛 Bug Fixes
+- **Transaction Handling Reliability**: Removed the Redis queue from transaction processing, addressing issues with its applicability and improving overall reliability. Users will experience smoother and more consistent transaction operations.
+- **Data Consistency**: Implemented Redis locking mechanisms and standardized datetime filtering, ensuring accurate and consistent time-based operations. This fix enhances data integrity across the system.
+- **System Stability**: Eliminated redundant Redis locks and updated configuration settings, simplifying deployment and enhancing system stability. These changes also include updated documentation to guide users through the new setup.
+
+### 📚 Documentation
+- **Redis Configuration Updates**: Revised documentation to reflect changes in Redis configuration and locking mechanisms, providing users with accurate and up-to-date information for setup and troubleshooting.
+
+### 🔧 Maintenance
+- **Documentation Enhancements**: Updated various sections of the documentation to ensure clarity and accuracy, helping users better understand system configurations and operations.
+
+These updates are designed to provide a more stable and efficient user experience by refining Redis configurations and enhancing transaction processing.
+
 ## [v3.0.0-beta.11] - 2025-07-28
 
 This release enhances the flexibility of the runtime environment and updates dependencies to ensure system stability and performance. Users will experience a more adaptable application environment and improved compatibility with updated libraries.
