@@ -193,7 +193,7 @@ local function main()
     local ok = redis.call("SET", idempotencyKey, "", ttlIdempotency, "NX")
     if not ok then
         local current = redis.call("GET", idempotencyKey)
-        if redis.call("GET", idempotencyKey) == "" then
+        if current == "" then
             return redis.error_reply("0086")
         end
 
