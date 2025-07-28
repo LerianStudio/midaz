@@ -1,3 +1,16 @@
+## [v3.0.0-beta.11] - 2025-07-28
+
+This release enhances the flexibility of the runtime environment and updates dependencies to ensure system stability and performance. Users will experience a more adaptable application environment and improved compatibility with updated libraries.
+
+### ✨ Features  
+- **Enhanced Runtime Environment Handling**: Users can now enjoy greater flexibility and customization of application settings, making it easier to manage complex configurations and tailor runtime conditions to specific needs.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `@lerianstudio/console-layout` to version 1.5.2. This update ensures compatibility with the latest features and security patches, contributing to overall system reliability and performance.
+- **Changelog Update**: The changelog has been revised to accurately reflect the latest changes and improvements, ensuring users have access to up-to-date information about the application's development.
+
+This release focuses on providing a more adaptable and reliable application experience, with key updates to ensure continued stability and performance.
+
 ## [v3.0.0-beta.10] - 2025-07-28
 
 This release of midaz enhances deployment and configuration processes, addresses critical authentication issues, and updates documentation to streamline user setup and experience.
