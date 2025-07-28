@@ -10,7 +10,6 @@ import {
   FeeServiceUnavailableError,
   FeeConfigurationError
 } from '@/core/domain/fee/fee-types'
-import { convertConsoleToFeeEngine } from '@/utils/console-to-fee-engine-converter'
 import { transformFeeEngineResponse } from '@/utils/fee-engine-response-transformer'
 import { CircuitBreaker } from '../utils/circuit-breaker'
 import { RetryPolicy } from '../utils/retry-policy'
@@ -68,7 +67,7 @@ export class HttpFeeRepository implements FeeRepository {
     // Prepare the fee engine request
     const feeEngineRequest = {
       ledgerId,
-      transaction: convertConsoleToFeeEngine(request.transaction),
+      transaction: request.transaction,
       ...(segmentId && { segmentId })
     }
 

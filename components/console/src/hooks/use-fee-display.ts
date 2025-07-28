@@ -69,7 +69,7 @@ export const useFeeDisplay = (
         items.push({
           label: intl.formatMessage({
             id: 'transactions.fees.deductedFromDestination',
-            defaultMessage: 'Fee deducted from recipient'
+            defaultMessage: 'Fee deducted from destination'
           }),
           value: `${currency} ${deductibleFees}`,
           className: 'font-medium text-orange-600'

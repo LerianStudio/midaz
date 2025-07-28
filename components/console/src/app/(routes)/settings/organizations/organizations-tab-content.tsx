@@ -43,7 +43,7 @@ export const OrganizationsTabContent = () => {
   const { currentOrganization, setOrganization } = useOrganization()
   const router = useRouter()
 
-  const [total, setTotal] = React.useState(0)
+  const [total, _setTotal] = React.useState(0)
 
   const { form, searchValues } = useQueryParams({
     total,

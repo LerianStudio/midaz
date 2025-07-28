@@ -9,7 +9,6 @@ import {
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
-import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   keepPreviousData,
   useMutation,

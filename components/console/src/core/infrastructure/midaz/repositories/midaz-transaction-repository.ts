@@ -58,7 +58,7 @@ export class MidazTransactionRepository implements TransactionRepository {
           limit: filters.limit ?? 10,
           page: filters.page ?? 1
         }
-      } catch (error) {
+      } catch {
         return {
           items: [],
           limit: filters.limit ?? 10,

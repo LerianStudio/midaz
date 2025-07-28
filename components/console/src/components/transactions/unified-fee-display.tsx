@@ -10,21 +10,21 @@ interface UnifiedFeeDisplayProps {
 }
 
 const feeMessages = defineMessages({
-  feeDeductedFromRecipient: {
+  feeDeductedFromDestination: {
     id: 'transactions.fees.deductedFromDestination',
-    defaultMessage: 'Fee deducted from recipient'
+    defaultMessage: 'Fee deducted from destination'
   },
-  feeChargedToSender: {
+  feeChargedToSource: {
     id: 'transactions.fees.chargedToSource',
-    defaultMessage: 'Fee charged to sender'
+    defaultMessage: 'Fee charged to source'
   },
-  senderPays: {
+  sourcePays: {
     id: 'fees.sourcePays',
-    defaultMessage: 'Sender pays'
+    defaultMessage: 'Source pays'
   },
-  recipientReceives: {
+  destinationReceives: {
     id: 'fees.destinationReceives',
-    defaultMessage: 'Recipient receives'
+    defaultMessage: 'Destination receives'
   },
   mixedFeesExplanation: {
     id: 'transactions.breakdown.mixedFeesExplanation',
@@ -32,11 +32,11 @@ const feeMessages = defineMessages({
   },
   deductibleOnlyExplanation: {
     id: 'transactions.breakdown.deductibleOnlyExplanation',
-    defaultMessage: 'All fees deducted from recipient'
+    defaultMessage: 'All fees deducted from destination'
   },
   chargedOnlyExplanation: {
     id: 'transactions.breakdown.chargedOnlyExplanation',
-    defaultMessage: 'All fees charged to sender'
+    defaultMessage: 'All fees charged to source'
   }
 })
 
@@ -59,8 +59,8 @@ export const UnifiedFeeDisplay: React.FC<UnifiedFeeDisplayProps> = ({
     deductibleFees,
     nonDeductibleFees,
     appliedFees,
-    senderPaysAmount,
-    recipientReceivesAmount
+    sourcePaysAmount,
+    destinationReceivesAmount
   } = feeState
 
   return (
@@ -83,7 +83,7 @@ export const UnifiedFeeDisplay: React.FC<UnifiedFeeDisplayProps> = ({
       {/* Show deductible fees total if any */}
       {deductibleFees > 0 && (
         <TransactionReceiptItem
-          label={intl.formatMessage(feeMessages.feeDeductedFromRecipient)}
+          label={intl.formatMessage(feeMessages.feeDeductedFromDestination)}
           value={
             <span className="font-medium text-red-600">
               {formatAmount(deductibleFees, originalCurrency)}
@@ -95,7 +95,7 @@ export const UnifiedFeeDisplay: React.FC<UnifiedFeeDisplayProps> = ({
       {/* Show non-deductible fees total if any */}
       {nonDeductibleFees > 0 && (
         <TransactionReceiptItem
-          label={intl.formatMessage(feeMessages.feeChargedToSender)}
+          label={intl.formatMessage(feeMessages.feeChargedToSource)}
           value={
             <span className="font-medium text-blue-600">
               {formatAmount(nonDeductibleFees, originalCurrency)}
@@ -108,19 +108,19 @@ export const UnifiedFeeDisplay: React.FC<UnifiedFeeDisplayProps> = ({
 
       {/* Final amounts */}
       <TransactionReceiptItem
-        label={intl.formatMessage(feeMessages.senderPays)}
+        label={intl.formatMessage(feeMessages.sourcePays)}
         value={
           <span className="font-medium text-neutral-700">
-            {formatAmount(senderPaysAmount, originalCurrency)}
+            {formatAmount(sourcePaysAmount, originalCurrency)}
           </span>
         }
       />
 
       <TransactionReceiptItem
-        label={intl.formatMessage(feeMessages.recipientReceives)}
+        label={intl.formatMessage(feeMessages.destinationReceives)}
         value={
           <span className="font-medium text-green-600">
-            {formatAmount(recipientReceivesAmount, originalCurrency)}
+            {formatAmount(destinationReceivesAmount, originalCurrency)}
           </span>
         }
       />
