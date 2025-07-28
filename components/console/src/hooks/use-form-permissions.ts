@@ -1,4 +1,4 @@
-import { usePermissions } from '@lerianstudio/console-layout'
+import { getRuntimeEnv, usePermissions } from '@lerianstudio/console-layout'
 
 /**
  * Hook to determine form permissions based on user's resource permissions
@@ -7,7 +7,8 @@ import { usePermissions } from '@lerianstudio/console-layout'
  */
 
 export function useFormPermissions(resource: string) {
-  const isAuthEnabled = process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
+  const isAuthEnabled =
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_AUTH_ENABLED') === 'true'
 
   if (!isAuthEnabled) {
     return {
