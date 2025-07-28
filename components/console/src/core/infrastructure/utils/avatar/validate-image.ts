@@ -60,10 +60,12 @@ export function validateImageBase64(avatar: string, intl: IntlShape): void {
  */
 export function validateImageFormat(avatar: string, intl: IntlShape): string {
   const allowedFormats =
-    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT')
+    (
+      getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT') ||
+      process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT
+    )
       ?.split(',')
-      .map((e) => e.trim().toLowerCase()) ??
-    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT')?.split(',')
+      .map((e) => e.trim().toLowerCase()) ?? []
 
   const format = avatar.split(';')[0].split('/')[1]
 

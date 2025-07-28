@@ -27,10 +27,16 @@ const initialValues = {
   description: ''
 }
 
-const getApplicationOptions = () =>
-  getRuntimeEnv('NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS')
-    ?.split(',')
-    .map((option) => option.trim()) ?? []
+const getApplicationOptions = () => {
+  const applicationOptionsValue =
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS') ||
+    process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS
+
+  const applicationOptions =
+    applicationOptionsValue?.split(',').map((option) => option.trim()) ?? []
+
+  return applicationOptions
+}
 
 type CreateApplicationFormProps = {
   onSuccess?: () => void
