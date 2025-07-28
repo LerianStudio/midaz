@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { Enforce } from '@lerianstudio/console-layout'
+import { Enforce, getRuntimeEnv } from '@lerianstudio/console-layout'
 import { ComboBoxField } from '@/components/form/combo-box-field'
 import { CommandItem } from '@/components/ui/command'
 import { SheetFooter } from '@/components/ui/sheet'
@@ -27,10 +27,16 @@ const initialValues = {
   description: ''
 }
 
-const getApplicationOptions = () =>
-  process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS?.split(',').map((option) =>
-    option.trim()
-  ) ?? []
+const getApplicationOptions = () => {
+  const applicationOptionsValue =
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS') ||
+    process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS
+
+  const applicationOptions =
+    applicationOptionsValue?.split(',').map((option) => option.trim()) ?? []
+
+  return applicationOptions
+}
 
 type CreateApplicationFormProps = {
   onSuccess?: () => void

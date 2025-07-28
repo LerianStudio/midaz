@@ -1,3 +1,68 @@
+## [v3.0.0-beta.13] - 2025-07-28
+
+This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
+
+### 🐛 Bug Fixes
+- **Transaction Handling Reliability**: Removed the Redis queue from transaction processing, addressing issues with its applicability and improving overall reliability. Users will experience smoother and more consistent transaction operations.
+- **Data Consistency**: Implemented Redis locking mechanisms and standardized datetime filtering, ensuring accurate and consistent time-based operations. This fix enhances data integrity across the system.
+- **System Stability**: Eliminated redundant Redis locks and updated configuration settings, simplifying deployment and enhancing system stability. These changes also include updated documentation to guide users through the new setup.
+
+### 📚 Documentation
+- **Redis Configuration Updates**: Revised documentation to reflect changes in Redis configuration and locking mechanisms, providing users with accurate and up-to-date information for setup and troubleshooting.
+
+### 🔧 Maintenance
+- **Documentation Enhancements**: Updated various sections of the documentation to ensure clarity and accuracy, helping users better understand system configurations and operations.
+
+These updates are designed to provide a more stable and efficient user experience by refining Redis configurations and enhancing transaction processing.
+
+## [v3.0.0-beta.11] - 2025-07-28
+
+This release enhances the flexibility of the runtime environment and updates dependencies to ensure system stability and performance. Users will experience a more adaptable application environment and improved compatibility with updated libraries.
+
+### ✨ Features  
+- **Enhanced Runtime Environment Handling**: Users can now enjoy greater flexibility and customization of application settings, making it easier to manage complex configurations and tailor runtime conditions to specific needs.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `@lerianstudio/console-layout` to version 1.5.2. This update ensures compatibility with the latest features and security patches, contributing to overall system reliability and performance.
+- **Changelog Update**: The changelog has been revised to accurately reflect the latest changes and improvements, ensuring users have access to up-to-date information about the application's development.
+
+This release focuses on providing a more adaptable and reliable application experience, with key updates to ensure continued stability and performance.
+
+## [v3.0.0-beta.10] - 2025-07-28
+
+This release of midaz enhances deployment and configuration processes, addresses critical authentication issues, and updates documentation to streamline user setup and experience.
+
+### ✨ Features  
+- **Streamlined Deployment**: The build and configuration processes have been enhanced to simplify new installations and improve compatibility with various environments. This makes it easier for users to deploy and integrate midaz into their systems efficiently.
+
+### 🐛 Bug Fixes
+- **Authentication Reliability**: Fixed issues in the authentication component that previously caused failures under certain conditions. Users will now experience more reliable and consistent access.
+- **Configuration Accuracy**: Corrected configuration examples in the documentation, preventing potential runtime errors and reducing user frustration during setup.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: The `.env.local.example` file has been revised to reflect the latest configuration options, offering clearer guidance for setting up local environments and minimizing errors.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: General updates to the authentication scripts enhance code maintainability, ensuring a robust foundation for future development.
+- **Changelog Updates**: The changelog has been meticulously updated to document all recent changes, supporting transparency and aiding in tracking the project's evolution.
+
+This release focuses on improving the user setup experience, ensuring reliable authentication, and maintaining up-to-date documentation for seamless integration and operation.
+
+## [v3.0.0-beta.9] - 2025-07-28
+
+This release of the Firmino platform introduces significant enhancements to performance and user experience, focusing on parallel processing and thread flow updates.
+
+### ✨ Features
+- **Parallel Processing Configuration**: Experience faster performance with our new parallel processing feature. This update allows multiple operations to run concurrently, drastically reducing wait times and enhancing system efficiency for a smoother user experience.
+
+### ⚡ Performance
+- **Thread Flow Updates**: We've optimized the way updates are processed in the Firmino platform, ensuring that system responsiveness and reliability are improved. This means smoother operations and less downtime for users, contributing to a more seamless experience.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest enhancements, ensuring you have access to the most current information about system updates.
+
+These updates are designed to improve the efficiency and reliability of the Firmino platform, providing a more seamless and responsive experience for users. No user intervention is required to benefit from these enhancements.
+
 ## [v3.0.0-beta.8] - 2025-07-25
 
 This release focuses on improving the reliability and clarity of date and time handling across the system, enhancing data consistency and user experience.

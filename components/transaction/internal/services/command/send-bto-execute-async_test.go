@@ -104,12 +104,6 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 	}
 
-	// Mock RedisRepo.AddMessageToQueue
-	mockRedisRepo.EXPECT().
-		AddMessageToQueue(gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(1)
-
 	// Mock RabbitMQRepo.ProducerDefault
 	mockRabbitMQRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
