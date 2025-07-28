@@ -2,16 +2,19 @@ import { applyMiddleware } from '@/lib/middleware'
 import { NextResponse } from 'next/server'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
-import { MidazHttpService } from '@/core/infrastructure/midaz/services/midaz-http-service'
 import { getIntl } from '@/lib/intl'
 import { apiErrorMessages } from '@/core/infrastructure/midaz/messages/messages'
 import {
+  FeeRepository,
+  FeeRepositoryToken
+} from '@/core/domain/fee/fee-repository'
+import {
   FeeCalculationRequest,
-  FeeCalculationResponse,
-  isSuccessResponse
-} from '@/types/fee-engine-transaction.types'
-import { convertConsoleToFeeEngine } from '@/utils/console-to-fee-engine-converter'
-import { transformFeeEngineResponse } from '@/utils/fee-engine-response-transformer'
+  FeeCalculationContext,
+  FeeServiceError,
+  FeeConfigurationError,
+  FeeServiceUnavailableError
+} from '@/core/domain/fee/fee-types'
 
 export const POST = applyMiddleware(
   [
@@ -27,18 +30,21 @@ export const POST = applyMiddleware(
     const intl = await getIntl()
 
     try {
-      const feesEnabled =
-        (process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED ?? 'false') === 'true'
+      // Get fee repository from container
+      const feeRepository =
+        await container.container.getAsync<FeeRepository>(FeeRepositoryToken)
 
-      if (!feesEnabled) {
+      // Check service status
+      const serviceStatus = await feeRepository.getServiceStatus()
+
+      if (!serviceStatus.enabled) {
         return NextResponse.json(
           { error: intl.formatMessage(apiErrorMessages.feesServiceNotEnabled) },
           { status: 400 }
         )
       }
 
-      const baseUrlFee = process.env.PLUGIN_FEES_PATH as string
-      if (!baseUrlFee) {
+      if (!serviceStatus.configured) {
         return NextResponse.json(
           {
             error: intl.formatMessage(
@@ -49,95 +55,92 @@ export const POST = applyMiddleware(
         )
       }
 
+      // Parse request
       const body = await request.json()
       const { id: organizationId, ledgerId } = await params
 
-      const feeEngineTransaction = convertConsoleToFeeEngine(body.transaction)
-
+      // Extract segment ID
       const segmentId = body.transaction?.metadata?.segmentId || body.segmentId
 
-      const feeEngineRequest: FeeCalculationRequest = {
+      // Create context
+      const context: FeeCalculationContext = {
+        organizationId,
         ledgerId,
-        transaction: feeEngineTransaction,
-        ...(segmentId && { segmentId })
+        segmentId,
+        correlationId: request.headers.get('x-correlation-id') || undefined
       }
 
-      const httpService = container.get<MidazHttpService>(MidazHttpService)
+      // Create fee calculation request
+      const feeRequest: FeeCalculationRequest = {
+        transaction: body.transaction,
+        metadata: body.metadata
+      }
 
-      const feeEngineResponse = await httpService.post<FeeCalculationResponse>(
-        `${baseUrlFee}/fees`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Organization-Id': organizationId
+      // Calculate fees
+      const feeResponse = await feeRepository.calculateFees(feeRequest, context)
+
+      // Handle response
+      if (!feeResponse.success) {
+        return NextResponse.json(
+          {
+            error:
+              feeResponse.message ||
+              intl.formatMessage(apiErrorMessages.feeCalculationFailed),
+            details: feeResponse.errors
           },
-          body: JSON.stringify(feeEngineRequest)
-        }
-      )
-
-      const consoleResponse = transformFeeEngineResponse(
-        feeEngineResponse,
-        body.transaction
-      )
-
-      if (
-        isSuccessResponse(feeEngineResponse) &&
-        feeEngineResponse.transaction?.metadata?.packageAppliedID
-      ) {
-        try {
-          const packageId =
-            feeEngineResponse.transaction.metadata.packageAppliedID
-          const pluginFeesUrl = process.env.NEXT_PUBLIC_PLUGIN_FEES_FRONTEND_URL
-
-          if (pluginFeesUrl) {
-            const pluginUIBasePath =
-              process.env.NEXT_PUBLIC_PLUGIN_UI_BASE_PATH || '/plugin-fees-ui'
-            const packageResponse = await fetch(
-              `${pluginFeesUrl}${pluginUIBasePath}/api/fees/packages/${packageId}`,
-              {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Organization-Id': organizationId
-                }
-              }
-            )
-
-            if (packageResponse.ok) {
-              const packageData = await packageResponse.json()
-
-              if (
-                packageData?.fees &&
-                consoleResponse &&
-                'transaction' in consoleResponse
-              ) {
-                const feeRules = Object.entries(packageData.fees).map(
-                  ([feeId, fee]: [string, any]) => ({
-                    feeId,
-                    feeLabel: fee.feeLabel,
-                    isDeductibleFrom: fee.isDeductibleFrom || false,
-                    creditAccount: fee.creditAccount,
-                    priority: fee.priority,
-                    referenceAmount: fee.referenceAmount || 'originalAmount',
-                    applicationRule: fee.applicationRule || 'percentual',
-                    calculations: fee.calculations
-                  })
-                )
-
-                ;(consoleResponse as any).transaction.feeRules = feeRules
-                ;(consoleResponse as any).transaction.isDeductibleFrom =
-                  feeRules.some((rule) => rule.isDeductibleFrom === true)
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to fetch fee package details:', error)
-        }
+          { status: 400 }
+        )
       }
 
-      return NextResponse.json(consoleResponse)
+      // Return successful response
+      return NextResponse.json({
+        transaction: feeResponse.transaction,
+        feesApplied: feeResponse.feesApplied,
+        message: feeResponse.message,
+        packageId: feeResponse.packageId,
+        fees: feeResponse.fees,
+        totalFees: feeResponse.totalFees,
+        netAmount: feeResponse.netAmount,
+        originalAmount: feeResponse.originalAmount
+      })
     } catch (error: any) {
       console.error('Fee calculation error:', error)
 
+      // Handle specific error types
+      if (error instanceof FeeServiceUnavailableError) {
+        return NextResponse.json(
+          {
+            error: intl.formatMessage(
+              apiErrorMessages.serviceTemporarilyUnavailable
+            ),
+            message: error.message
+          },
+          { status: 503 }
+        )
+      }
+
+      if (error instanceof FeeConfigurationError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code
+          },
+          { status: 500 }
+        )
+      }
+
+      if (error instanceof FeeServiceError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code,
+            details: error.details
+          },
+          { status: error.statusCode || 500 }
+        )
+      }
+
+      // Handle generic errors
       if (error.response?.status) {
         return NextResponse.json(
           error.response.data || {
