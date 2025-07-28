@@ -190,7 +190,7 @@ local function main()
         AccountID = ARGV[13],
     }
 
-    local ok = redis.call("SET", idempotencyKey, "", ttlIdempotency, "NX")
+    local ok = redis.call("SET", idempotencyKey, "", "EX", ttlIdempotency, "NX")
     if not ok then
         local current = redis.call("GET", idempotencyKey)
         if current == "" then
