@@ -229,13 +229,12 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	script := redis.NewScript(addSubLua)
 
-	lockBalanceKey := libCommons.BalanceInternalKey(balance.OrganizationID, balance.LedgerID, balance.Alias)
-	lockBalanceValue := libCommons.GenerateUUIDv7().String()
+	lockBalanceValue := balance.Alias + ":" + libCommons.GenerateUUIDv7().String()
+	idempotencyRedisKey := libCommons.BalanceInternalKey(balance.OrganizationID, balance.LedgerID, lockBalanceValue)
 
 	keys := []string{
 		key,
-		lockBalanceKey,
-		lockBalanceValue,
+		idempotencyRedisKey,
 	}
 
 	result, err := script.Run(ctx, rds, keys, args).Result()

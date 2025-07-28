@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	"reflect"
+	"strconv"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -847,7 +848,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),
 					UpdatedAt:       time.Now(),
-					Route:           fromTo[i].Route,
+					Route:           strconv.FormatInt(blc.Version, 10),
 					Metadata:        fromTo[i].Metadata,
 				})
 			}
