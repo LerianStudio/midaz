@@ -2,9 +2,10 @@ package in
 
 import (
 	"encoding/json"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	"reflect"
 	"time"
+
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
@@ -668,6 +669,7 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
@@ -850,6 +852,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
+
+				labels := map[string]string{
+					"organization_id": organizationID.String(),
+					"ledger_id":       ledgerID.String(),
+				}
+
+				metricFactory.Counter("transaction_created", libOpentelemetry.MetricOption{
+					Description: "New transaction created",
+					Unit:        "1",
+				}).WithLabels(labels).Add(ctx, 1)
 			}
 		}
 	}
@@ -880,6 +892,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logger libLog.Logger, tran *transaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()
@@ -1008,6 +1021,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 				})
+
+				labels := map[string]string{
+					"organization_id": organizationID.String(),
+					"ledger_id":       ledgerID.String(),
+				}
+
+				metricFactory.Counter("transaction_created", libOpentelemetry.MetricOption{
+					Description: "New transaction created",
+					Unit:        "1",
+				}).WithLabels(labels).Add(ctx, 1)
 			}
 		}
 	}

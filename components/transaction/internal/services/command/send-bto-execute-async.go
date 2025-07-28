@@ -2,7 +2,11 @@ package command
 
 import (
 	"context"
+	"os"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -11,8 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
-	"os"
-	"strings"
 )
 
 // TransactionExecute func that send balances, transaction and operations to execute sync/async.
@@ -63,7 +65,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	redisMessage := redis.RedisMessage{
 		HeaderID:    libCommons.NewHeaderIDFromContext(ctx),
-		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTOQueue)["Traceparent"],
+		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTOQueue)[libConstants.HeaderTraceparent],
 		ID:          tran.ID,
 		Payload:     queueMessage,
 		Timestamp:   tran.CreatedAt.Unix(),
@@ -154,7 +156,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 	redisMessage := redis.RedisMessage{
 		HeaderID:    libCommons.NewHeaderIDFromContext(ctx),
-		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTODirect)["Traceparent"],
+		Traceparent: libOpentelemetry.InjectQueueTraceContext(ctxSendBTODirect)[libConstants.HeaderTraceparent],
 		ID:          tran.ID,
 		Payload:     queueMessage,
 		Timestamp:   tran.CreatedAt.Unix(),

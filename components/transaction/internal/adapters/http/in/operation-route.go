@@ -48,6 +48,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
@@ -76,6 +77,16 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 		return http.WithError(c, err)
 	}
+
+	labels := map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+	}
+
+	metricFactory.Counter("operation_route_created", libOpentelemetry.MetricOption{
+		Description: "New Operation Route created",
+		Unit:        "1",
+	}).WithLabels(labels).Add(ctx, 1)
 
 	logger.Infof("Successfully created operation route")
 

@@ -2,6 +2,7 @@ package in
 
 import (
 	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -46,6 +47,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
@@ -54,10 +56,16 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
 	payload := i.(*mmodel.CreateAccountInput)
+	portfolioID := payload.PortfolioID
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	if !libCommons.IsNilOrEmpty(payload.PortfolioID) {
-		logger.Infof("Initiating create of Account with Portfolio ID: %s", *payload.PortfolioID)
+	labels := map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+	}
+
+	if !libCommons.IsNilOrEmpty(portfolioID) {
+		logger.Infof("Initiating create of Account with Portfolio ID: %s", *portfolioID)
 	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -73,6 +81,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
+
+	metricFactory.Counter("account_created", libOpentelemetry.MetricOption{
+		Description: "New Account created",
+		Unit:        "1",
+	}).WithLabels(labels).Add(ctx, 1)
 
 	logger.Infof("Successfully created Account")
 

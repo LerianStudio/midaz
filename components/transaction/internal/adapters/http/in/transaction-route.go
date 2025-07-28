@@ -41,6 +41,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
@@ -73,6 +74,16 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 	}
+
+	labels := map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+	}
+
+	metricFactory.Counter("transaction_route_created", libOpentelemetry.MetricOption{
+		Description: "New Transaction Route created",
+		Unit:        "1",
+	}).WithLabels(labels).Add(ctx, 1)
 
 	return http.Created(c, transactionRoute)
 }

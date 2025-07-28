@@ -95,7 +95,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			log,
 		)
 
-		ctxWithBackground = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctxWithBackground, map[string]any{"Traceparent": msg.Traceparent})
+		ctxWithBackground = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctxWithBackground, map[string]any{libConstants.HeaderTraceparent: msg.Traceparent})
 
 		ctxWithBackground, span = tracer.Start(ctxWithBackground, "redis.consumer.process_message")
 
