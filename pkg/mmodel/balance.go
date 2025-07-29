@@ -318,3 +318,11 @@ type BalanceErrorResponse struct {
 		Details map[string]any `json:"details,omitempty"`
 	}
 }
+
+// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
+type BalanceOperation struct {
+	Balance     *Balance
+	Alias       string
+	Amount      libTransaction.Amount
+	InternalKey string
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"strings"
@@ -31,6 +32,7 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
@@ -277,6 +279,97 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
+}
+
+func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis: %v", err)
+
+		return nil, uuid.Nil, err
+	}
+
+	isPending := 0
+	if pending {
+		isPending = 1
+	}
+
+	args := []any{
+		isPending,
+		transactionStatus,
+		parser,
+		balances,
+	}
+
+	transactionID := libCommons.GenerateUUIDv7()
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	script := redis.NewScript(addSubLua)
+
+	result, err := script.Run(ctx, rds, []string{transactionKey}, args).Result()
+	if err != nil {
+		logger.Errorf("Failed run lua script on redis: %v", err)
+
+		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
+
+		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+			return nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
+			return nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+		}
+
+		return nil, uuid.Nil, err
+	}
+
+	logger.Infof("result value: %v", result)
+
+	blcsRedis := make([]mmodel.BalanceRedis, 0)
+
+	var balanceJSON []byte
+	switch v := result.(type) {
+	case string:
+		balanceJSON = []byte(v)
+	case []byte:
+		balanceJSON = v
+	default:
+		err = fmt.Errorf("unexpected result type from Redis: %T", result)
+		logger.Warnf("Warning: %v", err)
+
+		return nil, uuid.Nil, err
+	}
+
+	if err := json.Unmarshal(balanceJSON, &blcsRedis); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+
+		logger.Errorf("Error to Deserialization json: %v", err)
+
+		return nil, uuid.Nil, err
+	}
+
+	blcs := make([]*mmodel.Balance, 0)
+	for _, b := range blcsRedis {
+		blcs = append(blcs, &mmodel.Balance{
+			ID:             b.ID,
+			AccountID:      b.AccountID,
+			Available:      b.Available,
+			OnHold:         b.OnHold,
+			Version:        b.Version,
+			AccountType:    b.AccountType,
+			AllowSending:   b.AllowSending == 1,
+			AllowReceiving: b.AllowReceiving == 1,
+			AssetCode:      b.AssetCode,
+		})
+	}
+
+	return blcs, transactionID, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {

@@ -676,7 +676,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
+	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
 
 	var fromTo []libTransaction.FromTo
 
@@ -734,7 +734,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 	defer spanGetBalances.End()
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus)
+	balances, transactionID, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus, parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
@@ -766,8 +766,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var parentTransactionID *string
 
-	if transactionID != uuid.Nil {
-		value := transactionID.String()
+	if parentID != uuid.Nil {
+		value := parentID.String()
 		parentTransactionID = &value
 	}
 
@@ -777,7 +777,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	tran := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
+		ID:                       transactionID.String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
@@ -924,7 +924,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 	defer spanGetBalances.End()
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus)
+	balances, _, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus, parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 

@@ -21,7 +21,7 @@ type lockOperation struct {
 }
 
 // GetBalances methods responsible to get balances from a database.
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
@@ -42,28 +42,28 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-			return nil, err
+			return nil, uuid.Nil, err
 		}
 
 		balances = append(balances, balancesByAliases...)
 	}
 
 	if len(balances) > 1 {
-		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, transactionStatus)
+		newBalances, transactionID, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, transactionStatus, parser)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
 
 			logger.Error("Failed to get balances and update on redis", err.Error())
 
-			return nil, err
+			return nil, uuid.Nil, err
 		}
 
 		if len(newBalances) != 0 {
-			return newBalances, nil
+			return newBalances, transactionID, nil
 		}
 	}
 
-	return balances, nil
+	return balances, libCommons.GenerateUUIDv7(), nil
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
@@ -118,68 +118,61 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
 	defer span.End()
 
-	newBalances := make([]*mmodel.Balance, 0)
-
-	operations := make([]lockOperation, 0)
+	balanceOperations := make([]mmodel.BalanceOperation, 0)
 
 	for _, balance := range balances {
-		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, balance.Alias)
+		internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), balance.Alias)
 
 		for k, v := range validate.From {
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				operations = append(operations, lockOperation{
-					balance:     balance,
-					alias:       k,
-					amount:      v,
-					internalKey: internalKey,
+				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+					Balance:     balance,
+					Alias:       k,
+					Amount:      v,
+					InternalKey: internalKey,
 				})
 			}
 		}
 
 		for k, v := range validate.To {
 			if libTransaction.SplitAlias(k) == balance.Alias {
-				operations = append(operations, lockOperation{
-					balance:     balance,
-					alias:       k,
-					amount:      v,
-					internalKey: internalKey,
+				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+					Balance:     balance,
+					Alias:       k,
+					Amount:      v,
+					InternalKey: internalKey,
 				})
 			}
 		}
 	}
 
-	sort.Slice(operations, func(i, j int) bool {
-		return operations[i].internalKey < operations[j].internalKey
+	sort.Slice(balanceOperations, func(i, j int) bool {
+		return balanceOperations[i].InternalKey < balanceOperations[j].InternalKey
 	})
 
-	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate accounting rules", err)
 
 		logger.Error("Failed to validate accounting rules", err)
 
-		return nil, err
+		return nil, uuid.Nil, err
 	}
 
-	for _, op := range operations {
-		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
-			logger.Error("Failed to lock balance", err)
+	newBalances, transactionID, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionStatus, validate.Pending, balanceOperations, parser)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+		logger.Error("Failed to lock balance", err)
 
-			return nil, err
-		}
-
-		b.Alias = op.alias
-		newBalances = append(newBalances, b)
+		return nil, uuid.Nil, err
 	}
 
-	return newBalances, nil
+	return newBalances, transactionID, nil
 }
