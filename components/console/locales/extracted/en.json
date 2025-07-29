@@ -231,6 +231,7 @@
   "errors.auth.tokenMissing": "A valid token must be provided in the request header. Please include a token and try again.",
   "errors.auth.unsupportedGrantType": "The provided 'grantType' is not supported by this application. Please refer to the application's supported grant types.",
   "errors.custom.alphanumeric_with_dash_underscore": "Field must contain only letters, numbers, hyphens, and underscores",
+  "errors.custom.alphanumeric_alias": "Field must contain only letters, numbers, hyphens, underscores, and @ and :",
   "errors.custom.avatar.invalid_format": "Avatar should have a {format} format",
   "errors.custom.confirm_password": "Passwords do not match",
   "errors.custom.date.invalid": "Invalid date",
