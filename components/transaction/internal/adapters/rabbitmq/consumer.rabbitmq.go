@@ -99,7 +99,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 					log := cr.Logger.WithFields(
 						libConstants.HeaderID, midazID.(string),
-					).WithDefaultMessageTemplate(midazID.(string) + " | ")
+					).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
 
 					ctx := libCommons.ContextWithLogger(
 						libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
