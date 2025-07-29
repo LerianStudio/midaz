@@ -1,3 +1,19 @@
+## [v3.0.0-beta.14] - 2025-07-29
+
+This release introduces a major new feature that enhances user experience by providing direct access to account balances within the application, empowering users with immediate financial insights.
+
+### ✨ Features  
+- **Account Balance Visibility**: Users can now view their account balances directly within the app. This feature allows for quick and informed decision-making by providing crucial financial data at a glance, enhancing overall user experience and functionality.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest features and improvements. This ensures users and developers are informed about the current state of the software, its new capabilities, and the evolution of the project.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Regular updates to the changelog ensure transparency and keep all stakeholders informed about the latest developments and improvements in the software.
+
+
+This changelog highlights the key new feature of account balance visibility, emphasizing its impact on user experience. The documentation updates ensure that all users have access to the latest information, supporting informed use of the software.
+
 ## [v3.0.0-beta.13] - 2025-07-28
 
 This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
