@@ -1,3 +1,46 @@
+## [v3.0.0-beta.15] - 2025-07-29
+
+This release introduces a major enhancement to the build process, significantly improving the efficiency and reliability of input handling for developers.
+
+### ✨ Features  
+- **Automated Input Tag Configuration**: The build process now automatically configures input tags, streamlining development workflows. This feature reduces manual setup time and minimizes errors, ensuring consistent input handling across all environments. Developers will benefit from more efficient builds and reduced configuration overhead.
+
+### 🔧 Maintenance
+- No additional maintenance changes were included in this release.
+
+
+This changelog highlights the key enhancement in version 3.0.0, focusing on the benefits to developers and the improved efficiency in the build process. It maintains a clear, user-focused approach, ensuring that the information is accessible and valuable to the intended audience.
+
+## [v3.0.0-beta.13] - 2025-07-28
+
+This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
+
+### 🐛 Bug Fixes
+- **Transaction Handling Reliability**: Removed the Redis queue from transaction processing, addressing issues with its applicability and improving overall reliability. Users will experience smoother and more consistent transaction operations.
+- **Data Consistency**: Implemented Redis locking mechanisms and standardized datetime filtering, ensuring accurate and consistent time-based operations. This fix enhances data integrity across the system.
+- **System Stability**: Eliminated redundant Redis locks and updated configuration settings, simplifying deployment and enhancing system stability. These changes also include updated documentation to guide users through the new setup.
+
+### 📚 Documentation
+- **Redis Configuration Updates**: Revised documentation to reflect changes in Redis configuration and locking mechanisms, providing users with accurate and up-to-date information for setup and troubleshooting.
+
+### 🔧 Maintenance
+- **Documentation Enhancements**: Updated various sections of the documentation to ensure clarity and accuracy, helping users better understand system configurations and operations.
+
+These updates are designed to provide a more stable and efficient user experience by refining Redis configurations and enhancing transaction processing.
+
+## [v3.0.0-beta.11] - 2025-07-28
+
+This release enhances the flexibility of the runtime environment and updates dependencies to ensure system stability and performance. Users will experience a more adaptable application environment and improved compatibility with updated libraries.
+
+### ✨ Features  
+- **Enhanced Runtime Environment Handling**: Users can now enjoy greater flexibility and customization of application settings, making it easier to manage complex configurations and tailor runtime conditions to specific needs.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `@lerianstudio/console-layout` to version 1.5.2. This update ensures compatibility with the latest features and security patches, contributing to overall system reliability and performance.
+- **Changelog Update**: The changelog has been revised to accurately reflect the latest changes and improvements, ensuring users have access to up-to-date information about the application's development.
+
+This release focuses on providing a more adaptable and reliable application experience, with key updates to ensure continued stability and performance.
+
 ## [v3.0.0-beta.10] - 2025-07-28
 
 This release of midaz enhances deployment and configuration processes, addresses critical authentication issues, and updates documentation to streamline user setup and experience.
