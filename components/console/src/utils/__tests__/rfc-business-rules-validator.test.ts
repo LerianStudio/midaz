@@ -25,7 +25,7 @@ describe('RFCBusinessRulesValidator', () => {
                 }
               ]
             },
-            distribuite: {
+            distribute: {
               to: [
                 {
                   accountAlias: 'dest-account',

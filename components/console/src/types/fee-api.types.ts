@@ -37,8 +37,7 @@ export interface FeeApiTransactionSend {
   source?: {
     from: FeeApiSourceAccount[]
   }
-  distribuite?: {
-    // Note: API spec uses 'distribuite' not 'distribute'
+  distribute?: {
     to: FeeApiDestinationAccount[]
     metadata?: Record<string, any>
   }
@@ -136,7 +135,6 @@ export interface FeeApiEstimateRequest {
         }>
       }
       distribute: {
-        // Note: estimate uses 'distribute' not 'distribuite'
         to: Array<{
           amount: FeeApiAmount
           account: string

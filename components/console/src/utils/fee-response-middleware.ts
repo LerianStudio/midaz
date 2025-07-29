@@ -118,7 +118,7 @@ function validateAndFilterFeeResponseOriginal(
 
   const feeData = validatedResponse.transaction
   let sourceOperations = feeData.send?.source?.from || []
-  let destinationOperations = feeData.send?.distribuite?.to || []
+  let destinationOperations = feeData.send?.distribute?.to || []
 
   const sourceAccounts = new Set(
     sourceOperations.map((op: any) => op.accountAlias)
@@ -149,7 +149,7 @@ function validateAndFilterFeeResponseOriginal(
 
   const transactionAccounts = getTransactionAccounts(
     originalRequest.transaction?.send?.source?.from || [],
-    originalRequest.transaction?.send?.distribuite?.to || []
+    originalRequest.transaction?.send?.distribute?.to || []
   )
 
   // Fee operations can have metadata.source = "fee" or metadata.source = account name

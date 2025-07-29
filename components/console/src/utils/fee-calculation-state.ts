@@ -143,7 +143,7 @@ export const extractFeeStateFromCalculation = (
   const feeData = calculationResponse.transaction
   const feeRules = feeData.feeRules || []
   const sourceOperations = feeData.send?.source?.from || []
-  const destinationOperations = feeData.send?.distribuite?.to || []
+  const destinationOperations = feeData.send?.distribute?.to || []
 
   const { originalAmount, originalCurrency } =
     extractTransactionAmounts(originalFormValues)

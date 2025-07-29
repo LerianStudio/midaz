@@ -55,12 +55,6 @@ export const TransactionReview = () => {
 
   const hasCalculatedFees =
     calculatedFees !== undefined || feesError !== undefined
-  const feesErrorMessage = feesError
-    ? intl.formatMessage({
-        id: 'transactions.fees.error.failed',
-        defaultMessage: 'Failed to calculate fees'
-      })
-    : null
 
   const { mutate: createTransaction, isPending: loading } =
     useCreateTransaction({
@@ -491,16 +485,12 @@ export const TransactionReview = () => {
             {hasCalculatedFees && feesError && (
               <div className="mx-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3 transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <div className="text-red-500">⚠️</div>
                   <div>
                     <p className="text-sm font-medium text-red-800">
                       {intl.formatMessage({
                         id: 'transactions.fees.error.title',
                         defaultMessage: 'Fee Calculation Failed'
                       })}
-                    </p>
-                    <p className="mt-1 text-sm text-red-600">
-                      {feesErrorMessage}
                     </p>
                     <p className="mt-1 text-xs text-red-500">
                       {intl.formatMessage({

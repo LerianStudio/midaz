@@ -246,15 +246,14 @@ export function normalizeFeesResponse(response: any): any {
     }
   }
 
-  // Handle both 'distribute' and 'distribuite' field names
   if (response.transaction?.send) {
     if (
-      response.transaction.send.distribuite &&
+      response.transaction.send.distribute &&
       !response.transaction.send.distribute
     ) {
       response.transaction.send.distribute =
-        response.transaction.send.distribuite
-      delete response.transaction.send.distribuite
+        response.transaction.send.distribute
+      delete response.transaction.send.distribute
     }
     return transformFeeResponse(response)
   }

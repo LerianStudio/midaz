@@ -151,7 +151,7 @@ export class FeeEngineTransformer implements FeeTransformationMapper {
               metadata: source.metadata
             }))
           },
-          distribuite: {
+          distribute: {
             to: transaction.destination.map((dest, index) => ({
               accountAlias: dest.accountAlias,
               amount: {

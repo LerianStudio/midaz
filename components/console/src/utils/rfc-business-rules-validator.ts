@@ -154,8 +154,8 @@ export class RFCBusinessRulesValidator {
       })
     }
 
-    if (send.distribuite?.to) {
-      send.distribuite.to.forEach((dest, index) => {
+    if (send.distribute?.to) {
+      send.distribute.to.forEach((dest, index) => {
         const destErrors = this.validateDestinationAccount(dest, index)
         errors.push(...destErrors)
       })
@@ -211,7 +211,7 @@ export class RFCBusinessRulesValidator {
     index: number
   ): ValidationError[] {
     const errors: ValidationError[] = []
-    const prefix = `transaction.send.distribuite.to[${index}]`
+    const prefix = `transaction.send.distribute.to[${index}]`
 
     if (!dest.account && !dest.accountAlias) {
       errors.push({
@@ -296,12 +296,12 @@ export class RFCBusinessRulesValidator {
       })
     }
 
-    if (transaction.send.distribuite?.to) {
-      transaction.send.distribuite.to.forEach((dest, index) => {
+    if (transaction.send.distribute?.to) {
+      transaction.send.distribute.to.forEach((dest, index) => {
         if (dest.amount?.asset && dest.amount.asset !== mainAsset) {
           errors.push({
             code: this.ERRORS.INVALID_ASSET_CONSISTENCY,
-            field: `transaction.send.distribuite.to[${index}].amount.asset`,
+            field: `transaction.send.distribute.to[${index}].amount.asset`,
             message: `Asset must match transaction asset (${mainAsset})`,
             severity: 'error'
           })
@@ -358,10 +358,10 @@ export class RFCBusinessRulesValidator {
     }
 
     if (
-      transaction.send.distribuite?.to &&
-      transaction.send.distribuite.to.length > 0
+      transaction.send.distribute?.to &&
+      transaction.send.distribute.to.length > 0
     ) {
-      const totalDestAmount = transaction.send.distribuite.to.reduce(
+      const totalDestAmount = transaction.send.distribute.to.reduce(
         (sum, dest) => sum + Number(dest.amount?.value || 0),
         0
       )
@@ -369,7 +369,7 @@ export class RFCBusinessRulesValidator {
       if (Math.abs(totalDestAmount - totalValue) > 0.01) {
         errors.push({
           code: this.ERRORS.INVALID_DISTRIBUTION_SUM,
-          field: 'transaction.send.distribuite.to',
+          field: 'transaction.send.distribute.to',
           message: `Destination amounts must sum to transaction value (expected: ${totalValue}, got: ${totalDestAmount})`,
           severity: 'error'
         })
