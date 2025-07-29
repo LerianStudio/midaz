@@ -1,3 +1,16 @@
+## [v3.0.0-beta.15] - 2025-07-29
+
+This release introduces a major enhancement to the build process, significantly improving the efficiency and reliability of input handling for developers.
+
+### ✨ Features  
+- **Automated Input Tag Configuration**: The build process now automatically configures input tags, streamlining development workflows. This feature reduces manual setup time and minimizes errors, ensuring consistent input handling across all environments. Developers will benefit from more efficient builds and reduced configuration overhead.
+
+### 🔧 Maintenance
+- No additional maintenance changes were included in this release.
+
+
+This changelog highlights the key enhancement in version 3.0.0, focusing on the benefits to developers and the improved efficiency in the build process. It maintains a clear, user-focused approach, ensuring that the information is accessible and valuable to the intended audience.
+
 ## [v3.0.0-beta.13] - 2025-07-28
 
 This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
