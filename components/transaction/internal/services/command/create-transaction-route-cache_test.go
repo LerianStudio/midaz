@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"

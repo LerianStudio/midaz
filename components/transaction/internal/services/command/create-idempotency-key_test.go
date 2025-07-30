@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"encoding/json"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/google/uuid"

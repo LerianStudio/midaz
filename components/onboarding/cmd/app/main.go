@@ -1,7 +1,7 @@
 package main
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/bootstrap"
 )
 

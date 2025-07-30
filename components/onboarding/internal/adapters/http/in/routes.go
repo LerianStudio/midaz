@@ -2,9 +2,9 @@ package in
 
 import (
 	"github.com/LerianStudio/lib-auth/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	_ "github.com/LerianStudio/midaz/components/onboarding/api"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"

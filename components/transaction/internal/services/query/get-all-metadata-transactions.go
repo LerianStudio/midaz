@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"go.opentelemetry.io/otel/attribute"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"

@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"

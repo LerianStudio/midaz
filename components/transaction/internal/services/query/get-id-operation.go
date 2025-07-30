@@ -2,8 +2,8 @@ package query
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/google/uuid"
 	"reflect"

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"

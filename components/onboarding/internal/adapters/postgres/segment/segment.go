@@ -2,7 +2,7 @@ package segment
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
 )

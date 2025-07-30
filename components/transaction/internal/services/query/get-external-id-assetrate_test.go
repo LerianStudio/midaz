@@ -3,8 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"

@@ -2,8 +2,8 @@ package http
 
 import (
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/gofiber/fiber/v2"
 )

@@ -3,8 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg/constant"

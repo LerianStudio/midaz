@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"

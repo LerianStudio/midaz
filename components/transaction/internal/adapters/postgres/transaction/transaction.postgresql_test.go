@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/DATA-DOG/go-sqlmock"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"

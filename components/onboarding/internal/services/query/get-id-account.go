@@ -3,13 +3,13 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"go.opentelemetry.io/otel/attribute"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"reflect"
 )
 

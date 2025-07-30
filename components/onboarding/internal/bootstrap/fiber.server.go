@@ -1,9 +1,9 @@
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/pkg/errors"
 )

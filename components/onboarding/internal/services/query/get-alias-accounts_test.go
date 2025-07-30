@@ -3,7 +3,7 @@ package query
 import (
 	"context"
 	"errors"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"

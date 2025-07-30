@@ -3,11 +3,11 @@ package rabbitmq
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 

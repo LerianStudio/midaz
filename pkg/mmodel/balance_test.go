@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )

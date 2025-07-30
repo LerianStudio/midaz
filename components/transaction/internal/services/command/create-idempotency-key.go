@@ -7,8 +7,8 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"

@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/stretchr/testify/assert"

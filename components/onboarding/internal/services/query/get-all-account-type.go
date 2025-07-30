@@ -5,17 +5,17 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetAllAccountType fetch all Account Types from the repository

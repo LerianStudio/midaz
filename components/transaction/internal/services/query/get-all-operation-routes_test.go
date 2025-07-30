@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
