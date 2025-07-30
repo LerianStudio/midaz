@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/model"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
 )
 
 type Auth struct {

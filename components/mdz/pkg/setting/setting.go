@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
 	"github.com/pelletier/go-toml/v2"
 )
 

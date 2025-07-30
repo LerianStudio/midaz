@@ -14,8 +14,8 @@ import (
 	reflect "reflect"
 
 	http "github.com/LerianStudio/lib-commons/commons/net/http"
-	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
-	http0 "github.com/LerianStudio/midaz/pkg/net/http"
+	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )

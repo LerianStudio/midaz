@@ -1,3 +1,51 @@
+## [v3.0.0-beta.17] - 2025-07-30
+
+This release focuses on enhancing the system's architecture and security, ensuring a more stable and maintainable platform for future developments.
+
+### 🐛 Bug Fixes
+- **Security Enhancement**: Resolved a security vulnerability in the backend and frontend related to the brace-expansion package. This fix prevents potential Regular Expression Denial of Service (ReDoS) attacks, enhancing the security and reliability of the system.
+
+### 🔧 Maintenance
+- **System Refactoring**: Upgraded the authentication and backend modules to version 3. This refactoring improves the system's maintainability and sets the groundwork for future feature expansions, benefiting components such as configuration, database, and testing.
+- **Documentation Update**: The CHANGELOG has been updated to reflect recent changes, ensuring that all documentation is current and informative for users and developers.
+
+Each of these updates contributes to a more secure, stable, and maintainable system, providing users with a reliable and efficient experience.
+
+This changelog is structured to clearly communicate the impact and benefits of the release, focusing on security improvements and system maintenance. It is designed to be accessible to both technical and non-technical users, highlighting the most significant changes without overwhelming details.
+
+## [v3.0.0-beta.16] - 2025-07-29
+
+This update focuses on enhancing user experience through improved URL consistency, data validation, and system reliability, ensuring a smoother and more dependable application.
+
+### 🐛 Bug Fixes
+- **Dependency Update**: Resolved compatibility issues by updating `@lerianstudio/console-layout` to version 1.5.3. This fix enhances the stability and reliability of the console layout feature, ensuring a seamless user interaction without layout errors.
+
+### 🔄 Changes
+- **Frontend URL Structure**: Improved URL consistency by enabling `trailingSlash` in the configuration. This change helps maintain uniform URL structures, potentially boosting SEO performance and providing a more predictable navigation experience.
+- **Data Validation**: Introduced alphanumeric alias validation in the database configuration, enhancing data integrity by preventing invalid entries that could disrupt application functionality.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, keeping users informed and maintaining transparency about the project's progress.
+
+### 🔧 Maintenance
+- **General Maintenance**: Various behind-the-scenes improvements were made to ensure the application remains reliable and user-friendly.
+
+These updates collectively contribute to a more consistent, reliable, and user-friendly application experience.
+
+
+## [v3.0.0-beta.15] - 2025-07-29
+
+This release introduces a major enhancement to the build process, significantly improving the efficiency and reliability of input handling for developers.
+
+### ✨ Features  
+- **Automated Input Tag Configuration**: The build process now automatically configures input tags, streamlining development workflows. This feature reduces manual setup time and minimizes errors, ensuring consistent input handling across all environments. Developers will benefit from more efficient builds and reduced configuration overhead.
+
+### 🔧 Maintenance
+- No additional maintenance changes were included in this release.
+
+
+This changelog highlights the key enhancement in version 3.0.0, focusing on the benefits to developers and the improved efficiency in the build process. It maintains a clear, user-focused approach, ensuring that the information is accessible and valuable to the intended audience.
+
 ## [v3.0.0-beta.13] - 2025-07-28
 
 This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.

@@ -130,10 +130,15 @@ jobs:
       - name: Apply image tags to values.yaml
         run: |
           for tagfile in .gitops-tags/*; do
-            name=$(basename "$tagfile" | cut -d= -f1)
+            # Extract the full app name and tag from the filename
+            full_app=$(basename "$tagfile" | cut -d= -f1)  
             tag=$(basename "$tagfile" | cut -d= -f2)
-            echo "🔧 Updating tag for $name to $tag"
-            yq e ".$name.image.tag = \"$tag\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
+
+            # Remove the 'midaz-' prefix from the app name
+            app_name="${full_app#midaz-}"
+
+            echo "🔧 Updating tag for $app_name to $tag"
+            yq e ".${app_name}.image.tag = \"${tag}\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
           done
 
       - name: Commit and push GitOps update

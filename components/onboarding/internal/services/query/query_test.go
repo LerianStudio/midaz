@@ -1,14 +1,14 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"

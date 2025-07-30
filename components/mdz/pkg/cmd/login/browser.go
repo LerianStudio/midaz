@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/output"
 )
 
 var (

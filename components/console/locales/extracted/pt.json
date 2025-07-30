@@ -137,6 +137,8 @@
   "account.sheet.type.savings": "Poupança",
   "errors.custom.uppercase_required": "O campo deve estar em maiúsculas e conter apenas letras",
   "errors.custom.alphanumeric_with_dash_underscore": "O campo deve conter apenas letras, números, hífens e sublinhados",
+  "errors.custom.alphanumeric_alias": "O campo deve conter apenas letras, números, hífens, sublinhados, @ e :",
+
   "common.noOptions": "Nenhuma opção encontrada.",
   "common.search": "Pesquisar...",
   "ledgers.assets.sheet.tabs.details": "Detalhes do Ativo",

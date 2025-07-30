@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
