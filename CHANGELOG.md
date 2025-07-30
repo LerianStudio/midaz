@@ -1,3 +1,15 @@
+## [v3.0.0-beta.18] - 2025-07-30
+
+This release of Midaz focuses on improving the consistency and reliability of the authorization process, enhancing the overall user experience when interacting with the system's endpoints.
+
+### 🔄 Changes
+- **Authentication/Backend**: We have updated the authorization naming conventions for routing endpoints. This change simplifies the authorization process, ensuring it is more intuitive and consistent across the system. Users will experience a more reliable and predictable authorization when accessing various endpoints, enhancing the overall usability of the platform.
+
+### 📚 Documentation
+- **General**: The project CHANGELOG has been updated to reflect the latest changes and improvements. This ensures that users and developers have access to up-to-date information about the project's evolution, facilitating better understanding and collaboration.
+
+These updates lay the groundwork for future enhancements, ensuring the system remains robust and easy to navigate for both developers and users.
+
 ## [v3.0.0-beta.17] - 2025-07-30
 
 This release focuses on enhancing the system's architecture and security, ensuring a more stable and maintainable platform for future developments.
