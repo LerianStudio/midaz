@@ -305,6 +305,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.account_code", code),
 	)
+
 	alias := constant.DefaultExternalAccountAliasPrefix + code
 
 	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
@@ -349,6 +350,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
+
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	alias := c.Params("alias")
