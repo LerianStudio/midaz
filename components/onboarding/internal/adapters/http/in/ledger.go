@@ -2,6 +2,9 @@ package in
 
 import (
 	"fmt"
+	"os"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
@@ -14,8 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"os"
-	"reflect"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -57,11 +59,9 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
@@ -97,14 +97,21 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
-
 	organizationID := c.Locals("organization_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", id.String()),
+	)
+
+	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
@@ -147,11 +154,17 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -160,6 +173,11 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
 	}
 
 	pagination := libPostgres.Pagination{
@@ -245,11 +263,9 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
@@ -296,14 +312,21 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
-	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
-
 	organizationID := c.Locals("organization_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", id.String()),
+	)
+
+	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
 		libOpentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", constant.ErrActionNotPermitted)
@@ -345,13 +368,19 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
 
 	logger.Infof("Initiating count of all ledgers for organization: %s", organizationID)
 

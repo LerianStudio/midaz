@@ -58,6 +58,7 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	logger.Infof("Init sent message")
 
@@ -65,15 +66,14 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	defer spanProducer.End()
 
 	spanProducer.SetAttributes(
-		attribute.String("exchange", exchange),
-		attribute.String("key", key),
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
+		attribute.String("app.request.rabbitmq.producer.key", key),
 	)
 
 	var err error
 
-	obfuscator := libOpentelemetry.NewDefaultObfuscator()
-
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanProducer, "message", queueMessage, obfuscator)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanProducer, "app.request.rabbitmq.producer.message", queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
 	}

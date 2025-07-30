@@ -62,9 +62,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("key", key),
-		attribute.String("value", value),
-		attribute.Int64("ttl", int64(ttl)),
+		attribute.String("app.request.redis.key", key),
+		attribute.String("app.request.redis.value", value),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	)
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -94,9 +94,9 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("key", key),
-		attribute.String("value", value),
-		attribute.Int64("ttl", int64(ttl)),
+		attribute.String("app.request.redis.key", key),
+		attribute.String("app.request.redis.value", value),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	)
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -125,7 +125,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("key", key))
+	span.SetAttributes(attribute.String("app.request.redis.key", key))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -145,7 +145,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 		return "", err
 	}
 
-	span.SetAttributes(attribute.String("value", val))
+	span.SetAttributes(attribute.String("app.response.redis.value", val))
 
 	logger.Infof("value : %v", val)
 
@@ -159,7 +159,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("key", key))
+	span.SetAttributes(attribute.String("app.request.redis.key", key))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -186,7 +186,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("key", key))
+	span.SetAttributes(attribute.String("app.request.redis.key", key))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -206,19 +206,17 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("key", key),
-		attribute.String("transactionStatus", transactionStatus),
-		attribute.Bool("pending", pending),
+		attribute.String("app.request.redis.key", key),
+		attribute.String("app.request.redis.transactionStatus", transactionStatus),
+		attribute.Bool("app.request.redis.pending", pending),
 	)
 
-	obfuscator := libOpentelemetry.NewDefaultObfuscator()
-
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "amount", amount, obfuscator)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.redis.amount", amount)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert amount to JSON string", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "balance", balance, obfuscator)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.redis.balance", balance)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance to JSON string", err)
 	}
@@ -327,9 +325,9 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("key", key),
-		attribute.Int("len", len(value)),
-		attribute.Int64("ttl", int64(ttl)),
+		attribute.String("app.request.redis.key", key),
+		attribute.Int("app.request.redis.len", len(value)),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	)
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -358,7 +356,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("key", key))
+	span.SetAttributes(attribute.String("app.request.redis.key", key))
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -374,7 +372,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.Int("len", len(val)))
+	span.SetAttributes(attribute.Int("app.response.redis.len", len(val)))
 
 	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
 

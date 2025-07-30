@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"go.opentelemetry.io/otel/attribute"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
@@ -20,9 +21,21 @@ import (
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("request_id", reqId),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
+	}
 
 	logger.Infof("Retrieving transactions")
 

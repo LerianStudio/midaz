@@ -68,9 +68,9 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	defer spanProducer.End()
 
 	spanProducer.SetAttributes(
-		attribute.String("exchange", exchange),
-		attribute.String("key", key),
-		attribute.String("message", string(message)),
+		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
+		attribute.String("app.request.rabbitmq.producer.key", key),
+		attribute.String("app.request.rabbitmq.producer.message", string(message)),
 	)
 
 	var err error

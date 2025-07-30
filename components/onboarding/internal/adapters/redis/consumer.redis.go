@@ -43,9 +43,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("key", key),
-		attribute.String("value", value),
-		attribute.Int64("ttl", int64(ttl)),
+		attribute.String("app.request.redis.key", key),
+		attribute.String("app.request.redis.value", value),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	)
 
 	rds, err := rr.conn.GetClient(ctx)

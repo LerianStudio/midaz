@@ -8,6 +8,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
@@ -111,9 +112,11 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					tracer := libCommons.NewTracerFromContext(ctx)
 					ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-					obfuscator := libOpentelemetry.NewDefaultObfuscator()
+					spanConsumer.SetAttributes(
+						attribute.String("app.request.rabbitmq.consumer.request_id", midazID.(string)),
+					)
 
-					err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "message", msg, obfuscator)
+					err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "app.request.rabbitmq.consumer.message", msg)
 					if err != nil {
 						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
 					}

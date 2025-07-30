@@ -2,22 +2,33 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"reflect"
-	"time"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.create_organization_input", coi); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert create organization input to JSON string", err)
+	}
 
 	logger.Infof("Trying to create organization: %v", coi)
 
@@ -57,11 +68,9 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		UpdatedAt:            time.Now(),
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "organization_repository_input", organization)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.repository_input", organization)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
-
-		return nil, err
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
