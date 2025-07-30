@@ -29,8 +29,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.create_asset_input", cii); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert create asset input to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", cii); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Trying to create asset: %v", cii)

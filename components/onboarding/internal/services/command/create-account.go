@@ -33,8 +33,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.create_account_input", cai); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert create account input to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", cai); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Trying to create account: %v", cai)

@@ -31,9 +31,8 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.filter", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Retrieving accounts")

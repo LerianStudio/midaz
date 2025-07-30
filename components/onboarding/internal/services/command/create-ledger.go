@@ -26,8 +26,8 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.create_ledger_input", cli); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert create ledger input to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", cli); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Trying to create ledger: %v", cli)
