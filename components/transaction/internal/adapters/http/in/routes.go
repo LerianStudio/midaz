@@ -16,6 +16,7 @@ import (
 )
 
 const midazName = "midaz"
+const routingName = "routing"
 
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
@@ -68,18 +69,18 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters, bh.GetBalancesExternalByCode)
 
 	// Operation-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(midazName, "operation-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(midazName, "operation-routes", "get"), http.ParseUUIDPathParameters, orh.GetOperationRouteByID)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(midazName, "operation-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOperationRouteInput), orh.UpdateOperationRoute))
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(midazName, "operation-routes", "delete"), http.ParseUUIDPathParameters, orh.DeleteOperationRouteByID)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(midazName, "operation-routes", "get"), http.ParseUUIDPathParameters, orh.GetAllOperationRoutes)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(routingName, "operation-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(routingName, "operation-routes", "get"), http.ParseUUIDPathParameters, orh.GetOperationRouteByID)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(routingName, "operation-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOperationRouteInput), orh.UpdateOperationRoute))
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", auth.Authorize(routingName, "operation-routes", "delete"), http.ParseUUIDPathParameters, orh.DeleteOperationRouteByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(routingName, "operation-routes", "get"), http.ParseUUIDPathParameters, orh.GetAllOperationRoutes)
 
 	// Transaction-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(midazName, "transaction-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionRouteInput), trh.CreateTransactionRoute))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetTransactionRouteByID)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(midazName, "transaction-routes", "delete"), http.ParseUUIDPathParameters, trh.DeleteTransactionRouteByID)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(midazName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetAllTransactionRoutes)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateTransactionRouteInput), trh.CreateTransactionRoute))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetTransactionRouteByID)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", auth.Authorize(routingName, "transaction-routes", "delete"), http.ParseUUIDPathParameters, trh.DeleteTransactionRouteByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", auth.Authorize(routingName, "transaction-routes", "get"), http.ParseUUIDPathParameters, trh.GetAllTransactionRoutes)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
