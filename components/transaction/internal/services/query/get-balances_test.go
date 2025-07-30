@@ -36,6 +36,7 @@ func TestGetBalances(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
+	transactionID := uuid.New()
 
 	t.Run("get balances from redis and database", func(t *testing.T) {
 		aliases := []string{"alias1", "alias2", "alias3"}
@@ -203,7 +204,7 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// --- execução & asserts ---
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, validate, constant.CREATED)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED, libTransaction.Transaction{})
 		assert.NoError(t, err)
 		assert.Len(t, balances, 3)
 
@@ -342,7 +343,7 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, validate, constant.CREATED)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED, libTransaction.Transaction{})
 
 		// Assertions
 		assert.NoError(t, err)
@@ -360,6 +361,8 @@ func TestGetAccountAndLock(t *testing.T) {
 
 	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
 	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+	transactionID := uuid.New()
+
 	uc := UseCase{
 		RedisRepo: mockRedisRepo,
 	}
@@ -412,7 +415,7 @@ func TestGetAccountAndLock(t *testing.T) {
 			).
 			Return(balances[0], nil)
 
-		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, constant.CREATED)
+		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, constant.CREATED, libTransaction.Transaction{})
 
 		assert.NoError(t, err)
 		assert.Len(t, lockedBalances, 1)

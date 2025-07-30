@@ -677,6 +677,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
+	transactionID := libCommons.GenerateUUIDv7()
 
 	var fromTo []libTransaction.FromTo
 
@@ -734,7 +735,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 	defer spanGetBalances.End()
 
-	balances, transactionID, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus, parserDSL)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, transactionStatus, parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
@@ -765,7 +766,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	var parentTransactionID *string
-
 	if parentID != uuid.Nil {
 		value := parentID.String()
 		parentTransactionID = &value
@@ -924,7 +924,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 	defer spanGetBalances.End()
 
-	balances, _, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate, transactionStatus, parserDSL)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), validate, transactionStatus, parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 

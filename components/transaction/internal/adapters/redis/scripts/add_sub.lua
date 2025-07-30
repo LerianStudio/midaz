@@ -22,6 +22,8 @@ end
 local sub_decimal
 
 local function add_decimal(a, b)
+    a = tostring(a)
+    b = tostring(b)
     local ai, af, a_negative = split_decimal(a)
     local bi, bf, b_negative = split_decimal(b)
 
@@ -83,6 +85,8 @@ local function add_decimal(a, b)
 end
 
 sub_decimal = function(a, b)
+    a = tostring(a)
+    b = tostring(b)
     local ai, af, a_negative = split_decimal(a)
     local bi, bf, b_negative = split_decimal(b)
 
@@ -163,89 +167,101 @@ sub_decimal = function(a, b)
 end
 
 local function startsWithMinus(s)
-    return s:sub(1,1) == "-"
+    return s:sub(1, 1) == "-"
+end
+
+local function cloneTable(tbl)
+    local copy = {}
+    for k, v in pairs(tbl) do
+        copy[k] = v
+    end
+    return copy
 end
 
 local function main()
+    local returnBalances = {}
+
     local ttl = 3600
-    local key = KEYS[1]
+    local transactionKey = KEYS[1]
 
     local isPending = tonumber(ARGV[1])
     local transactionStatus = ARGV[2]
-    local operation = ARGV[3]
+    local parser = cjson.decode(ARGV[3])
+    local balances = cjson.decode(ARGV[4])
 
-    local amount = ARGV[4]
+    for _, blcs in ipairs(balances) do
+        local amount = blcs.Amount
+        local balance = blcs.Balance
 
-    local balance = {
-        ID = ARGV[5],
-        Available = ARGV[6],
-        OnHold = ARGV[7],
-        Version = tonumber(ARGV[8]),
-        AccountType = ARGV[9],
-        AllowSending = tonumber(ARGV[10]),
-        AllowReceiving = tonumber(ARGV[11]),
-        AssetCode = ARGV[12],
-        AccountID = ARGV[13],
-    }
+        local newBalanceEncoded = cjson.encode(balance)
+        local ok = redis.call("SET", blcs.InternalKey, newBalanceEncoded, "EX", ttl, "NX")
+        if not ok then
+            local current = redis.call("GET", blcs.InternalKey)
+            if not current then
+                return redis.error_reply("0061")
+            end
 
-    local newBalanceEncoded = cjson.encode(balance)
-    local ok = redis.call("SET", key, newBalanceEncoded, "EX", ttl, "NX")
-    if not ok then
-        local current = redis.call("GET", key)
-        if not current then
-            return redis.error_reply("0061")
+            balance = cjson.decode(current)
         end
 
-        balance = cjson.decode(current)
-    end
+        local result = tostring(balance.Available)
+        local resultOnHold = tostring(balance.OnHold)
+        local isFrom = false
 
-    local result = balance.Available
-    local resultOnHold = balance.OnHold
-    local isFrom = false
-
-    if isPending == 1 then
-        if operation == "ON_HOLD" and transactionStatus == "PENDING" then
-            result = sub_decimal(balance.Available, amount)
-            resultOnHold = add_decimal(balance.OnHold, amount)
-            isFrom = true
-        elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
-            resultOnHold = sub_decimal(balance.OnHold, amount)
-            result = add_decimal(balance.Available, amount)
-            isFrom = true
-        elseif transactionStatus == "APPROVED" then
-            if operation == "DEBIT" then
-                resultOnHold = sub_decimal(balance.OnHold, amount)
+        if isPending == 1 then
+            if amount.Operation == "ON_HOLD" and transactionStatus == "PENDING" then
+                result = sub_decimal(balance.Available, amount.Value)
+                resultOnHold = add_decimal(balance.OnHold, amount.Value)
                 isFrom = true
+            elseif amount.Operation == "RELEASE" and transactionStatus == "CANCELED" then
+                resultOnHold = sub_decimal(balance.OnHold, amount.Value)
+                result = add_decimal(balance.Available, amount.Value)
+                isFrom = true
+            elseif transactionStatus == "APPROVED" then
+                if amount.Operation == "DEBIT" then
+                    resultOnHold = sub_decimal(balance.OnHold, amount.Value)
+                    isFrom = true
+                else
+                    result = add_decimal(balance.Available, amount.Value)
+                end
+            end
+        else
+            if amount.Operation == "DEBIT" then
+                result = sub_decimal(balance.Available, amount.Value)
             else
-                result = add_decimal(balance.Available, amount)
+                result = add_decimal(balance.Available, amount.Value)
             end
         end
-    else
-        if operation == "DEBIT" then
-            result = sub_decimal(balance.Available, amount)
-        else
-            result = add_decimal(balance.Available, amount)
+
+        if isPending == 1 and isFrom and balance.AccountType == "external" then
+            return redis.error_reply("0098")
         end
+
+        if startsWithMinus(result) and balance.AccountType ~= "external" then
+            return redis.error_reply("0018")
+        end
+
+        table.insert(returnBalances, cloneTable(balance))
+
+        balance.available = result
+        balance.onHold = resultOnHold
+        balance.version = balance.version + 1
+
+        local finalBalanceEncoded = cjson.encode(balance)
+        redis.call("SET", blcs.InternalKey, finalBalanceEncoded, "EX", ttl)
     end
 
-    if isPending == 1 and isFrom and balance.AccountType == "external" then
-         return redis.error_reply("0098")
-    end
+    local transaction = {
+        Parser = parser,
+        Balances = returnBalances,
+    }
 
-    if startsWithMinus(result) and balance.AccountType ~= "external" then
-        return redis.error_reply("0018")
-    end
+    local transactionEncoded = cjson.encode(transaction)
+    redis.call("SET", transactionKey, transactionEncoded)
 
-    local balanceEncoded = cjson.encode(balance)
+    local returnBalanceEncoded = cjson.encode(returnBalances)
 
-    balance.Available = result
-    balance.OnHold = resultOnHold
-    balance.Version = balance.Version + 1
-
-    local finalBalanceEncoded = cjson.encode(balance)
-    redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
-
-    return balanceEncoded
+    return returnBalanceEncoded
 end
 
 return main()

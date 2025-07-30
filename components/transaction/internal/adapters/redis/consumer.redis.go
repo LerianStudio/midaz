@@ -31,7 +31,7 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
-	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error)
+	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
@@ -273,14 +273,14 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	balance.OnHold = b.OnHold
 	balance.Version = b.Version
 	balance.AccountType = b.AccountType
-	balance.AllowSending = b.AllowSending == 1
-	balance.AllowReceiving = b.AllowReceiving == 1
+	balance.AllowSending = b.AllowSending
+	balance.AllowReceiving = b.AllowReceiving
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
 }
 
-func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
+func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser libTransaction.Transaction) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
@@ -293,7 +293,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 		logger.Errorf("Failed to get redis: %v", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	isPending := 0
@@ -301,14 +301,16 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		isPending = 1
 	}
 
+	mParser, _ := json.Marshal(parser)
+	mBalances, _ := json.Marshal(balances)
+
 	args := []any{
 		isPending,
 		transactionStatus,
-		parser,
-		balances,
+		mParser,
+		mBalances,
 	}
 
-	transactionID := libCommons.GenerateUUIDv7()
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	script := redis.NewScript(addSubLua)
@@ -320,12 +322,12 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			return nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			return nil, uuid.Nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
 		}
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	logger.Infof("result value: %v", result)
@@ -342,7 +344,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		err = fmt.Errorf("unexpected result type from Redis: %T", result)
 		logger.Warnf("Warning: %v", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	if err := json.Unmarshal(balanceJSON, &blcsRedis); err != nil {
@@ -350,7 +352,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 		logger.Errorf("Error to Deserialization json: %v", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	blcs := make([]*mmodel.Balance, 0)
@@ -362,13 +364,13 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			OnHold:         b.OnHold,
 			Version:        b.Version,
 			AccountType:    b.AccountType,
-			AllowSending:   b.AllowSending == 1,
-			AllowReceiving: b.AllowReceiving == 1,
+			AllowSending:   b.AllowSending,
+			AllowReceiving: b.AllowReceiving,
 			AssetCode:      b.AssetCode,
 		})
 	}
 
-	return blcs, transactionID, nil
+	return blcs, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {

@@ -12,16 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// lockOperation represents a balance operation with associated metadata for transaction processing
-type lockOperation struct {
-	balance     *mmodel.Balance
-	alias       string
-	amount      libTransaction.Amount
-	internalKey string
-}
-
 // GetBalances methods responsible to get balances from a database.
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, validate *libTransaction.Responses, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
@@ -42,28 +34,28 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-			return nil, uuid.Nil, err
+			return nil, err
 		}
 
 		balances = append(balances, balancesByAliases...)
 	}
 
 	if len(balances) > 1 {
-		newBalances, transactionID, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, transactionStatus, parser)
+		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, transactionStatus, parser)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
 
 			logger.Error("Failed to get balances and update on redis", err.Error())
 
-			return nil, uuid.Nil, err
+			return nil, err
 		}
 
 		if len(newBalances) != 0 {
-			return newBalances, transactionID, nil
+			return newBalances, nil
 		}
 	}
 
-	return balances, libCommons.GenerateUUIDv7(), nil
+	return balances, nil
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
@@ -105,8 +97,8 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 				OnHold:         b.OnHold,
 				Version:        b.Version,
 				AccountType:    b.AccountType,
-				AllowSending:   b.AllowSending == 1,
-				AllowReceiving: b.AllowReceiving == 1,
+				AllowSending:   b.AllowSending,
+				AllowReceiving: b.AllowReceiving,
 				AssetCode:      b.AssetCode,
 			})
 		} else {
@@ -118,7 +110,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, uuid.UUID, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, parser libTransaction.Transaction) ([]*mmodel.Balance, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -163,16 +155,16 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Error("Failed to validate accounting rules", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
-	newBalances, transactionID, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionStatus, validate.Pending, balanceOperations, parser)
+	newBalances, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations, parser)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 		logger.Error("Failed to lock balance", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
-	return newBalances, transactionID, nil
+	return newBalances, nil
 }
