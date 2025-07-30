@@ -83,7 +83,7 @@ jobs:
         if: contains(github.ref, '-beta')
         uses: actions/upload-artifact@v4
         with:
-          name: gitops-tags
+          name: gitops-tags-${{ matrix.app.name }}
           path: gitops-tags/
 
       - name: Run Trivy vulnerability scanner (fail on release)
@@ -124,7 +124,7 @@ jobs:
       - name: Download tags from artifacts
         uses: actions/download-artifact@v4
         with:
-          name: gitops-tags
+          name: gitops-tags-*
           path: .gitops-tags
 
       - name: Apply image tags to values.yaml
@@ -133,8 +133,6 @@ jobs:
             # Extract the full app name and tag from the filename
             full_app=$(basename "$tagfile" | cut -d= -f1)  
             tag=$(basename "$tagfile" | cut -d= -f2)
-
-            # Remove the 'midaz-' prefix from the app name
             app_name="${full_app#midaz-}"
 
             echo "🔧 Updating tag for $app_name to $tag"
