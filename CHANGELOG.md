@@ -1,3 +1,18 @@
+## [v3.0.0-beta.17] - 2025-07-30
+
+This release focuses on enhancing the system's architecture and security, ensuring a more stable and maintainable platform for future developments.
+
+### 🐛 Bug Fixes
+- **Security Enhancement**: Resolved a security vulnerability in the backend and frontend related to the brace-expansion package. This fix prevents potential Regular Expression Denial of Service (ReDoS) attacks, enhancing the security and reliability of the system.
+
+### 🔧 Maintenance
+- **System Refactoring**: Upgraded the authentication and backend modules to version 3. This refactoring improves the system's maintainability and sets the groundwork for future feature expansions, benefiting components such as configuration, database, and testing.
+- **Documentation Update**: The CHANGELOG has been updated to reflect recent changes, ensuring that all documentation is current and informative for users and developers.
+
+Each of these updates contributes to a more secure, stable, and maintainable system, providing users with a reliable and efficient experience.
+
+This changelog is structured to clearly communicate the impact and benefits of the release, focusing on security improvements and system maintenance. It is designed to be accessible to both technical and non-technical users, highlighting the most significant changes without overwhelming details.
+
 ## [v3.0.0-beta.16] - 2025-07-29
 
 This update focuses on enhancing user experience through improved URL consistency, data validation, and system reliability, ensuring a smoother and more dependable application.
