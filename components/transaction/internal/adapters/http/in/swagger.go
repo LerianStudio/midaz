@@ -2,7 +2,7 @@ package in
 
 import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/transaction/api"
+	"github.com/LerianStudio/midaz/v3/components/transaction/api"
 	"github.com/gofiber/fiber/v2"
 	"os"
 )

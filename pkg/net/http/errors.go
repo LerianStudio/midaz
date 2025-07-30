@@ -4,7 +4,7 @@ import (
 	"errors"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/gofiber/fiber/v2"
 )
 

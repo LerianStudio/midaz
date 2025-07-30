@@ -3,8 +3,8 @@ package factory
 import (
 	"net/http"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams"
 )
 
 type Factory struct {
