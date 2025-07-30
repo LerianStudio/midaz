@@ -47,11 +47,11 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
 	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
@@ -99,11 +99,11 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
 
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Organization with ID: %s", id.String())
 
@@ -167,6 +167,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
+
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating retrieval of Organization with ID: %s", id.String())
 
@@ -315,6 +316,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", id.String()),
 	)
+
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
@@ -376,6 +378,10 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
+
+	span.SetAttributes(
+		attribute.Int64("app.response.count", count),
+	)
 
 	logger.Infof("Successfully counted organizations: %d", count)
 
