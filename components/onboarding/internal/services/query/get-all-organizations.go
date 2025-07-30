@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
-	"reflect"
 )
 
 // GetAllOrganizations fetch all Organizations from the repository
@@ -26,6 +27,11 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Retrieving organizations")
 

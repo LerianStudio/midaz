@@ -272,6 +272,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
@@ -279,6 +280,13 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.asset_id", id.String()),
+	)
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 

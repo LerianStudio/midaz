@@ -48,12 +48,19 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
 
 	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
 
@@ -262,6 +269,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
 	defer span.End()
@@ -269,6 +277,13 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.portfolio_id", id.String()),
+	)
 
 	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 

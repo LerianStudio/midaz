@@ -26,8 +26,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		attribute.String("app.request.request_id", reqId),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.create_organization_input", coi); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert create organization input to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", coi); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Trying to create organization: %v", coi)
@@ -66,11 +66,6 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		Status:               status,
 		CreatedAt:            time.Now(),
 		UpdatedAt:            time.Now(),
-	}
-
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.repository_input", organization)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)

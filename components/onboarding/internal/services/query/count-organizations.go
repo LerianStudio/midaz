@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
-	"reflect"
 )
 
 // CountOrganizations returns the total count of organizations

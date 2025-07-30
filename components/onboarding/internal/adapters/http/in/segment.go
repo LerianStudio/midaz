@@ -48,12 +48,20 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
 	logger.Infof("Initiating create of Segment with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	payload := i.(*mmodel.CreateSegmentInput)
@@ -259,6 +267,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
@@ -266,6 +275,14 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.segment_id", id.String()),
+	)
+
 	logger.Infof("Initiating update of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	payload := i.(*mmodel.UpdateSegmentInput)

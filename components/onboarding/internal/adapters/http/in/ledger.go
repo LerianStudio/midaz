@@ -47,17 +47,22 @@ type LedgerHandler struct {
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
+	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
-
-	logger := libCommons.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
 	if err != nil {
@@ -251,6 +256,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
@@ -262,6 +268,12 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", id.String()),
+	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
 	if err != nil {

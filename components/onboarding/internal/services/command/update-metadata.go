@@ -2,16 +2,28 @@ package command
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", metadata)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to update metadata for %s: %v", entityName, entityID)
 

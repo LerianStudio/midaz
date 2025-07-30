@@ -2,14 +2,18 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)
 
@@ -23,6 +27,15 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 			Data:       metadata,
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
+		}
+
+		span.SetAttributes(
+			attribute.String("app.request.request_id", reqId),
+		)
+
+		err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", metadata)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {

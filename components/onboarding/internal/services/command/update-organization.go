@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,16 +12,26 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateOrganizationByID update an organization from the repository.
 func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", uoi)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to update organization: %v", uoi)
 
