@@ -1,3 +1,23 @@
+## [v3.0.0-beta.16] - 2025-07-29
+
+This update focuses on enhancing user experience through improved URL consistency, data validation, and system reliability, ensuring a smoother and more dependable application.
+
+### 🐛 Bug Fixes
+- **Dependency Update**: Resolved compatibility issues by updating `@lerianstudio/console-layout` to version 1.5.3. This fix enhances the stability and reliability of the console layout feature, ensuring a seamless user interaction without layout errors.
+
+### 🔄 Changes
+- **Frontend URL Structure**: Improved URL consistency by enabling `trailingSlash` in the configuration. This change helps maintain uniform URL structures, potentially boosting SEO performance and providing a more predictable navigation experience.
+- **Data Validation**: Introduced alphanumeric alias validation in the database configuration, enhancing data integrity by preventing invalid entries that could disrupt application functionality.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, keeping users informed and maintaining transparency about the project's progress.
+
+### 🔧 Maintenance
+- **General Maintenance**: Various behind-the-scenes improvements were made to ensure the application remains reliable and user-friendly.
+
+These updates collectively contribute to a more consistent, reliable, and user-friendly application experience.
+
+
 ## [v3.0.0-beta.15] - 2025-07-29
 
 This release introduces a major enhancement to the build process, significantly improving the efficiency and reliability of input handling for developers.
