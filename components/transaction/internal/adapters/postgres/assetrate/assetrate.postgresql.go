@@ -18,17 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
-
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )

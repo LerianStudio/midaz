@@ -9,7 +9,6 @@ require (
 	github.com/LerianStudio/lib-auth v1.16.0
 	github.com/LerianStudio/lib-commons v1.18.0
 	github.com/LerianStudio/lib-commons/v2 v2.0.0
-	github.com/LerianStudio/midaz v1.51.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -118,6 +117,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250728155136-f173205681a0 // indirect
 	google.golang.org/grpc v1.74.2 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
+	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
 require (
