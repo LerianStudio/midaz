@@ -193,7 +193,10 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -305,8 +308,11 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.String("app.request.account_id", id.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -381,8 +387,11 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.String("app.request.account_id", id.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -586,7 +595,10 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -753,8 +765,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.String("app.request.id", id.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -883,6 +898,10 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.String("app.request.id", id.String()),
+	}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
