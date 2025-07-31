@@ -80,11 +80,15 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return http.WithError(c, err)
 	}
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create Account on command", err)
+
+		return http.WithError(c, err)
 	}
 
 	metricFactory.Counter("account_created", libOpentelemetry.MetricOption{

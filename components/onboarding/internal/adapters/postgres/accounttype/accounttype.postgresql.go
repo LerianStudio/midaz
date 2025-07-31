@@ -73,10 +73,13 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_type_id", accountType.ID.String()),
-		attribute.String("app.request.account_type.name", accountType.Name),
-		attribute.String("app.request.account_type.description", accountType.Description),
-		attribute.String("app.request.account_type.key_value", accountType.KeyValue),
+	}
+
+	if accountType != nil {
+		attributes = append(attributes, attribute.String("app.request.account_type_id", accountType.ID.String()))
+		attributes = append(attributes, attribute.String("app.request.account_type.name", accountType.Name))
+		attributes = append(attributes, attribute.String("app.request.account_type.description", accountType.Description))
+		attributes = append(attributes, attribute.String("app.request.account_type.key_value", accountType.KeyValue))
 	}
 
 	span.SetAttributes(attributes...)
@@ -306,9 +309,12 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.account_type_id", id.String()),
-		attribute.String("app.request.account_type.name", accountType.Name),
-		attribute.String("app.request.account_type.description", accountType.Description),
-		attribute.String("app.request.account_type.key_value", accountType.KeyValue),
+	}
+
+	if accountType != nil {
+		attributes = append(attributes, attribute.String("app.request.account_type.name", accountType.Name))
+		attributes = append(attributes, attribute.String("app.request.account_type.description", accountType.Description))
+		attributes = append(attributes, attribute.String("app.request.account_type.key_value", accountType.KeyValue))
 	}
 
 	span.SetAttributes(attributes...)
