@@ -1,6 +1,5 @@
 import React from 'react'
 import { useLocale } from './use-locale'
-import { isNumericalString } from 'framer-motion'
 
 export function useFormatNumber() {
   const { locale } = useLocale()
@@ -27,7 +26,8 @@ export function useFormatNumber() {
         return value
       }
 
-      if (!isNumericalString(value)) {
+      const number = parseFloat(value)
+      if (isNaN(number)) {
         return value
       }
 

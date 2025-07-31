@@ -1,15 +1,10 @@
 import { renderHook } from '@testing-library/react'
 import { useFormatNumber } from './use-format-number'
 import { useLocale } from './use-locale'
-import { isNumericalString } from 'framer-motion'
 
 jest.mock('./use-locale')
-jest.mock('framer-motion')
 
 const mockUseLocale = useLocale as jest.MockedFunction<typeof useLocale>
-const mockIsNumericalString = isNumericalString as jest.MockedFunction<
-  typeof isNumericalString
->
 
 describe('useFormatNumber', () => {
   beforeEach(() => {
@@ -18,7 +13,6 @@ describe('useFormatNumber', () => {
 
   it('should format number with default locale separators', () => {
     mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
-    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
 
@@ -27,7 +21,6 @@ describe('useFormatNumber', () => {
 
   it('should format number with different locale separators', () => {
     mockUseLocale.mockReturnValue({ locale: 'de-DE' } as any)
-    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
 
@@ -44,7 +37,6 @@ describe('useFormatNumber', () => {
 
   it('should return original value for non-numerical string', () => {
     mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
-    mockIsNumericalString.mockReturnValue(false)
 
     const { result } = renderHook(() => useFormatNumber())
 
@@ -53,7 +45,6 @@ describe('useFormatNumber', () => {
 
   it('should format integer without decimal part', () => {
     mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
-    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
 
@@ -62,7 +53,6 @@ describe('useFormatNumber', () => {
 
   it('should handle numbers with zero decimal', () => {
     mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
-    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
 
@@ -71,7 +61,6 @@ describe('useFormatNumber', () => {
 
   it('should handle small numbers without thousand separator', () => {
     mockUseLocale.mockReturnValue({ locale: 'en-US' } as any)
-    mockIsNumericalString.mockReturnValue(true)
 
     const { result } = renderHook(() => useFormatNumber())
 
