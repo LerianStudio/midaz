@@ -1,3 +1,17 @@
+## [v3.0.0-beta.20] - 2025-07-31
+
+This release focuses on improving the reliability of data display and maintaining up-to-date documentation for a better user experience.
+
+### 🐛 Bug Fixes
+- **Ledger Update Issue**: Fixed a problem where the ledger was not displaying the latest data in the list view. Users will now see the most current information without needing to refresh manually, enhancing both data reliability and user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been thoroughly updated to reflect the latest fixes and changes. This ensures users have access to accurate and current information about the software's evolution, supporting better decision-making and understanding of the software's capabilities.
+
+### 🔧 Maintenance
+- Routine updates have been applied to keep the project in optimal condition, ensuring smooth operation and consistent performance.
+
+
 ## [v3.0.0-beta.19] - 2025-07-31
 
 This release introduces significant enhancements to the configuration system, allowing for more efficient management of multiple updates, and includes important documentation updates for improved transparency.
