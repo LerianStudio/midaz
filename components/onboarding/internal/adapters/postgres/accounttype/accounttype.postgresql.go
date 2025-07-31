@@ -74,14 +74,12 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.account_type_id", accountType.ID.String()),
+		attribute.String("app.request.account_type.name", accountType.Name),
+		attribute.String("app.request.account_type.description", accountType.Description),
+		attribute.String("app.request.account_type.key_value", accountType.KeyValue),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", accountType)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert account type record from entity to JSON string", err)
-	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -308,14 +306,12 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.account_type_id", id.String()),
+		attribute.String("app.request.account_type.name", accountType.Name),
+		attribute.String("app.request.account_type.description", accountType.Description),
+		attribute.String("app.request.account_type.key_value", accountType.KeyValue),
 	}
 
 	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", accountType)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert account type from entity to JSON string", err)
-	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {

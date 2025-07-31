@@ -237,33 +237,27 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(string)
+	id := c.Locals("id").(uuid.UUID)
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_id", id),
+		attribute.String("app.request.account_id", id.String()),
 	)
 
-	accountID, err := uuid.Parse(id)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse account ID", err)
-		return http.WithError(c, err)
-	}
+	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
-	logger.Infof("Initiating retrieval of Account with Account ID: %s", accountID.String())
-
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, accountID)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", accountID.String(), err.Error())
+		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Account with Account ID: %s", accountID.String())
+	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
 	return http.OK(c, account)
 }
