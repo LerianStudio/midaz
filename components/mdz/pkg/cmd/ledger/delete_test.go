@@ -6,9 +6,9 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams"
 
 	"github.com/stretchr/testify/assert"
 )

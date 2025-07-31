@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/root"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams"
 	"github.com/stretchr/testify/assert"
 )
 

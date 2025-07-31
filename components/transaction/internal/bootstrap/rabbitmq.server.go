@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/vmihailenco/msgpack/v5"
 	"os"
 )

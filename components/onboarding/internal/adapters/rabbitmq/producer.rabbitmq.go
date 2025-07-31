@@ -7,7 +7,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"math/rand"
 	"time"

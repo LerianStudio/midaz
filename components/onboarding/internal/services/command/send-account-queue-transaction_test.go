@@ -2,8 +2,8 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	// "github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
