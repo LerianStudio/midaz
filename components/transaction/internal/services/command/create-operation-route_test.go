@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

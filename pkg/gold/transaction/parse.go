@@ -2,7 +2,7 @@ package transaction
 
 import (
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg/gold/parser"
+	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/shopspring/decimal"
 	"strconv"

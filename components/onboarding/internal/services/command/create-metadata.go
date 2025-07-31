@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"time"
 )
 
