@@ -2,15 +2,16 @@ package transaction
 
 import (
 	"database/sql"
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/shopspring/decimal"
 	"time"
+
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 

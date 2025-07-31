@@ -3,16 +3,17 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
 func TestCreateAsset(t *testing.T) {

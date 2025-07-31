@@ -2,9 +2,10 @@ package operation
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/shopspring/decimal"
-	"time"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database

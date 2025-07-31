@@ -2,9 +2,10 @@ package account
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database

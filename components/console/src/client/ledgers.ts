@@ -51,16 +51,16 @@ const useCreateLedger = ({
 
   return useMutation<any, any, any>({
     mutationFn: postFetcher(`/api/organizations/${organizationId}/ledgers`),
-    onSuccess: async (...args) => {
-      await queryClient.invalidateQueries({
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
         queryKey: ['ledgers']
       })
 
-      await queryClient.refetchQueries({
+      queryClient.refetchQueries({
         queryKey: ['ledgers', organizationId]
       })
 
-      await onSuccess?.(...args)
+      onSuccess?.(...args)
     },
     ...options
   })

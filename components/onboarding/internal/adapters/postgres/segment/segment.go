@@ -2,9 +2,10 @@ package segment
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // SegmentPostgreSQLModel represents the entity Segment into SQL context in Database

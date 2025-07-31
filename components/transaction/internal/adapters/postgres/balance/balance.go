@@ -2,7 +2,7 @@ package balance
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 	"time"
 )
