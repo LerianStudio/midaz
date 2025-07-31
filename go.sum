@@ -34,6 +34,8 @@ github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/LerianStudio/lib-auth v1.16.0 h1:lFhzRU0kqy6hFCWFdzUOn3uT1Z83Q/wVAJ3+mif1Gv8=
 github.com/LerianStudio/lib-auth v1.16.0/go.mod h1:fcN8FCY6aRKmCmnwY20Kt/izDv4APQdF0uoUpgIxcJc=
+github.com/LerianStudio/lib-auth/v2 v2.0.0 h1:kKZKPmM2JDK0srV9MilDW9QvDomV+aUoOWazRcEET/A=
+github.com/LerianStudio/lib-auth/v2 v2.0.0/go.mod h1:JmbBdx+l4Pcq+nl2gFmhOcYC6fHdVOCXKWIXzck5n8s=
 github.com/LerianStudio/lib-commons v1.18.0 h1:NM+TqQ4wjxS+Zq3HyWu67bWINupSMlJODdvkFY1nLtU=
 github.com/LerianStudio/lib-commons v1.18.0/go.mod h1:1a0PeLcwajNbjXWVd+JCOWeTJj0QUUBMRFnrA84G8IU=
 github.com/LerianStudio/lib-commons/v2 v2.0.0 h1:yAcBywmjG2+kbH2cl1+U1uDLHcncdSS1EPZ26RHapuk=

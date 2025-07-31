@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
