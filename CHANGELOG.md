@@ -1,3 +1,18 @@
+## [v3.0.0-beta.19] - 2025-07-31
+
+This release introduces significant enhancements to the configuration system, allowing for more efficient management of multiple updates, and includes important documentation updates for improved transparency.
+
+### ✨ Features  
+- **Enhanced Configuration Management**: We have introduced support for multiple updates on Firmino, significantly boosting the flexibility and scalability of our configuration system. This enhancement allows users to manage and deploy multiple configuration updates simultaneously, reducing downtime and increasing efficiency. This is especially beneficial for teams handling complex environments or frequent configuration changes.
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to include recent changes and improvements, ensuring that all modifications are thoroughly documented. This helps maintain transparency and provides users with a clear history of changes, aiding in troubleshooting and understanding the software's evolution.
+
+### 🔧 Maintenance
+- **Release Management**: Behind-the-scenes improvements have been made to streamline release management processes, indirectly benefiting users by ensuring smoother updates and more reliable software delivery.
+
+This changelog provides a concise and user-focused overview of the key changes in version 3.0.0, emphasizing the practical benefits and improvements for users.
+
 ## [v3.0.0-beta.18] - 2025-07-30
 
 This release of Midaz focuses on improving the consistency and reliability of the authorization process, enhancing the overall user experience when interacting with the system's endpoints.
