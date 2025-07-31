@@ -90,7 +90,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	}
 
 	headers := amqp.Table{
-		libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
+		libConstants.HeaderID: reqId,
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))

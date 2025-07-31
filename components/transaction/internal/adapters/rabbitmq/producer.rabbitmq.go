@@ -61,24 +61,28 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	spanProducer.SetAttributes(
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
 		attribute.String("app.request.rabbitmq.producer.key", key),
 		attribute.String("app.request.rabbitmq.producer.message", string(message)),
-	)
+	}
+
+	spanProducer.SetAttributes(attributes...)
 
 	var err error
 
 	backoff := initialBackoff
 
 	headers := amqp.Table{
-		libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
+		libConstants.HeaderID: reqId,
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
