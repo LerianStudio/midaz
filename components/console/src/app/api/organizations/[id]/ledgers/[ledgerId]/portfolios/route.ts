@@ -33,7 +33,7 @@ export const POST = applyMiddleware(
   ],
   async (request: NextRequest, { params }: { params: PortfolioParams }) => {
     try {
-      const { id: organizationId, ledgerId } = params
+      const { id: organizationId, ledgerId } = await params
 
       const body = await request.json()
       const portfolio = await createPortfolioUseCase.execute(
