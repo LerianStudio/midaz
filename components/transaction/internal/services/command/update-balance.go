@@ -69,16 +69,13 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	spanUpdateBalances.SetAttributes(
+	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "app.request.payload", balances)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 	}
+
+	spanUpdateBalances.SetAttributes(attributes...)
 
 	fromTo := make(map[string]libTransaction.Amount)
 	for k, v := range validate.From {
@@ -92,6 +89,25 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	newBalances := make([]*mmodel.Balance, 0)
 
 	for _, balance := range balances {
+		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
+
+		balanceAttributes := []attribute.KeyValue{
+			attribute.String("app.request.request_id", reqId),
+			attribute.String("app.request.organization_id", organizationID.String()),
+			attribute.String("app.request.ledger_id", ledgerID.String()),
+			attribute.String("app.request.balance.id", balance.ID),
+			attribute.String("app.request.balance.alias", balance.Alias),
+			attribute.String("app.request.balance.asset_code", balance.AssetCode),
+			attribute.String("app.request.balance.available", balance.Available.String()),
+			attribute.String("app.request.balance.on_hold", balance.OnHold.String()),
+			attribute.Int64("app.request.balance.version", balance.Version),
+			attribute.String("app.request.balance.account_type", balance.AccountType),
+			attribute.Bool("app.request.balance.allow_sending", balance.AllowSending),
+			attribute.Bool("app.request.balance.allow_receiving", balance.AllowReceiving),
+		}
+
+		spanBalance.SetAttributes(balanceAttributes...)
+
 		balance.ConvertToLibBalance()
 		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 
@@ -109,9 +125,11 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			OnHold:    calculateBalances.OnHold,
 			Version:   balance.Version + 1,
 		})
+
+		spanBalance.End()
 	}
 
-	err = uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
+	err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())

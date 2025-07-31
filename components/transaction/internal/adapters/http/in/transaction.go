@@ -75,14 +75,14 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.transaction.transaction_status", transactionStatus),
-		attribute.String("app.request.transaction.chart_of_accounts_group_name", input.ChartOfAccountsGroupName),
-		attribute.String("app.request.transaction.description", input.Description),
-		attribute.String("app.request.transaction.code", input.Code),
-		attribute.Bool("app.request.transaction.pending", input.Pending),
-		attribute.String("app.request.transaction.route", input.Route),
+		attribute.String("app.request.transaction.chart_of_accounts_group_name", parserDSL.ChartOfAccountsGroupName),
+		attribute.String("app.request.transaction.description", parserDSL.Description),
+		attribute.String("app.request.transaction.code", parserDSL.Code),
+		attribute.Bool("app.request.transaction.pending", parserDSL.Pending),
+		attribute.String("app.request.transaction.route", parserDSL.Route),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", input.Send)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", parserDSL.Send)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
@@ -277,11 +277,15 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	attributes = append(attributes, attribute.String("app.request.transaction.chart_of_accounts_group_name", parserDSL.ChartOfAccountsGroupName))
-	attributes = append(attributes, attribute.String("app.request.transaction.description", parserDSL.Description))
-	attributes = append(attributes, attribute.String("app.request.transaction.code", parserDSL.Code))
-	attributes = append(attributes, attribute.String("app.request.transaction.route", parserDSL.Route))
-	attributes = append(attributes, attribute.Bool("app.request.transaction.pending", parserDSL.Pending))
+	dslAttributes := []attribute.KeyValue{
+		attribute.String("app.request.transaction.chart_of_accounts_group_name", parserDSL.ChartOfAccountsGroupName),
+		attribute.String("app.request.transaction.description", parserDSL.Description),
+		attribute.String("app.request.transaction.code", parserDSL.Code),
+		attribute.String("app.request.transaction.route", parserDSL.Route),
+		attribute.Bool("app.request.transaction.pending", parserDSL.Pending),
+	}
+
+	attributes = append(attributes, dslAttributes...)
 
 	span.SetAttributes(attributes...)
 
@@ -826,7 +830,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 	}
 
-	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+
+	c.SetUserContext(ctxIdempotency)
 
 	spanIdempotency.SetAttributes(attributes...)
 

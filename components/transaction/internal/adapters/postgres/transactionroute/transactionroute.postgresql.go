@@ -241,7 +241,6 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 	defer spanQuery.End()
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", sqlQuery))
 	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
@@ -408,7 +407,6 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", query))
 	spanExec.SetAttributes(attributes...)
 
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
@@ -598,8 +596,12 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", query))
 	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -659,9 +661,17 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.transaction_route_id", transactionRouteID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	// Soft delete relationships that should be removed
 	if len(toRemove) > 0 {
@@ -698,6 +708,8 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 	if len(toAdd) > 0 {
 		ctxCreate, spanCreate := tracer.Start(ctxSpan, "postgres.create_relationships")
 		defer spanCreate.End()
+
+		spanCreate.SetAttributes(attributes...)
 
 		for _, operationRouteID := range toAdd {
 			relationID := libCommons.GenerateUUIDv7()

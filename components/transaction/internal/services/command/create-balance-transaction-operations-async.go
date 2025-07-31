@@ -49,10 +49,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		attribute.String("app.request.ledger_id", data.LedgerID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "app.request.payload", data); err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert payload to JSON string", err)
-	}
-
 	logger.Infof("Trying to update balances")
 
 	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)

@@ -20,6 +20,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to operation template entities.
@@ -59,9 +60,25 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Opera
 // Create a new Operation entity into Postgresql and returns it.
 func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_operation")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", operation.OrganizationID),
+		attribute.String("app.request.ledger_id", operation.LedgerID),
+		attribute.String("app.request.transaction_id", operation.TransactionID),
+		attribute.String("app.request.account_id", operation.AccountID),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", operation)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert operation from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -74,6 +91,8 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	record.FromEntity(operation)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
 	if err != nil {
@@ -133,9 +152,24 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 // FindAll retrieves Operations entities from the database.
 func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -179,6 +213,13 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -250,9 +291,18 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 // ListByIDs retrieves Operation entities from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_operations_by_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -264,6 +314,8 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	var operations []*Operation
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_ids.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
@@ -322,9 +374,20 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 // Find retrieves a Operation entity from the database using the provided ID.
 func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
+		attribute.String("app.request.operation_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -336,6 +399,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 	operation := &OperationPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3 AND id = $4 AND deleted_at IS NULL",
 		organizationID, ledgerID, transactionID, id)
@@ -381,9 +446,20 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 // FindByAccount retrieves a Operation entity from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+		attribute.String("app.request.operation_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -395,6 +471,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 	operation := &OperationPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND id = $4 AND deleted_at IS NULL",
 		organizationID, ledgerID, accountID, id)
@@ -440,9 +518,25 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 // Update an Operation entity into Postgresql and returns the Operation updated.
 func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
+		attribute.String("app.request.operation_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", operation)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -478,6 +572,8 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
+	spanExec.SetAttributes(attributes...)
+
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert operation record from entity to JSON string", err)
@@ -512,10 +608,20 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Operation entity from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	trace := libCommons.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
-	ctx, span := trace.Start(ctx, "postgres.delete_operation")
+	ctx, span := tracer.Start(ctx, "postgres.delete_operation")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.operation_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -524,7 +630,9 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 		return err
 	}
 
-	ctx, spanExec := trace.Start(ctx, "postgres.delete.exec")
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	result, err := db.ExecContext(ctx, `UPDATE operation SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
@@ -557,9 +665,28 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+	}
+
+	if operationType != nil {
+		attributes = append(attributes, attribute.String("app.request.operation_type", *operationType))
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -607,6 +734,13 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {

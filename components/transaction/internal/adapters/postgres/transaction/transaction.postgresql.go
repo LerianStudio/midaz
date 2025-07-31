@@ -72,13 +72,37 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", transaction.OrganizationID),
 		attribute.String("app.request.ledger_id", transaction.LedgerID),
+		attribute.String("app.request.transaction.id", transaction.ID),
+		attribute.String("app.request.transaction.description", transaction.Description),
+		attribute.String("app.request.transaction.asset_code", transaction.AssetCode),
+		attribute.String("app.request.transaction.chart_of_accounts_group_name", transaction.ChartOfAccountsGroupName),
+		attribute.String("app.request.transaction.created_at", transaction.CreatedAt.String()),
+		attribute.String("app.request.transaction.updated_at", transaction.UpdatedAt.String()),
+		attribute.String("app.request.transaction.route", transaction.Route),
+	}
+
+	if transaction.ParentTransactionID != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.parent_transaction_id", *transaction.ParentTransactionID))
+	}
+
+	if transaction.Amount != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.parent_id", transaction.Amount.String()))
+	}
+
+	if transaction.DeletedAt != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.deleted_at", transaction.DeletedAt.String()))
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", transaction)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.status", transaction.Status)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction status to JSON string", err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.body", transaction.Body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction body to JSON string", err)
 	}
 
 	db, err := r.connection.GetDB()
@@ -160,7 +184,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
 
 	db, err := r.connection.GetDB()
@@ -206,8 +230,12 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", query))
 	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -307,12 +335,9 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 	defer spanQuery.End()
 
-	queryStr := "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC"
-
-	attributes = append(attributes, attribute.String("app.request.repository_query", queryStr))
 	spanQuery.SetAttributes(attributes...)
 
-	rows, err := db.QueryContext(ctx, queryStr,
+	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
@@ -399,12 +424,9 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
-	queryStr := "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
-
-	attributes = append(attributes, attribute.String("app.request.repository_query", queryStr))
 	spanQuery.SetAttributes(attributes...)
 
-	row := db.QueryRowContext(ctx, queryStr,
+	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
 
 	if err := row.Scan(
@@ -475,12 +497,9 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
 
-	queryStr := "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3 AND deleted_at IS NULL"
-
-	attributes = append(attributes, attribute.String("app.request.repository_query", queryStr))
 	spanQuery.SetAttributes(attributes...)
 
-	row := db.QueryRowContext(ctx, queryStr,
+	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, parentID)
 
 	if err := row.Scan(
@@ -539,7 +558,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", transaction)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes from struct", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction from entity to JSON string", err)
 	}
 
 	db, err := r.connection.GetDB()
@@ -589,7 +608,6 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", query))
 	spanExec.SetAttributes(attributes...)
 
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
@@ -648,12 +666,9 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 	defer spanExec.End()
 
-	queryStr := `UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
-
-	attributes = append(attributes, attribute.String("app.request.repository_query", queryStr))
 	spanExec.SetAttributes(attributes...)
 
-	result, err := db.ExecContext(ctx, queryStr,
+	result, err := db.ExecContext(ctx, "UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -705,12 +720,9 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
-	queryStr := "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL"
-
-	attributes = append(attributes, attribute.String("app.request.repository_query", queryStr))
 	spanQuery.SetAttributes(attributes...)
 
-	rows, err := db.QueryContext(ctx, queryStr,
+	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
 		organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
@@ -814,7 +826,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes from struct", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
 
 	db, err := r.connection.GetDB()
@@ -868,8 +880,12 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
 
-	attributes = append(attributes, attribute.String("app.request.repository_query", query))
 	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {

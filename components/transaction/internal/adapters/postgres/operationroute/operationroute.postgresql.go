@@ -22,6 +22,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to operation route entities.
@@ -63,9 +64,23 @@ func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *
 // Create creates a new operation route in the database.
 func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_operation_route")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", operationRoute)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert operation_route record from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -78,6 +93,8 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	record.FromEntity(operationRoute)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
 	if err != nil {
@@ -131,9 +148,18 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 // It returns the operation route if found, otherwise it returns an error.
 func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_route")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -150,6 +176,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 	operationRoute := &OperationRoutePostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -184,9 +212,18 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 // It returns the operation routes if found, otherwise it returns an error.
 func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation_routes_by_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	if len(ids) == 0 {
 		return []*mmodel.OperationRoute{}, nil
@@ -215,6 +252,8 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_ids.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, findByIDsSql, args...)
 	if err != nil {
@@ -284,9 +323,23 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 // It returns the updated operation route if found, otherwise it returns an error.
 func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operationRoute *mmodel.OperationRoute) (*mmodel.OperationRoute, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation_route")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", operationRoute)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert operation_route record from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -338,6 +391,8 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
+	spanExec.SetAttributes(attributes...)
+
 	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert operation_route record from entity to JSON string", err)
@@ -378,9 +433,19 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 // Delete an Operation Route entity from the database (soft delete) using the provided ID.
 func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation_route")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.operation_route_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -393,6 +458,8 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 	args := []any{organizationID, ledgerID, id}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -410,9 +477,23 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 // The function supports filtering by date range and pagination.
 func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operation_routes")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -456,6 +537,13 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -516,9 +604,17 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 // It returns true if the operation route is linked to at least one transaction route, false otherwise.
 func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx context.Context, operationRouteID uuid.UUID) (bool, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.has_transaction_route_links")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.operation_route_id", operationRouteID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -531,6 +627,8 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 	args := []any{operationRouteID}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.has_transaction_route_links.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	var exists bool
 
@@ -551,9 +649,17 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 // It returns a slice of transaction route UUIDs that are linked to the given operation route ID.
 func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context.Context, operationRouteID uuid.UUID) ([]uuid.UUID, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.operation_route_id", operationRouteID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -567,6 +673,8 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_route_ids.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
