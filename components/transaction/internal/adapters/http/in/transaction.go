@@ -860,6 +860,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 	if err != nil {
+		logger.Errorf("failed to update BTO - transaction: %s - Real Error: %v", tran.ID, err)
+
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
 		libOpentelemetry.HandleSpanError(&span, "failed to update BTO", err)

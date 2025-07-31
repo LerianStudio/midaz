@@ -143,6 +143,11 @@ type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
 
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string `json:"alias" example:"@person1" maxLength:"256"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -162,10 +167,10 @@ type BalanceRedis struct {
 	AccountType string `json:"accountType"`
 
 	// Whether the account can send funds (1=true, 0=false)
-	AllowSending bool `json:"allowSending"`
+	AllowSending int `json:"allowSending"`
 
 	// Whether the account can receive funds (1=true, 0=false)
-	AllowReceiving bool `json:"allowReceiving"`
+	AllowReceiving int `json:"allowReceiving"`
 }
 
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance

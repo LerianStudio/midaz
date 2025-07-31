@@ -97,8 +97,8 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 				OnHold:         b.OnHold,
 				Version:        b.Version,
 				AccountType:    b.AccountType,
-				AllowSending:   b.AllowSending,
-				AllowReceiving: b.AllowReceiving,
+				AllowSending:   b.AllowSending == 1,
+				AllowReceiving: b.AllowReceiving == 1,
 				AssetCode:      b.AssetCode,
 			})
 		} else {

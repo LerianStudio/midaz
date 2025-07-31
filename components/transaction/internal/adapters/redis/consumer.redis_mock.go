@@ -16,6 +16,7 @@ import (
 
 	transaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -56,6 +57,21 @@ func (m *MockRedisRepository) AddSumBalanceRedis(ctx context.Context, key, trans
 func (mr *MockRedisRepositoryMockRecorder) AddSumBalanceRedis(ctx, key, transactionStatus, pending, amount, balance any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalanceRedis), ctx, key, transactionStatus, pending, amount, balance)
+}
+
+// AddSumBalancesRedis mocks base method.
+func (m *MockRedisRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, parser transaction.Transaction) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSumBalancesRedis", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, parser)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddSumBalancesRedis indicates an expected call of AddSumBalancesRedis.
+func (mr *MockRedisRepositoryMockRecorder) AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, parser any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalancesRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalancesRedis), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, parser)
 }
 
 // Del mocks base method.
