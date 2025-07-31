@@ -702,10 +702,12 @@ export const TransactionReview = () => {
 
                     return Array.from(feesByAccount.entries()).map(
                       ([accountAlias, data], index) => {
-                        const label =
+                        const baseLabel =
                           data.rule?.feeLabel ||
                           data.operations[0]?.description ||
                           `Fee - ${accountAlias}`
+
+                        const label = `${baseLabel} (${accountAlias})`
 
                         return (
                           <TransactionReceiptItem

@@ -179,12 +179,13 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
       const feeCollector = feeOperations[0]?.accountAlias
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
-        (operation: any) => ({
-          feeLabel:
-            operation.description ||
-            `Fee collected by ${operation.accountAlias}`,
-          calculatedAmount: operation.amount?.value || '0'
-        })
+        (operation: any) => {
+          const baseLabel = operation.description
+          return {
+            feeLabel: `${baseLabel} (${operation.accountAlias})`,
+            calculatedAmount: operation.amount?.value || '0'
+          }
+        }
       )
 
       if (totalFeesAmount === 0) {
@@ -254,12 +255,13 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
         destinationReceives < originalAmount && totalFeesAmount > 0
 
       const appliedFeesList: AppliedFee[] = feeOperations.map(
-        (operation: TransactionOperationDto) => ({
-          feeLabel:
-            operation.description ||
-            `Fee collected by ${operation.accountAlias}`,
-          calculatedAmount: operation.amount
-        })
+        (operation: TransactionOperationDto) => {
+          const baseLabel = operation.description
+          return {
+            feeLabel: `${baseLabel} (${operation.accountAlias})`,
+            calculatedAmount: operation.amount
+          }
+        }
       )
 
       const sourceAccount = source[0]?.accountAlias
