@@ -10,8 +10,10 @@ import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   useMutation,
   UseMutationOptions,
-  useQuery
+  useQuery,
+  useQueryClient
 } from '@tanstack/react-query'
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
 
 type UseCreateAssetProps = UseMutationOptions & {
   organizationId: string
@@ -31,13 +33,29 @@ type UseDeleteAssetProps = UseCreateAssetProps
 const useCreateAsset = ({
   organizationId,
   ledgerId,
+  onSuccess,
   ...options
 }: UseCreateAssetProps) => {
+  const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
+
   return useMutation<any, any, any>({
     mutationFn: postFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/assets`
     ),
-    ...options
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: ['ledger', organizationId, ledgerId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      layoutQueryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      onSuccess?.(...args)
+    }
   })
 }
 
