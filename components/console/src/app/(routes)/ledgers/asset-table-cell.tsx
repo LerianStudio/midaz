@@ -13,20 +13,21 @@ import {
 } from '@/components/ui/tooltip'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
 
 export type AssetTableCellProps = {
   assets: AssetDto[]
   onCreate?: () => void
+  onClick?: () => void
 }
 
-export const AssetTableCell = ({ assets, onCreate }: AssetTableCellProps) => {
+export const AssetTableCell = ({
+  assets,
+  onCreate,
+  onClick
+}: AssetTableCellProps) => {
   const intl = useIntl()
-  const router = useRouter()
 
   const codes = assets?.map((asset) => asset.code).join(', ')
-
-  const handleClick = () => router.push('/assets')
 
   if (assets.length === 0) {
     return (
@@ -50,7 +51,7 @@ export const AssetTableCell = ({ assets, onCreate }: AssetTableCellProps) => {
 
   if (assets.length <= 3) {
     return (
-      <TableCell onClick={handleClick}>
+      <TableCell onClick={onClick}>
         <TableCellWrapper>
           <p className="cursor-pointer">{codes}</p>
           <TableCellAction>
@@ -62,7 +63,7 @@ export const AssetTableCell = ({ assets, onCreate }: AssetTableCellProps) => {
   }
 
   return (
-    <TableCell onClick={handleClick}>
+    <TableCell onClick={onClick}>
       <TableCellWrapper>
         <TooltipProvider>
           <Tooltip delayDuration={300}>

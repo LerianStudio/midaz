@@ -25,8 +25,7 @@ export const POST = applyMiddleware(
       )
 
       const body = await request.json()
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       const response = await createTransactionUseCase.execute(
         organizationId,
