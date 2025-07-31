@@ -27,7 +27,7 @@ export function useFormatNumber() {
       }
 
       const number = parseFloat(value)
-      if (isNaN(number)) {
+      if (Number.isNaN(number)) {
         return value
       }
 
