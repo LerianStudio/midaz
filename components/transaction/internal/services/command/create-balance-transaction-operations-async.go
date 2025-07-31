@@ -3,6 +3,9 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -14,15 +17,15 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"reflect"
-	"time"
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	var t transaction.TransactionQueue
 
@@ -39,6 +42,16 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
 	defer spanUpdateBalances.End()
+
+	spanUpdateBalances.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", data.OrganizationID.String()),
+		attribute.String("app.request.ledger_id", data.LedgerID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "app.request.payload", data); err != nil {
+		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to update balances")
 
@@ -63,6 +76,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
+	spanCreateMetadata.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
+
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanCreateMetadata, "Failed to create metadata on transaction", err)
@@ -74,6 +92,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
+
+	spanCreateOperation.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
 
 	logger.Infof("Trying to create new operations")
 

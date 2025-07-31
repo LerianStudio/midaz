@@ -13,12 +13,14 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // validateAccountingRules validates the accounting rules for the given operations
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []lockOperation, validate *libTransaction.Responses) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	accountingValidation := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
 	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
@@ -27,6 +29,16 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", validate); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
@@ -78,9 +90,18 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []lockOperation) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
+	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", validate); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	for _, operation := range operations {
 		// Get route ID and determine if operation is source or destination

@@ -27,9 +27,9 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("request_id", reqId),
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)

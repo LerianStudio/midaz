@@ -6,6 +6,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateAccountingRouteCache creates a cache for the accounting route.
@@ -17,9 +18,21 @@ import (
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route_cache")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", route.OrganizationID.String()),
+		attribute.String("app.request.ledger_id", route.LedgerID.String()),
+		attribute.String("app.request.transaction_route_id", route.ID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", route); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Creating transaction route cache for transaction route with id: %s", route.ID)
 

@@ -6,11 +6,13 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetOperationRouteByID retrieves an operation route by its ID.
@@ -18,15 +20,27 @@ import (
 func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_route_by_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.operation_route_id", id.String()),
+	)
+
+	if portfolioID != nil {
+		span.SetAttributes(attribute.String("app.request.portfolio_id", portfolioID.String()))
+	}
 
 	logger.Infof("Retrieving operation route for id: %s", id)
 
 	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error getting operation route on repo by id: %v", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get operation route by ID on repository", err)
 
 		logger.Errorf("Error getting operation route on repo by id: %v", err)
 
@@ -40,6 +54,8 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 	if operationRoute != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRoute.ID.String())
 		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation route", err)
+
 			logger.Errorf("Error get metadata on mongodb operation route: %v", err)
 
 			return nil, err

@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // TransactionExecute func that send balances, transaction and operations to execute sync/async.
@@ -27,9 +28,21 @@ func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledge
 func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
 	defer spanSendBTOQueue.End()
+
+	spanSendBTOQueue.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanSendBTOQueue, "app.request.payload", parseDSL); err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to convert payload to JSON string", err)
+	}
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -102,9 +115,21 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctxSendBTODirect, spanSendBTODirect := tracer.Start(ctx, "command.create_bto_execute_sync")
 	defer spanSendBTODirect.End()
+
+	spanSendBTODirect.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanSendBTODirect, "app.request.payload", parseDSL); err != nil {
+		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to convert payload to JSON string", err)
+	}
 
 	queueData := make([]mmodel.QueueData, 0)
 
