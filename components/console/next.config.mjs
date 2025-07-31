@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  trailingSlash: true,
   logging: {
     fetches: {
       fullUrl: true
