@@ -1,3 +1,25 @@
+## [v3.0.0-beta.21] - 2025-07-31
+
+This release focuses on enhancing user experience with a redesigned interface, improved performance, and increased reliability across the application.
+
+### ✨ Features  
+- **Redesigned Frontend Layout**: Enjoy a cleaner and more intuitive interface with improved accessibility. The new design removes motion elements for better performance, making navigation smoother and more efficient.
+
+### 🐛 Bug Fixes
+- **Navigation and Asset Updates**: Resolved issues with navigation and asset updates, ensuring users consistently access the latest content without encountering errors or outdated information.
+
+### ⚡ Performance
+- **NextJS 15 Support**: Enhanced asynchronous operations by properly handling await parameters, reducing potential errors during data fetching for a smoother user experience.
+
+### 🔄 Changes
+- **Automatic Resource Updates**: Improved backend and frontend organization for asset management, ensuring that content updates are seamlessly reflected in the application, keeping users informed with the most current information.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated project dependencies to leverage the latest features and security patches, maintaining application stability and security.
+- **Code Quality Improvements**: Refined code style for better readability and maintainability, contributing to overall code quality.
+
+These updates collectively enhance the user experience by improving interface design, ensuring reliable functionality, and maintaining high code quality and security standards.
+
 ## [v3.0.0-beta.20] - 2025-07-31
 
 This release focuses on improving the reliability of data display and maintaining up-to-date documentation for a better user experience.

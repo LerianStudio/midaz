@@ -20,8 +20,12 @@ export const POST = applyMiddleware(
       const completeOnboardingUseCase: CompleteOnboarding =
         await container.getAsync<CompleteOnboarding>(CompleteOnboardingUseCase)
       const body = await request.json()
+      const { id: organizationId } = await params
 
-      const ledger = await completeOnboardingUseCase.execute(params.id, body)
+      const ledger = await completeOnboardingUseCase.execute(
+        organizationId,
+        body
+      )
 
       return NextResponse.json(ledger)
     } catch (error: any) {

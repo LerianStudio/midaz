@@ -42,6 +42,7 @@ import {
   TooltipTrigger,
   TooltipContent
 } from '@/components/ui/tooltip'
+import { useRouter } from 'next/navigation'
 
 type LedgerRowProps = {
   ledger: { id: string; original: LedgerDto }
@@ -61,6 +62,12 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
   const intl = useIntl()
   const { setLedger } = useOrganization()
   const { handleCreate, sheetProps } = useCreateUpdateSheet<any>()
+  const router = useRouter()
+
+  const handleAssetsClick = () => {
+    setLedger(ledger.original)
+    router.push('/assets')
+  }
 
   return (
     <React.Fragment>
@@ -115,6 +122,7 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
         <AssetTableCell
           assets={ledger.original.assets || []}
           onCreate={handleCreate}
+          onClick={handleAssetsClick}
         />
         <TableCell className="w-0">
           <div className="flex justify-end">

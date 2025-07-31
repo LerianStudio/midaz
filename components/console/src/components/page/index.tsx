@@ -23,7 +23,7 @@ export const PageView = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'bg-shadcn-100 flex min-h-full w-full flex-col overflow-y-auto',
+      'bg-shadcn-100 flex min-h-full grow flex-col overflow-y-auto',
       className
     )}
     {...props}

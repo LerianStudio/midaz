@@ -30,7 +30,7 @@ export const GET = applyMiddleware(
     try {
       const fetchAssetByIdUseCase: FetchAssetById =
         container.get<FetchAssetById>(FetchAssetByIdUseCase)
-      const { id, ledgerId, assetId } = params
+      const { id, ledgerId, assetId } = await params
 
       const assets = await fetchAssetByIdUseCase.execute(id, ledgerId, assetId)
 
@@ -57,7 +57,7 @@ export const PATCH = applyMiddleware(
     try {
       const updateAssetUseCase = container.get<UpdateAsset>(UpdateAssetUseCase)
 
-      const { id, ledgerId, assetId } = params
+      const { id, ledgerId, assetId } = await params
       const body = await request.json()
 
       const assetUpdated = await updateAssetUseCase.execute(
@@ -90,7 +90,7 @@ export const DELETE = applyMiddleware(
     try {
       const deleteAssetUseCase = container.get<DeleteAsset>(DeleteAssetUseCase)
 
-      const { id, ledgerId, assetId } = params
+      const { id, ledgerId, assetId } = await params
 
       await deleteAssetUseCase.execute(id, ledgerId, assetId)
 

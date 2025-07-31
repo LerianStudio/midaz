@@ -20,7 +20,7 @@ export const GET = applyMiddleware(
     try {
       const fetchGroupByIdUseCase: FetchGroupById =
         container.get<FetchGroupById>(FetchGroupByIdUseCase)
-      const { groupId } = params
+      const { groupId } = await params
 
       const group = await fetchGroupByIdUseCase.execute(groupId)
 

@@ -16,6 +16,7 @@ import {
   useQuery,
   useQueryClient
 } from '@tanstack/react-query'
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
 
 export type UseListOrganizationsProps = {
   query?: OrganizationSearchParamDto
@@ -53,6 +54,7 @@ export const useCreateOrganization = ({
   ...options
 }: UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
@@ -60,6 +62,9 @@ export const useCreateOrganization = ({
     ...options,
     onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)
@@ -74,6 +79,7 @@ export const useUpdateOrganization = ({
 }: UseGetOrganizationProps &
   UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
@@ -81,6 +87,9 @@ export const useUpdateOrganization = ({
     ...options,
     onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)
@@ -93,6 +102,7 @@ export const useDeleteOrganization = ({
   ...options
 }: UseMutationOptions<OrganizationDto, Error, unknown>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
@@ -100,6 +110,9 @@ export const useDeleteOrganization = ({
     ...options,
     onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)

@@ -25,7 +25,7 @@ export const GET = applyMiddleware(
       const fetchApplicationByIdUseCase: FetchApplicationById =
         container.get<FetchApplicationById>(FetchAllApplicationsUseCase)
 
-      const { applicationId } = params
+      const { applicationId } = await params
 
       const application =
         await fetchApplicationByIdUseCase.execute(applicationId)
@@ -54,7 +54,7 @@ export const DELETE = applyMiddleware(
       const deleteApplicationUseCase: DeleteApplication =
         container.get<DeleteApplication>(DeleteApplicationUseCase)
 
-      const { applicationId } = params
+      const { applicationId } = await params
 
       await deleteApplicationUseCase.execute(applicationId)
 
