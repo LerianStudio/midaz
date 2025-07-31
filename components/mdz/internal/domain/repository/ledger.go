@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 type Ledger interface {

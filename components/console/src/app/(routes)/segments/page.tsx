@@ -12,7 +12,7 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { SegmentsSheet } from './segments-sheet'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
@@ -21,6 +21,10 @@ import { PageHeader } from '@/components/page-header'
 import { SegmentsDataTable } from './segments-data-table'
 import { SegmentsSkeleton } from './segments-skeleton'
 import { SegmentDto } from '@/core/application/dto/segment-dto'
+import { EntityBox } from '@/components/entity-box'
+import { InputField } from '@/components/form'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { Form } from '@/components/ui/form'
 
 const Page = () => {
   const intl = useIntl()
@@ -30,17 +34,20 @@ const Page = () => {
   const [total, setTotal] = useState(0)
 
   const { form, searchValues, pagination } = useQueryParams({
-    total
+    total,
+    initialValues: {
+      id: ''
+    }
   })
 
   const {
     data: segments,
     refetch,
-    isLoading: isSegmentsLoading
+    isFetching: isSegmentsLoading
   } = useListSegments({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
 
   useEffect(() => {
@@ -114,7 +121,6 @@ const Page = () => {
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   }
@@ -191,13 +197,29 @@ const Page = () => {
         {...sheetProps}
       />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isSegmentsLoading && <SegmentsSkeleton />}
 
         {!isSegmentsLoading && segments && (
           <SegmentsDataTable {...segmentsProps} />
         )}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

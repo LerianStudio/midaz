@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useListTransactions } from '@/client/transactions'
 import { TransactionsDataTable } from './transactions-data-table'
 import { TransactionsSkeleton } from './transactions-skeleton'
@@ -17,6 +17,10 @@ import {
   TransactionMode,
   useTransactionMode
 } from './create/hooks/use-transaction-mode'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { InputField } from '@/components/form'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 
 export default function TransactionsPage() {
   const intl = useIntl()
@@ -26,13 +30,16 @@ export default function TransactionsPage() {
   const [total, setTotal] = React.useState(0)
   const { setMode } = useTransactionMode()
 
-  const { form, searchValues, pagination } = useQueryParams({ total })
+  const { form, searchValues, pagination } = useQueryParams({
+    total,
+    initialValues: { id: '' }
+  })
 
   const { data: transactions, isLoading: isLoadingTransactions } =
     useListTransactions({
       organizationId: currentOrganization?.id!,
       ledgerId: currentLedger.id,
-      ...(searchValues as any)
+      query: searchValues as any
     })
 
   React.useEffect(() => {
@@ -130,19 +137,34 @@ export default function TransactionsPage() {
         />
       </PageHeader.Root>
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isLoadingTransactions && <TransactionsSkeleton />}
 
         {!isLoadingTransactions && hasLedgerLoaded && (
           <TransactionsDataTable
             transactions={transactions}
-            form={form}
             total={total}
             pagination={pagination}
             onCreateTransaction={() => setOpen(true)}
           />
         )}
-      </div>
+      </Form>
     </div>
   )
 }

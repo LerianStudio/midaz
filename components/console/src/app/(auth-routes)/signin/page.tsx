@@ -44,9 +44,7 @@ const SignInPage = () => {
   const [redirectUrl, setRedirectUrl] = React.useState<string | null>(null)
 
   const { data: organizationsData, isLoading: orgLoading } =
-    useListOrganizations({
-      enabled: isLoading
-    })
+    useListOrganizations({})
 
   React.useEffect(() => {
     if (isLoading && !orgLoading) {

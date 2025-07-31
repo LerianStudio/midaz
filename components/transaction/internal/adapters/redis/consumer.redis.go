@@ -4,14 +4,15 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"strings"
@@ -22,7 +23,7 @@ import (
 var addSubLua string
 
 // RedisRepository provides an interface for redis.
-// It defines methods for setting, getting, deleting keys, and incrementing values.
+// It defines methods for setting, getting keys, and incrementing values.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
@@ -30,6 +31,8 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -110,14 +113,18 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
 
 		return "", err
 	}
 
 	val, err := rds.Get(ctx, key).Result()
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+
+		logger.Errorf("Failed to get on redis: %v", err)
 
 		return "", err
 	}
@@ -270,4 +277,56 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
+}
+
+func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.set_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return err
+	}
+
+	logger.Infof("Setting binary data with TTL: %v", ttl*time.Second)
+
+	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return nil, err
+	}
+
+	val, err := rds.Get(ctx, key).Bytes()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get bytes on redis", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
+
+	return val, nil
 }

@@ -5,21 +5,26 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	_ "github.com/LerianStudio/midaz/components/onboarding/api"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	_ "github.com/LerianStudio/midaz/v3/components/onboarding/api"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 const midazName = "midaz"
+const routingName = "routing"
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			return libHTTP.HandleFiberError(ctx, err)
+		},
 	})
+
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
@@ -75,6 +80,13 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAccountExternalByCode)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "delete"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
 	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", auth.Authorize(midazName, "accounts", "head"), http.ParseUUIDPathParameters, ah.CountAccounts)
+
+	// Account Types
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(routingName, "account-types", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(routingName, "account-types", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountTypeInput), ath.UpdateAccountType))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(routingName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAccountTypeByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", auth.Authorize(routingName, "account-types", "get"), http.ParseUUIDPathParameters, ath.GetAllAccountTypes)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", auth.Authorize(routingName, "account-types", "delete"), http.ParseUUIDPathParameters, ath.DeleteAccountTypeByID)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

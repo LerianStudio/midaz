@@ -4,7 +4,7 @@ import (
 	"context"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 	"reflect"
 )

@@ -3,39 +3,45 @@ package command
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"os"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // TestCreateAccountScenarios tests various scenarios for the CreateAccount function
 func TestCreateAccountScenarios(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
-	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *rabbitmq.MockProducerRepository, *mongodb.MockRepository) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *rabbitmq.MockProducerRepository, *mongodb.MockRepository, *accounttype.MockRepository) {
 		mockAssetRepo := asset.NewMockRepository(ctrl)
 		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
 		uc := &UseCase{
-			AssetRepo:     mockAssetRepo,
-			PortfolioRepo: mockPortfolioRepo,
-			AccountRepo:   mockAccountRepo,
-			RabbitMQRepo:  mockRabbitMQ,
-			MetadataRepo:  mockMetadataRepo,
+			AssetRepo:       mockAssetRepo,
+			PortfolioRepo:   mockPortfolioRepo,
+			AccountRepo:     mockAccountRepo,
+			RabbitMQRepo:    mockRabbitMQ,
+			MetadataRepo:    mockMetadataRepo,
+			AccountTypeRepo: mockAccountTypeRepo,
 		}
 
-		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo
+		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo
 	}
 
 	ctx := context.Background()
@@ -47,19 +53,21 @@ func TestCreateAccountScenarios(t *testing.T) {
 	tests := []struct {
 		name         string
 		input        *mmodel.CreateAccountInput
-		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository)
+		envVar       string
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository)
 		expectedErr  string
 		expectedName string
 		expectError  bool
 	}{
 		{
-			name: "success with all fields",
+			name: "success with all fields - accounting validation disabled",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
 				Type:      "deposit",
 				AssetCode: "USD",
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "", // Empty means validation disabled
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -93,13 +101,155 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  false,
 		},
 		{
+			name: "success with accounting validation enabled",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), organizationID, ledgerID, "deposit").
+					Return(&mmodel.AccountType{
+						KeyValue: "deposit",
+						Name:     "Deposit Account",
+					}, nil).
+					Times(1)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
+						account.ID = uuid.New().String()
+						return account, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "Test Account",
+			expectError:  false,
+		},
+		{
+			name: "success with external account type - skip validation",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "external",
+				AssetCode: "USD",
+			},
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				// AccountTypeRepo should not be called for external type
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
+						account.ID = uuid.New().String()
+						return account, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "External Account",
+			expectError:  false,
+		},
+		{
+			name: "success with EXTERNAL account type - case insensitive",
+			input: &mmodel.CreateAccountInput{
+				Name:      "External Account",
+				Type:      "EXTERNAL",
+				AssetCode: "USD",
+			},
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				// AccountTypeRepo should not be called for external type (case insensitive)
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
+						account.ID = uuid.New().String()
+						return account, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "External Account",
+			expectError:  false,
+		},
+		{
 			name: "asset not found",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
 				Type:      "deposit",
 				AssetCode: "XYZ",
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -114,31 +264,25 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  true,
 		},
 		{
-			name: "error creating account",
+			name: "invalid account type with validation enabled",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",
-				Type:      "deposit",
+				Type:      "invalid_type",
 				AssetCode: "USD",
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
 					Times(1)
 
-				mockAssetRepo.EXPECT().
-					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(true, nil).AnyTimes()
-
-				mockAccountRepo.EXPECT().
-					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
-
-				mockAccountRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to create account")).AnyTimes()
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), organizationID, ledgerID, "invalid_type").
+					Return(nil, services.ErrDatabaseItemNotFound).
+					Times(1)
 			},
-			expectedErr:  "failed to create account",
+			expectedErr:  "The provided 'type' is not valid",
 			expectedName: "",
 			expectError:  true,
 		},
@@ -148,7 +292,8 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Type:      "deposit",
 				AssetCode: "USD",
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -189,7 +334,8 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 				Alias:     &customAlias,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -223,6 +369,36 @@ func TestCreateAccountScenarios(t *testing.T) {
 			expectError:  false,
 		},
 		{
+			name: "error creating account",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("failed to create account")).AnyTimes()
+			},
+			expectedErr:  "failed to create account",
+			expectedName: "",
+			expectError:  true,
+		},
+		{
 			name: "alias already exists",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Duplicate Alias",
@@ -230,7 +406,8 @@ func TestCreateAccountScenarios(t *testing.T) {
 				AssetCode: "USD",
 				Alias:     &existingAlias,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -254,13 +431,24 @@ func TestCreateAccountScenarios(t *testing.T) {
 	// Run the tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variable
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+			envValue := tt.envVar
+			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
+				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
+			}
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
+			defer func() {
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
+			}()
+
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo := setupTest(ctrl)
+			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo := setupTest(ctrl)
 
-			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo)
+			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo)
 
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input)
 
@@ -280,22 +468,24 @@ func TestCreateAccountScenarios(t *testing.T) {
 // TestCreateAccountEdgeCases tests edge cases for the CreateAccount function
 func TestCreateAccountEdgeCases(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
-	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *rabbitmq.MockProducerRepository, *mongodb.MockRepository) {
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *rabbitmq.MockProducerRepository, *mongodb.MockRepository, *accounttype.MockRepository) {
 		mockAssetRepo := asset.NewMockRepository(ctrl)
 		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
 		uc := &UseCase{
-			AssetRepo:     mockAssetRepo,
-			PortfolioRepo: mockPortfolioRepo,
-			AccountRepo:   mockAccountRepo,
-			RabbitMQRepo:  mockRabbitMQ,
-			MetadataRepo:  mockMetadataRepo,
+			AssetRepo:       mockAssetRepo,
+			PortfolioRepo:   mockPortfolioRepo,
+			AccountRepo:     mockAccountRepo,
+			RabbitMQRepo:    mockRabbitMQ,
+			MetadataRepo:    mockMetadataRepo,
+			AccountTypeRepo: mockAccountTypeRepo,
 		}
 
-		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo
+		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo
 	}
 
 	ctx := context.Background()
@@ -309,7 +499,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	tests := []struct {
 		name         string
 		input        *mmodel.CreateAccountInput
-		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository)
+		envVar       string
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository)
 		expectedErr  string
 		expectedName string
 		expectError  bool
@@ -322,7 +513,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode:   "USD",
 				PortfolioID: &portfolioIDStr,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -370,7 +562,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode:   "USD",
 				PortfolioID: &portfolioIDStr,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -396,7 +589,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -444,7 +638,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -470,7 +665,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -501,7 +697,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					"key1": "value1",
 				},
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -537,7 +734,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				Type:      "deposit",
 				AssetCode: "USD",
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -581,7 +779,8 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					"key2": "value2",
 				},
 			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			envVar: "",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).
@@ -619,13 +818,217 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	// Run the tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variable
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", tt.envVar)
+			defer func() {
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
+			}()
+
 			// Reset controller for each test to avoid interference
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo := setupTest(ctrl)
+			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo := setupTest(ctrl)
 
-			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo)
+			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo)
+
+			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				assert.Nil(t, account)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, account)
+				assert.Equal(t, tt.expectedName, account.Name)
+			}
+		})
+	}
+}
+
+// TestCreateAccountValidationEdgeCases tests edge cases for accounting validation in CreateAccount
+func TestCreateAccountValidationEdgeCases(t *testing.T) {
+	// Helper function to create a new UseCase with mocks
+	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *rabbitmq.MockProducerRepository, *mongodb.MockRepository, *accounttype.MockRepository) {
+		mockAssetRepo := asset.NewMockRepository(ctrl)
+		mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+		mockAccountRepo := account.NewMockRepository(ctrl)
+		mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+		uc := &UseCase{
+			AssetRepo:       mockAssetRepo,
+			PortfolioRepo:   mockPortfolioRepo,
+			AccountRepo:     mockAccountRepo,
+			RabbitMQRepo:    mockRabbitMQ,
+			MetadataRepo:    mockMetadataRepo,
+			AccountTypeRepo: mockAccountTypeRepo,
+		}
+
+		return uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	tests := []struct {
+		name         string
+		input        *mmodel.CreateAccountInput
+		envVar       string
+		mockSetup    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository)
+		expectedErr  string
+		expectedName string
+		expectError  bool
+	}{
+		{
+			name: "validation disabled - organization:ledger not in env var",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			envVar: "other-org:other-ledger,another-org:another-ledger",
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				// Should not call AccountTypeRepo since validation is disabled
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
+						account.ID = uuid.New().String()
+						return account, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "Test Account",
+			expectError:  false,
+		},
+		{
+			name: "mixed case input validation",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "DePoSiT", // Mixed case input
+				AssetCode: "USD",
+			},
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				// Mock account type found - repository handles case insensitivity
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), organizationID, ledgerID, "DePoSiT").
+					Return(&mmodel.AccountType{
+						KeyValue: "deposit", // Lowercase in database
+						Name:     "Deposit Account",
+					}, nil).
+					Times(1)
+
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockAccountRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, account *mmodel.Account) (*mmodel.Account, error) {
+						account.ID = uuid.New().String()
+						return account, nil
+					}).AnyTimes()
+
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).AnyTimes()
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).AnyTimes()
+			},
+			expectedErr:  "",
+			expectedName: "Test Account",
+			expectError:  false,
+		},
+		{
+			name: "account type query error (not ErrDatabaseItemNotFound)",
+			input: &mmodel.CreateAccountInput{
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
+			},
+			envVar: "{{organizationID}}:{{ledgerID}},other-org:other-ledger", // Will be replaced with actual IDs
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository) {
+				mockRabbitMQ.EXPECT().
+					CheckRabbitMQHealth().
+					Return(true).
+					Times(1)
+
+				mockAccountTypeRepo.EXPECT().
+					FindByKey(gomock.Any(), organizationID, ledgerID, "deposit").
+					Return(nil, errors.New("database connection error")).
+					Times(1)
+
+				// Asset repo expectation to handle any unexpected calls
+				mockAssetRepo.EXPECT().
+					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).AnyTimes()
+			},
+			expectedErr:  "database connection error",
+			expectedName: "",
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variable
+			originalEnv := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+			envValue := tt.envVar
+			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
+				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
+			}
+			os.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
+			defer func() {
+				os.Setenv("ACCOUNT_TYPE_VALIDATION", originalEnv)
+			}()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo := setupTest(ctrl)
+
+			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo, mockAccountTypeRepo)
 
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input)
 

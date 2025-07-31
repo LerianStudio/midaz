@@ -1,3 +1,718 @@
+## [v3.0.0-beta.19] - 2025-07-31
+
+This release introduces significant enhancements to the configuration system, allowing for more efficient management of multiple updates, and includes important documentation updates for improved transparency.
+
+### ✨ Features  
+- **Enhanced Configuration Management**: We have introduced support for multiple updates on Firmino, significantly boosting the flexibility and scalability of our configuration system. This enhancement allows users to manage and deploy multiple configuration updates simultaneously, reducing downtime and increasing efficiency. This is especially beneficial for teams handling complex environments or frequent configuration changes.
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to include recent changes and improvements, ensuring that all modifications are thoroughly documented. This helps maintain transparency and provides users with a clear history of changes, aiding in troubleshooting and understanding the software's evolution.
+
+### 🔧 Maintenance
+- **Release Management**: Behind-the-scenes improvements have been made to streamline release management processes, indirectly benefiting users by ensuring smoother updates and more reliable software delivery.
+
+This changelog provides a concise and user-focused overview of the key changes in version 3.0.0, emphasizing the practical benefits and improvements for users.
+
+## [v3.0.0-beta.18] - 2025-07-30
+
+This release of Midaz focuses on improving the consistency and reliability of the authorization process, enhancing the overall user experience when interacting with the system's endpoints.
+
+### 🔄 Changes
+- **Authentication/Backend**: We have updated the authorization naming conventions for routing endpoints. This change simplifies the authorization process, ensuring it is more intuitive and consistent across the system. Users will experience a more reliable and predictable authorization when accessing various endpoints, enhancing the overall usability of the platform.
+
+### 📚 Documentation
+- **General**: The project CHANGELOG has been updated to reflect the latest changes and improvements. This ensures that users and developers have access to up-to-date information about the project's evolution, facilitating better understanding and collaboration.
+
+These updates lay the groundwork for future enhancements, ensuring the system remains robust and easy to navigate for both developers and users.
+
+## [v3.0.0-beta.17] - 2025-07-30
+
+This release focuses on enhancing the system's architecture and security, ensuring a more stable and maintainable platform for future developments.
+
+### 🐛 Bug Fixes
+- **Security Enhancement**: Resolved a security vulnerability in the backend and frontend related to the brace-expansion package. This fix prevents potential Regular Expression Denial of Service (ReDoS) attacks, enhancing the security and reliability of the system.
+
+### 🔧 Maintenance
+- **System Refactoring**: Upgraded the authentication and backend modules to version 3. This refactoring improves the system's maintainability and sets the groundwork for future feature expansions, benefiting components such as configuration, database, and testing.
+- **Documentation Update**: The CHANGELOG has been updated to reflect recent changes, ensuring that all documentation is current and informative for users and developers.
+
+Each of these updates contributes to a more secure, stable, and maintainable system, providing users with a reliable and efficient experience.
+
+This changelog is structured to clearly communicate the impact and benefits of the release, focusing on security improvements and system maintenance. It is designed to be accessible to both technical and non-technical users, highlighting the most significant changes without overwhelming details.
+
+## [v3.0.0-beta.16] - 2025-07-29
+
+This update focuses on enhancing user experience through improved URL consistency, data validation, and system reliability, ensuring a smoother and more dependable application.
+
+### 🐛 Bug Fixes
+- **Dependency Update**: Resolved compatibility issues by updating `@lerianstudio/console-layout` to version 1.5.3. This fix enhances the stability and reliability of the console layout feature, ensuring a seamless user interaction without layout errors.
+
+### 🔄 Changes
+- **Frontend URL Structure**: Improved URL consistency by enabling `trailingSlash` in the configuration. This change helps maintain uniform URL structures, potentially boosting SEO performance and providing a more predictable navigation experience.
+- **Data Validation**: Introduced alphanumeric alias validation in the database configuration, enhancing data integrity by preventing invalid entries that could disrupt application functionality.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, keeping users informed and maintaining transparency about the project's progress.
+
+### 🔧 Maintenance
+- **General Maintenance**: Various behind-the-scenes improvements were made to ensure the application remains reliable and user-friendly.
+
+These updates collectively contribute to a more consistent, reliable, and user-friendly application experience.
+
+
+## [v3.0.0-beta.15] - 2025-07-29
+
+This release introduces a major enhancement to the build process, significantly improving the efficiency and reliability of input handling for developers.
+
+### ✨ Features  
+- **Automated Input Tag Configuration**: The build process now automatically configures input tags, streamlining development workflows. This feature reduces manual setup time and minimizes errors, ensuring consistent input handling across all environments. Developers will benefit from more efficient builds and reduced configuration overhead.
+
+### 🔧 Maintenance
+- No additional maintenance changes were included in this release.
+
+
+This changelog highlights the key enhancement in version 3.0.0, focusing on the benefits to developers and the improved efficiency in the build process. It maintains a clear, user-focused approach, ensuring that the information is accessible and valuable to the intended audience.
+
+## [v3.0.0-beta.13] - 2025-07-28
+
+This release focuses on optimizing Redis usage and enhancing transaction handling, resulting in improved system reliability and performance.
+
+### 🐛 Bug Fixes
+- **Transaction Handling Reliability**: Removed the Redis queue from transaction processing, addressing issues with its applicability and improving overall reliability. Users will experience smoother and more consistent transaction operations.
+- **Data Consistency**: Implemented Redis locking mechanisms and standardized datetime filtering, ensuring accurate and consistent time-based operations. This fix enhances data integrity across the system.
+- **System Stability**: Eliminated redundant Redis locks and updated configuration settings, simplifying deployment and enhancing system stability. These changes also include updated documentation to guide users through the new setup.
+
+### 📚 Documentation
+- **Redis Configuration Updates**: Revised documentation to reflect changes in Redis configuration and locking mechanisms, providing users with accurate and up-to-date information for setup and troubleshooting.
+
+### 🔧 Maintenance
+- **Documentation Enhancements**: Updated various sections of the documentation to ensure clarity and accuracy, helping users better understand system configurations and operations.
+
+These updates are designed to provide a more stable and efficient user experience by refining Redis configurations and enhancing transaction processing.
+
+## [v3.0.0-beta.11] - 2025-07-28
+
+This release enhances the flexibility of the runtime environment and updates dependencies to ensure system stability and performance. Users will experience a more adaptable application environment and improved compatibility with updated libraries.
+
+### ✨ Features  
+- **Enhanced Runtime Environment Handling**: Users can now enjoy greater flexibility and customization of application settings, making it easier to manage complex configurations and tailor runtime conditions to specific needs.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `@lerianstudio/console-layout` to version 1.5.2. This update ensures compatibility with the latest features and security patches, contributing to overall system reliability and performance.
+- **Changelog Update**: The changelog has been revised to accurately reflect the latest changes and improvements, ensuring users have access to up-to-date information about the application's development.
+
+This release focuses on providing a more adaptable and reliable application experience, with key updates to ensure continued stability and performance.
+
+## [v3.0.0-beta.10] - 2025-07-28
+
+This release of midaz enhances deployment and configuration processes, addresses critical authentication issues, and updates documentation to streamline user setup and experience.
+
+### ✨ Features  
+- **Streamlined Deployment**: The build and configuration processes have been enhanced to simplify new installations and improve compatibility with various environments. This makes it easier for users to deploy and integrate midaz into their systems efficiently.
+
+### 🐛 Bug Fixes
+- **Authentication Reliability**: Fixed issues in the authentication component that previously caused failures under certain conditions. Users will now experience more reliable and consistent access.
+- **Configuration Accuracy**: Corrected configuration examples in the documentation, preventing potential runtime errors and reducing user frustration during setup.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: The `.env.local.example` file has been revised to reflect the latest configuration options, offering clearer guidance for setting up local environments and minimizing errors.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: General updates to the authentication scripts enhance code maintainability, ensuring a robust foundation for future development.
+- **Changelog Updates**: The changelog has been meticulously updated to document all recent changes, supporting transparency and aiding in tracking the project's evolution.
+
+This release focuses on improving the user setup experience, ensuring reliable authentication, and maintaining up-to-date documentation for seamless integration and operation.
+
+## [v3.0.0-beta.9] - 2025-07-28
+
+This release of the Firmino platform introduces significant enhancements to performance and user experience, focusing on parallel processing and thread flow updates.
+
+### ✨ Features
+- **Parallel Processing Configuration**: Experience faster performance with our new parallel processing feature. This update allows multiple operations to run concurrently, drastically reducing wait times and enhancing system efficiency for a smoother user experience.
+
+### ⚡ Performance
+- **Thread Flow Updates**: We've optimized the way updates are processed in the Firmino platform, ensuring that system responsiveness and reliability are improved. This means smoother operations and less downtime for users, contributing to a more seamless experience.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest enhancements, ensuring you have access to the most current information about system updates.
+
+These updates are designed to improve the efficiency and reliability of the Firmino platform, providing a more seamless and responsive experience for users. No user intervention is required to benefit from these enhancements.
+
+## [v3.0.0-beta.8] - 2025-07-25
+
+This release focuses on improving the reliability and clarity of date and time handling across the system, enhancing data consistency and user experience.
+
+### 🐛 Bug Fixes
+- **Improved Date Handling**: Updated the `NormalizeDate` function to `NormalizeDateTime`, ensuring more accurate date and time normalization. This change enhances data consistency and reliability across the system, reducing errors in data processing.
+- **Resolved Date Filtering Issues**: Fixed problems with date filtering and timestamp handling across various components. Users will experience improved data integrity and accuracy in date-related operations, leading to fewer errors in data display and processing.
+- **Enhanced Error Messaging**: Corrected grammar and spelling in backend error messages and comments, improving the clarity and professionalism of system messages. This enhancement aids in better user understanding and reduces confusion during error resolution.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes, ensuring users are informed of recent updates and improvements.
+
+### 🔧 Maintenance
+- **Documentation Refresh**: Regular updates to maintain current and accurate documentation, supporting users with the latest information and guidance.
+
+These updates prioritize the accuracy of date and time data, ensuring users have dependable information and a more seamless experience.
+
+## [v3.0.0-beta.7] - 2025-07-24
+
+This release focuses on improving the deployment process and enhancing the overall stability and reliability of the application. Users will experience smoother setup and integration, making it easier to maintain and deploy the application across various environments.
+
+### 🐛 Bug Fixes
+- **Deployment Stability**: Resolved an issue with the Docker Compose configuration that was causing deployment challenges. This fix ensures a more reliable setup process, reducing the time and effort required for developers and users to deploy the application.
+
+### 🔧 Maintenance
+- **Documentation Updates**: The CHANGELOG has been updated to accurately reflect recent changes, ensuring transparency and keeping users informed about the latest modifications.
+- **Dependency Alignment**: Updated dependencies within the Docker Compose setup to match the latest standards. This change enhances system stability and ensures compatibility with the latest software versions, providing a more seamless user experience.
+
+These updates collectively contribute to a more stable and user-friendly experience, particularly in terms of deployment and setup processes.
+
+## [v3.0.0-beta.6] - 2025-07-23
+
+This release focuses on enhancing the stability and setup process of the application through updated dependencies and configuration improvements.
+
+### ⚡ Performance
+- **Dependency Updates**: We've updated several dependencies to their latest versions to boost both performance and security. This means a more stable and secure application experience, with the latest features and bug fixes from third-party libraries.
+
+### 🔄 Changes
+- **Environment Configuration**: We've refined the environment setup for the console, making it easier and less error-prone to configure. This change enhances the reliability of the application setup process, ensuring a smoother experience for new and existing users.
+
+### 📚 Documentation
+- **Configuration Updates**: The documentation has been updated to reflect the latest environment configuration changes. This ensures that users have accurate and up-to-date information, reducing potential confusion during setup.
+
+### 🔧 Maintenance
+- **Changelog Update**: We've updated the CHANGELOG to provide users with the latest information on project developments and improvements, supporting transparency and keeping you informed about the ongoing progress of the project.
+
+This changelog is designed to clearly communicate the benefits and impacts of the latest release, focusing on improvements that enhance user experience and application reliability.
+
+## [v3.0.0-beta.5] - 2025-07-23
+
+This release of midaz focuses on enhancing the user interface for smoother navigation and interaction, alongside crucial maintenance updates for a cleaner and more efficient system.
+
+### ✨ Features
+- **New ConsoleLayout**: Experience a revamped user interface that simplifies navigation and interaction within the console. This enhancement is particularly beneficial for users managing authentication and configuration tasks, providing a more intuitive and streamlined experience.
+
+### 🔧 Maintenance
+- **System Cleanup**: We've removed unused files across various components, including config, database, deps, frontend, and test. This cleanup reduces clutter and improves system maintainability, potentially enhancing performance by eliminating obsolete code and resources.
+- **Documentation & Dependencies**: The changelog has been updated to reflect the latest system changes, ensuring you have access to the most current information. Additionally, dependencies across components like auth, backend, and config have been reviewed and updated to maintain compatibility and security.
+
+This update prioritizes user experience improvements and system maintenance, ensuring a more polished interaction with the console and a streamlined performance.
+
+## [v3.0.0-beta.4] - 2025-07-23
+
+This release brings significant improvements to the configuration and backend systems, enhancing user experience with more robust and flexible options. Documentation updates ensure smooth adoption of these new features.
+
+### ✨ Features
+- **Unified Redis Configuration for Onboarding**: Simplifies the setup process by ensuring consistent Redis settings across onboarding components, reducing potential errors and saving setup time.
+- **Enhanced Backend Options**: New configuration options for Redis, including connection pooling and retry mechanisms, provide greater flexibility and control, improving system performance and reliability under varying loads.
+
+### 🐛 Bug Fixes
+- **Transaction Management**: Corrected the status code returned when canceling a transaction, ensuring accurate reflection of transaction states and enhancing user trust in the system's reliability.
+
+### 📚 Documentation
+- **Updated Configuration and Onboarding Guides**: Documentation now includes the latest configuration options and onboarding changes, helping users implement and troubleshoot new features more effectively.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to reflect recent changes, keeping users informed and facilitating easier version tracking.
+
+These updates collectively contribute to a more robust and user-friendly application, ensuring that users can take full advantage of the enhanced capabilities with minimal disruption.
+
+## [v3.0.0-beta.3] - 2025-07-22
+
+This release of midaz introduces powerful new search capabilities and significant improvements to the user interface and backend architecture, enhancing overall usability and system performance.
+
+### ✨ Features  
+- **Comprehensive Search Functionality**: Users can now efficiently search across Organizations, Transactions, Ledgers, Portfolios, Accounts, and Segments. This new feature streamlines data access and management, providing a consistent and intuitive search experience across the application.
+
+### 🐛 Bug Fixes
+- **Frontend Performance**: Removed unnecessary console logs to improve application performance and reduce clutter, enhancing the overall user experience.
+
+### 🔄 Changes
+- **User Interface Enhancements**: Improved translation keys for more accurate and contextually relevant language support, ensuring a polished and user-friendly interface.
+- **Backend Architecture**: Introduced new controller decorators to enhance code modularity and maintainability, supporting a more robust system architecture.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the CHANGELOG to reflect recent changes, ensuring users have access to current and informative project documentation.
+
+### 🔧 Maintenance
+- **Testing Improvements**: Expanded test coverage in the backend, ensuring robust functionality and preventing regressions in future updates.
+- **EntityBox Component Update**: Enhanced this component's functionality and integration within the frontend, contributing to a smoother user experience.
+
+These updates collectively enhance the midaz project by introducing significant new features, refining existing functionalities, and maintaining high code quality standards. Users will experience improved search capabilities, a more polished interface, and increased reliability due to the expanded test coverage and backend improvements.
+
+## [v3.0.0-beta.2] - 2025-07-22
+
+This release focuses on essential maintenance updates to ensure that users and developers have the most up-to-date and accurate information for a seamless experience with the midaz project.
+
+### 📚 Documentation
+- Updated version number in the `.env.example` file to v3.0.0, ensuring that all users start with the correct configuration for their setups.
+- Refreshed the CHANGELOG to include recent updates, providing clarity and transparency about the project's evolution and current state.
+
+### 🔧 Maintenance
+- These updates are crucial for maintaining the project's integrity and ensuring that all documentation reflects the latest version, facilitating smoother setup and deployment processes.
+
+No new features, bug fixes, or performance improvements were introduced in this release cycle. The focus was on maintaining the accuracy and relevance of project documentation and configuration files.
+
+## [v3.0.0-beta.1] - 2025-07-22
+
+This major release of midaz introduces significant improvements to data handling and system performance, along with crucial updates to dependencies and bug fixes that enhance reliability.
+
+### ⚠️ Breaking Changes
+- **Transition to Numeric Handling**: This update changes how amounts and scales are processed, moving to a numeric system for enhanced precision. Users need to review and update any custom data handling logic to align with this new format. Please refer to our migration guide [here](#) for detailed steps.
+- **Core Dependency Updates**: We've upgraded several core dependencies, which may affect compatibility with existing plugins. Ensure all extensions are updated to avoid potential issues. Check our compatibility guide [here](#).
+
+### ✨ Features
+- **Advanced Numeric Handling**: Our new numeric system for financial calculations ensures greater precision and consistency. This aligns with industry standards, offering users more reliable data processing capabilities. Learn more about setting up this feature [here](#).
+
+### 🐛 Bug Fixes
+- **Transaction Reliability**: Fixed an issue with alias index concatenation that occasionally caused errors in operation route fetching. This fix enhances transaction processing reliability, reducing errors in data retrieval.
+
+### ⚡ Performance
+- **Library Update**: The update to lib-commons v1.18.0 introduces performance improvements, offering faster processing speeds and new utility functions that boost developer productivity.
+
+### 🔧 Maintenance
+- **Routine Dependency Updates**: Regular updates to our dependencies ensure the system remains secure and up-to-date, preventing vulnerabilities and ensuring future compatibility.
+- **Changelog Enhancements**: We've updated our CHANGELOG documentation to provide a clear and transparent history of changes, aiding users in troubleshooting and understanding software evolution.
+
+For any questions or further assistance, please refer to our support documentation or contact our support team.
+
+
+## [v2.3.0-beta.27] - 2025-07-21
+
+This release introduces a significant enhancement to our deployment process, streamlining software releases and ensuring greater reliability.
+
+### ✨ Features  
+- **Enhanced Deployment Process**: A new pre-release step has been integrated into the build flow. This feature automatically conducts pre-release checks, ensuring that deployments are more reliable and consistent. It is particularly beneficial for developers and operations teams, as it simplifies the release cycle and minimizes deployment errors.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to provide users and developers with the latest information on project changes and improvements. This update supports better understanding and communication within the community.
+
+### 🔧 Maintenance
+- **Documentation Improvements**: Routine updates to ensure documentation reflects current project status and changes, facilitating transparency and ease of use for all stakeholders.
+
+This changelog provides a clear and concise overview of the most impactful changes in this release, focusing on the benefits to users and maintaining a professional and accessible tone.
+
+## [v2.3.0-beta.26] - 2025-07-21
+
+This release of midaz enhances user onboarding and boosts backend performance, ensuring a smoother and more efficient experience for all users.
+
+### ✨ Features
+- **Enhanced Onboarding Validation**: We've improved the onboarding process by adding validation for the account type field. This ensures users provide correct information, reducing errors and improving data integrity.
+
+### ⚡ Performance
+- **Optimized Transaction Processing**: Our backend now processes transactions more efficiently with enhanced concurrency and header ID tracking in Redis message handling. This results in faster transaction processing, especially under high load conditions, improving overall system reliability.
+
+### 🔧 Maintenance
+- **Updated Documentation**: The CHANGELOG has been updated to reflect the latest changes, keeping users informed and ensuring that documentation remains current and useful.
+
+This update focuses on enhancing the user experience and backend performance, contributing to a more robust and user-friendly application.
+
+## [v2.3.0-beta.25] - 2025-07-18
+
+This release enhances the build process for smoother development workflows and updates project documentation to keep you informed.
+
+### ✨ Features
+- **Enhanced Build Process**: We've implemented a new condition to prevent errors during the image build process when targeting the develop branch. This improvement ensures a more reliable and seamless integration and deployment experience, reducing potential disruptions for developers working on ongoing projects.
+
+### 📚 Documentation
+- **Changelog Update**: We've updated the CHANGELOG to accurately reflect the latest changes. This ensures transparency and keeps all stakeholders informed about the project's evolution.
+
+### 🔧 Maintenance
+- **Release Management**: Regular updates to project documentation help maintain clarity and keep users and developers aligned with the latest developments.
+
+
+This changelog is designed to clearly communicate the improvements and updates in version 2.3.0 of the midaz project. It highlights the key feature enhancement and documentation update, focusing on the benefits to users and developers.
+
+## [v2.3.0-beta.24] - 2025-07-18
+
+This release of midaz introduces a more robust transaction processing system, enhancing reliability and performance. Users will experience improved error handling and system observability, ensuring smoother operations under varying loads.
+
+### ✨ Features
+- **Refactored Transaction Processing**: The system now supports both synchronous and asynchronous execution, improving transaction reliability and efficiency. This is especially beneficial for applications requiring high availability. Users can configure this feature using the new `RABBITMQ_TRANSACTION_ASYNC` environment variable.
+
+### 🐛 Bug Fixes
+- **Accurate Balance Retrieval**: Resolved issues in the `get-balances` functionality, ensuring users receive correct balance information consistently.
+- **Streamlined Health Checks**: Removed unnecessary health check operations, reducing false alerts and improving system monitoring.
+- **Configuration and Documentation Corrections**: Fixed logic errors to enhance system setup and user guidance, ensuring a smoother onboarding process.
+
+### ⚡ Performance
+- **Error Reporting Enhancements**: Improved error span adjustments in the backend, which aids in more precise error reporting and faster debugging.
+
+### 📚 Documentation
+- **Updated Best Practices**: Documentation has been revised to reflect the latest best practices and performance improvements, helping developers optimize their use of midaz.
+
+### 🔧 Maintenance
+- **Library Update**: Upgraded to lib-commons v1.17.0, incorporating the latest improvements for better performance and security.
+- **Improved Logging**: Enhanced logging for Redis errors, facilitating quicker issue diagnosis and resolution.
+
+These updates collectively enhance the midaz system's performance, reliability, and user experience, ensuring smoother operations and easier maintenance for developers and users alike.
+
+## [v2.3.0-beta.23] - 2025-07-18
+
+This release focuses on improving the reliability of transaction searches and enhancing project documentation for better user transparency.
+
+### 🐛 Bug Fixes
+- **Improved Transaction Handling**: We've fixed an issue with alias index search functionality in the backend and test components. This fix ensures that transaction searches return accurate and complete results, enhancing the reliability of your data queries. Users will no longer encounter incorrect or incomplete search results due to alias indexing errors.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements. This update supports better project documentation and keeps users informed about recent updates and fixes, promoting transparency and effective communication.
+
+### 🔧 Maintenance
+- **Release Management**: Behind-the-scenes improvements have been made to ensure that project documentation is up-to-date, contributing to a more organized and user-friendly experience.
+
+
+
+## [v2.3.0-beta.22] - 2025-07-17
+
+This release introduces a new version management feature and several improvements to enhance user experience and system reliability.
+
+### ✨ Features  
+- **Version Management**: A new version endpoint is now available, providing real-time information about the software version you are using. This transparency ensures you are always informed about the software status and any updates. [Components: backend, deps, docs, frontend]
+
+### 🐛 Bug Fixes
+- **General Stability**: Resolved minor issues that were affecting system stability and performance, resulting in a smoother and more reliable user experience. [General]
+
+### 🔄 Changes
+- **User Interface Enhancements**: Improved icon alignment and visual consistency across the application for a more cohesive and pleasant user experience. [Component: config]
+- **Translation Support**: Enhanced localization to ensure all text is accurately translated, making the application more accessible to non-English speakers. [Component: frontend]
+- **System Notifications**: Introduced alerts to notify you of new updates or changes, ensuring you are always aware of the latest features and improvements. [Components: config, frontend]
+
+### 📚 Documentation
+- **API and Documentation Improvements**: Refined endpoint naming conventions and added detailed documentation to simplify integration processes and reduce potential errors. [Components: backend, config, docs, frontend]
+
+### 🔧 Maintenance
+- **Documentation and Code Quality**: Added comprehensive comments and documentation to enhance code readability and maintainability, supporting ongoing development and easier onboarding for new developers. [Component: docs]
+- **Release Management**: Updated the CHANGELOG to reflect recent changes and improvements, ensuring you have access to the latest information about the software's evolution. [General]
+
+This changelog provides a clear and concise overview of the updates in version 2.3.0, focusing on user benefits and system enhancements. Each section is organized to highlight the most impactful changes, making it easy for users to understand the significance of the release.
+
+## [v2.3.0-beta.21] - 2025-07-16
+
+This release focuses on enhancing the deployment process to ensure more reliable and consistent updates, minimizing downtime and improving user experience.
+
+### ✨ Features
+- **Streamlined Pre-Release Flow**: We've introduced a new pre-release flow configuration using dispatch. This enhancement automates pre-release tasks, making deployments smoother and reducing potential downtime. Users will benefit from more consistent updates and a more reliable application experience.
+
+### 🔧 Maintenance
+- **Updated Changelog**: The CHANGELOG has been updated to reflect the latest improvements and changes. This ensures users have easy access to the most current information about the software, aiding in better understanding and tracking of the project's progress.
+
+No breaking changes, bug fixes, performance improvements, removals, or deprecations were included in this release. Our focus was on enhancing the release process for a better user experience.
+
+This changelog is crafted to highlight the user benefits of the new features and maintenance updates in a clear and accessible manner. The structure and language are tailored to ensure users can easily understand the impact of the changes.
+
+## [v2.3.0-beta.20] - 2025-07-16
+
+This major release of midaz introduces significant performance enhancements, new features, and critical updates to improve user experience and system reliability.
+
+### ⚠️ Breaking Changes
+- **Settings Management Removal**: The settings management feature has been removed. Users must transition to using environment variables for configuration. Please update your integrations and workflows accordingly to avoid disruptions.
+
+### ✨ Features
+- **Transaction Route Caching**: Experience faster transaction processing with our new caching mechanism for transaction routes. This enhancement reduces server load and improves application responsiveness.
+- **Accounting Validation Enhancements**: Enjoy greater flexibility with new validation rules for accounting operations, now configured via environment variables for easier management.
+
+### 🐛 Bug Fixes
+- **Environment Variable Naming**: We've corrected environment variable names related to accounting validation, ensuring consistency and preventing configuration errors.
+- **Database Constraints**: Added foreign key constraints to the account type table, enhancing data integrity and preventing orphaned records.
+- **SQL Query Update**: Fixed SQL queries to include the 'operation_type' field, ensuring accurate data retrieval and preventing mismatches.
+
+### ⚡ Performance
+- **Redis Binary Data Handling**: Enhanced RedisRepository for efficient binary data storage and retrieval, supporting more complex operations and boosting performance.
+
+### 🔄 Changes
+- **Metadata Handling for Operation Routes**: Added metadata support for operation routes, providing detailed transaction information and improved data handling.
+
+### 🗑️ Removed
+- **Settings Management**: Transition to environment variables as settings management endpoints and models are no longer supported.
+
+### 📚 Documentation
+- Updated documentation to reflect new configuration methods and validation rules, providing clear guidance for users transitioning from deprecated features.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded core dependencies, including `lib-commons` to v1.17.0-beta.27, to maintain compatibility and support new functionalities.
+- **Code Refactoring**: Improved code maintainability by refactoring transaction-related code, enhancing clarity and reducing errors.
+- **Test Suite Enhancements**: Expanded test coverage for new caching and validation logic, ensuring robust software quality.
+
+This release focuses on delivering a more efficient, reliable, and user-friendly experience. Please review the breaking changes to ensure a smooth transition.
+
+
+## [v2.3.0-beta.19] - 2025-07-15
+
+This release of midaz enhances the reliability and efficiency of message processing and queue management, introduces robust new features, and includes several bug fixes to improve overall system stability and performance.
+
+### ✨ Features
+- **Reliable Queue Management**: Implemented a persistent queue using Redis, ensuring that transaction messages are reliably stored and processed, even under high loads. This enhancement significantly reduces the risk of data loss and improves the system's ability to handle large volumes of transactions smoothly.
+- **Efficient Message Processing**: Introduced a cron job to consume messages from the Redis queue and send them to the transaction processor. This change increases message throughput and reliability, ensuring timely processing of transaction data.
+- **Robust Message Delivery**: Added retry logic with exponential backoff and jitter for RabbitMQ message production. This feature enhances message delivery reliability, especially during transient network failures, providing a more resilient messaging system.
+
+### 🐛 Bug Fixes
+- **Improved Code Organization**: Standardized server file naming conventions, enhancing code maintainability and readability.
+- **Cleaner Logging**: Adjusted logging levels and removed excessive logging to reduce noise, making logs clearer and more useful for monitoring and debugging.
+- **Accurate Logic Flow**: Corrected conditional statements to ensure logic flows as intended, preventing unexpected behavior and improving system reliability.
+- **Comprehensive Testing**: Fixed integration tests across backend, database, and frontend components, ensuring reliable and comprehensive test coverage.
+
+### ⚡ Performance
+- **Faster Message Handling**: Transitioned from JSON to MessagePack for message serialization, reducing message size and improving processing speed. This change results in faster data handling and reduced latency in message processing.
+- **Optimized Resource Utilization**: Enhanced backup queue management to occupy only one slot in the cluster, improving resource utilization and reducing potential conflicts.
+
+### 📚 Documentation
+- **Updated Configuration Guides**: Revised documentation to reflect new message serialization format and Dockerfile updates, helping developers understand and implement the new configurations efficiently.
+
+### 🔧 Maintenance
+- **Code Quality Enhancements**: Made linting adjustments and resolved security warnings to maintain high code quality and security standards.
+- **Changelog Updates**: Ensured the changelog accurately reflects all recent changes and improvements, maintaining transparency and communication with users.
+
+This update is designed to provide users with a more reliable, efficient, and user-friendly experience, with significant improvements in message processing and system stability.
+
+## [v2.3.0-beta.18] - 2025-07-14
+
+This release enhances the development environment, making testing and debugging more efficient, and ensures up-to-date project documentation.
+
+### ✨ Features  
+- **Improved Development Workflow**: We've implemented CORS tampering to streamline testing and development processes. This enhancement allows developers to bypass cross-origin restrictions, making it easier to integrate and test APIs with the frontend. This results in a smoother, more efficient development experience, particularly beneficial for developers working across different components like dependencies, frontend, and testing environments.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been updated to reflect the latest changes and improvements. This ensures all stakeholders have access to current project information, supporting transparency and effective project documentation.
+
+### 🔧 Maintenance
+- **Release Management**: We've focused on maintaining project documentation and improving the development environment. These updates indirectly benefit users by supporting a more efficient and transparent development process.
+
+
+This changelog is designed to communicate the changes in a user-friendly manner, highlighting the benefits and impact of the release while maintaining a professional tone. It focuses on the key updates that users and stakeholders will find valuable, ensuring clarity and accessibility.
+
+## [v2.3.0-beta.17] - 2025-07-14
+
+This release introduces a significant enhancement to the configuration process, streamlining deployment workflows and ensuring high-quality releases. Additionally, documentation updates improve clarity and communication about recent changes.
+
+### ✨ Features  
+- **Pre-Release Step Flow Configuration**: We've added a new configuration feature that enhances deployment processes by automating pre-release checks. This ensures that all necessary validations are performed before a release, improving reliability and reducing manual errors. Ideal for teams looking to optimize their release management workflows.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest features and improvements. This ensures all stakeholders are informed about the project's progress, enhancing transparency and communication.
+
+### 🔧 Maintenance
+- **Release Management Enhancements**: Behind-the-scenes improvements have been made to ensure that the release management process is more efficient and reliable, contributing to smoother software development cycles.
+
+
+This changelog focuses on the user-centric benefits of the new configuration feature and the importance of updated documentation for effective communication. The structure and language are designed to be accessible to a broad audience, emphasizing the practical impact of the changes.
+
+## [v2.3.0-beta.16] - 2025-07-11
+
+This release of midaz introduces powerful new features in account and settings management, enhancing user control and efficiency. With improved database performance and comprehensive documentation updates, users can expect a more streamlined and responsive experience.
+
+### ✨ Features
+- **Comprehensive Account Management**: Users can now create accounts with enhanced validations, retrieve account types, and filter metadata in batches, simplifying account setup and management.
+- **Settings Management System**: Gain full control over your application settings with the ability to create, retrieve, update, and delete settings, allowing for a highly customizable user experience.
+
+### ⚡ Performance
+- **Database Enhancements**: New table migrations with indexes have been implemented, leading to faster data retrieval and improved application responsiveness.
+
+### 🔄 Changes
+- **Account Type Management**: Users can now list, update, and delete account types more efficiently, improving the overall user experience in managing account configurations.
+- **Settings Storage Optimization**: The introduction of a PostgreSQL repository for settings management enhances the reliability and speed of settings operations.
+
+### 📚 Documentation
+- **Onboarding Updates**: Documentation now includes detailed guides on new account type endpoints, ensuring users and developers have the latest information for seamless integration and use.
+
+### 🔧 Maintenance
+- **Code Simplification**: Redundant settings retrieval processes have been removed, streamlining the codebase for better maintainability.
+- **Expanded Testing**: Additional unit tests have been added across key components, ensuring new features are robust and reliable.
+
+In this changelog, we've highlighted the key new features and improvements that enhance user experience and performance. Each section focuses on the benefits and impact of the changes, using clear and accessible language. The documentation updates and maintenance improvements ensure users have the necessary resources and a reliable application environment.
+
+## [v2.3.0-beta.15] - 2025-07-11
+
+This release introduces a significant enhancement in the deployment process, offering a more reliable and efficient release cycle for users.
+
+### ✨ Features
+- **Streamlined Pre-Release Flow**: We've introduced a new configuration for pre-release flows, designed to optimize the deployment process. This feature ensures smoother transitions from development to production, minimizing downtime and reducing potential deployment issues. Users will benefit from a more predictable and reliable release cycle, enhancing overall operational efficiency.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements. This ensures transparency and keeps users informed about the project's evolution, highlighting new features and enhancements.
+
+### 🔧 Maintenance
+- **Release Management Improvements**: Regular updates to the changelog are part of our ongoing commitment to provide users with comprehensive and up-to-date documentation, supporting better decision-making and project tracking.
+
+This changelog is crafted to highlight the most impactful changes in version 2.3.0, focusing on user benefits and ensuring clarity and accessibility.
+
+## [v2.3.0-beta.14] - 2025-07-10
+
+This release introduces significant enhancements to streamline cross-repository operations, empowering users with greater flexibility and efficiency in managing their projects.
+
+### ✨ Features  
+- **Cross-Repository Operations**: You can now insert custom tokens to execute operations seamlessly across different repositories. This feature enhances workflow automation and integration across multiple codebases, making project management more efficient and flexible.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and enhancements. This ensures you have access to the most current information on updates, making it easier to track project evolution and understand new features.
+
+### 🔧 Maintenance
+- **Code Refinements**: The codebase has been refined with a net change of +33 additions and -25 deletions, focusing on adding new functionality while improving existing code quality.
+
+---
+
+This release contains no breaking changes, ensuring a smooth upgrade experience. Enjoy the new features and improvements!
+
+## [v2.3.0-beta.13] - 2025-07-08
+
+This release introduces a significant enhancement to the configuration process, offering a streamlined approach to managing pre-release activities. Our focus is on improving the efficiency and reliability of release management.
+
+### ✨ Features  
+- **Streamlined Pre-Release Configuration**: We've introduced a new pre-release flow configuration that simplifies the setup process for upcoming software versions. This feature is designed to help release management teams by providing a structured and configurable approach to handling pre-release activities. It ensures smoother transitions and minimizes errors during deployment, ultimately enhancing the efficiency of your release management process.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring that all users and developers have access to accurate and up-to-date information about the software's evolution. This transparency aids in better understanding and tracking of the project's progress.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Regular updates to the changelog ensure that it remains a reliable source of information for all stakeholders, facilitating communication and understanding across the team.
+
+
+This changelog highlights the key feature introduced in this release, focusing on its benefits and impact on users, particularly those involved in release management. The documentation updates ensure that users have access to the latest information, promoting transparency and effective communication.
+
+## [v2.3.0-beta.12] - 2025-07-08
+
+This release introduces significant enhancements to data management capabilities, improves testing reliability, and ensures ongoing compatibility with the latest libraries, all without breaking existing functionality.
+
+### ✨ Features  
+- **Metadata-Based Operations Retrieval**: We've enhanced the backend and frontend systems to support dynamic data access and management using metadata. This improvement provides a more flexible and robust architecture, allowing for more efficient data handling and processing across the application.
+
+### 🐛 Bug Fixes
+- **Test Reliability**: Resolved a critical nil pointer issue within the test suite. This fix enhances the accuracy and dependability of our testing processes, ensuring that the application performs as expected without interruptions.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated Go module dependencies to incorporate the latest security patches and library improvements. This ensures that the application remains secure and compatible with modern development standards.
+- **Changelog Documentation**: Our changelog has been updated to reflect all recent changes and improvements, keeping our documentation current and informative for both developers and users.
+
+This release focuses on strengthening the core functionalities of the application, improving system reliability, and maintaining high standards of security and compatibility. Enjoy the enhanced experience!
+
+## [v2.3.0-beta.11] - 2025-07-08
+
+This release introduces a significant enhancement to the deployment workflow and updates project documentation to ensure all stakeholders are informed of the latest changes.
+
+### ✨ Features  
+- **GitOps Workflow Enhancement**: We've introduced a pre-release flow to the GitOps pipeline. This new feature automates the preparation of pre-release versions, making the deployment process smoother and reducing the need for manual intervention. Teams utilizing continuous integration and delivery will find this particularly beneficial as it streamlines transitions between development stages.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect recent changes and improvements. This ensures that all users and stakeholders have access to the latest project information, enhancing communication and planning efforts.
+
+### 🔧 Maintenance
+- **Project Documentation**: Regular updates to project documentation have been made to maintain accuracy and clarity, supporting better user understanding and engagement with the software.
+
+This release focuses on improving the efficiency and transparency of the development process, with no breaking changes introduced. The enhancements aim to facilitate a more seamless user experience and better project management.
+
+## [v2.3.0-beta.10] - 2025-07-07
+
+This release introduces significant enhancements to the backend, focusing on improved data management, performance optimizations, and robust error handling. Users will benefit from enhanced CRUD functionalities, faster operations, and a more reliable system.
+
+### ✨ Features  
+- **Enhanced Data Integrity**: Validation for mutually exclusive fields in operation routes ensures data integrity and prevents conflicting inputs.
+- **Improved Performance**: Caching for settings retrieval and updates dramatically reduces load times, making repeated access faster and more efficient.
+- **Comprehensive Settings Management**: New CRUD endpoints for settings, complete with pagination, allow for efficient data handling and retrieval.
+- **Flexible Transaction Management**: Full CRUD functionality for transaction routes, with pagination and metadata filtering, enables detailed data management.
+- **Scalable Data Navigation**: Cursor-based pagination in operation routes enhances user experience when dealing with large datasets.
+
+### 🐛 Bug Fixes
+- **Clearer Error Handling**: Improved feedback for missing transaction routes during deletion reduces user confusion.
+- **Enhanced Duplicate Handling**: Error validation now includes record keys, aiding in troubleshooting duplicate settings.
+- **Consistent UUID Generation**: Updated UUID generation method ensures compatibility across systems.
+- **Standardized Error Responses**: Missing settings records now provide consistent feedback, improving system reliability.
+
+### ⚡ Performance
+- **Optimized Settings Retrieval**: Caching mechanisms significantly enhance performance, reducing load times for settings operations.
+
+### 🔄 Changes
+- **Flexible Data Entry**: Removal of title + type uniqueness constraint allows for more diverse data entry options.
+- **Enhanced Model Flexibility**: Operation routes now include account types and alias fields, offering greater management flexibility.
+
+### 📚 Documentation
+- **Improved User Guidance**: Updated documentation to reflect new features and changes, ensuring users have the information needed to utilize new capabilities effectively.
+
+### 🔧 Maintenance
+- **Streamlined Database Management**: Updated migration scripts for smoother operation route table management.
+- **Future-Proofing**: Refactored settings table schema and related validations to enhance code maintainability.
+
+This release ensures a robust and efficient backend with a focus on user satisfaction through improved functionality, performance, and error handling.
+
+## [v2.3.0-beta.9] - 2025-07-04
+
+This release of midaz introduces a refreshed Home page interface and new real-time analytics, enhancing user navigation and insight capabilities. Backend optimizations further improve system performance and reliability.
+
+### ✨ Features
+- **Enhanced Home Page Interface**: Enjoy a more intuitive and visually appealing Home page, designed for easier navigation and interaction.
+- **Real-Time Home Metrics**: Access up-to-date analytics directly on your dashboard, providing timely insights to enhance decision-making.
+
+### 🐛 Bug Fixes
+- **Text Display Corrections**: Resolved issues with text clarity on the user interface, ensuring consistent readability across all elements.
+- **Stability Improvements**: Fixed backend issues that could cause unexpected behavior, enhancing overall system reliability.
+
+### ⚡ Performance
+- **Optimized Data Handling**: Implemented a repository counting feature that improves the accuracy of metrics and supports better resource management.
+
+### 🔄 Changes
+- **Codebase Cleanup**: Removed unused files to streamline the system architecture, reducing maintenance overhead and improving efficiency.
+
+### 🔧 Maintenance
+- **Updated Documentation**: The CHANGELOG has been updated to include the latest changes, ensuring all users and developers have access to current information.
+
+This update focuses on delivering a smoother and more informative user experience while ensuring the backend remains robust and efficient.
+
+## [v2.3.0-beta.8] - 2025-07-03
+
+This release introduces real-time transaction event streaming, enhancing data flow and operational efficiency. It also includes critical bug fixes and performance improvements for a more reliable and responsive user experience.
+
+### ✨ Features  
+- **Real-Time Transaction Streaming**: We've added a transaction event streaming feature to the platform, enabling real-time processing and seamless integration with external systems. This enhancement significantly boosts data flow efficiency and operational performance, allowing users to experience faster and more reliable transactions.
+
+### 🐛 Bug Fixes
+- **Improved Code Clarity**: Resolved an import-shadowing issue in the backend, ensuring clearer code and preventing potential runtime errors.
+- **Enhanced Data Integrity**: Adjusted transaction structures and tests to ensure accurate data validation, improving system reliability.
+- **Corrected Test Logic**: Updated test cases to match new logic and structures, ensuring accurate and reliable test results.
+
+### ⚡ Performance
+- **Asynchronous Event Sending**: Implemented asynchronous processing for event sending, enhancing system performance and responsiveness during high-load operations.
+
+### 📚 Documentation
+- **Updated Configuration and Changelog**: The `.env.example` file now reflects version v2.3.0, and the CHANGELOG has been refreshed to include all recent updates, ensuring users have access to the latest information.
+
+### 🔧 Maintenance
+- **Comprehensive Testing**: Added extensive tests to the backend and test modules, enhancing the overall code quality and reducing the likelihood of future issues.
+
+This update is designed to improve the overall functionality, reliability, and user experience of the system, ensuring users benefit from enhanced performance and reduced errors.
+
+
+## [v2.3.0-beta.7] - 2025-07-02
+
+This major release of midaz introduces dynamic plugin management, enhanced security configurations, and significant improvements to user interface and performance, ensuring a more robust and flexible user experience.
+
+### ⚠️ Breaking Changes
+- **Backend**: The removal of `console.log` from the API error handler affects debugging processes. Users should implement alternative logging solutions to maintain error tracking capabilities.
+
+### ✨ Features  
+- **Dynamic Plugin Menu**: Enjoy a more customizable interface with the new dynamic plugin menu, supporting manifest integration and icons. This feature allows for seamless content updates without needing redeployment, enhancing user engagement.
+- **Plugin Management System**: Manage your plugins effortlessly with the new MongoDB-integrated manifest system, simplifying updates and configuration maintenance.
+- **GCP Credentials Support**: Easily integrate with Google Cloud Platform services using the new base64-like string support for credentials, streamlining cloud operations.
+- **Redis Configuration Enhancements**: Benefit from improved security and flexibility with added Redis configurations for standalone, cluster, and sentinel setups, now supporting TLS certification and IAM tokens.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Resolved issues with idempotency tests and transaction validation logic, ensuring accurate processing and preventing duplication or erroneous states.
+- **Frontend Stability**: Fixed Storybook and build issues, stabilizing the development environment for reliable UI component testing.
+
+### ⚡ Performance
+- **Transaction Handling Optimization**: Experience faster and more reliable transaction processing with optimized methods for reverting transactions and body storage.
+- **Frontend Data Presentation**: Enhanced data-table functionality and numeric display for improved readability and user interaction.
+
+### 🔄 Changes
+- **Nginx Proxy Configuration**: Updated authentication settings for production deployment, boosting security and performance.
+
+### 📚 Documentation
+- **API Documentation Updates**: Access the latest API changes with updated Swagger and OpenAPI specifications, ensuring developers have accurate and comprehensive documentation.
+
+### 🔧 Maintenance
+- **Security Enhancements**: Removed hardcoded Casdoor secrets from configuration files, improving security by eliminating sensitive information exposure.
+- **Component Upgrades**: Upgraded frontend components to maintain compatibility with the latest standards, enhancing overall performance.
+
+This release focuses on delivering a more secure, efficient, and user-friendly experience. We encourage users to explore these updates and adjust their workflows to leverage the new capabilities.
+
 ## [v2.3.0-beta.6] - 2025-06-10
 
 This release of the midaz project brings significant enhancements to system stability, data precision, and user experience, with no breaking changes.

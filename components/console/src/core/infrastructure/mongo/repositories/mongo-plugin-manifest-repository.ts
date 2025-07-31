@@ -26,7 +26,11 @@ export class MongoPluginManifestRepository
     pluginManifest: PluginManifestEntity
   ): Promise<PluginManifestEntity> {
     try {
-      const result = await this.model.create(pluginManifest)
+      const result = await this.model.findOneAndUpdate(
+        { name: pluginManifest.name },
+        { $set: pluginManifest },
+        { upsert: true, new: true }
+      )
       const pluginManifestEntity = MongoPluginManifestMapper.toEntity(result)
 
       return pluginManifestEntity

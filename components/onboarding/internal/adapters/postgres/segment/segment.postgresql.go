@@ -8,11 +8,11 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -184,8 +184,8 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).

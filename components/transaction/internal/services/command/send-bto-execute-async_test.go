@@ -3,9 +3,10 @@ package command
 import (
 	"context"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
@@ -33,10 +34,12 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 
 	// Create mock repositories
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Create the UseCase instance
 	uc := &UseCase{
 		RabbitMQRepo: mockRabbitMQRepo,
+		RedisRepo:    mockRedisRepo,
 	}
 
 	// Test data
@@ -108,8 +111,10 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		Times(1)
 
 	// Call the method with the correct parameters
-	uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+	err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
 
-	// No assertions needed as the function doesn't return anything
-	// The test passes if the mock expectations are met
+	// Assert that no error occurred
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
 }

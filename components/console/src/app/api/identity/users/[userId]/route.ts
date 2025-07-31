@@ -23,7 +23,7 @@ export const GET = applyMiddleware(
     try {
       const fetchUserByIdUseCase: FetchUserById =
         container.get<FetchUserById>(FetchUserByIdUseCase)
-      const { userId } = params
+      const { userId } = await params
 
       const user = await fetchUserByIdUseCase.execute(userId)
 
@@ -42,7 +42,7 @@ export const DELETE = applyMiddleware(
     try {
       const deleteUserUseCase: DeleteUser =
         container.get<DeleteUser>(DeleteUserUseCase)
-      const { userId } = params
+      const { userId } = await params
 
       await deleteUserUseCase.execute(userId)
 
@@ -61,7 +61,7 @@ export const PATCH = applyMiddleware(
     try {
       const updateUserUseCase: UpdateUser =
         container.get<UpdateUser>(UpdateUserUseCase)
-      const { userId } = params
+      const { userId } = await params
       const body = await request.json()
 
       const userUpdated = await updateUserUseCase.execute(userId, body)

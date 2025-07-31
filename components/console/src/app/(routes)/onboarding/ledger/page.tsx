@@ -13,7 +13,7 @@ import {
   StepperItemNumber,
   StepperItemText
 } from '@/components/ui/stepper'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useSearchParams } from '@/lib/search'
 import { ledger } from '@/schema/ledger'
 import { zodResolver } from '@hookform/resolvers/zod'

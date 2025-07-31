@@ -1,4 +1,7 @@
-import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
+import {
+  OrganizationEntity,
+  OrganizationSearchEntity
+} from '@/core/domain/entities/organization-entity'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -31,12 +34,29 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   }
 
   async fetchAll(
-    limit: number,
-    page: number
+    filters: OrganizationSearchEntity = { limit: 10, page: 1 }
   ): Promise<PaginationEntity<OrganizationEntity>> {
+    if (filters?.id) {
+      try {
+        const response = await this.fetchById(filters.id)
+
+        return {
+          items: [response],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      } catch (error) {
+        return {
+          items: [],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      }
+    }
+
     const response = await this.httpService.get<
       MidazPaginationDto<MidazOrganizationDto>
-    >(`${this.baseUrl}${createQueryString({ limit, page })}`)
+    >(`${this.baseUrl}${createQueryString(filters)}`)
     return MidazOrganizationMapper.toPaginationEntity(response)
   }
 

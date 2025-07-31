@@ -3,16 +3,22 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"sort"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"sort"
 )
+
+// lockOperation represents a balance operation with associated metadata for transaction processing
+type lockOperation struct {
+	balance     *mmodel.Balance
+	alias       string
+	amount      libTransaction.Amount
+	internalKey string
+}
 
 // GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
@@ -21,16 +27,6 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
 	defer span.End()
-
-	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
-
-		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
-
-		logger.Errorf("Message Broker is unavailable: %v", err)
-
-		return nil, err
-	}
 
 	balances := make([]*mmodel.Balance, 0)
 
@@ -85,10 +81,10 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	newAliases := make([]string, 0)
 
 	for _, alias := range aliases {
-		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, alias)
+		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
-		if value != "" {
+		if !libCommons.IsNilOrEmpty(&value) {
 			b := mmodel.BalanceRedis{}
 
 			if err := json.Unmarshal([]byte(value), &b); err != nil {
@@ -131,17 +127,10 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	newBalances := make([]*mmodel.Balance, 0)
 
-	type lockOperation struct {
-		balance     *mmodel.Balance
-		alias       string
-		amount      libTransaction.Amount
-		internalKey string
-	}
-
 	operations := make([]lockOperation, 0)
 
 	for _, balance := range balances {
-		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
+		internalKey := libCommons.TransactionInternalKey(organizationID, ledgerID, balance.Alias)
 
 		for k, v := range validate.From {
 			if libTransaction.SplitAlias(k) == balance.Alias {
@@ -169,6 +158,15 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	sort.Slice(operations, func(i, j int) bool {
 		return operations[i].internalKey < operations[j].internalKey
 	})
+
+	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate accounting rules", err)
+
+		logger.Error("Failed to validate accounting rules", err)
+
+		return nil, err
+	}
 
 	for _, op := range operations {
 		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)

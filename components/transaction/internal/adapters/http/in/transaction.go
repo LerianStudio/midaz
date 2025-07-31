@@ -1,6 +1,8 @@
 package in
 
 import (
+	"encoding/json"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	"reflect"
 	"time"
 
@@ -9,15 +11,15 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -667,12 +669,21 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
 
+	_, span := tracer.Start(ctx, "handler.create_transaction")
+	defer span.End()
+
+	c.Set(libConstants.IdempotencyReplayed, "false")
+
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
-	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction")
-	defer spanValidateDSL.End()
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	if transactionStatus != constant.PENDING {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+	}
 
 	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 	defer spanIdempotency.End()
@@ -681,18 +692,31 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	hash := libCommons.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
-	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+		libOpentelemetry.HandleSpanError(&spanIdempotency, "Error on create or check redis idempotency key", err)
 
-		logger.Infof("Redis idempotency key: %v", err.Error())
+		logger.Infof("Error on create or check redis idempotency key: %v", err.Error())
 
 		return http.WithError(c, err)
+	} else if !libCommons.IsNilOrEmpty(value) {
+		t := transaction.Transaction{}
+		if err = json.Unmarshal([]byte(*value), &t); err != nil {
+			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
+
+			logger.Errorf("Error to deserialization idempotency transaction json on redis: %v", err)
+
+			return http.WithError(c, err)
+		}
+
+		c.Set(libConstants.IdempotencyReplayed, "true")
+
+		return http.Created(c, t)
 	}
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanValidateDSL, "Failed to validate send source and distribute", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
 
 		logger.Error("Validation failed:", err.Error())
 
@@ -747,13 +771,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		parentTransactionID = &value
 	}
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
@@ -775,9 +794,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var operations []*operation.Operation
 
+	_, spanCreateTransactionOperations := tracer.Start(ctx, "handler.create_transaction.create_transaction_operations")
+	defer spanCreateTransactionOperations.End()
+
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
+			if blc.Alias == fromTo[i].AccountAlias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
@@ -787,7 +809,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
 				if er != nil {
+					libOpentelemetry.HandleSpanError(&spanCreateTransactionOperations, "Failed to validate balances", er)
+
 					logger.Errorf("Failed to validate balance: %v", er.Error())
+
+					return http.WithError(c, err)
 				}
 
 				amount := operation.Amount{
@@ -832,7 +858,18 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
+
+		libOpentelemetry.HandleSpanError(&span, "failed to update BTO", err)
+
+		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
+
+		return http.WithError(c, err)
+	}
+
+	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
@@ -844,13 +881,20 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	organizationID := uuid.MustParse(tran.OrganizationID)
-	ledgerID := uuid.MustParse(tran.LedgerID)
-
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()
 
+	organizationID := uuid.MustParse(tran.OrganizationID)
+	ledgerID := uuid.MustParse(tran.LedgerID)
+
 	parserDSL := tran.Body
+
+	var fromTo []libTransaction.FromTo
+
+	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	if transactionStatus != constant.CANCELED {
+		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+	}
 
 	if tran.Status.Code != constant.PENDING {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
@@ -897,13 +941,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Status = status
 	tran.UpdatedAt = time.Now()
 
-	var fromTo []libTransaction.FromTo
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
-
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
 		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
@@ -911,16 +950,23 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	var preBalances []*mmodel.Balance
 
+	_, spanCreateTransactionOperations := tracer.Start(ctx, "handler.commit_or_cancel_transaction.create_transaction_operations")
+	defer spanCreateTransactionOperations.End()
+
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
+			if blc.Alias == fromTo[i].AccountAlias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				preBalances = append(preBalances, blc)
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ConvertToLibBalance())
 				if er != nil {
+					libOpentelemetry.HandleSpanError(&spanCreateTransactionOperations, "Failed to validate balances", er)
+
 					logger.Errorf("Failed to validate balance: %v", er.Error())
+
+					return http.WithError(c, err)
 				}
 
 				amount := operation.Amount{
@@ -970,7 +1016,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
+
+		libOpentelemetry.HandleSpanError(&span, "failed to update BTO", err)
+
+		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
+
+		return http.WithError(c, err)
+	}
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 

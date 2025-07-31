@@ -119,6 +119,11 @@ const messages = defineMessages({
     defaultMessage:
       'Field must contain only letters, numbers, hyphens, and underscores'
   },
+  custom_alphanumeric_alias: {
+    id: 'errors.custom.alphanumeric_alias',
+    defaultMessage:
+      'Field must contain only letters, numbers, hyphens, underscores, and @ and :'
+  },
   custom_avatar_invalid_format: {
     id: 'errors.custom.avatar.invalid_format',
     defaultMessage: 'Avatar should have a {format} format',

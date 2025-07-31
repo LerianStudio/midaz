@@ -5,14 +5,18 @@ services:
       context: ../..
       dockerfile: components/console/Dockerfile
     restart: always
-    expose:
-      - 8081
-
+    ports:
+      - '${MIDAZ_CONSOLE_PORT}:${MIDAZ_CONSOLE_PORT}'
     env_file:
       - .env
     healthcheck:
       test:
-        ['CMD', 'curl', '-f', 'http://localhost:8081/api/admin/health/ready']
+        [
+          'CMD',
+          'curl',
+          '-f',
+          'http://localhost:${MIDAZ_CONSOLE_PORT}/api/admin/health/ready'
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,4 +45,5 @@ networks:
     name: infra-network
     driver: bridge
   proxy-network:
-    external: true
+    name: proxy-network
+    driver: bridge

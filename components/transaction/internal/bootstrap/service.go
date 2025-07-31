@@ -17,7 +17,7 @@ type Service struct {
 func (app *Service) Run() {
 	libCommons.NewLauncher(
 		libCommons.WithLogger(app.Logger),
-		libCommons.RunApp("services", app.Server),
+		libCommons.RunApp("Fiber Service", app.Server),
 		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 	).Run()
 }

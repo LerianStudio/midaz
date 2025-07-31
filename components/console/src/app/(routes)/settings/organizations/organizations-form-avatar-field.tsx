@@ -22,6 +22,7 @@ import React from 'react'
 import { ControllerRenderProps, Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { cn } from '@/lib/utils'
+import { getRuntimeEnv } from '@lerianstudio/console-layout'
 
 type AvatarFieldProps = Omit<ControllerRenderProps, 'ref'> & {
   format?: string[]
@@ -33,9 +34,10 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
     {
       name,
       value,
-      format = process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT?.split(
-        ','
-      ) ?? ['png', 'svg'],
+      format = (
+        getRuntimeEnv('NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT') ||
+        process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_AVATAR_ALLOWED_FORMAT
+      )?.split(',') ?? ['png', 'svg'],
       onChange,
       readOnly
     }: AvatarFieldProps,

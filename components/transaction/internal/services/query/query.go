@@ -1,13 +1,15 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
@@ -23,6 +25,12 @@ type UseCase struct {
 
 	// BalanceRepo provides an abstraction on top of the balance data source.
 	BalanceRepo balance.Repository
+
+	// OperationRouteRepo provides an abstraction on top of the operation route data source.
+	OperationRouteRepo operationroute.Repository
+
+	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
+	TransactionRouteRepo transactionroute.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

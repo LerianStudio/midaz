@@ -16,7 +16,9 @@ export function ValidateZod(schema: ZodSchema): MethodDecorator {
       const parsed = schema.safeParse(body)
       if (!parsed.success) {
         // If validation fails, throw an error
-        throw new ValidationApiException(parsed.error.issues[0].message)
+        throw new ValidationApiException(
+          `Invalid body: ${JSON.stringify(parsed.error.flatten().fieldErrors)}`
+        )
       }
 
       return await originalMethod.apply(this, [request, ...args])

@@ -1,5 +1,4 @@
-import { AccountSearchParamDto } from '@/core/application/dto/account-dto'
-import { AccountEntity } from '../entities/account-entity'
+import { AccountEntity, AccountSearchEntity } from '../entities/account-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class AccountRepository {
@@ -11,7 +10,7 @@ export abstract class AccountRepository {
   abstract fetchAll: (
     organizationId: string,
     ledgerId: string,
-    query?: AccountSearchParamDto
+    query?: AccountSearchEntity
   ) => Promise<PaginationEntity<AccountEntity>>
   abstract fetchById: (
     organizationId: string,
@@ -29,4 +28,8 @@ export abstract class AccountRepository {
     ledgerId: string,
     accountId: string
   ) => Promise<void>
+  abstract count: (
+    organizationId: string,
+    ledgerId: string
+  ) => Promise<{ total: number }>
 }

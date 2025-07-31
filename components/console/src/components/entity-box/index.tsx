@@ -1,4 +1,4 @@
-import React, { ElementRef } from 'react'
+import React from 'react'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -20,77 +20,77 @@ import {
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 
-type EntityBoxRootProps = React.HTMLAttributes<HTMLDivElement>
+function EntityBoxRoot({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="entity-box-root"
+      className={cn(
+        'shadow-entity-box mb-2 flex items-center justify-between rounded-lg bg-white p-6',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
 
-const EntityBoxRoot = React.forwardRef<HTMLDivElement, EntityBoxRootProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          'shadow-entity-box mb-2 flex justify-between rounded-lg bg-white p-6',
-          className
-        )}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-EntityBoxRoot.displayName = 'EntityBoxRoot'
+function EntityBoxCollapsible({ className, ...props }: CollapsibleProps) {
+  return (
+    <Collapsible
+      className={cn(
+        'shadow-entity-box mb-2 flex flex-col rounded-lg bg-white',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
-const EntityBoxCollapsible = React.forwardRef<
-  ElementRef<typeof Collapsible>,
-  CollapsibleProps
->(({ className, ...props }) => (
-  <Collapsible
-    className={cn(
-      'shadow-entity-box mb-2 flex flex-col rounded-lg bg-white',
-      className
-    )}
-    {...props}
-  />
-))
-EntityBoxCollapsible.displayName = 'EntityBoxCollapsible'
+function EntityBoxCollapsibleTrigger(props: CollapsibleTriggerProps) {
+  return (
+    <CollapsibleTrigger {...props} asChild>
+      <Button variant="secondary" className="h-[34px] w-[34px] p-2">
+        <Settings2 size={16} />
+      </Button>
+    </CollapsibleTrigger>
+  )
+}
 
-const EntityBoxCollapsibleTrigger = React.forwardRef<
-  ElementRef<typeof CollapsibleTrigger>,
-  CollapsibleTriggerProps
->(({ ...props }) => (
-  <CollapsibleTrigger {...props} asChild>
-    <Button variant="secondary" className="h-[34px] w-[34px] p-2">
-      <Settings2 size={16} />
-    </Button>
-  </CollapsibleTrigger>
-))
-EntityBoxCollapsibleTrigger.displayName = 'EntityBoxCollapsibleTrigger'
+function EntityBoxCollapsibleContent({
+  children,
+  ...props
+}: CollapsibleContentProps) {
+  return (
+    <CollapsibleContent {...props}>
+      <Separator orientation="horizontal" />
+      <div className="grid w-full grid-cols-3 p-6">{children}</div>
+    </CollapsibleContent>
+  )
+}
 
-const EntityBoxCollapsibleContent = React.forwardRef<
-  ElementRef<typeof CollapsibleContent>,
-  CollapsibleContentProps
->(({ children, ...props }) => (
-  <CollapsibleContent {...props}>
-    <Separator orientation="horizontal" />
-    <div className="grid w-full grid-cols-3 p-6">{children}</div>
-  </CollapsibleContent>
-))
-EntityBoxCollapsibleContent.displayName = 'EntityBoxCollapsibleContent'
-
-interface EntityBoxHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+interface EntityBoxHeaderProps extends React.ComponentProps<'div'> {
   title: string
   subtitle?: string
   tooltip?: string
   tooltipWidth?: string | number
 }
 
-const EntityBoxHeaderTitle = React.forwardRef<
-  HTMLDivElement,
-  EntityBoxHeaderProps
->(({ title, subtitle, tooltip, tooltipWidth, className, ...props }, ref) => {
+function EntityBoxHeaderTitle({
+  title,
+  subtitle,
+  tooltip,
+  tooltipWidth,
+  className,
+  ...props
+}: EntityBoxHeaderProps) {
   return (
     <div
-      ref={ref}
+      data-slot="entity-box-header"
       className={cn('flex flex-col items-start', className)}
       {...props}
     >
@@ -116,39 +116,35 @@ const EntityBoxHeaderTitle = React.forwardRef<
           </TooltipProvider>
         )}
       </div>
-
       {subtitle && <p className="text-shadcn-400 text-sm">{subtitle}</p>}
     </div>
   )
-})
-EntityBoxHeaderTitle.displayName = 'EntityBoxHeader'
+}
 
-type EntityBoxContentProps = React.HTMLAttributes<HTMLDivElement>
-
-const EntityBoxBanner = React.forwardRef<HTMLDivElement, EntityBoxContentProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn('grid grid-cols-3 p-6', className)}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-EntityBoxBanner.displayName = 'EntityBoxContent'
-
-type EntityBoxActionsProps = React.HTMLAttributes<HTMLDivElement>
-
-const EntityBoxActions = React.forwardRef<
-  HTMLDivElement,
-  EntityBoxActionsProps
->(({ className, children, ...props }, ref) => {
+function EntityBoxBanner({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<'div'>) {
   return (
     <div
-      ref={ref}
+      data-slot="entity-box-banner"
+      className={cn('grid grid-cols-3 p-6', className)}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
+
+function EntityBoxActions({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="entity-box-actions"
       className={cn(
         'col-start-3 flex flex-row items-center justify-end gap-4',
         className
@@ -158,8 +154,7 @@ const EntityBoxActions = React.forwardRef<
       {children}
     </div>
   )
-})
-EntityBoxActions.displayName = 'EntityBoxActions'
+}
 
 export const EntityBox = {
   Root: EntityBoxRoot,

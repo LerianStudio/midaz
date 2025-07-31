@@ -1,5 +1,8 @@
 import { injectable, inject } from 'inversify'
-import { SegmentEntity } from '@/core/domain/entities/segment-entity'
+import {
+  SegmentEntity,
+  SegmentSearchEntity
+} from '@/core/domain/entities/segment-entity'
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
@@ -35,13 +38,38 @@ export class MidazSegmentRepository implements SegmentRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: SegmentSearchEntity = { page: 1, limit: 10 }
   ): Promise<PaginationEntity<SegmentEntity>> {
+    if (filters.id) {
+      try {
+        const response = await this.fetchById(
+          organizationId,
+          ledgerId,
+          filters.id
+        )
+        return {
+          items: response ? [response] : [],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      } catch (error) {
+        return {
+          items: [],
+          limit: filters.limit ?? 10,
+          page: filters.page ?? 1
+        }
+      }
+    }
+
     const response = await this.httpService.get<
       MidazPaginationDto<MidazSegmentDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments${createQueryString({ page, limit })}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments${createQueryString(
+        {
+          page: filters.page,
+          limit: filters.limit
+        }
+      )}`
     )
     return MidazSegmentMapper.toPaginationEntity(response)
   }
@@ -80,6 +108,15 @@ export class MidazSegmentRepository implements SegmentRepository {
   ): Promise<void> {
     await this.httpService.delete(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/${segmentId}`
+    )
+  }
+
+  async count(
+    organizationId: string,
+    ledgerId: string
+  ): Promise<{ total: number }> {
+    return await this.httpService.count(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments/metrics/count`
     )
   }
 }

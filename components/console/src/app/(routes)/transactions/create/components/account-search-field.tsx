@@ -12,7 +12,7 @@ import {
   AutocompleteValue
 } from '@/components/ui/autocomplete'
 import { Paper } from '@/components/ui/paper'
-import { useOrganization } from '@/providers/organization-provider'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
 import React, { useState } from 'react'

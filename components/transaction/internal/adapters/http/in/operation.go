@@ -4,10 +4,10 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -71,6 +71,33 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 		SortOrder:  headerParams.SortOrder,
 		StartDate:  headerParams.StartDate,
 		EndDate:    headerParams.EndDate,
+	}
+
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Operations by account and metadata")
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
+
+			return http.WithError(c, err)
+		}
+
+		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account and metadata", err)
+
+			logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
+
+			return http.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Operations by account and metadata")
+
+		pagination.SetItems(trans)
+		pagination.SetCursor(cur.Next, cur.Prev)
+
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by account")

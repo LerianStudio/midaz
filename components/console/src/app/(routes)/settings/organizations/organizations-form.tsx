@@ -30,7 +30,7 @@ import {
 } from '@/components/transactions/primitives/paper-collapsible'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 import { PageFooter, PageFooterSection } from '@/components/page-footer'
 import { OrganizationDto } from '@/core/application/dto/organization-dto'
 

@@ -1,14 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  trailingSlash: true,
   logging: {
     fetches: {
       fullUrl: true
     }
-  },
-  env: {
-    MIDAZ_CONSOLE_BASE_PATH: process.env.MIDAZ_CONSOLE_BASE_PATH,
-    MIDAZ_SERVER_BASE_PATH: process.env.MIDAZ_SERVER_BASE_PATH
   },
   headers: async () => {
     return [
@@ -63,6 +60,8 @@ const nextConfig = {
 
     return config
   },
+
+  transpilePackages: ['@lerianstudio/console-layout'],
 
   serverExternalPackages: [
     'pino',

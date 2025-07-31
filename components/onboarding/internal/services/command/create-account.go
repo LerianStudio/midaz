@@ -2,14 +2,19 @@ package command
 
 import (
 	"context"
+	"errors"
+	"os"
+	"reflect"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateAccount creates a new account persists data in the repository.
@@ -28,6 +33,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
 
 		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
+	}
+
+	err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Accounting validations failed", err)
+
+		logger.Errorf("Accounting validations failed: %v", err)
 
 		return nil, err
 	}
@@ -150,4 +164,45 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 	status.Description = cai.Status.Description
 
 	return status
+}
+
+// applyAccountingValidations applies the accounting validations to the account.
+func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
+	defer span.End()
+
+	accountingValidation := os.Getenv("ACCOUNT_TYPE_VALIDATION")
+	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
+		logger.Infof("Accounting validations are disabled")
+
+		return nil
+	}
+
+	if strings.ToLower(key) == "external" {
+		logger.Infof("External account type, skipping validation")
+
+		return nil
+	}
+
+	_, err := uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, key)
+	if err != nil {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			libOpentelemetry.HandleSpanError(&span, "Not found, invalid account type", constant.ErrInvalidAccountType)
+
+			logger.Errorf("Account type not found, invalid account type")
+
+			return pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.AccountType{}).Name())
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to find account type", err)
+
+		logger.Errorf("Error finding account type: %v", err)
+
+		return err
+	}
+
+	return nil
 }

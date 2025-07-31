@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
-// You can use it to representing a Database not found, cache not found or any other repository.
+// You can use it to represent a Database not found, cache not found or any other repository.
 type EntityNotFoundError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -41,8 +41,8 @@ func (e EntityNotFoundError) Unwrap() error {
 	return e.Err
 }
 
-// ValidationError records an error indicating an entity was not found in any case that caused it.
-// You can use it to representing a Database not found, cache not found or any other repository.
+// ValidationError records an error indicating some validation have failed in any case that caused it.
+// You can use it to represent a validation error or any other repository.
 type ValidationError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -66,7 +66,7 @@ func (e ValidationError) Unwrap() error {
 }
 
 // EntityConflictError records an error indicating an entity already exists in some repository
-// You can use it to representing a Database conflict, cache or any other repository.
+// You can use it to represent a Database conflict, cache or any other repository.
 type EntityConflictError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -89,7 +89,7 @@ func (e EntityConflictError) Unwrap() error {
 	return e.Err
 }
 
-// UnauthorizedError indicates an operation that couldn't be performant because there's no user authenticated.
+// UnauthorizedError indicates an operation that couldn't be performed because there's no user authenticated.
 type UnauthorizedError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -102,7 +102,7 @@ func (e UnauthorizedError) Error() string {
 	return e.Message
 }
 
-// ForbiddenError indicates an operation that couldn't be performant because the authenticated user has no sufficient privileges.
+// ForbiddenError indicates an operation that couldn't be performed because the authenticated user has no sufficient privileges.
 type ForbiddenError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -115,7 +115,7 @@ func (e ForbiddenError) Error() string {
 	return e.Message
 }
 
-// UnprocessableOperationError indicates an operation that couldn't be performant because it's invalid.
+// UnprocessableOperationError indicates an operation that couldn't be performed because it's invalid.
 type UnprocessableOperationError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -154,7 +154,7 @@ func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
 
-// InternalServerError indicates a precondition failed during an operation.
+// InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
 	Title      string `json:"title,omitempty"`
@@ -205,7 +205,7 @@ func (r ValidationKnownFieldsError) Error() string {
 // FieldValidations is a map of known fields and their validation errors.
 type FieldValidations map[string]string
 
-// ValidationUnknownFieldsError records an error that occurred during a validation of known fields.
+// ValidationUnknownFieldsError records an error that occurred during a validation of unknown fields.
 type ValidationUnknownFieldsError struct {
 	EntityType string        `json:"entityType,omitempty"`
 	Title      string        `json:"title,omitempty"`
@@ -380,13 +380,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Inactive Account Type Error",
 			Message:    "The account type specified cannot be set to INACTIVE. Please ensure the correct account type is being used and try again.",
 		},
-		constant.ErrAccountBalanceDeletion: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrAccountBalanceDeletion.Error(),
-			Title:      "Account Balance Deletion Error",
-			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
-		},
-
 		constant.ErrAccountBalanceDeletion: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountBalanceDeletion.Error(),
@@ -691,7 +684,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidPathParameter.Error(),
 			Title:      "Invalid Path Parameter",
-			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args),
+			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %v and ensure they meet the required format before trying again.", args...),
 		},
 		constant.ErrInvalidAccountType: ValidationError{
 			EntityType: entityType,
@@ -793,7 +786,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidQueryParameter.Error(),
 			Title:      "Invalid Query Parameter",
-			Message:    fmt.Sprintf("One or more query parameters are in an incorrect format. Please check the following parameters '%v' and ensure they meet the required format before trying again.", args),
+			Message:    fmt.Sprintf("One or more query parameters are in an incorrect format. Please check the following parameters '%v' and ensure they meet the required format before trying again.", args...),
 		},
 		constant.ErrInvalidDateRange: ValidationError{
 			EntityType: entityType,
@@ -801,11 +794,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Date Range Error",
 			Message:    "Both 'initialDate' and 'finalDate' fields are required and must be in the 'yyyy-mm-dd' format. Please provide valid dates and try again.",
 		},
-		constant.ErrIdempotencyKey: ValidationError{
+		constant.ErrIdempotencyKey: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrIdempotencyKey.Error(),
 			Title:      "Duplicate Idempotency Key",
-			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
+			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args...),
 		},
 		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -816,7 +809,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrLockVersionAccountBalance: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLockVersionAccountBalance.Error(),
-			Title:      "Race conditioning detected",
+			Title:      "Race condition detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
 		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
@@ -841,7 +834,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
-			Message:    "Transaction can't be used same account in sources ans destinations",
+			Message:    "Transaction can't use the same account in sources and destinations",
 		},
 		constant.ErrBalancesCantDeleted: ValidationError{
 			EntityType: entityType,
@@ -883,6 +876,132 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrOverFlowInt64.Error(),
 			Title:      "Overflow Error",
 			Message:    "The request could not be completed due to an overflow. Please check the values, and try again.",
+		},
+		constant.ErrOperationRouteTitleAlreadyExists: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteTitleAlreadyExists.Error(),
+			Title:      "Operation Route Title Already Exists",
+			Message:    "The 'title' provided already exists for the 'type' provided. Please redefine the operation route title.",
+		},
+		constant.ErrOperationRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteNotFound.Error(),
+			Title:      "Operation Route Not Found",
+			Message:    "The provided operation route does not exist in our records. Please verify the operation route and try again.",
+		},
+		constant.ErrNoOperationRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoOperationRoutesFound.Error(),
+			Title:      "No Operation Routes Found",
+			Message:    "No operation routes were found in the search. Please review the search criteria and try again.",
+		},
+		constant.ErrInvalidOperationRouteType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidOperationRouteType.Error(),
+			Title:      "Invalid Operation Route Type",
+			Message:    "The provided 'type' is not valid. Accepted types are 'debit' or 'credit'. Please provide a valid type.",
+		},
+		constant.ErrMissingOperationRoutes: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingOperationRoutes.Error(),
+			Title:      "Missing Operation Routes in Request",
+			Message:    "Your request must include at least one operation route of each type (debit and credit). Please refer to the documentation to ensure these fields are properly populated.",
+		},
+		constant.ErrTransactionRouteNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRouteNotFound.Error(),
+			Title:      "Transaction Route Not Found",
+			Message:    "The provided transaction route does not exist in our records. Please verify the transaction route and try again.",
+		},
+		constant.ErrNoTransactionRoutesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoTransactionRoutesFound.Error(),
+			Title:      "No Transaction Routes Found",
+			Message:    "No transaction routes were found in the search. Please review the search criteria and try again.",
+		},
+		constant.ErrOperationRouteLinkedToTransactionRoutes: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteLinkedToTransactionRoutes.Error(),
+			Title:      "Operation Route Linked to Transaction Routes",
+			Message:    "The operation route cannot be deleted because it is linked to one or more transaction routes. Please remove the operation route from all transaction routes before attempting to delete it.",
+		},
+		constant.ErrInvalidAccountRuleType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountRuleType.Error(),
+			Title:      "Invalid Account Rule Type",
+			Message:    "The provided 'account.ruleType' is not valid. Accepted types are 'alias' or 'account_type'. Please provide a valid rule type.",
+		},
+		constant.ErrInvalidAccountRuleValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountRuleValue.Error(),
+			Title:      "Invalid Account Rule Value",
+			Message:    "The provided 'account.validIf' is not valid. Please provide a string for 'alias' or an array of strings for 'account_type'.",
+		},
+		constant.ErrInvalidAccountingRoute: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountingRoute.Error(),
+			Title:      "Invalid Accounting Route",
+			Message:    "The transaction does not comply with the defined accounting route rules. Please verify that the transaction matches the expected operation types and account validation rules.",
+		},
+		constant.ErrTransactionRouteNotInformed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionRouteNotInformed.Error(),
+			Title:      "Transaction Route Not Informed",
+			Message:    "The transaction route is not informed. Please inform the transaction route for this transaction.",
+		},
+		constant.ErrInvalidTransactionRouteID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTransactionRouteID.Error(),
+			Title:      "Invalid Transaction Route ID",
+			Message:    "The provided transaction route ID is not a valid UUID format. Please provide a valid UUID for the transaction route.",
+		},
+		constant.ErrAccountingRouteCountMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
+			Title:      "Accounting Route Count Mismatch",
+			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source routes and %v destination routes, but found %v source routes and %v destination routes in the transaction route.", args...),
+		},
+		constant.ErrAccountingRouteNotFound: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingRouteNotFound.Error(),
+			Title:      "Accounting Route Not Found",
+			Message:    fmt.Sprintf("The operation route ID '%v' was not found in the transaction route cache for operation '%v'. Please verify the route configuration.", args...),
+		},
+		constant.ErrAccountingAliasValidationFailed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingAliasValidationFailed.Error(),
+			Title:      "Accounting Alias Validation Failed",
+			Message:    fmt.Sprintf("The operation alias '%v' does not match the expected alias '%v' defined in the accounting route rule.", args...),
+		},
+		constant.ErrAccountingAccountTypeValidationFailed: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingAccountTypeValidationFailed.Error(),
+			Title:      "Accounting Account Type Validation Failed",
+			Message:    fmt.Sprintf("The account type '%v' does not match any of the expected account types %v defined in the accounting route rule.", args...),
+		},
+		constant.ErrInvalidAccountTypeKeyValue: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountTypeKeyValue.Error(),
+			Title:      "Invalid Characters",
+			Message:    "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens.",
+		},
+		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),
+			Title:      "Duplicate Account Type Key Value Error",
+			Message:    "An account type with the specified key value already exists for this organization and ledger. Please use a different key value or update the existing account type.",
+		},
+		constant.ErrAccountTypeNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountTypeNotFound.Error(),
+			Title:      "Account Type Not Found Error",
+			Message:    "The account type you are trying to access does not exist or has been removed.",
+		},
+		constant.ErrNoAccountTypesFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoAccountTypesFound.Error(),
+			Title:      "No Account Types Found",
+			Message:    "No account types were found in the search. Please review the search criteria and try again.",
 		},
 	}
 
