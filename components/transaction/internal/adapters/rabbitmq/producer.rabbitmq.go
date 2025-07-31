@@ -2,10 +2,10 @@ package rabbitmq
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"math/rand"
 	"os"

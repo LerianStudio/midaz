@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -76,7 +76,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 
@@ -368,7 +368,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 

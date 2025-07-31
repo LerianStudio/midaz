@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -83,7 +83,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "organization_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "organization_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert organization record from entity to JSON string", err)
 
@@ -200,7 +200,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "organization_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "organization_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert organization record from entity to JSON string", err)
 

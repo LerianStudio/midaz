@@ -1,9 +1,9 @@
 package in
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -74,7 +74,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
@@ -155,7 +155,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
@@ -310,7 +310,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	payload := p.(*mmodel.UpdateBalance)
 	logger.Infof("Request to update a Balance with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 

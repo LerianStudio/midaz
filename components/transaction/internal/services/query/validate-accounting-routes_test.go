@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"

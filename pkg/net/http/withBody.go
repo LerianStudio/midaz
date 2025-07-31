@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/go-playground/locales/en"

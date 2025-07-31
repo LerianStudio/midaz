@@ -1,18 +1,18 @@
 package in
 
 import (
-	"strconv"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"strconv"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.
@@ -59,7 +59,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -259,7 +259,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 

@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -78,7 +78,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "transaction_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 
@@ -500,7 +500,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "transaction_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 

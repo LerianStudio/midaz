@@ -1055,7 +1055,7 @@ definitions:
         maxLength: 50
         type: string
     type: object
-  github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+  github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
       structure defined inline
     properties:
@@ -3471,7 +3471,7 @@ paths:
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       produces:
       - application/json
       responses:

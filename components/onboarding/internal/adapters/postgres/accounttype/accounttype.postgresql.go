@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -79,7 +79,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_type_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_type_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account type record from entity to JSON string", err)
 
@@ -298,7 +298,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_type_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_type_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account type from entity to JSON string", err)
 

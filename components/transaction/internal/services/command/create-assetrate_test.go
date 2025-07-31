@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

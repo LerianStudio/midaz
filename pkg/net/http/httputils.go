@@ -2,10 +2,10 @@ package http
 
 import (
 	"bytes"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"

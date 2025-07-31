@@ -2,7 +2,7 @@ package operation
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/shopspring/decimal"
 	"time"
 )

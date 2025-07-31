@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"

@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

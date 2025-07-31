@@ -33,11 +33,11 @@ ifneq (,$(wildcard .env))
 endif
 
 # MDZ-specific LDFLAGS
-LDFLAGS=-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientID=$(CLIENT_ID)'\
-	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientSecret=$(CLIENT_SECRET)' \
-	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.URLAPIAuth=$(URL_API_AUTH)' \
-	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.URLAPILedger=$(URL_API_LEDGER)' \
-	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.Version=$(VERSION)'
+LDFLAGS=-X 'github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment.ClientID=$(CLIENT_ID)'\
+	-X 'github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment.ClientSecret=$(CLIENT_SECRET)' \
+	-X 'github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment.URLAPIAuth=$(URL_API_AUTH)' \
+	-X 'github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment.URLAPILedger=$(URL_API_LEDGER)' \
+	-X 'github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment.Version=$(VERSION)'
 
 #-------------------------------------------------------
 # Core Commands

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"

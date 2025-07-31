@@ -6,7 +6,7 @@ import (
 	"github.com/shopspring/decimal"
 	"time"
 
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"
 )
 

@@ -2,8 +2,8 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -57,7 +57,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		UpdatedAt:            time.Now(),
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "organization_repository_input", organization)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "organization_repository_input", organization)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
 

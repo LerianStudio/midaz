@@ -6,11 +6,11 @@
     <title>mdz</title>
     <authors>Lerian Studio</authors>
     <projectUrl>https://github.com/LerianStudio/midaz</projectUrl>
-    <licenseUrl>https://github.com/LerianStudio/midaz/blob/main/LICENSE</licenseUrl>
+    <licenseUrl>https://github.com/LerianStudio/midaz/v3/blob/main/LICENSE</licenseUrl>
     <iconUrl>https://avatars.githubusercontent.com/u/148895005</iconUrl>
     <docsUrl>https://docs.lerian.studio/docs/midaz-cli</docsUrl>
     <mailingListUrl>https://discord.gg/DnhqKwkGv3</mailingListUrl>
-    <bugTrackerUrl>https://github.com/LerianStudio/midaz/issues</bugTrackerUrl>
+    <bugTrackerUrl>https://github.com/LerianStudio/midaz/v3/issues</bugTrackerUrl>
     <projectSourceUrl>https://github.com/LerianStudio/midaz</projectSourceUrl>
     <tags>mdz cli ledger golang financial</tags>
     <summary>An open-source ledger for multi-asset, multi-currency financial systems.</summary>

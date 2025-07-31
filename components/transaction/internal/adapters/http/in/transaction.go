@@ -2,15 +2,15 @@ package in
 
 import (
 	"encoding/json"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -591,7 +591,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Transactions by metadata")
 
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
 
@@ -619,7 +619,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 

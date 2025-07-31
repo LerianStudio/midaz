@@ -1,7 +1,7 @@
 package assetrate
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"time"
 )
 

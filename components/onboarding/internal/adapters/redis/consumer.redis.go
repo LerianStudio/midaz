@@ -2,9 +2,9 @@ package redis
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	"time"
 )
 
