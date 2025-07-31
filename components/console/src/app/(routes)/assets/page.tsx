@@ -194,7 +194,7 @@ const Page = () => {
         {...dialogProps}
       />
 
-      <AssetsSheet _ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
+      <AssetsSheet ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
 
       <div className="mt-10">
         {isLoading && <AssetsSkeleton />}

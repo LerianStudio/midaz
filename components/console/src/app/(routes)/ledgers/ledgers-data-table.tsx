@@ -177,7 +177,7 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
 
       <AssetsSheet
         onSuccess={refetch}
-        _ledgerId={ledger.original.id!}
+        ledgerId={ledger.original.id!}
         {...sheetProps}
       />
     </React.Fragment>
