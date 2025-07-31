@@ -686,8 +686,11 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.StringSlice("app.request.alias", alias),
+	}
+
+	if portfolioID != uuid.Nil {
+		attributes = append(attributes, attribute.String("app.request.portfolio_id", portfolioID.String()))
 	}
 
 	span.SetAttributes(attributes...)
@@ -915,7 +918,6 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", portfolioID.String()),
 		attribute.String("app.request.id", id.String()),
 	}
 
