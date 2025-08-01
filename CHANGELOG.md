@@ -1,3 +1,36 @@
+## [v3.0.0-beta.23] - 2025-08-01
+
+This major release of midaz introduces a comprehensive overhaul of the fee calculation system, alongside significant enhancements to user experience and system performance. Users will benefit from improved transparency, accuracy, and usability in managing transactions and fees.
+
+### ⚠️ Breaking Changes
+- **Fee Calculation System Overhaul**: The fee calculation system has been revamped to enhance display components and deductible handling. This requires users to update their integrations to align with the new API structure. Please refer to the updated API documentation for detailed migration steps.
+- **Console API and UI Integration**: A new fee calculation API and UI hooks have been implemented. Users need to test their workflows to ensure compatibility with these changes.
+- **Standardized API Field Naming**: API field names have been standardized. Users should update their systems to match these conventions to avoid integration issues.
+- **Fee Terminology Update**: Terminology changes in fee components may affect application compatibility. Review and update your applications accordingly.
+- **Ledger ID Format Change**: The underscore prefix in ledger IDs has been removed. Ensure that any scripts or systems using ledger IDs are updated to accommodate this change.
+
+### ✨ Features
+- **Comprehensive Fee Calculation Infrastructure**: A new infrastructure enhances the backend, frontend, and testing components, offering users a robust system for fee management with more accurate and transparent breakdowns.
+- **Improved Fee Display and Calculation UX**: Users will experience a clearer and more intuitive interface for managing fees, particularly in transaction components, enhancing overall usability.
+
+### 🐛 Bug Fixes
+- **Ledger ID Prefix Removal**: The removal of the underscore prefix from ledger IDs resolves identifier consistency issues, improving system integration.
+
+### ⚡ Performance
+- **Enhanced Ledger Assets Handling**: Improvements in ledger asset management lead to more accurate and reliable financial data processing, boosting overall system performance.
+
+### 🔄 Changes
+- **Account Alias in Fee Breakdown**: The inclusion of account aliases in fee breakdowns provides users with better context and clarity during fee reviews.
+
+### 🗑️ Removed
+- **Unused Files and Tests**: Streamlining the codebase by removing unused files and tests enhances maintainability and reduces clutter.
+
+### 🔧 Maintenance
+- **Error Handling Cleanup**: Standardization and cleanup of error handling processes improve code reliability and readability.
+- **Dependency Updates**: Updated dependencies ensure compatibility and security, contributing to the system's stability.
+
+These updates collectively improve midaz's functionality, performance, and user experience. Users are encouraged to review these changes, especially the breaking changes, to ensure a smooth transition and continued compatibility with their existing setups.
+
 ## [v3.0.0-beta.22] - 2025-08-01
 
 This release introduces a significant enhancement to the build process, improving efficiency and flexibility for developers working with complex projects.
