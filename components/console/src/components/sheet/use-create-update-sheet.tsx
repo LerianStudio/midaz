@@ -27,7 +27,6 @@ export function useCreateUpdateSheet<TData = {}>({
   const { searchParams, setSearchParams } = useSearchParams()
 
   const onOpenChange = (open: boolean) => {
-    // If the sheet is closed and the URL contains the 'create' parameter set to 'true',
     // remove the 'create' parameter from the URL.
     if (!open && searchParams?.['create'] === 'true') {
       setSearchParams({})
@@ -46,7 +45,6 @@ export function useCreateUpdateSheet<TData = {}>({
     setOpen(true)
   }
 
-  // Opens the sheet if the URL contains the 'create' parameter set to 'true'
   // and the sheet is not already open.
   useEffect(() => {
     if (!enableRouting) {

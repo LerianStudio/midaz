@@ -31,8 +31,6 @@ export class Container {
     module.registry(this)
   }
 
-  // Inversify Container Wrappers
-
   bind<T>(serviceIdentifier: ServiceIdentifier<T>): BindToFluentSyntax<T> {
     return this.container.bind(serviceIdentifier)
   }

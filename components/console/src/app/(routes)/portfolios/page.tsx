@@ -140,7 +140,7 @@ const Page = () => {
 
             <Button onClick={handleCreate} data-testid="new-portfolio">
               {intl.formatMessage({
-                id: 'portfolios.listingTemplate.addButton',
+                id: 'ledgers.portfolio.sheet.title',
                 defaultMessage: 'New Portfolio'
               })}
             </Button>

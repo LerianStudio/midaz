@@ -46,6 +46,7 @@ type AccountsTableProps = {
     }
   }
   onDelete: (id: string, account: AccountDto) => void
+  _refetch: () => void
   handleCreate: () => void
   handleEdit: (account: AccountDto) => void
   total: number
@@ -135,6 +136,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
   onDelete,
   handleCreate,
   handleEdit,
+  _refetch,
   total,
   pagination,
   hasAssets

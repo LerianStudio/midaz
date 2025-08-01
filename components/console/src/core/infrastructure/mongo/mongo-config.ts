@@ -71,7 +71,7 @@ export class MongoConfig implements DBConfig<Mongoose> {
    * @throws {DatabaseException} If connection fails or if connection state is invalid after connect
    */
   async connect({ uri, dbName, user, pass }: DBConfigParams) {
-    const intl = await this.getIntlSafe()
+    const _intl = await this.getIntlSafe()
 
     if (this.isConnected()) {
       return

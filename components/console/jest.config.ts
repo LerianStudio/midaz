@@ -97,7 +97,8 @@ const config: Config = {
 
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
-    '@/../intl.config': '<rootDir>/intl.config.ts'
+    '@/../intl.config': '<rootDir>/intl.config.ts',
+    '^@/(.*)$': '<rootDir>/src/$1'
   },
 
   // An array of regexp pattern strings, matched against all module paths before considered 'visible' to the module loader
@@ -169,7 +170,10 @@ const config: Config = {
   // ]
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  testPathIgnorePatterns: ['\\\\node_modules\\\\', './tests']
+  testPathIgnorePatterns: ['/node_modules/', './tests'],
+
+  // Allow transformation of specific ESM packages used by Next-Auth (openid-client, jose)
+  transformIgnorePatterns: ['/node_modules/(?!(openid-client|jose)/)']
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],

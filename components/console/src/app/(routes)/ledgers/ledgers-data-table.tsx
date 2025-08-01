@@ -208,7 +208,6 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     total
   } = props
 
-  // Filter out the current ledger from the list of ledgers
   const items = React.useMemo(
     () =>
       ledgers?.items?.filter((ledger) => ledger.id !== currentLedger.id) ?? [],
@@ -239,7 +238,7 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
           >
             <Button variant="default" onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'ledgers.emptyResource.createButton',
+                id: 'ledgers.sheetCreate.title',
                 defaultMessage: 'New Ledger'
               })}
             </Button>

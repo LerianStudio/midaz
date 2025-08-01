@@ -1,4 +1,4 @@
-import { inject, injectable } from 'inversify'
+import { inject } from 'inversify'
 import { FetchAllTransactionsUseCase } from '../use-cases/transactions/fetch-all-transactions-use-case'
 import { Controller, Get, Param, Query } from '@/lib/http/server'
 import { type TransactionSearchDto } from '../dto/transaction-dto'

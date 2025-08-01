@@ -19,6 +19,7 @@ export class MidazTransactionRepository implements TransactionRepository {
   ) {}
 
   private baseUrl: string = process.env.MIDAZ_TRANSACTION_BASE_PATH as string
+
   async create(
     organizationId: string,
     ledgerId: string,
@@ -28,9 +29,14 @@ export class MidazTransactionRepository implements TransactionRepository {
     const response = await this.httpService.post<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
       {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Organization-Id': organizationId
+        },
         body: JSON.stringify(dto)
       }
     )
+
     return MidazTransactionMapper.toEntity(response)
   }
 
@@ -52,7 +58,7 @@ export class MidazTransactionRepository implements TransactionRepository {
           limit: filters.limit ?? 10,
           page: filters.page ?? 1
         }
-      } catch (error) {
+      } catch {
         return {
           items: [],
           limit: filters.limit ?? 10,
@@ -78,6 +84,7 @@ export class MidazTransactionRepository implements TransactionRepository {
     const response = await this.httpService.get<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
     )
+
     return MidazTransactionMapper.toEntity(response)
   }
 

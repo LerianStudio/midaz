@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DollarSign, Coins, Users, Briefcase } from 'lucide-react'
 
-// Metric Card Component
 const MetricCard = ({
   title,
   value,
@@ -32,7 +31,6 @@ const MetricCard = ({
   </Card>
 )
 
-// Skeleton version of Metric Card
 const MetricCardSkeleton = () => (
   <Card className="flex min-h-[139px] grow flex-col gap-4 p-4">
     <div className="flex items-center justify-between">

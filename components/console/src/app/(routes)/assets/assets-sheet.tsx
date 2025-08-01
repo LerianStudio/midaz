@@ -114,7 +114,7 @@ export const AssetsSheet = ({
     if (mode === 'create') {
       createAsset(data)
     } else if (mode === 'edit') {
-      const { type, code, ...payload } = data
+      const { ...payload } = data
       updateAsset(payload)
     }
   }
