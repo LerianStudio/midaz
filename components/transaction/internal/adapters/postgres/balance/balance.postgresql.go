@@ -800,7 +800,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			attribute.String("app.request.balance_ledger_id", balance.LedgerID),
 		}
 
-		attributes = append(balanceAttributes, attributes...)
+		balanceAttributes = append(balanceAttributes, attributes...)
 
 		spanUpdate.SetAttributes(balanceAttributes...)
 
