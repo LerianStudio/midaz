@@ -1,3 +1,20 @@
+## [v3.0.0-beta.26] - 2025-08-01
+
+In this release, we've focused on enhancing the stability and maintainability of the midaz project by updating key library dependencies. While no new features or bug fixes are included, these changes prepare the system for future improvements and ensure a more consistent codebase.
+
+### 🔄 Changes
+- **Backend, Config, Database, Test**: We've updated the import paths to utilize `lib-commons v2` across all components. This update ensures that the system benefits from the latest features and improvements of the library, enhancing code consistency and maintainability. Users can anticipate smoother performance and increased reliability as a result of these changes.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect the recent changes and improvements. This ensures transparency and helps users and developers stay informed about the project's evolution.
+
+### 🔧 Maintenance
+- **General Codebase Improvements**: By updating the library dependencies and refining the documentation, we've laid a solid foundation for future updates. These behind-the-scenes improvements contribute to a more robust and adaptable system, ensuring that future enhancements can be implemented more efficiently.
+
+---
+
+This release is a step forward in maintaining the quality and consistency of the midaz project, setting the stage for upcoming features and improvements. Stay tuned for more updates!
+
 ## [v3.0.0-beta.25] - 2025-08-01
 
 This release focuses on enhancing the efficiency and reliability of transaction handling within the MidazTransactionRepository, alongside maintaining up-to-date documentation for improved user guidance.
