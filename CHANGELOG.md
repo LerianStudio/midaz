@@ -1,3 +1,15 @@
+## [v3.0.0-beta.22] - 2025-08-01
+
+This release introduces a significant enhancement to the build process, improving efficiency and flexibility for developers working with complex projects.
+
+### ✨ Features  
+- **Split Artifact Upload**: We've introduced a new feature that allows for the upload of build artifacts in a split manner. This enhancement streamlines the build process, reducing build times and enhancing deployment workflows, especially for teams handling large-scale applications.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to ensure stakeholders have access to the latest information regarding updates and modifications, maintaining transparency and aiding in project documentation.
+
+This changelog focuses on the key feature introduced in this release and the maintenance update, providing users with clear and concise information on how these changes benefit them.
+
 ## [v3.0.0-beta.21] - 2025-07-31
 
 This release focuses on enhancing user experience with a redesigned interface, improved performance, and increased reliability across the application.
