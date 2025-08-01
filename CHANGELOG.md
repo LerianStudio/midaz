@@ -1,3 +1,27 @@
+## [v3.0.0-beta.24] - 2025-08-01
+
+This release of midaz enhances the user interface, simplifies authentication processes, and improves performance, ensuring a smoother and more efficient user experience.
+
+### ✨ Features  
+- **Enhanced User Interface**: The frontend layout has been updated to provide a more intuitive and responsive user experience. Navigate through the application with ease thanks to visual improvements and optimizations.
+
+### 🐛 Bug Fixes
+- **Authentication Reliability**: Fixed issues with plugin authentication settings in the console environment. Configurations are now applied correctly, reducing errors and improving reliability.
+
+### ⚡ Performance
+- **Optimized Asset Management**: Refactored asset ledger handling within the `AssetsSheet` component, leading to better data management and display accuracy. This update ensures smoother performance and quicker data access.
+
+### 🔄 Changes
+- **Simplified Authentication Setup**: Plugin authentication has been disabled in the console environment configuration for users who do not require it, streamlining the setup process and reducing potential errors.
+
+### 📚 Documentation
+- **Updated Guides**: Documentation has been revised to reflect changes in configuration and authentication processes, offering clearer guidance and reducing the likelihood of user errors.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to ensure all recent changes and improvements are documented for transparency and user reference.
+
+These updates are designed to enhance the overall functionality and user experience of the midaz project, providing a more streamlined and efficient system for all users.
+
 ## [v3.0.0-beta.23] - 2025-08-01
 
 This major release of midaz introduces a comprehensive overhaul of the fee calculation system, alongside significant enhancements to user experience and system performance. Users will benefit from improved transparency, accuracy, and usability in managing transactions and fees.
