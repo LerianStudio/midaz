@@ -1,3 +1,18 @@
+## [v3.0.0-beta.25] - 2025-08-01
+
+This release focuses on enhancing the efficiency and reliability of transaction handling within the MidazTransactionRepository, alongside maintaining up-to-date documentation for improved user guidance.
+
+### 🐛 Bug Fixes
+- **Improved Transaction Efficiency**: We have streamlined the transaction request process by removing unnecessary headers. This enhancement reduces overhead and potential errors, resulting in faster and more reliable transaction handling for users.
+
+### 📚 Documentation
+- **Updated Changelog**: Our changelog has been updated to reflect the latest improvements and changes. This ensures that users and developers have clear and current information about the project's progress and updates.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Continued efforts to maintain accurate and comprehensive documentation ensure that users can easily track the evolution of the software and understand the benefits of each update.
+
+No user action is required for this release, as there are no breaking changes or major new features introduced. Enjoy the improved performance and reliability!
+
 ## [v3.0.0-beta.24] - 2025-08-01
 
 This release of midaz enhances the user interface, simplifies authentication processes, and improves performance, ensuring a smoother and more efficient user experience.
