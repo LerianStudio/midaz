@@ -29,10 +29,6 @@ export class MidazTransactionRepository implements TransactionRepository {
     const response = await this.httpService.post<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Organization-Id': organizationId
-        },
         body: JSON.stringify(dto)
       }
     )
