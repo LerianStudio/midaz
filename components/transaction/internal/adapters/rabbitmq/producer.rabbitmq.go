@@ -72,7 +72,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
 		attribute.String("app.request.rabbitmq.producer.key", key),
-		attribute.String("app.request.rabbitmq.producer.message", string(message)),
+		attribute.String("app.request.rabbitmq.producer.message", strings.ToValidUTF8(string(message), "�")),
 	}
 
 	spanProducer.SetAttributes(attributes...)

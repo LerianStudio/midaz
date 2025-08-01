@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -116,7 +117,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 						attribute.String("app.request.rabbitmq.consumer.request_id", midazID.(string)),
 					)
 
-					err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "app.request.rabbitmq.consumer.message", msg)
+					err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "app.request.rabbitmq.consumer.message", strings.ToValidUTF8(string(msg.Body), "�"))
 					if err != nil {
 						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
 					}

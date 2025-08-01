@@ -64,8 +64,6 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.redis.key", key),
-		attribute.String("app.request.redis.value", value),
 		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	}
 
@@ -100,8 +98,6 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.redis.key", key),
-		attribute.String("app.request.redis.value", value),
 		attribute.Int64("app.request.redis.ttl", int64(ttl)),
 	}
 
@@ -158,8 +154,6 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 		return "", err
 	}
-
-	span.SetAttributes(attribute.String("app.response.redis.value", val))
 
 	logger.Infof("value : %v", val)
 
