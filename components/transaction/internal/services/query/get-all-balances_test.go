@@ -3,7 +3,10 @@ package query
 import (
 	"context"
 	"errors"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"testing"
+	"time"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -11,8 +14,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
 func TestGetAllBalances(t *testing.T) {

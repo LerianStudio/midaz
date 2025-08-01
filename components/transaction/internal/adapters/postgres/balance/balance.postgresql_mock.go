@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/commons/net/http"
-	transaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	transaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
