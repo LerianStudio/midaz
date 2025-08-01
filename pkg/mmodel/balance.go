@@ -3,10 +3,11 @@ package mmodel
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"time"
 
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/shopspring/decimal"
+
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"
 )
 

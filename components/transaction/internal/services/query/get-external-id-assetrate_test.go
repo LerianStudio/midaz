@@ -3,16 +3,17 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	"reflect"
+	"testing"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestGetAssetRateByID(t *testing.T) {

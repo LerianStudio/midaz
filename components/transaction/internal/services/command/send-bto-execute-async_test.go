@@ -2,7 +2,10 @@ package command
 
 import (
 	"context"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"os"
+	"testing"
+
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -10,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
 )
 
 func TestSendBTOExecuteAsync(t *testing.T) {

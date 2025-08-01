@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	transaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	transaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	gomock "go.uber.org/mock/gomock"
 )

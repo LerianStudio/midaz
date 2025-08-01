@@ -3,7 +3,10 @@ package query
 import (
 	"context"
 	"errors"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"reflect"
+	"testing"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -14,8 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
 )
 
 // TestGetAllMetadataOperations is responsible to test GetAllMetadataOperations with success and error
