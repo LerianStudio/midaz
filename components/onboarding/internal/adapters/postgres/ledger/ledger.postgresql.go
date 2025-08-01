@@ -70,13 +70,11 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", ledger.OrganizationID),
-		attribute.String("app.request.ledger_id", ledger.ID),
-		attribute.String("app.request.ledger.name", ledger.Name),
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.ledger.status", ledger.Status)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", ledger)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert ledger record from entity to JSON string", err)
 	}
@@ -396,13 +394,11 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-		attribute.String("app.request.ledger.name", ledger.Name),
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.status", ledger.Status)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", ledger)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert ledger record from entity to JSON string", err)
 	}

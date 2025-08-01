@@ -75,14 +75,12 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	}
 
-	if accountType != nil {
-		attributes = append(attributes, attribute.String("app.request.account_type_id", accountType.ID.String()))
-		attributes = append(attributes, attribute.String("app.request.account_type.name", accountType.Name))
-		attributes = append(attributes, attribute.String("app.request.account_type.description", accountType.Description))
-		attributes = append(attributes, attribute.String("app.request.account_type.key_value", accountType.KeyValue))
-	}
-
 	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", accountType)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert account type from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {

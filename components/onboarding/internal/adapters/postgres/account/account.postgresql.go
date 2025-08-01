@@ -76,35 +76,11 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", acc.OrganizationID),
 		attribute.String("app.request.ledger_id", acc.LedgerID),
-		attribute.String("app.request.account.id", acc.ID),
-		attribute.String("app.request.account.name", acc.Name),
-		attribute.String("app.request.account.asset_code", acc.AssetCode),
-		attribute.String("app.request.account.type", acc.Type),
-	}
-
-	if acc.ParentAccountID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.parent_account_id", *acc.ParentAccountID))
-	}
-
-	if acc.EntityID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.entity_id", *acc.EntityID))
-	}
-
-	if acc.Alias != nil {
-		attributes = append(attributes, attribute.String("app.request.account.alias", *acc.Alias))
-	}
-
-	if acc.SegmentID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.segment_id", *acc.SegmentID))
-	}
-
-	if acc.PortfolioID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.portfolio_id", *acc.PortfolioID))
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.account.status", acc.Status)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", acc)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert account record from entity to JSON string", err)
 	}
@@ -768,26 +744,6 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.id", id.String()),
-		attribute.String("app.request.account.name", acc.Name),
-		attribute.String("app.request.account.asset_code", acc.AssetCode),
-		attribute.String("app.request.account.type", acc.Type),
-	}
-
-	if acc.ParentAccountID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.parent_account_id", *acc.ParentAccountID))
-	}
-
-	if acc.EntityID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.entity_id", *acc.EntityID))
-	}
-
-	if acc.Alias != nil {
-		attributes = append(attributes, attribute.String("app.request.account.alias", *acc.Alias))
-	}
-
-	if acc.SegmentID != nil {
-		attributes = append(attributes, attribute.String("app.request.account.segment_id", *acc.SegmentID))
 	}
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
@@ -796,7 +752,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.account", acc.Status)
+	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", acc)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert account from entity to JSON string", err)
 	}
