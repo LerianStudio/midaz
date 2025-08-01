@@ -26,9 +26,7 @@ export const GET = applyMiddleware(
     try {
       const getTransactionByIdUseCase: FetchTransactionById =
         container.get<FetchTransactionById>(FetchTransactionByIdUseCase)
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
-      const transactionId = params.transactionId
+      const { id: organizationId, ledgerId, transactionId } = await params
 
       const transaction = await getTransactionByIdUseCase.execute(
         organizationId,
@@ -63,9 +61,7 @@ export const PATCH = applyMiddleware(
         container.get<UpdateTransaction>(UpdateTransactionUseCase)
 
       const transaction = await request.json()
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
-      const transactionId = params.transactionId
+      const { id: organizationId, ledgerId, transactionId } = await params
 
       const updatedTransaction = await updateTransactionUseCase.execute(
         organizationId,

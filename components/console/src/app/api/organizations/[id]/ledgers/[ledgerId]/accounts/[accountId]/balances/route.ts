@@ -30,7 +30,7 @@ export const GET = applyMiddleware(
     try {
       const fetchBalanceByAccountIdUseCase: FetchBalanceByAccountId =
         container.get<FetchBalanceByAccountId>(FetchBalanceByAccountIdUseCase)
-      const { id: organizationId, ledgerId, accountId } = params
+      const { id: organizationId, ledgerId, accountId } = await params
 
       if (!organizationId || !ledgerId) {
         return NextResponse.json(

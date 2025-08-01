@@ -18,7 +18,7 @@ export async function POST(
 ) {
   const params = await props.params
   try {
-    const organizationId = params.id
+    const { id: organizationId } = await params
     const body = await request.json()
 
     const ledger = await createLedgerUseCases.execute(organizationId, body)
