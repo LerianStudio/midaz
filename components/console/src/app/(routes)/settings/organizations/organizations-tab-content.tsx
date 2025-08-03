@@ -236,9 +236,7 @@ export const OrganizationsTabContent = () => {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() =>
-                                handleDialogOpen(organization.id!)
-                              }
+                              onClick={() => handleDialogOpen(organization.id!)}
                             >
                               {intl.formatMessage({
                                 id: 'common.delete',
@@ -265,9 +263,7 @@ export const OrganizationsTabContent = () => {
                   {
                     number: data?.items?.length,
                     count: (
-                      <span className="font-bold">
-                        {data?.items?.length}
-                      </span>
+                      <span className="font-bold">{data?.items?.length}</span>
                     )
                   }
                 )}
