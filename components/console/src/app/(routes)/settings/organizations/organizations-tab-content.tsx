@@ -35,9 +35,11 @@ import { OrganizationDto } from '@/core/application/dto/organization-dto'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { InputField } from '@/components/form'
+import { Pagination } from '@/components/pagination'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { Form } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
@@ -45,9 +47,9 @@ export const OrganizationsTabContent = () => {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [total, _setTotal] = React.useState(0)
+  const [total, setTotal] = React.useState(0)
 
-  const { form, searchValues } = useQueryParams({
+  const { form, searchValues, pagination } = useQueryParams({
     total,
     initialValues: {
       id: ''
@@ -57,6 +59,21 @@ export const OrganizationsTabContent = () => {
   const { data, isLoading, refetch } = useListOrganizations({
     query: searchValues as any
   })
+
+  // Update total count when data is received - following pagination pattern from other components
+  React.useEffect(() => {
+    if (!data?.items) {
+      setTotal(0)
+      return
+    }
+
+    if (data.items.length >= data.limit) {
+      setTotal(data.limit + 1)
+      return
+    }
+
+    setTotal(data.items.length)
+  }, [data?.items, data?.limit])
 
   const { mutate: deleteOrganization, isPending: deletePending } =
     useDeleteOrganization({
@@ -96,12 +113,12 @@ export const OrganizationsTabContent = () => {
         })}
         description={intl.formatMessage({
           id: 'organizations.delete.description',
-          defaultMessage:
-            'You are about to permanently delete this organization. This action cannot be undone. Do you wish to continue?'
+          defaultMessage: 'You will delete an organization'
         })}
         loading={deletePending}
         {...dialogProps}
       />
+
       <Form {...form}>
         <EntityBox.Root>
           <EntityBox.Header
@@ -132,12 +149,12 @@ export const OrganizationsTabContent = () => {
               control={form.control}
             />
           </div>
-
           <EntityBox.Actions>
-            <Button onClick={() => handleCreateOrganization()}>
+            <PaginationLimitField control={form.control} />
+            <Button onClick={handleCreateOrganization}>
               {intl.formatMessage({
-                id: 'organizations.listingTemplate.addButton',
-                defaultMessage: 'New Organization'
+                id: 'common.create',
+                defaultMessage: 'Create'
               })}
             </Button>
           </EntityBox.Actions>
@@ -171,7 +188,7 @@ export const OrganizationsTabContent = () => {
                   <TableRow>
                     <TableHead>
                       {intl.formatMessage({
-                        id: `entity.organization.legalName`,
+                        id: 'organizations.field.legalName',
                         defaultMessage: 'Legal Name'
                       })}
                     </TableHead>
@@ -183,14 +200,14 @@ export const OrganizationsTabContent = () => {
                     </TableHead>
                     <TableHead>
                       {intl.formatMessage({
-                        id: `entity.organization.doingBusinessAs`,
-                        defaultMessage: 'Trade Name'
+                        id: 'organizations.field.doingBusinessAs',
+                        defaultMessage: 'Doing Business As'
                       })}
                     </TableHead>
                     <TableHead>
                       {intl.formatMessage({
-                        id: `entity.organization.legalDocument`,
-                        defaultMessage: 'Document'
+                        id: 'organizations.field.legalDocument',
+                        defaultMessage: 'Legal Document'
                       })}
                     </TableHead>
                     <TableHead align="center">
@@ -223,29 +240,16 @@ export const OrganizationsTabContent = () => {
                               onClick={() => handleEdit(organization)}
                             >
                               {intl.formatMessage({
-                                id: `common.details`,
-                                defaultMessage: 'Details'
+                                id: 'common.edit',
+                                defaultMessage: 'Edit'
                               })}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            {currentOrganization.id !== organization.id && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() => setOrganization(organization)}
-                                >
-                                  {intl.formatMessage({
-                                    id: `organizations.useOrganization`,
-                                    defaultMessage: 'Use this Organization'
-                                  })}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
                             <DropdownMenuItem
                               onClick={() => handleDialogOpen(organization.id!)}
                             >
                               {intl.formatMessage({
-                                id: `common.delete`,
+                                id: 'common.delete',
                                 defaultMessage: 'Delete'
                               })}
                             </DropdownMenuItem>
@@ -258,13 +262,13 @@ export const OrganizationsTabContent = () => {
               </Table>
             </TableContainer>
 
-            <EntityDataTable.Footer>
+            <EntityDataTable.Footer className="flex items-center justify-between py-4">
               <EntityDataTable.FooterText>
                 {intl.formatMessage(
                   {
                     id: 'organizations.showing',
                     defaultMessage:
-                      'Showing {count} {number, plural, =0 {organizations} one {organization} other {organizations}}.'
+                      '{number, plural, =0 {No organizations found} one {Showing {count} organization} other {Showing {count} organizations}}.'
                   },
                   {
                     number: data?.items?.length,
@@ -274,6 +278,7 @@ export const OrganizationsTabContent = () => {
                   }
                 )}
               </EntityDataTable.FooterText>
+              <Pagination total={total} {...pagination} />
             </EntityDataTable.Footer>
           </EntityDataTable.Root>
         )}
