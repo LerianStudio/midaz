@@ -12,16 +12,18 @@ import { SystemTabContent } from './system-tab-content'
 import React from 'react'
 import { UsersTabContent } from './users/users-tab-content'
 import { ApplicationsTabContent } from './applications/applications-tab-content'
-import { Enforce } from '@lerianstudio/console-layout'
+import { Enforce, getRuntimeEnv } from '@lerianstudio/console-layout'
 
-const isAuthEnabled = () => {
-  return process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
-}
+const isAuthEnabled =
+    getRuntimeEnv(
+      'NEXT_PUBLIC_MIDAZ_AUTH_ENABLED',
+      process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED
+    ) === 'true'
 
 const Page = () => {
   const intl = useIntl()
   const searchParams = useSearchParams()
-  const authEnabled = isAuthEnabled()
+  const authEnabled = isAuthEnabled
 
   const { activeTab, handleTabChange } = useTabs({
     initialValue: searchParams.get('tab') || 'organizations'
