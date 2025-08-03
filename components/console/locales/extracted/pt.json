@@ -593,6 +593,7 @@
   "success.ledgers.delete": "Ledger excluído com sucesso",
   "success.ledgers.update": "Alterações no ledger salvas com sucesso",
   "success.organizations.create": "Organização criada com sucesso!",
+  "success.organizations.delete": "Organização excluída com sucesso",
   "success.organizations.update": "Organização atualizada com sucesso",
   "success.portfolios.create": "Portfólio criado com sucesso",
   "success.portfolios.delete": "Portfólio excluído com sucesso",
