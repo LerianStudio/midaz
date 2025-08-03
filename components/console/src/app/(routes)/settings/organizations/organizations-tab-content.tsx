@@ -37,11 +37,13 @@ import { IdTableCell } from '@/components/table/id-table-cell'
 import { InputField } from '@/components/form'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { Form } from '@/components/ui/form'
+import { useToast } from '@/hooks/use-toast'
 
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
   const { currentOrganization, setOrganization } = useOrganization()
   const router = useRouter()
+  const { toast } = useToast()
 
   const [total, _setTotal] = React.useState(0)
 
@@ -52,7 +54,7 @@ export const OrganizationsTabContent = () => {
     }
   })
 
-  const { data, isLoading } = useListOrganizations({
+  const { data, isLoading, refetch } = useListOrganizations({
     query: searchValues as any
   })
 
@@ -60,6 +62,14 @@ export const OrganizationsTabContent = () => {
     useDeleteOrganization({
       onSuccess: () => {
         handleDialogClose()
+        refetch()
+        toast({
+          description: intl.formatMessage({
+            id: 'organizations.toast.delete.success',
+            defaultMessage: 'Organization successfully deleted'
+          }),
+          variant: 'success'
+        })
       }
     })
 

@@ -594,6 +594,7 @@
   "success.ledgers.delete": "Ledger successfully deleted",
   "success.ledgers.update": "Ledger changes saved successfully",
   "success.organizations.create": "Organization created!",
+  "success.organizations.delete": "Organization successfully deleted",
   "success.organizations.update": "Organization updated successfully!",
   "success.portfolios.create": "Portfolio successfully created",
   "success.portfolios.delete": "Portfolio successfully deleted",

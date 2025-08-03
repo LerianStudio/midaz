@@ -295,6 +295,7 @@
   "organizations.subtitle": "View and manage Organizations.",
   "organizations.title": "Settings",
   "organizations.toast.create.success": "Organization created!",
+  "organizations.toast.delete.success": "Organization successfully deleted",
   "organizations.toast.update.success": "Organization updated successfully!",
   "products.delete.description": "You are about to permanently delete this product. This action cannot be undone. Do you wish to continue?",
   "settings.system.language": "Language",
