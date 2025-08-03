@@ -14,9 +14,14 @@ import { UsersTabContent } from './users/users-tab-content'
 import { ApplicationsTabContent } from './applications/applications-tab-content'
 import { Enforce } from '@lerianstudio/console-layout'
 
+const isAuthEnabled = () => {
+  return process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED === 'true'
+}
+
 const Page = () => {
   const intl = useIntl()
   const searchParams = useSearchParams()
+  const authEnabled = isAuthEnabled()
 
   const { activeTab, handleTabChange } = useTabs({
     initialValue: searchParams.get('tab') || 'organizations'
@@ -34,22 +39,25 @@ const Page = () => {
         id: `organizations.title`,
         defaultMessage: 'Organizations'
       }),
-      active: () => activeTab === 'organizations'
+      active: () => activeTab === 'organizations',
+      
     },
-    {
-      name: intl.formatMessage({
-        id: `users.title`,
-        defaultMessage: 'Users'
-      }),
-      active: () => activeTab === 'users'
-    },
-    {
-      name: intl.formatMessage({
-        id: `applications.title`,
-        defaultMessage: 'Applications'
-      }),
-      active: () => activeTab === 'applications'
-    },
+    ...(authEnabled ? [
+      {
+        name: intl.formatMessage({
+          id: `users.title`,
+          defaultMessage: 'Users'
+        }),
+        active: () => activeTab === 'users'
+      },
+      {
+        name: intl.formatMessage({
+          id: `applications.title`,
+          defaultMessage: 'Applications'
+        }),
+        active: () => activeTab === 'applications'
+      }
+    ] : []),
     {
       name: intl.formatMessage({
         id: `settings.tabs.system`,
@@ -83,23 +91,29 @@ const Page = () => {
             })}
           </TabsTrigger>
 
-          <Enforce resource="users" action="get">
-            <TabsTrigger value="users">
-              {intl.formatMessage({
-                id: 'users.title',
-                defaultMessage: 'Users'
-              })}
-            </TabsTrigger>
-          </Enforce>
+          {/* Only show Users tab if auth is enabled */}
+          {authEnabled && (
+            <Enforce resource="users" action="get">
+              <TabsTrigger value="users">
+                {intl.formatMessage({
+                  id: 'users.title',
+                  defaultMessage: 'Users'
+                })}
+              </TabsTrigger>
+            </Enforce>
+          )}
 
-          <Enforce resource="applications" action="get">
-            <TabsTrigger value="applications">
-              {intl.formatMessage({
-                id: 'applications.title',
-                defaultMessage: 'Applications'
-              })}
-            </TabsTrigger>
-          </Enforce>
+          {/* Only show Applications tab if auth is enabled */}
+          {authEnabled && (
+            <Enforce resource="applications" action="get">
+              <TabsTrigger value="applications">
+                {intl.formatMessage({
+                  id: 'applications.title',
+                  defaultMessage: 'Applications'
+                })}
+              </TabsTrigger>
+            </Enforce>
+          )}
 
           <TabsTrigger value="system">
             {intl.formatMessage({
@@ -113,17 +127,23 @@ const Page = () => {
           <OrganizationsTabContent />
         </TabsContent>
 
-        <Enforce resource="users" action="get">
-          <TabsContent value="users">
-            <UsersTabContent />
-          </TabsContent>
-        </Enforce>
+        {/* Only render Users tab content if auth is enabled */}
+        {authEnabled && (
+          <Enforce resource="users" action="get">
+            <TabsContent value="users">
+              <UsersTabContent />
+            </TabsContent>
+          </Enforce>
+        )}
 
-        <Enforce resource="applications" action="get">
-          <TabsContent value="applications">
-            <ApplicationsTabContent />
-          </TabsContent>
-        </Enforce>
+        {/* Only render Applications tab content if auth is enabled */}
+        {authEnabled && (
+          <Enforce resource="applications" action="get">
+            <TabsContent value="applications">
+              <ApplicationsTabContent />
+            </TabsContent>
+          </Enforce>
+        )}
 
         <TabsContent value="system">
           <SystemTabContent />
