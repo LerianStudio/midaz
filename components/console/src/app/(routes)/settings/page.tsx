@@ -15,10 +15,10 @@ import { ApplicationsTabContent } from './applications/applications-tab-content'
 import { Enforce, getRuntimeEnv } from '@lerianstudio/console-layout'
 
 const isAuthEnabled =
-    getRuntimeEnv(
-      'NEXT_PUBLIC_MIDAZ_AUTH_ENABLED',
-      process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED
-    ) === 'true'
+  getRuntimeEnv(
+    'NEXT_PUBLIC_MIDAZ_AUTH_ENABLED',
+    process.env.NEXT_PUBLIC_MIDAZ_AUTH_ENABLED
+  ) === 'true'
 
 const Page = () => {
   const intl = useIntl()
@@ -41,25 +41,26 @@ const Page = () => {
         id: `organizations.title`,
         defaultMessage: 'Organizations'
       }),
-      active: () => activeTab === 'organizations',
-      
+      active: () => activeTab === 'organizations'
     },
-    ...(authEnabled ? [
-      {
-        name: intl.formatMessage({
-          id: `users.title`,
-          defaultMessage: 'Users'
-        }),
-        active: () => activeTab === 'users'
-      },
-      {
-        name: intl.formatMessage({
-          id: `applications.title`,
-          defaultMessage: 'Applications'
-        }),
-        active: () => activeTab === 'applications'
-      }
-    ] : []),
+    ...(authEnabled
+      ? [
+          {
+            name: intl.formatMessage({
+              id: `users.title`,
+              defaultMessage: 'Users'
+            }),
+            active: () => activeTab === 'users'
+          },
+          {
+            name: intl.formatMessage({
+              id: `applications.title`,
+              defaultMessage: 'Applications'
+            }),
+            active: () => activeTab === 'applications'
+          }
+        ]
+      : []),
     {
       name: intl.formatMessage({
         id: `settings.tabs.system`,
