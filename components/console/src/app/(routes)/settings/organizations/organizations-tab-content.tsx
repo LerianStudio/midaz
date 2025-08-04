@@ -245,6 +245,19 @@ export const OrganizationsTabContent = () => {
                               })}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            {currentOrganization.id !== organization.id && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => setOrganization(organization)}
+                                >
+                                  {intl.formatMessage({
+                                    id: `organizations.useOrganization`,
+                                    defaultMessage: 'Use this Organization'
+                                  })}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuItem
                               onClick={() => handleDialogOpen(organization.id!)}
                             >

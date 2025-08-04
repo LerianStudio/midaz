@@ -1,3 +1,31 @@
+## [v3.0.0-beta.30] - 2025-08-04
+
+This release focuses on enhancing configuration consistency and resolving a key user interface issue, improving overall user experience and maintainability.
+
+### 🐛 Bug Fixes
+- **Authentication & Configuration**: Fixed an issue where the authentication tab was incorrectly displayed. This ensures a cleaner and more intuitive interface, reducing user confusion and improving navigation.
+
+### 🔧 Maintenance
+- **Configuration**: Improved code quality by refining lint settings. This change enhances the consistency and reliability of configuration setups, leading to easier maintenance and fewer errors.
+- **Documentation**: Updated the CHANGELOG to accurately reflect recent updates, ensuring all changes are clearly documented for users and developers.
+
+
+This changelog provides a concise overview of the changes in version 3.0.0, focusing on the benefits and impacts for users, while maintaining a professional and accessible tone.
+
+## [v3.0.0-beta.29] - 2025-08-04
+
+This release enhances the reliability of asset management and ensures up-to-date documentation, providing users with improved data accuracy and transparency.
+
+### 🐛 Bug Fixes
+- **Asset Management**: Fixed an issue where the asset sheet displayed incorrect data. This improvement ensures that asset information is now accurately reflected, enhancing the reliability and trustworthiness of asset management features.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements. This ensures that both users and developers have access to the latest project development history, fostering better transparency and collaboration.
+
+---
+
+In this update, we focused on resolving a key issue with asset management and maintaining comprehensive documentation for a better user experience and project clarity. Enjoy the seamless update process with no breaking changes.
+
 ## [v3.0.0-beta.28] - 2025-08-04
 
 This release focuses on improving the reliability and accuracy of transaction processing while maintaining a clean and efficient codebase. Users will experience smoother operations with external transactions and benefit from a more streamlined testing process.
