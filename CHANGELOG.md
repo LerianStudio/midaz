@@ -1,3 +1,13 @@
+## [v3.0.0-beta.32] - 2025-08-04
+
+This release focuses on improving the reliability and security of our authentication system, ensuring a smoother and more secure user experience.
+
+### 🐛 Bug Fixes
+- **Authentication**: Enhanced the handling of NextAuth tokens to improve the reliability and security of user logins. This fix addresses previous issues with token management, leading to a more consistent and error-free login experience. Users should notice improved performance when logging in and maintaining their sessions.
+
+
+This changelog highlights the key improvements made in the authentication system, emphasizing the enhanced user experience and security benefits. By focusing on the impact and benefits of the changes, users can quickly understand how this update improves their interaction with the software.
+
 ## [v3.0.0-beta.30] - 2025-08-04
 
 This release focuses on enhancing configuration consistency and resolving a key user interface issue, improving overall user experience and maintainability.
