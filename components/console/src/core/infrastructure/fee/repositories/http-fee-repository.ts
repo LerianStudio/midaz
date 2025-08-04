@@ -81,12 +81,12 @@ export class HttpFeeRepository implements FeeRepository {
             throw new FeeConfigurationError('Fee service URL not configured')
           }
 
+          const defaults = await this.httpService['createDefaults']()
+
           const result = await this.httpService.post<any>(`${baseUrl}/fees`, {
             headers: {
-              'Content-Type': 'application/json',
-              'X-Organization-Id': organizationId,
-              'X-Correlation-Id':
-                context.correlationId || this.generateCorrelationId()
+              ...defaults.headers,
+              'X-Organization-Id': organizationId
             },
             body: JSON.stringify(feeEngineRequest)
           })
