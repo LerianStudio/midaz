@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  trailingSlash: true,
+  trailingSlash: process.env.NODE_ENV === 'production' ? true : false,
   logging: {
     fetches: {
       fullUrl: true

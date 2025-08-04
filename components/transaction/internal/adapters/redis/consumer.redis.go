@@ -6,18 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"strconv"
+	"strings"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"strconv"
-	"strings"
-	"time"
 )
 
 //go:embed scripts/add_sub.lua

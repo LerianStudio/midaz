@@ -1,6 +1,5 @@
 import * as countryUtils from './country-utils'
 
-// Mock the countries.json import
 jest.mock('../../public/countries.json', () => [
   {
     code2: 'US',

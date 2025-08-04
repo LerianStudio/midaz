@@ -1,11 +1,12 @@
 package mmodel
 
 import (
-	"github.com/shopspring/decimal"
 	"testing"
 	"time"
 
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/shopspring/decimal"
+
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )

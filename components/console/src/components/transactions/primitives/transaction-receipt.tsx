@@ -3,6 +3,7 @@ import { isNil } from 'lodash'
 import { AlignLeft, ArrowRight } from 'lucide-react'
 import { forwardRef, HTMLAttributes, ReactNode } from 'react'
 import { useIntl } from 'react-intl'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export type TransactionReceiptProps = HTMLAttributes<HTMLDivElement> & {
   type?: 'main' | 'ticket'
@@ -31,20 +32,69 @@ export type TransactionReceiptValueProps =
   HTMLAttributes<HTMLParagraphElement> & {
     asset: string
     value: string | number
+    finalAmount?: string | number
+    isCalculatingFees?: boolean
+    isDeductibleFrom?: boolean
+    showOriginalAmount?: boolean
   }
 
 export const TransactionReceiptValue = forwardRef<
   HTMLDivElement,
   TransactionReceiptValueProps
->(({ className, asset, value, children, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn('text-4xl font-bold text-neutral-600', className)}
-    {...props}
-  >
-    <span className="text-2xl">{asset}</span> {value}
-  </p>
-))
+>(
+  (
+    {
+      className,
+      asset,
+      value,
+      finalAmount,
+      isCalculatingFees,
+      isDeductibleFrom: _isDeductibleFrom,
+      showOriginalAmount = false,
+      children: _children,
+      ...props
+    },
+    ref
+  ) => {
+    const intl = useIntl()
+
+    if (isCalculatingFees) {
+      return (
+        <div className={cn('flex flex-col items-center gap-2', className)}>
+          <Skeleton className="h-12 w-48" />
+          <div className="text-sm text-neutral-500">
+            {intl.formatMessage({
+              id: 'transactions.fees.calculating',
+              defaultMessage: 'Calculating final amount'
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    let displayAmount = finalAmount || value
+    let label = intl.formatMessage({
+      id: 'transactions.fees.finalAmount',
+      defaultMessage: 'Transaction final amount'
+    })
+
+    if (showOriginalAmount || !finalAmount) {
+      label = intl.formatMessage({
+        id: 'transactions.originalAmount',
+        defaultMessage: 'Original amount'
+      })
+    }
+
+    return (
+      <div className={cn('flex flex-col items-center gap-2', className)}>
+        <p ref={ref} className="text-4xl font-bold text-neutral-600" {...props}>
+          <span className="text-2xl">{asset}</span> {displayAmount}
+        </p>
+        <div className="text-sm text-neutral-500">{label}</div>
+      </div>
+    )
+  }
+)
 TransactionReceiptValue.displayName = 'TransactionReceiptValue'
 
 export const TransactionReceiptDescription = forwardRef<
@@ -85,7 +135,7 @@ export type TransactionReceiptSubjectsProps = HTMLAttributes<HTMLDivElement> & {
 export const TransactionReceiptSubjects = forwardRef<
   HTMLDivElement,
   TransactionReceiptSubjectsProps
->(({ className, sources, destinations, children, ...props }, ref) => (
+>(({ className, sources, destinations, ...props }, ref) => (
   <div
     ref={ref}
     className={cn('flex flex-row items-center gap-5', className)}
@@ -115,35 +165,40 @@ export type TransactionReceiptItemProps = HTMLAttributes<HTMLDivElement> & {
 export const TransactionReceiptItem = forwardRef<
   HTMLDivElement,
   TransactionReceiptItemProps
->(({ className, label, value, showNone, children, ...props }, ref) => {
-  const intl = useIntl()
+>(
+  (
+    { className, label, value, showNone, children: _children, ...props },
+    ref
+  ) => {
+    const intl = useIntl()
 
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        'flex flex-row px-8 text-xs font-normal text-zinc-700',
-        className
-      )}
-      {...props}
-    >
-      <p className="grow">{label}</p>
-      {!showNone && value}
-      {showNone &&
-        (!isNil(value) && value !== ''
-          ? value
-          : intl.formatMessage({
-              id: 'common.none',
-              defaultMessage: 'None'
-            }))}
-    </div>
-  )
-})
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'flex flex-row px-8 text-xs font-normal text-zinc-700',
+          className
+        )}
+        {...props}
+      >
+        <p className="grow">{label}</p>
+        {!showNone && value}
+        {showNone &&
+          (!isNil(value) && value !== ''
+            ? value
+            : intl.formatMessage({
+                id: 'common.none',
+                defaultMessage: 'None'
+              }))}
+      </div>
+    )
+  }
+)
 TransactionReceiptItem.displayName = 'TransactionReceiptTicket'
 
 export type TransactionReceiptOperationProps =
   HTMLAttributes<HTMLDivElement> & {
-    type: 'debit' | 'credit'
+    type: 'debit' | 'credit' | 'fee'
     account: string
     asset: string
     value: string
@@ -152,42 +207,56 @@ export type TransactionReceiptOperationProps =
 export const TransactionReceiptOperation = forwardRef<
   HTMLDivElement,
   TransactionReceiptOperationProps
->(({ className, type, account, asset, value, children, ...props }, ref) => {
-  const intl = useIntl()
+>(
+  (
+    { className, type, account, asset, value, children: _children, ...props },
+    ref
+  ) => {
+    const intl = useIntl()
 
-  return (
-    <div
-      ref={ref}
-      className={cn('flex flex-row items-center gap-4', className)}
-      {...props}
-    >
-      <div className="flex w-full flex-row px-8 text-xs font-normal text-zinc-700">
-        <p className="grow">
-          {type === 'debit'
-            ? intl.formatMessage({
-                id: 'common.debit',
-                defaultMessage: 'Debit'
-              })
-            : intl.formatMessage({
-                id: 'common.credit',
-                defaultMessage: 'Credit'
-              })}
-        </p>
-        <div className="flex flex-row gap-8">
-          <p>{account}</p>
-          <p
-            className={cn(
-              'w-24 text-right text-xs',
-              type === 'debit' ? 'text-red-500' : 'text-green-500'
-            )}
-          >
-            {type === 'debit' ? '-' : '+'} {asset} {value}
+    return (
+      <div
+        ref={ref}
+        className={cn('flex flex-row items-center gap-4', className)}
+        {...props}
+      >
+        <div className="flex w-full flex-row px-8 text-xs font-normal text-zinc-700">
+          <p className="grow">
+            {type === 'debit'
+              ? intl.formatMessage({
+                  id: 'common.debit',
+                  defaultMessage: 'Debit'
+                })
+              : type === 'credit'
+                ? intl.formatMessage({
+                    id: 'common.credit',
+                    defaultMessage: 'Credit'
+                  })
+                : intl.formatMessage({
+                    id: 'common.fee',
+                    defaultMessage: 'Fee'
+                  })}
           </p>
+          <div className="flex flex-row gap-8">
+            <p>{account}</p>
+            <p
+              className={cn(
+                'w-24 text-right text-xs',
+                type === 'debit'
+                  ? 'text-red-500'
+                  : type === 'credit'
+                    ? 'text-green-500'
+                    : 'text-blue-800'
+              )}
+            >
+              {type === 'debit' ? '-' : '+'} {asset} {value}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  )
-})
+    )
+  }
+)
 TransactionReceiptOperation.displayName = 'TransactionReceiptOperation'
 
 export const TransactionReceiptTicket = forwardRef<

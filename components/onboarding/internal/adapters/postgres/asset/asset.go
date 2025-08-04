@@ -2,9 +2,10 @@ package asset
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database

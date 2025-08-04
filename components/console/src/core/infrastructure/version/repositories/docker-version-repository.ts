@@ -69,19 +69,16 @@ export class DockerVersionRepository implements VersionRepository {
 
     const data: DockerListRepositoryTagsDto = await response.json()
 
-    // Search for the latest valid tag in the current batch
     const latest = this._findLatest(data.results)
 
     if (latest) {
       return latest
     }
 
-    // If no valid tag is found at all, return null
     if (!data.next) {
       return null
     }
 
-    // If no valid tag is found, continue to the next page
     return await this._batchFetch(data.next || '')
   }
 

@@ -5,13 +5,12 @@ import grafismo from 'public/svg/grafismo.svg'
 import banner from 'public/svg/banner.svg'
 import { useIntl } from 'react-intl'
 import { PageContent, PageRoot, PageView } from '@/components/page'
-import { Sidebar, Header } from '@lerianstudio/console-layout'
+import { Sidebar, Header, useOrganization } from '@lerianstudio/console-layout'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Link2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { MetricSection } from './metric-section'
-import { useOrganization } from '@lerianstudio/console-layout'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
@@ -20,7 +19,6 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 
-// Next Steps Card Component
 const NextStepsCard = ({
   title,
   description,
@@ -76,7 +74,6 @@ const NextStepsCard = ({
   )
 }
 
-// Dev Resource Link Component
 const DevResourceLink = ({ title, href }: { title: string; href: string }) => (
   <div className="flex h-[18px] items-center gap-1.5">
     <a
@@ -103,7 +100,7 @@ const Page = () => {
       <PageView>
         <Header />
         <PageContent className="p-0">
-          <div className="flex flex-col">
+          <div className="flex min-h-full flex-col">
             {/* Header Section */}
             <div className="bg-accent flex h-[262px] flex-col items-center gap-8 overflow-hidden">
               <div className="flex w-full gap-24 pr-24 pl-44">
@@ -203,7 +200,7 @@ const Page = () => {
             </div>
 
             {/* Footer Section */}
-            <div className="flex justify-between gap-2.5 bg-white py-8">
+            <div className="mt-auto flex justify-between gap-2.5 bg-white py-8">
               <div className="mx-auto w-full px-44">
                 <div className="flex items-center justify-between gap-6">
                   {/* Dev Resources */}

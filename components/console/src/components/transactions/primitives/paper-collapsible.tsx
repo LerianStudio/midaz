@@ -38,7 +38,7 @@ PaperCollapsibleBanner.displayName = 'PaperCollapsibleBanner'
 export const PaperCollapsibleTrigger = forwardRef<
   ElementRef<typeof CollapsibleTrigger>,
   CollapsibleTriggerProps
->(({ className, children, ...props }, ref) => (
+>(({ className, children: _children, ...props }, ref) => (
   <CollapsibleTrigger
     ref={ref}
     className={cn(

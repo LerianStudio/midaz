@@ -27,8 +27,7 @@ export const GET = applyMiddleware(
     try {
       const fetchLedgerByIdUseCase: FetchLedgerById =
         container.get<FetchLedgerById>(FetchLedgerByIdUseCase)
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       const ledgers = await fetchLedgerByIdUseCase.execute(
         organizationId,
@@ -60,8 +59,7 @@ export const PATCH = applyMiddleware(
         container.get<UpdateLedger>(UpdateLedgerUseCase)
 
       const body = await request.json()
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       const ledgerUpdated = await updateLedgerUseCase.execute(
         organizationId,
@@ -90,8 +88,7 @@ export const DELETE = applyMiddleware(
       const deleteLedgerUseCase =
         container.get<DeleteLedger>(DeleteLedgerUseCase)
 
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       await deleteLedgerUseCase.execute(organizationId, ledgerId)
 

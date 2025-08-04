@@ -12,7 +12,6 @@ export function ValidateZod(schema: ZodSchema): MethodDecorator {
     descriptor.value = async function (request: Request, ...args: any[]) {
       const body = await request.clone().json()
 
-      // Validate the request body against the provided schema
       const parsed = schema.safeParse(body)
       if (!parsed.success) {
         // If validation fails, throw an error

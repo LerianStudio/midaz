@@ -54,14 +54,14 @@ const Page = (props: { params: Promise<{ id: string }> }) => {
         paths={[
           {
             name: intl.formatMessage({
-              id: 'organizations.organizationView.breadcrumbs.settings',
+              id: 'settings.title',
               defaultMessage: 'Settings'
             }),
             href: `/settings`
           },
           {
             name: intl.formatMessage({
-              id: 'organizations.organizationView.breadcrumbs.organizations',
+              id: 'organizations.title',
               defaultMessage: 'Organizations'
             }),
             href: `/settings?tab=organizations`

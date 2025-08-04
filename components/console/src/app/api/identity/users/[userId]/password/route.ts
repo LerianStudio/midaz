@@ -14,7 +14,7 @@ export const PATCH = applyMiddleware(
     try {
       const updateUserPasswordUseCase: UpdateUserPassword =
         container.get<UpdateUserPassword>(UpdateUserPasswordUseCase)
-      const { userId } = params
+      const { userId } = await params
       const { oldPassword, newPassword } = await request.json()
 
       await updateUserPasswordUseCase.execute(userId, oldPassword, newPassword)

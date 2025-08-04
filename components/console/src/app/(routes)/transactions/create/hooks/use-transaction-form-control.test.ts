@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { useTransactionFormControl } from './use-transaction-form-control'
 
-// Mock useStepper hook
 jest.mock('../../../../../hooks/use-stepper', () => ({
   useStepper: jest.fn()
 }))
@@ -19,7 +18,6 @@ const useStepperMock = {
 
 beforeEach(() => {
   jest.clearAllMocks()
-  // @ts-ignore
   require('../../../../../hooks/use-stepper').useStepper.mockImplementation(
     () => ({
       ...useStepperMock
@@ -59,7 +57,6 @@ describe('useTransactionFormControl', () => {
   })
 
   it('should enable next on step 1 if source and destination are filled', () => {
-    // @ts-ignore
     require('../../../../../hooks/use-stepper').useStepper.mockImplementation(
       () => ({
         ...useStepperMock,
@@ -78,7 +75,6 @@ describe('useTransactionFormControl', () => {
   })
 
   it('should disable next on step 1 if source or destination is empty', () => {
-    // @ts-ignore
     require('../../../../../hooks/use-stepper').useStepper.mockImplementation(
       () => ({
         ...useStepperMock,
@@ -97,14 +93,13 @@ describe('useTransactionFormControl', () => {
   })
 
   it('should call handlePrevious and not enable next on step 2 if source or destination is empty', () => {
-    // @ts-ignore
     require('../../../../../hooks/use-stepper').useStepper.mockImplementation(
       () => ({
         ...useStepperMock,
         step: 2
       })
     )
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useTransactionFormControl({
         asset: 'BTC',
         value: 100,
@@ -116,7 +111,6 @@ describe('useTransactionFormControl', () => {
   })
 
   it('should enable next on step 2 if source and destination are filled', () => {
-    // @ts-ignore
     require('../../../../../hooks/use-stepper').useStepper.mockImplementation(
       () => ({
         ...useStepperMock,
@@ -143,7 +137,6 @@ describe('useTransactionFormControl', () => {
         destination: [{ account: 'test2' }]
       } as any)
     )
-    // enableNext is true on step 0 with asset and value filled
     act(() => {
       result.current.handleNext()
     })

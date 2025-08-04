@@ -9,7 +9,6 @@ import {
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
-import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   keepPreviousData,
   useMutation,
@@ -20,7 +19,6 @@ import {
 /**
  * TODO: Find a way to avoid the <any, any, any>
  */
-
 type UseCreateSegmentProps = UseMutationOptions & {
   organizationId: string
   ledgerId: string

@@ -57,6 +57,9 @@ next-env.d.ts
 /tests/storage/
 node_modules/
 
+# Docs
+/docs/
+
 # AI Rules
 .cursor/
 

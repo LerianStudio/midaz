@@ -442,5 +442,306 @@ export const apiErrorMessages = defineMessages({
     id: 'errors.midaz.overflowError',
     defaultMessage:
       'The request could not be completed due to an overflow. Please check the values, and try again.'
+  },
+  '0100': {
+    id: 'errors.fee.invalidCalculationRequest',
+    defaultMessage: 'Invalid fee calculation request'
+  },
+  '0101': {
+    id: 'errors.fee.packageNotFound',
+    defaultMessage: 'Fee package not found'
+  },
+  '0102': {
+    id: 'errors.fee.calculationFailed',
+    defaultMessage: 'Fee calculation failed'
+  },
+  '0103': {
+    id: 'errors.fee.invalidAssetType',
+    defaultMessage: 'Invalid asset type for fee calculation'
+  },
+  '0104': {
+    id: 'errors.fee.insufficientBalance',
+    defaultMessage: 'Insufficient balance for fee deduction'
+  },
+  '0105': {
+    id: 'errors.fee.ruleValidationFailed',
+    defaultMessage: 'Fee rule validation failed'
+  },
+  '0106': {
+    id: 'errors.fee.conflictingPriorities',
+    defaultMessage: 'Conflicting fee priorities'
+  },
+  '0107': {
+    id: 'errors.fee.invalidPercentageSum',
+    defaultMessage: 'Invalid percentage sum in fee distribution'
+  },
+  '0108': {
+    id: 'errors.fee.maximumFeeExceeded',
+    defaultMessage: 'Maximum fee limit exceeded'
+  },
+  '0109': {
+    id: 'errors.fee.minimumFeeNotMet',
+    defaultMessage: 'Minimum fee requirement not met'
+  },
+  '0110': {
+    id: 'errors.fee.invalidReferenceAmount',
+    defaultMessage: 'Invalid reference amount for fee calculation'
+  },
+  '0111': {
+    id: 'errors.fee.deductibleConfigError',
+    defaultMessage: 'Deductible fee configuration error'
+  },
+  '0112': {
+    id: 'errors.fee.waiverNotApplicable',
+    defaultMessage: 'Fee waiver not applicable'
+  },
+  '0113': {
+    id: 'errors.fee.invalidCalculationMethod',
+    defaultMessage: 'Invalid fee calculation method'
+  },
+  '0114': {
+    id: 'errors.fee.packageExpired',
+    defaultMessage: 'Fee package expired'
+  },
+  '0115': {
+    id: 'errors.fee.packageNotActive',
+    defaultMessage: 'Fee package not active'
+  },
+  '0116': {
+    id: 'errors.fee.invalidMaxBetweenTypes',
+    defaultMessage: 'Invalid maxBetweenTypes configuration'
+  },
+  '0117': {
+    id: 'errors.fee.calculationTimeout',
+    defaultMessage: 'Fee calculation timeout'
+  },
+  '0118': {
+    id: 'errors.fee.circularDependency',
+    defaultMessage: 'Circular fee dependency detected'
+  },
+  '0119': {
+    id: 'errors.fee.precisionError',
+    defaultMessage: 'Fee calculation precision error'
+  },
+  '0120': {
+    id: 'errors.fee.invalidTransactionStructure',
+    defaultMessage: 'Invalid transaction structure'
+  },
+  '0121': {
+    id: 'errors.fee.failedToCalculateFee',
+    defaultMessage: 'Failed to calculate fee'
+  },
+  '0122': {
+    id: 'errors.fee.missingTransactionFields',
+    defaultMessage: 'Missing required transaction fields'
+  },
+  '0123': {
+    id: 'errors.fee.invalidAccountDistribution',
+    defaultMessage: 'Invalid account distribution'
+  },
+  '0124': {
+    id: 'errors.fee.assetMismatch',
+    defaultMessage: 'Asset mismatch in transaction'
+  },
+  '0125': {
+    id: 'errors.fee.invalidChartOfAccounts',
+    defaultMessage: 'Invalid chart of accounts'
+  },
+  '0126': {
+    id: 'errors.fee.transactionAmountValidationFailed',
+    defaultMessage: 'Transaction amount validation failed'
+  },
+  '0127': {
+    id: 'errors.fee.invalidSourceAccount',
+    defaultMessage: 'Invalid source account configuration'
+  },
+  '0128': {
+    id: 'errors.fee.invalidDestinationAccount',
+    defaultMessage: 'Invalid destination account configuration'
+  },
+  '0129': {
+    id: 'errors.fee.transactionMetadataValidationFailed',
+    defaultMessage: 'Transaction metadata validation failed'
+  },
+  '0130': {
+    id: 'errors.fee.packageCreationFailed',
+    defaultMessage: 'Package creation failed'
+  },
+  '0131': {
+    id: 'errors.fee.packageUpdateFailed',
+    defaultMessage: 'Package update failed'
+  },
+  '0132': {
+    id: 'errors.fee.packageDeletionFailed',
+    defaultMessage: 'Package deletion failed'
+  },
+  '0133': {
+    id: 'errors.fee.packageFilteringError',
+    defaultMessage: 'Package filtering error'
+  },
+  '0134': {
+    id: 'errors.fee.duplicatePackageName',
+    defaultMessage: 'Duplicate package name'
+  },
+  '0135': {
+    id: 'errors.fee.invalidPackageConfiguration',
+    defaultMessage: 'Invalid package configuration'
+  },
+  '0136': {
+    id: 'errors.fee.packagePriorityConflict',
+    defaultMessage: 'Package priority conflict'
+  },
+  '0137': {
+    id: 'errors.fee.invalidPackageEffectiveDates',
+    defaultMessage: 'Invalid package effective dates'
+  },
+  '0138': {
+    id: 'errors.fee.packageDependencyNotFound',
+    defaultMessage: 'Package dependency not found'
+  },
+  '0139': {
+    id: 'errors.fee.packageValidationFailed',
+    defaultMessage: 'Package validation failed'
+  },
+  '0140': {
+    id: 'errors.fee.externalServiceUnavailable',
+    defaultMessage: 'External service unavailable'
+  },
+  '0141': {
+    id: 'errors.fee.databaseConnectionError',
+    defaultMessage: 'Database connection error'
+  },
+  '0142': {
+    id: 'errors.fee.configurationError',
+    defaultMessage: 'Configuration error'
+  },
+  '0143': {
+    id: 'errors.fee.authenticationFailed',
+    defaultMessage: 'Authentication failed'
+  },
+  '0144': {
+    id: 'errors.fee.authorizationFailed',
+    defaultMessage: 'Authorization failed'
+  },
+  '0145': {
+    id: 'errors.fee.rateLimitExceeded',
+    defaultMessage: 'Rate limit exceeded'
+  },
+  '0146': {
+    id: 'errors.fee.invalidApiVersion',
+    defaultMessage: 'Invalid API version'
+  },
+  '0147': {
+    id: 'errors.fee.internalServerError',
+    defaultMessage: 'Internal server error'
+  },
+  '0148': {
+    id: 'errors.fee.priority1MustReferenceOriginalAmount',
+    defaultMessage: 'Priority 1 fees must reference originalAmount'
+  },
+  '0149': {
+    id: 'errors.fee.priorityGreaterThan1MustReferenceAfterFeesAmount',
+    defaultMessage:
+      'Priority greater than 1 fees must reference afterFeesAmount'
+  },
+  '0150': {
+    id: 'errors.fee.maxBetweenTypesValidationFailed',
+    defaultMessage: 'maxBetweenTypes rule validation failed'
+  },
+  '0151': {
+    id: 'errors.fee.percentageSumValidationFailed',
+    defaultMessage: 'Percentage sum validation failed'
+  },
+  '0152': {
+    id: 'errors.fee.assetConsistencyValidationFailed',
+    defaultMessage: 'Asset consistency validation failed'
+  },
+  '0153': {
+    id: 'errors.fee.invalidAmountValue',
+    defaultMessage: 'Invalid amount value'
+  },
+  '0154': {
+    id: 'errors.fee.missingChartOfAccounts',
+    defaultMessage: 'Missing chart of accounts'
+  },
+  '0155': {
+    id: 'errors.fee.invalidDistributionSum',
+    defaultMessage: 'Invalid distribution sum'
+  },
+  '0156': {
+    id: 'errors.fee.deductibleFeeValidationFailed',
+    defaultMessage: 'Deductible fee validation failed'
+  },
+  '0157': {
+    id: 'errors.fee.routeConsistencyValidationFailed',
+    defaultMessage: 'Route consistency validation failed'
+  },
+  organizationIdRequired: {
+    id: 'errors.fee.organizationIdRequired',
+    defaultMessage: 'Organization ID is required'
+  },
+  pluginFeesUrlNotConfigured: {
+    id: 'errors.fee.pluginFeesUrlNotConfigured',
+    defaultMessage: 'Plugin fees service URL not configured'
+  },
+  failedToFetchPackageDetails: {
+    id: 'errors.fee.failedToFetchPackageDetails',
+    defaultMessage: 'Failed to fetch package details'
+  },
+  feesServiceNotEnabled: {
+    id: 'errors.fee.feesServiceNotEnabled',
+    defaultMessage: 'Fees service is not enabled'
+  },
+  feesServiceUrlNotConfigured: {
+    id: 'errors.fee.feesServiceUrlNotConfigured',
+    defaultMessage: 'Fees service URL not configured'
+  },
+  feeCalculationFailed: {
+    id: 'errors.fee.feeCalculationFailed',
+    defaultMessage: 'Fee calculation failed'
+  },
+  internalServerError: {
+    id: 'errors.fee.internalServerError',
+    defaultMessage: 'Internal server error'
+  },
+  noFeesApplied: {
+    id: 'fees.noFeesApplied',
+    defaultMessage: 'No fees applied'
+  },
+  feeCalculationFailedNoFees: {
+    id: 'fees.calculationFailedNoFees',
+    defaultMessage: 'Fee calculation failed - no fees applied'
+  },
+  deductible: {
+    id: 'fees.deductible',
+    defaultMessage: 'Deductible'
+  },
+  nonDeductible: {
+    id: 'fees.nonDeductible',
+    defaultMessage: 'Non-deductible'
+  },
+  senderLabel: {
+    id: 'fees.senderLabel',
+    defaultMessage: 'Sender'
+  },
+  recipientLabel: {
+    id: 'fees.recipientLabel',
+    defaultMessage: 'Recipient'
+  },
+  feePackageDefault: {
+    id: 'fees.packageDefault',
+    defaultMessage: 'Fee Package'
+  },
+  feeCollectedByTemplate: {
+    id: 'fees.collectedByTemplate',
+    defaultMessage: 'Fee collected by {accountAlias}'
+  },
+  invalidCalculationResponse: {
+    id: 'fees.invalidCalculationResponse',
+    defaultMessage: 'Invalid calculation response'
+  },
+  transactionDefault: {
+    id: 'fees.transactionDefault',
+    defaultMessage: 'Transaction'
   }
 })
