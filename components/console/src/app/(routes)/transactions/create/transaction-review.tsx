@@ -87,7 +87,17 @@ export const TransactionReview = () => {
       const feesEnabled = process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED === 'true'
 
       if (feesEnabled) {
-        calculateFees({ transaction: values })
+        const hasExternalAccount =
+          values.source?.some((source) =>
+            source.accountAlias?.startsWith('@external/')
+          ) ||
+          values.destination?.some((destination) =>
+            destination.accountAlias?.startsWith('@external/')
+          )
+
+        if (!hasExternalAccount) {
+          calculateFees({ transaction: values })
+        }
       }
     }
   }, [values, currentOrganization.id, currentLedger.id])
@@ -104,8 +114,6 @@ export const TransactionReview = () => {
       amount: value.toString()
     }))
   })
-
-  const _isDeductibleFrom = calculatedFees?.transaction?.isDeductibleFrom
 
   const getTransactionPayload = () => {
     if (calculatedFees && calculatedFees.transaction) {
@@ -168,9 +176,6 @@ export const TransactionReview = () => {
       )
       const accountsWithPrincipal = new Set(
         nonFeeOperations.map((op: any) => op.accountAlias)
-      )
-      const _overlappingAccounts = new Set(
-        [...accountsWithFees].filter((acc) => accountsWithPrincipal.has(acc))
       )
 
       // Keep fee operations separate from principal operations
@@ -262,8 +267,7 @@ export const TransactionReview = () => {
             .filter((rule: any) => rule.isDeductibleFrom)
             .map((rule: any) => rule.creditAccount)
             .join(',')
-        },
-        _consolidatedData: consolidatedData
+        }
       }
     }
     return parse(values)
@@ -295,8 +299,7 @@ export const TransactionReview = () => {
     }
 
     setSendAnother(true)
-    const { _consolidatedData, ...payloadForApi } = payload as any
-    createTransaction(payloadForApi)
+    createTransaction(payload)
   }
 
   const handleSubmit = () => {
@@ -325,8 +328,7 @@ export const TransactionReview = () => {
     }
 
     setSendAnother(false)
-    const { _consolidatedData, ...payloadForApi } = payload as any
-    createTransaction(payloadForApi)
+    createTransaction(payload)
   }
 
   return (
