@@ -1,19 +1,12 @@
-## [v3.0.0-beta.31] - 2025-08-04
+## [v3.0.0-beta.32] - 2025-08-04
 
-This release focuses on significant backend changes, including the removal of the demo data generator and updates to Swagger schema references. These changes are crucial for maintaining up-to-date API documentation and improving system reliability.
-
-### ⚠️ Breaking Changes
-- **Demo Data Generator Removal**: The demo data generator has been removed. This may impact development and testing processes that rely on it. Users should explore alternative data generation methods to ensure continued testing capabilities.
-- **Swagger Schema Updates**: Swagger schema references have been updated. It is essential to review and update API client implementations to align with the latest schema definitions, ensuring compatibility and functionality.
+This release focuses on improving the reliability and security of our authentication system, ensuring a smoother and more secure user experience.
 
 ### 🐛 Bug Fixes
-- **Swagger Schema Accuracy**: Resolved issues with outdated Swagger schema references, enhancing the accuracy of API documentation. This fix ensures developers have access to correct API specifications, improving the reliability of API interactions.
+- **Authentication**: Enhanced the handling of NextAuth tokens to improve the reliability and security of user logins. This fix addresses previous issues with token management, leading to a more consistent and error-free login experience. Users should notice improved performance when logging in and maintaining their sessions.
 
-### 🔧 Maintenance
-- **Dependency Updates**: Various dependencies have been updated to their latest versions, which may include security patches and performance improvements. Users are encouraged to review these updates to benefit from enhanced system stability.
-- **Changelog Update**: The changelog has been updated to reflect the latest changes, providing transparency and aiding in historical tracking of modifications.
 
-This release emphasizes backend and documentation improvements, which are vital for maintaining a robust development environment and ensuring accurate API documentation.
+This changelog highlights the key improvements made in the authentication system, emphasizing the enhanced user experience and security benefits. By focusing on the impact and benefits of the changes, users can quickly understand how this update improves their interaction with the software.
 
 ## [v3.0.0-beta.30] - 2025-08-04
 
