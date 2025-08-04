@@ -11,7 +11,6 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useParams } from 'next/navigation'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -25,7 +24,6 @@ import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
-  const { id: ledgerId } = useParams<{ id: string }>()
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
@@ -180,7 +178,11 @@ const Page = () => {
         {...dialogProps}
       />
 
-      <AssetsSheet ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
+      <AssetsSheet
+        ledgerId={currentLedger.id}
+        onSuccess={refetch}
+        {...sheetProps}
+      />
 
       <div className="mt-10">
         {isLoading && <AssetsSkeleton />}

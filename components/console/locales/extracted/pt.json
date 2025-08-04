@@ -45,7 +45,7 @@
   "applications.create.name": "Nome da Application",
   "applications.create.rolesAndPermissions": "Perfis e permissões",
   "applications.default.noActions": "Applications padrão não podem ser modificadas",
-  "applications.delete.confirmDescription": "Você está prestes a excluir esta application permanentemente. Esta ação não poderá ser desfeita. Deseja continuar?",
+  "applications.delete.confirmDescription": "A exclusão revoga o acesso a todos os serviços conectados. É irreversível e remove permanentemente a Application.",
   "applications.dialog.delete.confirmLabel": "Sim, deletar",
   "applications.dialog.delete.confirmTitle": "Tem certeza que deseja deletar?",
   "applications.listingTemplate.addButton": "Nova Application",
