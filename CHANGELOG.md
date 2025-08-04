@@ -1,3 +1,22 @@
+## [v3.0.0-beta.33] - 2025-08-04
+
+This release of midaz introduces dynamic permissions routing, enhancing security and user management, alongside improvements in language support and pagination accuracy.
+
+### ✨ Features  
+- **Dynamic Permissions Routing**: Administrators can now customize user access more flexibly, improving security and user management by tailoring permissions dynamically. This feature allows for a more granular control over who can access specific parts of the application, enhancing organizational security.
+
+### 🐛 Bug Fixes
+- **Pagination Accuracy**: Fixed an issue where pagination displayed incorrect total counts for large datasets. Users can now navigate extensive data collections with accurate page numbers, improving data handling and user experience.
+
+### 🔄 Changes
+- **Language Support**: Added new translation keys to support additional languages, broadening the app's accessibility and usability for non-English speakers. This change enhances the user experience for a diverse audience.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Routine updates have been made to dependencies, ensuring the application remains secure and compatible with the latest standards. This behind-the-scenes work helps maintain the app's robustness and reliability.
+- **Changelog Update**: The changelog has been updated to reflect recent changes, providing users with the latest information about the application's evolution.
+
+These updates collectively improve the functionality, accessibility, and reliability of midaz, providing a more secure and efficient user experience.
+
 ## [v3.0.0-beta.32] - 2025-08-04
 
 This release focuses on improving the reliability and security of our authentication system, ensuring a smoother and more secure user experience.
