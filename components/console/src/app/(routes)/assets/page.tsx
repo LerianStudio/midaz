@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
 import { useOrganization } from '@lerianstudio/console-layout'
@@ -34,7 +34,7 @@ const Page = () => {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({ total })
 
@@ -47,20 +47,6 @@ const Page = () => {
     ledgerId: currentLedger.id,
     ...(searchValues as any)
   })
-
-  useEffect(() => {
-    if (!assets?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (assets.items.length >= assets.limit) {
-      setTotal(assets.limit + 1)
-      return
-    }
-
-    setTotal(assets.items.length)
-  }, [assets?.items, assets?.limit])
 
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteAsset({
     organizationId: currentOrganization.id!,

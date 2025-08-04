@@ -23,7 +23,7 @@ import { InputField } from '@/components/form/input-field'
 
 const Page = () => {
   const intl = useIntl()
-  const [total, setTotal] = React.useState(0)
+  const [total, setTotal] = React.useState(1000000)
   const { currentOrganization, currentLedger, setLedger } = useOrganization()
   const { toast } = useToast()
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
@@ -42,20 +42,6 @@ const Page = () => {
     organizationId: currentOrganization.id!,
     query: searchValues as any
   })
-
-  React.useEffect(() => {
-    if (!ledgers?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (ledgers.items.length >= ledgers.limit) {
-      setTotal(ledgers.limit + 1)
-      return
-    }
-
-    setTotal(ledgers.items.length)
-  }, [ledgers?.items, ledgers?.limit])
 
   const {
     handleDialogOpen,

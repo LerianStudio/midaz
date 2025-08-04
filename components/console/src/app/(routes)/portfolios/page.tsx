@@ -8,7 +8,7 @@ import {
 } from '@/client/portfolios'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -29,7 +29,7 @@ const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
   const { form, searchValues, pagination } = useQueryParams({
     total,
     initialValues: {
@@ -46,20 +46,6 @@ const Page = () => {
     ledgerId: currentLedger.id,
     query: searchValues as any
   })
-
-  useEffect(() => {
-    if (!portfolios?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (portfolios.items.length >= portfolios.limit) {
-      setTotal(portfolios.limit + 1)
-      return
-    }
-
-    setTotal(portfolios.items.length)
-  }, [portfolios?.items, portfolios?.limit])
 
   const { mutate: deletePortfolio, isPending: deletePending } =
     useDeletePortfolio({
