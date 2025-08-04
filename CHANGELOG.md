@@ -1,3 +1,16 @@
+## [v3.0.0-beta.28] - 2025-08-04
+
+This release focuses on improving the reliability and accuracy of transaction processing while maintaining a clean and efficient codebase. Users will experience smoother operations with external transactions and benefit from a more streamlined testing process.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Improved the accuracy of external transactions by removing unnecessary fee calculations. This ensures that users dealing with external accounts experience correct transaction processing, enhancing overall satisfaction.
+- **Testing Suite**: Removed outdated test cases, allowing for a more efficient and relevant testing process. This change reduces noise and ensures that the focus remains on current functionalities, improving the reliability of test results.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: A significant reduction of 377 lines of code enhances the readability and maintainability of the project. This cleanup makes it easier for developers to navigate and contribute, ensuring a healthier code environment.
+
+These updates are designed to enhance user experience by focusing on accuracy in transaction handling and maintaining a robust, clean codebase.
+
 ## [v3.0.0-beta.26] - 2025-08-01
 
 In this release, we've focused on enhancing the stability and maintainability of the midaz project by updating key library dependencies. While no new features or bug fixes are included, these changes prepare the system for future improvements and ensure a more consistent codebase.
