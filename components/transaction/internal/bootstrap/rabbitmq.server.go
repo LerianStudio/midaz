@@ -3,13 +3,14 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/vmihailenco/msgpack/v5"
-	"os"
 )
 
 // MultiQueueConsumer represents a multi-queue consumer.

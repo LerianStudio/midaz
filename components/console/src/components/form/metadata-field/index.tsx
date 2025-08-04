@@ -1,4 +1,4 @@
-import { omit, set } from 'lodash'
+import { set } from 'lodash'
 import { MetadataInput } from './metadata-input'
 import { MetadataPreview } from './metadata-preview'
 import { Control, ControllerRenderProps } from 'react-hook-form'
@@ -11,7 +11,7 @@ type MetadataWrapperProps = ControllerRenderProps & {
 }
 
 const MetadataWrapper = React.forwardRef<unknown, MetadataWrapperProps>(
-  ({ name, value, onChange, readOnly, ...others }, ref) => {
+  ({ name, value, onChange, readOnly, ...others }, _ref) => {
     const handleAddMetadata = (data: { key: string; value: string }) => {
       if (readOnly) return
       onChange?.({

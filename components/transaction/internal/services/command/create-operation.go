@@ -2,6 +2,9 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -10,8 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"reflect"
-	"time"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.

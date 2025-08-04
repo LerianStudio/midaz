@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -13,10 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -71,7 +72,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_rate_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_rate_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset_rate record from entity to JSON string", err)
 
@@ -369,7 +370,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_rate_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_rate_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset rate record from entity to JSON string", err)
 

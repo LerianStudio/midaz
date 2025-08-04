@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -17,10 +22,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to balance template entities.
@@ -75,7 +76,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "balance_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "balance_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert balance record from entity to JSON string", err)
 

@@ -2,15 +2,16 @@ package rabbitmq
 
 import (
 	"context"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"math/rand"
-	"os"
-	"strings"
-	"time"
 )
 
 const (

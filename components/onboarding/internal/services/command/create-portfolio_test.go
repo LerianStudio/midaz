@@ -3,6 +3,10 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
@@ -18,9 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestCreatePortfolio(t *testing.T) {

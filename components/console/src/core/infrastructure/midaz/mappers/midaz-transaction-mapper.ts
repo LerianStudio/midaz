@@ -33,7 +33,7 @@ export class MidazTransactionMapper {
                   chartOfAccounts: source.chartOfAccounts,
                   metadata: source.metadata
                 },
-                (v: any) => v === ''
+                (propertyValue: any) => propertyValue === ''
               )
             )
           },
@@ -50,14 +50,14 @@ export class MidazTransactionMapper {
                   chartOfAccounts: destination.chartOfAccounts,
                   metadata: destination.metadata
                 },
-                (v: any) => v === ''
+                (propertyValue: any) => propertyValue === ''
               )
             )
           }
         },
         metadata: transaction.metadata
       },
-      (v) => v === ''
+      (value) => value === ''
     ) as MidazCreateTransactionDto
   }
 
@@ -71,10 +71,36 @@ export class MidazTransactionMapper {
   }
 
   public static toEntity(transaction: MidazTransactionDto): TransactionEntity {
-    const source =
-      transaction.operations?.filter((t) => t.type === 'DEBIT') ?? []
-    const destination =
-      transaction.operations?.filter((t) => t.type === 'CREDIT') ?? []
+    const aggregate = (
+      operations: typeof transaction.operations,
+      type: 'DEBIT' | 'CREDIT'
+    ) => {
+      const filteredOperations =
+        operations?.filter((operation) => operation.type === type) ?? []
+      const operationsMap = new Map<string, (typeof filteredOperations)[0]>()
+
+      const isFee = (operationItem: any) =>
+        operationItem.description?.toLowerCase().includes('fee') ||
+        operationItem.chartOfAccounts?.toLowerCase().includes('fee')
+
+      filteredOperations.forEach((operation) => {
+        if (isFee(operation)) {
+          operationsMap.set(`${operation.accountAlias}-${Math.random()}`, {
+            ...operation
+          })
+          return
+        }
+
+        const accountKey = operation.accountAlias
+        if (!operationsMap.has(accountKey)) {
+          operationsMap.set(accountKey, { ...operation })
+        }
+      })
+      return Array.from(operationsMap.values())
+    }
+
+    const source = aggregate(transaction.operations, 'DEBIT')
+    const destination = aggregate(transaction.operations, 'CREDIT')
 
     return {
       id: transaction.id,

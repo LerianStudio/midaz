@@ -1,6 +1,10 @@
 package in
 
 import (
+	"fmt"
+	"os"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -13,9 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"os"
-	"reflect"
-	"strconv"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -52,7 +53,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -104,7 +105,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logger.Infof("Request to update an organization with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -343,7 +344,7 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted organizations: %d", count)
 
-	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

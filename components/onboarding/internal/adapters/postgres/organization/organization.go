@@ -2,8 +2,9 @@ package organization
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )

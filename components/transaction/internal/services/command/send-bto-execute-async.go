@@ -2,6 +2,9 @@ package command
 
 import (
 	"context"
+	"os"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
@@ -9,8 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
-	"os"
-	"strings"
 )
 
 // TransactionExecute func that send balances, transaction and operations to execute sync/async.

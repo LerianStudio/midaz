@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -9,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllAssetRatesByAssetCode returns all asset rates by asset codes.

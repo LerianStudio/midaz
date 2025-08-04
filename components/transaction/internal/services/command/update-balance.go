@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
@@ -18,7 +19,7 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances")
 	defer spanUpdateBalances.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "payload_update_balances", balances)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
@@ -62,7 +63,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "payload_update_balances", balances)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())

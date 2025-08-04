@@ -1,5 +1,5 @@
 import { HomeMetricsDto } from '@/core/application/dto/home-metrics-dto'
-import { getFetcher, getPaginatedFetcher } from '@/lib/fetcher'
+import { getPaginatedFetcher } from '@/lib/fetcher'
 import { useQuery } from '@tanstack/react-query'
 
 export type UseHomeMetricsProps = {

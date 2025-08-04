@@ -5,6 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -17,10 +22,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -78,7 +79,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "transaction_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 
@@ -500,7 +501,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "transaction_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 

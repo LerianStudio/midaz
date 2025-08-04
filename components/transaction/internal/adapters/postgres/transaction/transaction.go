@@ -2,10 +2,11 @@ package transaction
 
 import (
 	"database/sql"
+	"time"
+
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"

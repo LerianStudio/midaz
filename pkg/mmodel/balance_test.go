@@ -1,9 +1,10 @@
 package mmodel
 
 import (
-	"github.com/shopspring/decimal"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/google/uuid"

@@ -1,6 +1,10 @@
 package in
 
 import (
+	"fmt"
+	"os"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -13,9 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"os"
-	"reflect"
-	"strconv"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -57,7 +58,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -245,7 +246,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -365,7 +366,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted ledgers for organization %s: %d", organizationID, count)
 
-	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

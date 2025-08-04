@@ -2,15 +2,16 @@ package command
 
 import (
 	"context"
+	"os"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestSendTransactionEvents(t *testing.T) {

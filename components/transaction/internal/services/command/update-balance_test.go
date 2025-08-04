@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // TestUpdateBalanceSuccess is responsible to test UpdateBalanceSuccess with success

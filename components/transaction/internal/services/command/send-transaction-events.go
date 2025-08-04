@@ -3,13 +3,14 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"os"
-	"strings"
-	"time"
 )
 
 const (

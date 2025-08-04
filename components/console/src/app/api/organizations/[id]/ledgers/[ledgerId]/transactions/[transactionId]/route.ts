@@ -21,7 +21,9 @@ export const GET = applyMiddleware(
     request: Request,
     {
       params
-    }: { params: { id: string; ledgerId: string; transactionId: string } }
+    }: {
+      params: Promise<{ id: string; ledgerId: string; transactionId: string }>
+    }
   ) => {
     try {
       const getTransactionByIdUseCase: FetchTransactionById =

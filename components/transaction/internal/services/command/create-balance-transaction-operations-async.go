@@ -3,6 +3,9 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -15,8 +18,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.opentelemetry.io/otel/trace"
-	"reflect"
-	"time"
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.

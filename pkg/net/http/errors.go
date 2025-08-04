@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/LerianStudio/midaz/v3/pkg"

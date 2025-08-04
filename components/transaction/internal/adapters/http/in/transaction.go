@@ -2,9 +2,10 @@ package in
 
 import (
 	"encoding/json"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"reflect"
 	"time"
+
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -591,7 +592,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Transactions by metadata")
 
-		err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
 
@@ -619,7 +620,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "headerParams", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 

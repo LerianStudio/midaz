@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth'
+import { DefaultSession } from 'next-auth'
 
 declare module 'next-auth' {
   /**
@@ -8,6 +8,8 @@ declare module 'next-auth' {
     user: DefaultSession['user'] & {
       id: string
       username: string
+      access_token?: string
+      refresh_token?: string
     }
   }
 }

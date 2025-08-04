@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -12,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"strconv"
 )
 
 // SegmentHandler struct contains a segment use case for managing segment related operations.
@@ -57,7 +58,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.CreateSegmentInput)
 	logger.Infof("Request to create a Segment with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -251,7 +252,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.UpdateSegmentInput)
 	logger.Infof("Request to update an Segment with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -365,7 +366,7 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

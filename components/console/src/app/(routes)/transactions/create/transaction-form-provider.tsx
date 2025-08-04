@@ -93,14 +93,11 @@ export const TransactionProvider = ({
     control: form.control
   })
 
-  // Flag to represent if the transaction has multiple sources or destinations
   const multipleSources =
     originFieldArray.fields.length > 1 ||
     destinationFieldArray.fields.length > 1
 
-  // Add source or destination to the transaction
   // The first entity uses the same value as the transaction
-  // Latter ones will start at 0
   const addSource = (
     fieldArray: UseFieldArrayReturn<any>,
     alias: string,
@@ -173,9 +170,7 @@ export const TransactionProvider = ({
     handleNext()
   }
 
-  // In case the user adds more than 1 source or destination,
   // And then removes to stay with only 1, we need to restore the original
-  // transaction value to the source or destination
   useEffect(() => {
     if (formValues.source.length === 1) {
       form.setValue('source.0.value', formValues.value)
@@ -187,9 +182,7 @@ export const TransactionProvider = ({
     }
   }, [formValues.value, formValues.destination.length])
 
-  // Downgrade the data if we are moving from complex to simple mode
   // This is important, or else the user could send information that is not
-  // present on the screen
   useEffect(() => {
     if (mode === 'simple') {
       if (formValues.source.length > 1) {

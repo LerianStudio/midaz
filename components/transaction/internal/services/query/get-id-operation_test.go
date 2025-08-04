@@ -3,11 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetOperationByID(t *testing.T) {

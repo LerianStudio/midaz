@@ -39,7 +39,6 @@ export const useTabs = ({ initialValue, onTabChange }: UseTabsProps) => {
     const params = new URLSearchParams(searchParams.toString())
     const tab = params.get('tab')
 
-    // Avoid if no tab params is found
     if (isNil(tab)) {
       return
     }

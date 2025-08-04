@@ -2,10 +2,11 @@ package redis
 
 import (
 	"context"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	"time"
 )
 
 // RedisRepository provides an interface for redis.

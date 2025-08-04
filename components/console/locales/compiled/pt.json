@@ -295,6 +295,7 @@
   "organizations.subtitle": "Visualize e gerencie as Organizações.",
   "organizations.title": "Configurações",
   "organizations.toast.create.success": "Organização criada com sucesso!",
+  "organizations.toast.delete.success": "Organização excluída com sucesso",
   "organizations.toast.update.success": "Organização editada com sucesso!",
   "products.delete.description": "Você está prestes a excluir permanentemente este produto. Essa ação não pode ser desfeita. Deseja continuar?",
   "settings.system.language": "Idioma",

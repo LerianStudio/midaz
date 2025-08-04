@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
@@ -17,10 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to account entities.
@@ -81,7 +82,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
 
@@ -673,7 +674,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
 

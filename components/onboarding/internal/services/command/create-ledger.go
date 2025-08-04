@@ -2,12 +2,13 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.

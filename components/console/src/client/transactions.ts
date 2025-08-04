@@ -12,7 +12,6 @@ import {
   UseQueryResult,
   UseMutationResult
 } from '@tanstack/react-query'
-import { PaginationRequest } from '@/types/pagination-request-type'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   CreateTransactionDto,

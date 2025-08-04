@@ -17,7 +17,7 @@ export const POST = applyMiddleware(
   ],
   async (
     request: Request,
-    { params }: { params: { id: string; ledgerId: string } }
+    { params }: { params: Promise<{ id: string; ledgerId: string }> }
   ) => {
     try {
       const createTransactionUseCase = container.get<CreateTransaction>(

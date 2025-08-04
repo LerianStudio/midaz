@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -12,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"strconv"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -60,7 +61,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *payload.PortfolioID)
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -356,7 +357,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -470,7 +471,7 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, strconv.FormatInt(count, 10))
+	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

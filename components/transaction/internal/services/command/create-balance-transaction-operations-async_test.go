@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // Int64Ptr returns a pointer to the given int64 value

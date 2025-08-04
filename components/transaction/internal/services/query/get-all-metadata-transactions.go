@@ -3,8 +3,9 @@ package query
 import (
 	"context"
 	"errors"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	"reflect"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"

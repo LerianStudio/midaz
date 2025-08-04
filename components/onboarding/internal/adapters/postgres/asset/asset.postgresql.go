@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
@@ -17,10 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to asset entities.
@@ -76,7 +77,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 
@@ -368,7 +369,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "asset_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "asset_repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 

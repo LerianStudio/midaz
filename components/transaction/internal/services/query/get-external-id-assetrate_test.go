@@ -3,6 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -10,9 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
