@@ -12,8 +12,7 @@ import { SystemTabContent } from './system-tab-content'
 import React from 'react'
 import { UsersTabContent } from './users/users-tab-content'
 import { ApplicationsTabContent } from './applications/applications-tab-content'
-import { Enforce, getRuntimeEnv } from '@lerianstudio/console-layout'
-
+import { Enforce } from '@lerianstudio/console-layout'
 
 const Page = () => {
   const intl = useIntl()
@@ -84,23 +83,27 @@ const Page = () => {
             })}
           </TabsTrigger>
 
-            <Enforce resource="users" action="get" disabledBehaviour='hide'>
-              <TabsTrigger value="users">
-                {intl.formatMessage({
-                  id: 'users.title',
-                  defaultMessage: 'Users'
-                })}
-              </TabsTrigger>
-            </Enforce>
+          <Enforce resource="users" action="get" disabledBehaviour="hide">
+            <TabsTrigger value="users">
+              {intl.formatMessage({
+                id: 'users.title',
+                defaultMessage: 'Users'
+              })}
+            </TabsTrigger>
+          </Enforce>
 
-            <Enforce resource="applications" action="get" disabledBehaviour='hide'>
-              <TabsTrigger value="applications">
-                {intl.formatMessage({
-                  id: 'applications.title',
-                  defaultMessage: 'Applications'
-                })}
-              </TabsTrigger>
-            </Enforce>
+          <Enforce
+            resource="applications"
+            action="get"
+            disabledBehaviour="hide"
+          >
+            <TabsTrigger value="applications">
+              {intl.formatMessage({
+                id: 'applications.title',
+                defaultMessage: 'Applications'
+              })}
+            </TabsTrigger>
+          </Enforce>
 
           <TabsTrigger value="system">
             {intl.formatMessage({
@@ -114,13 +117,13 @@ const Page = () => {
           <OrganizationsTabContent />
         </TabsContent>
 
-        <Enforce resource="users" action="get" disabledBehaviour='hide'>
+        <Enforce resource="users" action="get" disabledBehaviour="hide">
           <TabsContent value="users">
             <UsersTabContent />
           </TabsContent>
         </Enforce>
 
-        <Enforce resource="applications" action="get" disabledBehaviour='hide'>
+        <Enforce resource="applications" action="get" disabledBehaviour="hide">
           <TabsContent value="applications">
             <ApplicationsTabContent />
           </TabsContent>
