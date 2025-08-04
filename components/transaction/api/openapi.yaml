@@ -1980,7 +1980,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
         description: Transaction Input
         required: true
       responses:
@@ -2824,29 +2824,26 @@ components:
         description: description
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
-          scale: 1
           distribute:
             to:
             - amount:
-                scale: 0
                 asset: asset
-                value: 6
+                value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
               account: account
             - amount:
-                scale: 0
                 asset: asset
-                value: 6
+                value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
               account: account
           asset: asset
-          value: 5
+          value: value
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -2891,7 +2888,7 @@ components:
             from:
             - amount:
                 asset: asset
-                value: 0.8008281904610115
+                value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
@@ -2899,14 +2896,14 @@ components:
               account: account
             - amount:
                 asset: asset
-                value: 0.8008281904610115
+                value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
               account: account
           asset: asset
-          value: 6.027456183070403
+          value: value
       properties:
         chartOfAccountsGroupName:
           description: |-
@@ -3750,7 +3747,7 @@ components:
           maxLength: 50
           type: string
       type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+    github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
       description: Schema for creating transaction with the complete Send operation
         structure defined inline
       properties:
@@ -3788,7 +3785,7 @@ components:
           example: true
           type: boolean
         send:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
       type: object
     mmodel.AccountRule:
       type: object
@@ -4445,9 +4442,8 @@ components:
         Amount details for the operation
         required: true
       example:
-        scale: 0
         asset: asset
-        value: 6
+        value: value
       properties:
         asset:
           description: |-
@@ -4455,25 +4451,18 @@ components:
             example: USD
             required: true
           type: string
-        scale:
-          description: |-
-            Decimal places
-            example: 2
-            required: true
-          type: integer
         value:
           description: |-
             Amount value in smallest unit
-            example: 100
+            example: "100.00"
             required: true
-          type: integer
+          type: string
       type: object
     CreateTransactionInflowSwaggerModel_send_distribute_to:
       example:
         amount:
-          scale: 0
           asset: asset
-          value: 6
+          value: value
         metadata:
           key: '{}'
         chartOfAccounts: chartOfAccounts
@@ -4513,18 +4502,16 @@ components:
       example:
         to:
         - amount:
-            scale: 0
             asset: asset
-            value: 6
+            value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
           account: account
         - amount:
-            scale: 0
             asset: asset
-            value: 6
+            value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
@@ -4544,29 +4531,26 @@ components:
         Send operation details including distribution only
         required: true
       example:
-        scale: 1
         distribute:
           to:
           - amount:
-              scale: 0
               asset: asset
-              value: 6
+              value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
             account: account
           - amount:
-              scale: 0
               asset: asset
-              value: 6
+              value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
             account: account
         asset: asset
-        value: 5
+        value: value
       properties:
         asset:
           description: |-
@@ -4576,45 +4560,18 @@ components:
           type: string
         distribute:
           $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
-        scale:
-          description: |-
-            Decimal places for the transaction amount
-            example: 2
-            required: true
-          type: integer
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset
-            example: 100
-            required: true
-          type: integer
-      type: object
-    CreateTransactionOutflowSwaggerModel_send_source_amount:
-      description: |-
-        Amount details for the operation
-        required: true
-      example:
-        asset: asset
-        value: 0.8008281904610115
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
+            example: "100.00"
             required: true
           type: string
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: "100"
-            required: true
-          type: number
       type: object
     CreateTransactionOutflowSwaggerModel_send_source_from:
       example:
         amount:
           asset: asset
-          value: 0.8008281904610115
+          value: value
         metadata:
           key: '{}'
         chartOfAccounts: chartOfAccounts
@@ -4628,7 +4585,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/CreateTransactionOutflowSwaggerModel_send_source_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -4655,7 +4612,7 @@ components:
         from:
         - amount:
             asset: asset
-            value: 0.8008281904610115
+            value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
@@ -4663,7 +4620,7 @@ components:
           account: account
         - amount:
             asset: asset
-            value: 0.8008281904610115
+            value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
@@ -4687,7 +4644,7 @@ components:
           from:
           - amount:
               asset: asset
-              value: 0.8008281904610115
+              value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
@@ -4695,14 +4652,14 @@ components:
             account: account
           - amount:
               asset: asset
-              value: 0.8008281904610115
+              value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
             account: account
         asset: asset
-        value: 6.027456183070403
+        value: value
       properties:
         asset:
           description: |-
@@ -4715,70 +4672,11 @@ components:
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset
-            example: "100"
-            required: true
-          type: number
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount
-    : description: |-
-        Amount details for the operation
-        required: true
-      properties:
-        asset:
-          description: |-
-            Asset code
-            example: USD
+            example: "100.00"
             required: true
           type: string
-        value:
-          description: |-
-            Amount value in smallest unit
-            example: 100
-            required: true
-          type: number
       type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to
-    : properties:
-        account:
-          description: |-
-            Account identifier or alias
-            example: {{accountAlias}}
-            required: true
-          type: string
-        amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
-        chartOfAccounts:
-          description: |-
-            Chart of accounts code
-            example: FUNDING_CREDIT
-          type: string
-        description:
-          description: |-
-            Operation description
-            example: Credit Operation
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          description: |-
-            Additional metadata
-            example: {"operation": "funding", "type": "account"}
-          type: object
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute
-    : description: |-
-        Destination accounts and amounts for the transaction
-        required: true
-      properties:
-        to:
-          description: |-
-            List of destination operations
-            required: true
-          items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_to'
-          type: array
-      type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
+    ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
     : properties:
         account:
           description: |-
@@ -4787,7 +4685,7 @@ components:
             required: true
           type: string
         amount:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute_amount'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute_amount'
         chartOfAccounts:
           description: |-
             Chart of accounts code
@@ -4806,7 +4704,7 @@ components:
             example: {"operation": "funding", "type": "external"}
           type: object
       type: object
-    ? github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
+    ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
     : description: |-
         Source accounts and amounts for the transaction
         required: true
@@ -4816,11 +4714,11 @@ components:
             List of source operations
             required: true
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
           type: array
       type: object
-    github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
-      description: |-
+    ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send
+    : description: |-
         Send operation details including source and distribution
         required: true
       properties:
@@ -4831,14 +4729,14 @@ components:
             required: true
           type: string
         distribute:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_distribute'
+          $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
         source:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset
-            example: 100
+            example: "100.00"
             required: true
-          type: number
+          type: string
       type: object
 x-original-swagger-version: "2.0"

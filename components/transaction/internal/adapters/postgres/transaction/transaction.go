@@ -99,57 +99,54 @@ type CreateTransactionInput struct {
 	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
-//	@example {
-//	  "chartOfAccountsGroupName": "FUNDING",
-//	  "description": "New Transaction",
-//	  "code": "TR12345",
-//	  "metadata": {
-//	    "reference": "TRANSACTION-001",
-//	    "source": "api"
-//	  },
-//	  "route": "00000000-0000-0000-0000-000000000000",
-//	  "send": {
-//	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
-//	    "source": {
-//	      "from": [
-//	        {
-//	          "account": "@external/USD",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
-//	          },
-//	          "description": "Debit Operation",
-//	          "chartOfAccounts": "FUNDING_DEBIT",
-//	          "metadata": {
-//	            "operation": "funding",
-//	            "type": "external"
-//	          }
-//	        }
-//	      ]
-//	    },
-//	    "distribute": {
-//	      "to": [
-//	        {
-//	          "account": "{{accountAlias}}",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
-//	          },
-//	          "description": "Credit Operation",
-//	          "chartOfAccounts": "FUNDING_CREDIT",
-//	          "metadata": {
-//	            "operation": "funding",
-//	            "type": "account"
-//	          }
-//	        }
-//	      ]
-//	    }
-//	  }
-//	}
+//		@example {
+//		  "chartOfAccountsGroupName": "FUNDING",
+//		  "description": "New Transaction",
+//		  "code": "TR12345",
+//		  "metadata": {
+//		    "reference": "TRANSACTION-001",
+//		    "source": "api"
+//		  },
+//		  "route": "00000000-0000-0000-0000-000000000000",
+//		  "send": {
+//		    "asset": "USD",
+//		    "value": "100.00",
+//		    "source": {
+//		      "from": [
+//		        {
+//		          "account": "@external/USD",
+//		          "amount": {
+//		            "asset": "USD",
+//	                "value": "100.00",
+//		          },
+//		          "description": "Debit Operation",
+//		          "chartOfAccounts": "FUNDING_DEBIT",
+//		          "metadata": {
+//		            "operation": "funding",
+//		            "type": "external"
+//		          }
+//		        }
+//		      ]
+//		    },
+//		    "distribute": {
+//		      "to": [
+//		        {
+//		          "account": "{{accountAlias}}",
+//		          "amount": {
+//		            "asset": "USD",
+//		            "value": "100.00",
+//		          },
+//		          "description": "Credit Operation",
+//		          "chartOfAccounts": "FUNDING_CREDIT",
+//		          "metadata": {
+//		            "operation": "funding",
+//		            "type": "account"
+//		          }
+//		        }
+//		      ]
+//		    }
+//		  }
+//		}
 //
 // CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
 // This is only used for Swagger documentation generation
@@ -190,9 +187,9 @@ type CreateTransactionSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: 100
+		// example: "100.00"
 		// required: true
-		Value decimal.Decimal `json:"value"`
+		Value string `json:"value"`
 
 		// Source accounts and amounts for the transaction
 		// required: true
@@ -214,9 +211,9 @@ type CreateTransactionSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value decimal.Decimal `json:"value"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -253,9 +250,9 @@ type CreateTransactionSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value decimal.Decimal `json:"value"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -648,16 +645,14 @@ type CreateTransactionInflowInput struct {
 //	  },
 //	  "send": {
 //	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
+//	    "value": "100.00",
 //	    "distribute": {
 //	      "to": [
 //	        {
 //	          "account": "{{accountAlias}}",
 //	          "amount": {
 //	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
+//	            "value": "100.00",
 //	          },
 //	          "description": "Credit Operation",
 //	          "chartOfAccounts": "FUNDING_CREDIT",
@@ -716,14 +711,9 @@ type CreateTransactionInflowSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: 100
+		// example: "100.00"
 		// required: true
-		Value int64 `json:"value"`
-
-		// Decimal places for the transaction amount
-		// example: 2
-		// required: true
-		Scale int64 `json:"scale"`
+		Value string `json:"value"`
 
 		// Destination accounts and amounts for the transaction
 		// required: true
@@ -745,14 +735,9 @@ type CreateTransactionInflowSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value int64 `json:"value"`
-
-					// Decimal places
-					// example: 2
-					// required: true
-					Scale int64 `json:"scale"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -854,15 +839,14 @@ type CreateTransactionOutflowInput struct {
 //	  },
 //	  "send": {
 //	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
+//	    "value": "100.00",
 //	    "source": {
 //	      "from": [
 //	        {
 //	          "account": "{{accountAlias}}",
 //	          "amount": {
 //	            "asset": "USD",
-//	            "value": "100",
+//	            "value": "100.00",
 //	          },
 //	          "description": "Debit Operation",
 //	          "chartOfAccounts": "WITHDRAWAL_DEBIT",
@@ -926,9 +910,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: "100"
+		// example: "100.00"
 		// required: true
-		Value decimal.Decimal `json:"value"`
+		Value string `json:"value"`
 
 		// Source accounts and amounts for the transaction
 		// required: true
@@ -950,9 +934,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: "100"
+					// example: "100.00"
 					// required: true
-					Value decimal.Decimal `json:"value"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
