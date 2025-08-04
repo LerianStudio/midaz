@@ -1,3 +1,17 @@
+## [v3.0.0-beta.29] - 2025-08-04
+
+This release enhances the reliability of asset management and ensures up-to-date documentation, providing users with improved data accuracy and transparency.
+
+### 🐛 Bug Fixes
+- **Asset Management**: Fixed an issue where the asset sheet displayed incorrect data. This improvement ensures that asset information is now accurately reflected, enhancing the reliability and trustworthiness of asset management features.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements. This ensures that both users and developers have access to the latest project development history, fostering better transparency and collaboration.
+
+---
+
+In this update, we focused on resolving a key issue with asset management and maintaining comprehensive documentation for a better user experience and project clarity. Enjoy the seamless update process with no breaking changes.
+
 ## [v3.0.0-beta.28] - 2025-08-04
 
 This release focuses on improving the reliability and accuracy of transaction processing while maintaining a clean and efficient codebase. Users will experience smoother operations with external transactions and benefit from a more streamlined testing process.
