@@ -134,18 +134,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
-	@echo "  make generate-docs               - Generate Swagger documentation with Postman collections (includes setup)"
-	@echo ""
-	@echo ""
-	@echo "API Testing Commands:"
-	@echo "  make newman                      - Run complete API workflow test (65 steps) with comprehensive reports"
-	@echo "  make newman-install              - Install Newman CLI globally if not already installed"
-	@echo ""
-	@echo ""
-	@echo "Demo Data Commands:"
-	@echo "  make demo-data                   - Generate demo data with small volume (optimized)"
-	@echo "  make demo-data-medium            - Generate demo data with medium volume (optimized)"
-	@echo "  make demo-data-large             - Generate demo data with large volume (optimized)"
+	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo ""
 
@@ -496,130 +485,12 @@ all-components:
 	@echo "[ok] Command '$(COMMAND)' executed successfully across all components"
 
 #-------------------------------------------------------
-# Documentation Commands  
+# Development Commands
 #-------------------------------------------------------
 
 .PHONY: generate-docs
-
 generate-docs:
-	$(call print_title,"Generating Swagger API Documentation")
-	@echo "Setting up dependencies and generating documentation..."
-	@./scripts/setup-deps.sh
-	@echo ""
 	@./scripts/generate-docs.sh
-
-#-------------------------------------------------------
-# Newman / API Testing Commands
-#-------------------------------------------------------
-
-.PHONY: newman newman-install newman-env-check
-
-# Install Newman globally if not already installed
-newman-install:
-	$(call print_title,"Installing Newman CLI")
-	@if ! command -v newman >/dev/null 2>&1; then \
-		echo "📦 Newman not found. Installing globally..."; \
-		npm install -g newman newman-reporter-html newman-reporter-htmlextra; \
-		echo "✅ Newman installed successfully"; \
-	else \
-		echo "✅ Newman already installed: $$(newman --version)"; \
-	fi
-
-# Check environment file exists and has required variables
-newman-env-check:
-	@if [ ! -f "./postman/MIDAZ.postman_environment.json" ]; then \
-		echo "❌ Environment file not found: ./postman/MIDAZ.postman_environment.json"; \
-		echo "💡 Run 'make generate-docs' first to create the environment file"; \
-		exit 1; \
-	fi
-	@echo "✅ Environment file found: ./postman/MIDAZ.postman_environment.json"
-
-# Main Newman target - runs the complete API workflow (65 steps)
-newman: newman-install newman-env-check
-	$(call print_title,"Running Complete API Workflow with Newman")
-	@if [ ! -f "./postman/MIDAZ.postman_collection.json" ]; then \
-		echo "❌ Collection file not found. Running documentation generation first..."; \
-		$(MAKE) generate-docs; \
-	fi
-	@echo "🚀 Starting complete API workflow test (65 steps)..."
-	@mkdir -p ./reports/newman
-	newman run "./postman/MIDAZ.postman_collection.json" \
-		--environment "./postman/MIDAZ.postman_environment.json" \
-		--folder "Complete API Workflow" \
-		--reporters cli,html,htmlextra \
-		--reporter-html-export "./reports/newman/workflow-report.html" \
-		--reporter-htmlextra-export "./reports/newman/workflow-detailed-report.html" \
-		--reporter-htmlextra-title "Midaz API Workflow Test Report" \
-		--reporter-htmlextra-showOnlyFails \
-		--timeout-request 30000 \
-		--timeout-script 10000 \
-		--delay-request 100 \
-		--color on
-	@echo ""
-	@echo "📊 Test Reports Generated:"
-	@echo "  - CLI Summary: displayed above"
-	@echo "  - HTML Report: ./reports/newman/workflow-report.html"
-	@echo "  - Detailed Report: ./reports/newman/workflow-detailed-report.html"
-	@echo ""
-	@echo "🎯 Open detailed report: file://$$PWD/./reports/newman/workflow-detailed-report.html"
-
-#-------------------------------------------------------
-# Demo Data Commands
-#-------------------------------------------------------
-
-.PHONY: demo-data demo-data-small demo-data-medium demo-data-large demo-data-test demo-data-test-watch demo-data-test-coverage
-
-demo-data: demo-data-small
-
-demo-data-small:
-	$(call print_title,Generating demo data with small volume - optimized)
-	@echo "Running optimized demo data generator with small volume..."
-	@cd scripts/demo-data && ./run-generator.sh small none --optimized
-	@echo "[ok] Demo data generated successfully with small volume"
-
-demo-data-medium:
-	$(call print_title,Generating demo data with medium volume - optimized)
-	@echo "Running optimized demo data generator with medium volume..."
-	@cd scripts/demo-data && ./run-generator.sh medium none --optimized
-	@echo "[ok] Demo data generated successfully with medium volume"
-
-demo-data-large:
-	$(call print_title,Generating demo data with large volume - optimized)
-	@echo "Running optimized demo data generator with large volume..."
-	@cd scripts/demo-data && ./run-generator.sh large none --optimized
-	@echo "[ok] Demo data generated successfully with large volume"
-
-# Standard sequential versions (for comparison/debugging)
-demo-data-small-sequential:
-	$(call print_title,Generating demo data with small volume - sequential)
-	@echo "Running sequential demo data generator with small volume..."
-	@cd scripts/demo-data && ./run-generator.sh small none
-	@echo "[ok] Demo data generated successfully with small volume (sequential)"
-
-demo-data-medium-sequential:
-	$(call print_title,Generating demo data with medium volume - sequential)
-	@echo "Running sequential demo data generator with medium volume..."
-	@cd scripts/demo-data && ./run-generator.sh medium none
-	@echo "[ok] Demo data generated successfully with medium volume (sequential)"
-
-demo-data-large-sequential:
-	$(call print_title,Generating demo data with large volume - sequential)
-	@echo "Running sequential demo data generator with large volume..."
-	@cd scripts/demo-data && ./run-generator.sh large none
-	@echo "[ok] Demo data generated successfully with large volume (sequential)"
-
-# Custom process delay versions
-demo-data-small-fast:
-	$(call print_title,Generating demo data with small volume - fast no delays)
-	@echo "Running optimized demo data generator with no process delays..."
-	@cd scripts/demo-data && ./run-generator.sh small none --optimized --process-delay 0
-	@echo "[ok] Demo data generated successfully with small volume (fast)"
-
-demo-data-medium-fast:
-	$(call print_title,Generating demo data with medium volume - fast no delays)
-	@echo "Running optimized demo data generator with no process delays..."
-	@cd scripts/demo-data && ./run-generator.sh medium none --optimized --process-delay 0
-	@echo "[ok] Demo data generated successfully with medium volume (fast)"
 
 #-------------------------------------------------------
 # Developer Helper Commands

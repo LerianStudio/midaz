@@ -288,18 +288,12 @@ definitions:
                             example: USD
                             required: true
                           type: string
-                        scale:
-                          description: |-
-                            Decimal places
-                            example: 2
-                            required: true
-                          type: integer
                         value:
                           description: |-
                             Amount value in smallest unit
-                            example: 100
+                            example: "100.00"
                             required: true
-                          type: integer
+                          type: string
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -320,18 +314,12 @@ definitions:
                   type: object
                 type: array
             type: object
-          scale:
-            description: |-
-              Decimal places for the transaction amount
-              example: 2
-              required: true
-            type: integer
           value:
             description: |-
               Transaction amount value in the smallest unit of the asset
-              example: 100
+              example: "100.00"
               required: true
-            type: integer
+            type: string
         type: object
     type: object
   CreateTransactionOutflowSwaggerModel:
@@ -412,9 +400,9 @@ definitions:
                         value:
                           description: |-
                             Amount value in smallest unit
-                            example: "100"
+                            example: "100.00"
                             required: true
-                          type: number
+                          type: string
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -438,9 +426,9 @@ definitions:
           value:
             description: |-
               Transaction amount value in the smallest unit of the asset
-              example: "100"
+              example: "100.00"
               required: true
-            type: number
+            type: string
         type: object
     type: object
   CreateTransactionRouteInput:
@@ -1133,9 +1121,9 @@ definitions:
                         value:
                           description: |-
                             Amount value in smallest unit
-                            example: 100
+                            example: "100.00"
                             required: true
-                          type: number
+                          type: string
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -1187,9 +1175,9 @@ definitions:
                         value:
                           description: |-
                             Amount value in smallest unit
-                            example: 100
+                            example: "100.00"
                             required: true
-                          type: number
+                          type: string
                       type: object
                     chartOfAccounts:
                       description: |-
@@ -1213,9 +1201,9 @@ definitions:
           value:
             description: |-
               Transaction amount value in the smallest unit of the asset
-              example: 100
+              example: "100.00"
               required: true
-            type: number
+            type: string
         type: object
     type: object
   mmodel.AccountRule:
