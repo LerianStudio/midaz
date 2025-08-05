@@ -2826,22 +2826,22 @@ components:
         send:
           distribute:
             to:
-            - amount:
+            - accountAlias: accountAlias
+              amount:
                 asset: asset
                 value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
-              account: account
-            - amount:
+            - accountAlias: accountAlias
+              amount:
                 asset: asset
                 value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
-              account: account
           asset: asset
           value: value
       properties:
@@ -2886,22 +2886,22 @@ components:
         send:
           source:
             from:
-            - amount:
+            - accountAlias: accountAlias
+              amount:
                 asset: asset
                 value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
-              account: account
-            - amount:
+            - accountAlias: accountAlias
+              amount:
                 asset: asset
                 value: value
               metadata:
                 key: '{}'
               chartOfAccounts: chartOfAccounts
               description: description
-              account: account
           asset: asset
           value: value
       properties:
@@ -4460,6 +4460,7 @@ components:
       type: object
     CreateTransactionInflowSwaggerModel_send_distribute_to:
       example:
+        accountAlias: accountAlias
         amount:
           asset: asset
           value: value
@@ -4467,9 +4468,8 @@ components:
           key: '{}'
         chartOfAccounts: chartOfAccounts
         description: description
-        account: account
       properties:
-        account:
+        accountAlias:
           description: |-
             Account identifier or alias
             example: {{accountAlias}}
@@ -4501,22 +4501,22 @@ components:
         required: true
       example:
         to:
-        - amount:
+        - accountAlias: accountAlias
+          amount:
             asset: asset
             value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
-          account: account
-        - amount:
+        - accountAlias: accountAlias
+          amount:
             asset: asset
             value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
-          account: account
       properties:
         to:
           description: |-
@@ -4533,22 +4533,22 @@ components:
       example:
         distribute:
           to:
-          - amount:
+          - accountAlias: accountAlias
+            amount:
               asset: asset
               value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
-            account: account
-          - amount:
+          - accountAlias: accountAlias
+            amount:
               asset: asset
               value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
-            account: account
         asset: asset
         value: value
       properties:
@@ -4569,6 +4569,7 @@ components:
       type: object
     CreateTransactionOutflowSwaggerModel_send_source_from:
       example:
+        accountAlias: accountAlias
         amount:
           asset: asset
           value: value
@@ -4576,9 +4577,8 @@ components:
           key: '{}'
         chartOfAccounts: chartOfAccounts
         description: description
-        account: account
       properties:
-        account:
+        accountAlias:
           description: |-
             Account identifier or alias
             example: {{accountAlias}}
@@ -4610,22 +4610,22 @@ components:
         required: true
       example:
         from:
-        - amount:
+        - accountAlias: accountAlias
+          amount:
             asset: asset
             value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
-          account: account
-        - amount:
+        - accountAlias: accountAlias
+          amount:
             asset: asset
             value: value
           metadata:
             key: '{}'
           chartOfAccounts: chartOfAccounts
           description: description
-          account: account
       properties:
         from:
           description: |-
@@ -4642,22 +4642,22 @@ components:
       example:
         source:
           from:
-          - amount:
+          - accountAlias: accountAlias
+            amount:
               asset: asset
               value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
-            account: account
-          - amount:
+          - accountAlias: accountAlias
+            amount:
               asset: asset
               value: value
             metadata:
               key: '{}'
             chartOfAccounts: chartOfAccounts
             description: description
-            account: account
         asset: asset
         value: value
       properties:
@@ -4678,7 +4678,7 @@ components:
       type: object
     ? github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
     : properties:
-        account:
+        accountAlias:
           description: |-
             Account identifier or alias
             example: @external/USD

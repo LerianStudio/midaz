@@ -3516,7 +3516,7 @@ const docTemplate = `{
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "account": {
+                                            "accountAlias": {
                                                 "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
                                                 "type": "string"
                                             },
@@ -3605,7 +3605,7 @@ const docTemplate = `{
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "account": {
+                                            "accountAlias": {
                                                 "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
                                                 "type": "string"
                                             },
@@ -4300,7 +4300,7 @@ const docTemplate = `{
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "account": {
+                                            "accountAlias": {
                                                 "description": "Account identifier or alias\nexample: {{accountAlias}}\nrequired: true",
                                                 "type": "string"
                                             },
@@ -4346,7 +4346,7 @@ const docTemplate = `{
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "account": {
+                                            "accountAlias": {
                                                 "description": "Account identifier or alias\nexample: @external/USD\nrequired: true",
                                                 "type": "string"
                                             },

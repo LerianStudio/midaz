@@ -537,6 +537,140 @@ if (pm.response.code === 200) {
                 }
             }
             
+            // Special handling for transaction endpoint payloads - use account-aware logic
+            if (step.path && step.path.includes('/transactions/') && step.method === 'POST') {
+                console.log(`  DEBUG: Applying account-aware payload logic for transaction step: ${step.title}`);
+                
+                // Make sure the request has a body
+                if (!workflowItem.request.body) {
+                    workflowItem.request.body = {
+                        mode: 'raw',
+                        raw: '',
+                        options: {
+                            raw: {
+                                language: 'json'
+                            }
+                        }
+                    };
+                }
+                
+                let transactionBody = {};
+                
+                if (step.path.includes('/transactions/json')) {
+                    // For JSON transactions, use different accounts in source vs destination to avoid ambiguous error
+                    transactionBody = {
+                        "chartOfAccountsGroupName": "Example chartOfAccountsGroupName",
+                        "code": "Example code",
+                        "description": "Example description",
+                        "metadata": {
+                            "key": "value"
+                        },
+                        "send": {
+                            "asset": "USD",
+                            "distribute": {
+                                "to": [
+                                    {
+                                        "accountAlias": "{{accountAlias}}",
+                                        "amount": {
+                                            "asset": "USD",
+                                            "value": "100.00"
+                                        },
+                                        "chartOfAccounts": "Example chartOfAccounts",
+                                        "description": "Example description",
+                                        "metadata": {
+                                            "key": "value"
+                                        }
+                                    }
+                                ]
+                            },
+                            "source": {
+                                "from": [
+                                    {
+                                        "accountAlias": "@external/USD",
+                                        "amount": {
+                                            "asset": "USD",
+                                            "value": "100.00"
+                                        },
+                                        "chartOfAccounts": "Example chartOfAccounts",
+                                        "description": "Example description",
+                                        "metadata": {
+                                            "key": "value"
+                                        }
+                                    }
+                                ]
+                            },
+                            "value": "100.00"
+                        }
+                    };
+                } else if (step.path.includes('/transactions/inflow')) {
+                    // For inflow transactions, money comes FROM external TO the created account
+                    transactionBody = {
+                        "chartOfAccountsGroupName": "Example chartOfAccountsGroupName",
+                        "code": "Example code",
+                        "description": "Example description",
+                        "metadata": {
+                            "key": "value"
+                        },
+                        "send": {
+                            "asset": "USD",
+                            "distribute": {
+                                "to": [
+                                    {
+                                        "accountAlias": "{{accountAlias}}",
+                                        "amount": {
+                                            "asset": "USD",
+                                            "value": "100.00"
+                                        },
+                                        "chartOfAccounts": "Example chartOfAccounts",
+                                        "description": "Example description",
+                                        "metadata": {
+                                            "key": "value"
+                                        }
+                                    }
+                                ]
+                            },
+                            "value": "100.00"
+                        }
+                    };
+                } else if (step.path.includes('/transactions/outflow')) {
+                    // For outflow transactions, money goes FROM the created account TO external
+                    transactionBody = {
+                        "chartOfAccountsGroupName": "Example chartOfAccountsGroupName",
+                        "code": "Example code",
+                        "description": "Example description",
+                        "metadata": {
+                            "key": "value"
+                        },
+                        "send": {
+                            "asset": "USD",
+                            "source": {
+                                "from": [
+                                    {
+                                        "accountAlias": "{{accountAlias}}",
+                                        "amount": {
+                                            "asset": "USD",
+                                            "value": "100.00"
+                                        },
+                                        "chartOfAccounts": "Example chartOfAccounts",
+                                        "description": "Example description",
+                                        "metadata": {
+                                            "key": "value"
+                                        }
+                                    }
+                                ]
+                            },
+                            "value": "100.00"
+                        }
+                    };
+                }
+                
+                // Apply the account-aware payload if we generated one
+                if (Object.keys(transactionBody).length > 0) {
+                    workflowItem.request.body.raw = JSON.stringify(transactionBody, null, 2);
+                    console.log(`  DEBUG: Applied account-aware payload for ${step.path}`);
+                }
+            }
+            
             // Special handling for Zero Out Balance step
             if (step.title === "Zero Out Balance") {
                 console.log(`  DEBUG: Attempting to customize Zero Out Balance step (Step ${step.number})...`);
@@ -572,7 +706,7 @@ if (pm.response.code === 200) {
                     "distribute": {
                       "to": [
                         {
-                          "account": "@external/USD",
+                          "accountAlias": "@external/USD",
                           "amount": {
                             "asset": "USD",
                             "value": "{{currentBalanceAmount}}"
@@ -588,7 +722,7 @@ if (pm.response.code === 200) {
                     "source": {
                       "from": [
                         {
-                          "account": "{{accountAlias}}",
+                          "accountAlias": "{{accountAlias}}",
                           "amount": {
                             "asset": "USD",
                             "value": "{{currentBalanceAmount}}"

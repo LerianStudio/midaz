@@ -1513,24 +1513,79 @@ const REQUEST_BODY_EXAMPLES = {};
  * @returns {Object} Example Send object
  */
 function generateSendExample(url = '') {
+  const isInflowTransaction = url.includes('/transactions/inflow');
   const isOutflowTransaction = url.includes('/transactions/outflow');
+  const isJsonTransaction = url.includes('/transactions/json');
   
-  return {
+  const baseExample = {
     asset: "USD",
-    value: "100.00",
+    value: "100.00"
+  };
+  
+  // For inflow transactions (money coming in) - only distribute
+  if (isInflowTransaction) {
+    return {
+      ...baseExample,
+      distribute: {
+        to: [
+          {
+            accountAlias: "{{accountAlias}}",
+            amount: {
+              asset: "USD",
+              value: "100.00"
+            },
+            description: "Credit Operation",
+            chartOfAccounts: "FUNDING_CREDIT",
+            metadata: {
+              operation: "funding",
+              type: "account"
+            }
+          }
+        ]
+      }
+    };
+  }
+  
+  // For outflow transactions (money going out) - only source
+  if (isOutflowTransaction) {
+    return {
+      ...baseExample,
+      source: {
+        from: [
+          {
+            accountAlias: "{{accountAlias}}",
+            amount: {
+              asset: "USD",
+              value: "100.00"
+            },
+            description: "Debit Operation",
+            chartOfAccounts: "WITHDRAWAL_DEBIT",
+            metadata: {
+              operation: "withdrawal",
+              type: "account"
+            }
+          }
+        ]
+      }
+    };
+  }
+  
+  // For JSON transactions (complete transaction) - both source and distribute
+  return {
+    ...baseExample,
     source: {
       from: [
         {
-          account: isOutflowTransaction ? "{{accountAlias}}" : "@external/USD",
+          accountAlias: "@external/USD",
           amount: {
             asset: "USD",
             value: "100.00"
           },
-          description: isOutflowTransaction ? "Debit Operation" : "External funding",
-          chartOfAccounts: isOutflowTransaction ? "WITHDRAWAL_DEBIT" : "FUNDING_DEBIT",
+          description: "External funding",
+          chartOfAccounts: "FUNDING_DEBIT",
           metadata: {
-            operation: isOutflowTransaction ? "withdrawal" : "funding",
-            type: isOutflowTransaction ? "account" : "external"
+            operation: "funding",
+            type: "external"
           }
         }
       ]
@@ -1538,16 +1593,16 @@ function generateSendExample(url = '') {
     distribute: {
       to: [
         {
-          account: isOutflowTransaction ? "@external/USD" : "{{accountAlias}}",
+          account: "{{accountAlias}}",
           amount: {
             asset: "USD",
             value: "100.00"
           },
-          description: isOutflowTransaction ? "External withdrawal" : "Credit Operation",
-          chartOfAccounts: isOutflowTransaction ? "WITHDRAWAL_CREDIT" : "FUNDING_CREDIT",
+          description: "Credit Operation",
+          chartOfAccounts: "FUNDING_CREDIT",
           metadata: {
-            operation: isOutflowTransaction ? "withdrawal" : "funding",
-            type: isOutflowTransaction ? "external" : "account"
+            operation: "funding",
+            type: "account"
           }
         }
       ]
