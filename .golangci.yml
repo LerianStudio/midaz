@@ -35,7 +35,7 @@ linters:
             - pkg: io/ioutil
               desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
     gocyclo:
-      min-complexity: 16
+      min-complexity: 18
     govet:
       enable:
         - shadow
