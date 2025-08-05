@@ -196,15 +196,27 @@ const DEPENDENCY_MAP = {
     provides: ["transactionId", "balanceId", "operationId"],
     requires: ["organizationId", "ledgerId"]
   },
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/inflow": {
+    provides: ["inflowTransactionId", "balanceId", "operationId"],
+    requires: ["organizationId", "ledgerId", "accountAlias"]
+  },
+  "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow": {
+    provides: ["outflowTransactionId", "balanceId", "operationId"],
+    requires: ["organizationId", "ledgerId", "accountAlias"]
+  },
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}": {
     provides: [],
     requires: ["organizationId", "ledgerId", "transactionId"]
   },
   
   // Operation endpoints
-  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}": {
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{id}": {
     provides: [],
-    requires: ["organizationId", "ledgerId", "operationId"]
+    requires: ["organizationId", "ledgerId", "accountId", "operationId"]
+  },
+  "PATCH /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "transactionId", "operationId"]
   },
   
   // Balance endpoints
@@ -236,6 +248,10 @@ const DEPENDENCY_MAP = {
     provides: [],
     requires: ["organizationId", "ledgerId", "portfolioId"]
   },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "portfolioId"]
+  },
   
   // Segment endpoints
   "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
@@ -245,6 +261,36 @@ const DEPENDENCY_MAP = {
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
     provides: [],
     requires: ["organizationId", "ledgerId", "segmentId"]
+  },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "segmentId"]
+  },
+  
+  // Count/Metrics endpoints (HEAD requests)
+  "HEAD /v1/organizations/metrics/count": {
+    provides: [],
+    requires: []
+  },
+  "HEAD /v1/organizations/{organization_id}/ledgers/metrics/count": {
+    provides: [],
+    requires: ["organizationId"]
+  },
+  "HEAD /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count": {
+    provides: [],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "HEAD /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/metrics/count": {
+    provides: [],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "HEAD /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count": {
+    provides: [],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "HEAD /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count": {
+    provides: [],
+    requires: ["organizationId", "ledgerId"]
   }
 };
 
@@ -2240,9 +2286,12 @@ function ensureExamplesFollowStandards(collection) {
               console.log(`Added 'assetCode' field to account creation request: ${item.name}`);
             }
             
-            // Fix 3: Update transaction endpoints from /transactions to /transactions/inflow for deposits
-            if (method === 'POST' && item.request.url && requestPath.includes('/transactions') && !requestPath.includes('/transactions/')) {
-              // Change to inflow endpoint for deposit transactions
+            // Fix 3: Update transaction endpoints and request bodies to match endpoint types
+            if (method === 'POST' && item.request.url && requestPath.includes('/transactions/json')) {
+              // Keep as JSON endpoint but ensure proper body structure
+              console.log(`Keeping JSON transaction endpoint for: ${item.name}`);
+            } else if (method === 'POST' && item.request.url && requestPath.includes('/transactions') && !requestPath.includes('/transactions/')) {
+              // Legacy: Change to inflow endpoint for deposit transactions and update body
               if (item.request.url.raw) {
                 item.request.url.raw = item.request.url.raw.replace('/transactions', '/transactions/inflow');
               }
@@ -2252,6 +2301,12 @@ function ensureExamplesFollowStandards(collection) {
                   item.request.url.path[transactionIndex] = 'transactions';
                   item.request.url.path.splice(transactionIndex + 1, 0, 'inflow');
                 }
+              }
+              
+              // Update request body to inflow structure (only distribute, no source)
+              if (body.send && body.send.source) {
+                delete body.send.source; // Remove source for inflow transactions
+                console.log(`Removed 'source' from inflow transaction body for: ${item.name}`);
               }
               console.log(`Updated transaction endpoint to inflow for: ${item.name}`);
             }

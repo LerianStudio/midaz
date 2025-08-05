@@ -742,9 +742,8 @@ if (pm.response.code === 200) {
                 // Update the request body with proper variable substitution
                 if (workflowItem.request.body) {
                     let bodyString = JSON.stringify(zeroOutTransactionBody, null, 2);
-                    // Replace numeric placeholders with Postman variables (without quotes) for all occurrences
-                    bodyString = bodyString.replace(/\"{{currentBalanceScale}}\"/g, '{{currentBalanceScale}}');
-                    bodyString = bodyString.replace(/\"{{currentBalanceAmount}}\"/g, '{{currentBalanceAmount}}');
+                    // Keep quotes for valid JSON - Postman will handle the variable replacement correctly
+                    // Removed quote-stripping logic that was causing invalid JSON
                     
                     workflowItem.request.body.raw = bodyString;
                     console.log(`  DEBUG: Updated request body for Zero Out Balance step`);

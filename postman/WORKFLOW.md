@@ -154,39 +154,44 @@ This document outlines a complete linear workflow for testing all the main endpo
 
 25. **Count Organizations**
 
-    - `HEAD /v1/organizations/metrics/count`
-    - Gets the total count of organizations in the system
-    - Returns count in response headers
+- `HEAD /v1/organizations/metrics/count`
+- Gets the total count of organizations in the system
+- Returns 204 No Content with X-Total-Count header containing the count
 
 26. **Count Ledgers**
 
-    - `HEAD /v1/organizations/{organizationId}/ledgers/metrics/count`
-    - Gets the total count of ledgers in the organization
-    - **Uses:** `organizationId` from step 1
+- `HEAD /v1/organizations/{organizationId}/ledgers/metrics/count`
+- Gets the total count of ledgers in the organization
+- **Uses:** `organizationId` from step 1
+- Returns 204 No Content with X-Total-Count header containing the count
 
 27. **Count Accounts**
 
-    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/metrics/count`
-    - Gets the total count of accounts in the ledger
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/metrics/count`
+- Gets the total count of accounts in the ledger
+- **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- Returns 204 No Content with X-Total-Count header containing the count
 
 28. **Count Assets**
 
-    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/metrics/count`
-    - Gets the total count of assets in the ledger
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/metrics/count`
+- Gets the total count of assets in the ledger
+- **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- Returns 204 No Content with X-Total-Count header containing the count
 
 29. **Count Portfolios**
 
-    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/metrics/count`
-    - Gets the total count of portfolios in the ledger
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/metrics/count`
+- Gets the total count of portfolios in the ledger
+- **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- Returns 204 No Content with X-Total-Count header containing the count
 
 30. **Count Segments**
 
-    - `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/metrics/count`
-    - Gets the total count of segments in the ledger
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- `HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/metrics/count`
+- Gets the total count of segments in the ledger
+- **Uses:** `organizationId` from step 1, `ledgerId` from step 5
+- Returns 204 No Content with X-Total-Count header containing the count
 
 31. **Get Account by Alias**
 
@@ -355,7 +360,7 @@ This document outlines a complete linear workflow for testing all the main endpo
 - **Complete Coverage**: Now includes 56 steps covering implemented API endpoints plus business flow variations.
 - **Enhanced Sections Added**:
   - **Metrics Endpoints** (Steps 25-30): All count/metrics operations for monitoring
-  - **Alternative Access** (Steps 31-32): Account lookup by alias and external code  
+  - **Alternative Access** (Steps 31-32): Account lookup by alias and external code
   - **Transaction Variants** (Steps 34-35): Inflow and outflow transaction types
   - **Extended Balance Operations** (Steps 44-45): Balance queries by alias/external code
 - **Dependency Chain Maintained**: Each step builds on previous steps, using IDs and resources created earlier.

@@ -357,6 +357,7 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    const transactionIdVar = varPrefix ? varPrefix + "TransactionId" : "transactionId";\n' +
         '    const operationIdVar = varPrefix ? varPrefix + "OperationId" : "operationId";\n' +
         '    const balanceIdVar = varPrefix ? varPrefix + "BalanceId" : "balanceId";\n' +
+        '    const accountIdVar = varPrefix ? varPrefix + "AccountId" : "accountId";\n' +
         '    \n' +
         '    pm.environment.set(transactionIdVar, jsonData.id);\n' +
         '    console.log("💾 Stored " + transactionIdVar + ":", jsonData.id);\n' +
@@ -365,6 +366,12 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    if (jsonData.operations && jsonData.operations.length > 0) {\n' +
         '        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n' +
         '        console.log("💾 Stored " + operationIdVar + ":", jsonData.operations[0].id);\n' +
+        '        \n' +
+        '        // Extract and store accountId\n' +
+        '        if (jsonData.operations[0].accountId) {\n' +
+        '            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n' +
+        '            console.log("💾 Stored " + accountIdVar + ":", jsonData.operations[0].accountId);\n' +
+        '        }\n' +
         '        \n' +
         '        if (jsonData.operations[0].balanceId) {\n' +
         '            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n' +
