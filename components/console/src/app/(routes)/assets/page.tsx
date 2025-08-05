@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
 import { useOrganization } from '@lerianstudio/console-layout'
@@ -11,7 +11,6 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useParams } from 'next/navigation'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -25,7 +24,6 @@ import { useToast } from '@/hooks/use-toast'
 
 const Page = () => {
   const intl = useIntl()
-  const { id: ledgerId } = useParams<{ id: string }>()
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
@@ -34,7 +32,7 @@ const Page = () => {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({ total })
 
@@ -47,20 +45,6 @@ const Page = () => {
     ledgerId: currentLedger.id,
     ...(searchValues as any)
   })
-
-  useEffect(() => {
-    if (!assets?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (assets.items.length >= assets.limit) {
-      setTotal(assets.limit + 1)
-      return
-    }
-
-    setTotal(assets.items.length)
-  }, [assets?.items, assets?.limit])
 
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteAsset({
     organizationId: currentOrganization.id!,
@@ -194,7 +178,11 @@ const Page = () => {
         {...dialogProps}
       />
 
-      <AssetsSheet ledgerId={ledgerId} onSuccess={refetch} {...sheetProps} />
+      <AssetsSheet
+        ledgerId={currentLedger.id}
+        onSuccess={refetch}
+        {...sheetProps}
+      />
 
       <div className="mt-10">
         {isLoading && <AssetsSkeleton />}

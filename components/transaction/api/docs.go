@@ -2613,7 +2613,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -3528,13 +3528,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -3556,13 +3552,9 @@ const docTemplate = `{
                                 }
                             }
                         },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
-                        },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
                 }
@@ -3626,8 +3618,8 @@ const docTemplate = `{
                                                         "type": "string"
                                                     },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: \"100\"\nrequired: true",
-                                                        "type": "number"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -3650,8 +3642,8 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100\"\nrequired: true",
-                            "type": "number"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
                 }
@@ -4263,7 +4255,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+        "github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",
             "type": "object",
             "properties": {
@@ -4321,8 +4313,8 @@ const docTemplate = `{
                                                         "type": "string"
                                                     },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "number"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -4367,8 +4359,8 @@ const docTemplate = `{
                                                         "type": "string"
                                                     },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "number"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -4391,8 +4383,8 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "number"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
                 }

@@ -171,13 +171,6 @@ export const TransactionReview = () => {
         (op: any) => !op.metadata?.source
       )
 
-      const accountsWithFees = new Set(
-        feeOperations.map((op: any) => op.accountAlias)
-      )
-      const accountsWithPrincipal = new Set(
-        nonFeeOperations.map((op: any) => op.accountAlias)
-      )
-
       // Keep fee operations separate from principal operations
       const destinationOperations: any[] = []
 
@@ -215,11 +208,6 @@ export const TransactionReview = () => {
           }
         })
       })
-
-      const consolidatedData = {
-        sourceOperations,
-        destinationOperations
-      }
 
       const transactionTotal = sourceOperations.reduce((sum, op) => {
         return sum + parseFloat(op.amount.value)

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { useOrganization } from '@lerianstudio/console-layout'
@@ -34,7 +34,7 @@ const Page = () => {
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { toast } = useToast()
 
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({
     total,
@@ -52,20 +52,6 @@ const Page = () => {
     ledgerId: currentLedger.id,
     query: searchValues as any
   })
-
-  useEffect(() => {
-    if (!accountsData?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (accountsData.items.length >= accountsData.limit) {
-      setTotal(accountsData.limit + 1)
-      return
-    }
-
-    setTotal(accountsData.items.length)
-  }, [accountsData?.items, accountsData?.limit])
 
   const accountsList: AccountDto[] = useMemo(() => {
     return (

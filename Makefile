@@ -136,14 +136,6 @@ help:
 	@echo "Documentation Commands:"
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
-	@echo "Demo Data Commands:"
-	@echo "  make demo-data                   - Generate demo data with small volume"
-	@echo "  make demo-data-medium            - Generate demo data with medium volume"
-	@echo "  make demo-data-large             - Generate demo data with large volume"
-	@echo "  make demo-data-test              - Run simplified tests for demo data generator"
-	@echo "  make demo-data-test-full         - Run full Jest tests for demo data generator"
-	@echo "  make demo-data-test-mode         - Test demo data generator in test mode"
-	@echo ""
 	@echo ""
 
 #-------------------------------------------------------
@@ -499,32 +491,6 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
-
-#-------------------------------------------------------
-# Demo Data Commands
-#-------------------------------------------------------
-
-.PHONY: demo-data demo-data-small demo-data-medium demo-data-large demo-data-test demo-data-test-watch demo-data-test-coverage
-
-demo-data: demo-data-small
-
-demo-data-small:
-	$(call print_title,"Generating demo data with small volume")
-	@echo "Running demo data generator with small volume..."
-	@cd scripts/demo-data && ./run-generator.sh small none
-	@echo "[ok] Demo data generated successfully with small volume"
-
-demo-data-medium:
-	$(call print_title,"Generating demo data with medium volume")
-	@echo "Running demo data generator with medium volume..."
-	@cd scripts/demo-data && ./run-generator.sh medium none
-	@echo "[ok] Demo data generated successfully with medium volume"
-
-demo-data-large:
-	$(call print_title,"Generating demo data with large volume")
-	@echo "Running demo data generator with large volume..."
-	@cd scripts/demo-data && ./run-generator.sh large none
-	@echo "[ok] Demo data generated successfully with large volume"
 
 #-------------------------------------------------------
 # Developer Helper Commands
