@@ -32,7 +32,6 @@ import ConfirmationDialog from '@/components/confirmation-dialog'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OrganizationDto } from '@/core/application/dto/organization-dto'
-import { useOrganization } from '@lerianstudio/console-layout'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import { InputField } from '@/components/form'
 import { Pagination } from '@/components/pagination'
@@ -40,14 +39,15 @@ import { useQueryParams } from '@/hooks/use-query-params'
 import { Form } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { useOrganization } from '@lerianstudio/console-layout'
 
 export const OrganizationsTabContent = () => {
   const intl = useIntl()
-  const { currentOrganization, setOrganization } = useOrganization()
   const router = useRouter()
   const { toast } = useToast()
+  const { currentOrganization, setOrganization } = useOrganization()
 
-  const [total, setTotal] = React.useState(0)
+  const [total, setTotal] = React.useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({
     total,
@@ -59,21 +59,6 @@ export const OrganizationsTabContent = () => {
   const { data, isLoading, refetch } = useListOrganizations({
     query: searchValues as any
   })
-
-  // Update total count when data is received - following pagination pattern from other components
-  React.useEffect(() => {
-    if (!data?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (data.items.length >= data.limit) {
-      setTotal(data.limit + 1)
-      return
-    }
-
-    setTotal(data.items.length)
-  }, [data?.items, data?.limit])
 
   const { mutate: deleteOrganization, isPending: deletePending } =
     useDeleteOrganization({
@@ -252,7 +237,8 @@ export const OrganizationsTabContent = () => {
                                 >
                                   {intl.formatMessage({
                                     id: `organizations.useOrganization`,
-                                    defaultMessage: 'Use this Organization'
+                                    defaultMessage:
+                                      'Switch to this organization'
                                   })}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
