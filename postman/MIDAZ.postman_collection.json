@@ -4483,7 +4483,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "5598a954-7e99-4b70-8d21-b44aabebe443",
+                "id": "0937cf7d-3cf9-43ef-9dec-238a9f50ce24",
                 "exec": [
                   "\n// ===== WORKFLOW SUMMARY =====\nconsole.log(\"📊 Workflow Execution Summary\");\nconsole.log(\"Total Steps: undefined\");\n\n// Calculate total execution time\nconst startTime = pm.globals.get(\"workflow_start_time\");\nif (startTime) {\n    const totalTime = Date.now() - startTime;\n    console.log(\"⏱️ Total Execution Time: \" + totalTime + \"ms\");\n    pm.globals.set(\"workflow_total_time\", totalTime);\n}\n\n// Summary of step performance\nconsole.log(\"📈 Performance Summary:\");\nfor (let i = 1; i <= undefined; i++) {\n    const stepTime = pm.environment.get(\"perf_step_\" + i);\n    if (stepTime) {\n        console.log(\"  Step \" + i + \": \" + stepTime + \"ms\");\n    }\n}\n\nconsole.log(\"✅ Workflow completed successfully\");\n"
                 ],
@@ -4493,7 +4493,7 @@
           ]
         }
       ],
-      "_postman_id": "d7a84926-6b0b-4cfe-a383-7ce3e35bccd1",
+      "_postman_id": "b00537a7-bda1-45a9-8b55-260b6921fbaa",
       "event": []
     },
     {

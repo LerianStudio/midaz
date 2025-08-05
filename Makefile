@@ -137,6 +137,12 @@ help:
 	@echo "  make generate-docs               - Generate Swagger documentation for all services"
 	@echo ""
 	@echo ""
+	@echo "API Testing Commands:"
+	@echo "  make newman                      - Run complete API workflow tests with Newman"
+	@echo "  make newman-install              - Install Newman CLI and reporters globally"
+	@echo "  make newman-env-check            - Verify environment file exists"
+	@echo ""
+	@echo ""
 
 #-------------------------------------------------------
 # Core Commands
@@ -491,6 +497,61 @@ all-components:
 .PHONY: generate-docs
 generate-docs:
 	@./scripts/generate-docs.sh
+
+#-------------------------------------------------------
+# Newman / API Testing Commands
+#-------------------------------------------------------
+
+.PHONY: newman newman-install newman-env-check
+
+# Install Newman globally if not already installed
+newman-install:
+	$(call print_title,"Installing Newman CLI")
+	@if ! command -v newman >/dev/null 2>&1; then \
+		echo "📦 Newman not found. Installing globally..."; \
+		npm install -g newman newman-reporter-html newman-reporter-htmlextra; \
+		echo "✅ Newman installed successfully"; \
+	else \
+		echo "✅ Newman already installed: $$(newman --version)"; \
+	fi
+
+# Check environment file exists and has required variables
+newman-env-check:
+	@if [ ! -f "./postman/MIDAZ.postman_environment.json" ]; then \
+		echo "❌ Environment file not found: ./postman/MIDAZ.postman_environment.json"; \
+		echo "💡 Run 'make generate-docs' first to create the environment file"; \
+		exit 1; \
+	fi
+	@echo "✅ Environment file found: ./postman/MIDAZ.postman_environment.json"
+
+# Main Newman target - runs the complete API workflow (65 steps)
+newman: newman-install newman-env-check
+	$(call print_title,"Running Complete API Workflow with Newman")
+	@if [ ! -f "./postman/MIDAZ.postman_collection.json" ]; then \
+		echo "❌ Collection file not found. Running documentation generation first..."; \
+		$(MAKE) generate-docs; \
+	fi
+	@echo "🚀 Starting complete API workflow test (65 steps)..."
+	@mkdir -p ./reports/newman
+	newman run "./postman/MIDAZ.postman_collection.json" \
+		--environment "./postman/MIDAZ.postman_environment.json" \
+		--folder "Complete API Workflow" \
+		--reporters cli,html,htmlextra \
+		--reporter-html-export "./reports/newman/workflow-report.html" \
+		--reporter-htmlextra-export "./reports/newman/workflow-detailed-report.html" \
+		--reporter-htmlextra-title "Midaz API Workflow Test Report" \
+		--reporter-htmlextra-showOnlyFails \
+		--timeout-request 30000 \
+		--timeout-script 10000 \
+		--delay-request 100 \
+		--color on
+	@echo ""
+	@echo "📊 Test Reports Generated:"
+	@echo "  - CLI Summary: displayed above"
+	@echo "  - HTML Report: ./reports/newman/workflow-report.html"
+	@echo "  - Detailed Report: ./reports/newman/workflow-detailed-report.html"
+	@echo ""
+	@echo "🎯 Open detailed report: file://$(PWD)/./reports/newman/workflow-detailed-report.html"
 
 #-------------------------------------------------------
 # Developer Helper Commands
