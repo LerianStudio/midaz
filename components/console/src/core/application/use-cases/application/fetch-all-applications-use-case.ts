@@ -1,6 +1,5 @@
 import { inject, injectable } from 'inversify'
 import { ApplicationResponseDto } from '../../dto/application-dto'
-import { PaginationDto } from '../../dto/pagination-dto'
 import { ApplicationRepository } from '@/core/domain/repositories/identity/application-repository'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 import { ApplicationMapper } from '../../mappers/application-mapper'

@@ -3,12 +3,12 @@ package ledger
 import (
 	"encoding/json"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/rest"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/output"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/tui"
 
 	"github.com/fatih/color"
 	"github.com/rodaine/table"

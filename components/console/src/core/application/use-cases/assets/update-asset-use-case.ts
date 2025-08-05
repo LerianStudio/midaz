@@ -1,5 +1,5 @@
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
-import { AssetResponseDto } from '../../dto/asset-dto'
+import { AssetDto } from '../../dto/asset-dto'
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { inject, injectable } from 'inversify'
@@ -12,7 +12,7 @@ export interface UpdateAsset {
     ledgerId: string,
     assetId: string,
     asset: Partial<UpdateAssetDto>
-  ) => Promise<AssetResponseDto>
+  ) => Promise<AssetDto>
 }
 
 @injectable()
@@ -28,7 +28,7 @@ export class UpdateAssetUseCase implements UpdateAsset {
     ledgerId: string,
     assetId: string,
     asset: Partial<UpdateAssetDto>
-  ): Promise<AssetResponseDto> {
+  ): Promise<AssetDto> {
     const updateAssetEntity: Partial<AssetEntity> = AssetMapper.toDomain(
       asset as CreateAssetDto
     )

@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

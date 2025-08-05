@@ -14,5 +14,5 @@ export function getBreadcrumbPaths(paths: BreadcrumbPathTabs) {
 
       return path.active()
     })
-    .map(({ active, ...path }) => path)
+    .map(({ active: _active, ...path }) => path)
 }

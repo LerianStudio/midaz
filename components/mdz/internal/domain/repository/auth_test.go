@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/model"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

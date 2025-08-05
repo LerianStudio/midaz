@@ -30,7 +30,7 @@ export const DELETE = applyMiddleware(
     }: { params: { id: string; ledgerId: string; portfolioId: string } }
   ) => {
     try {
-      const { id: organizationId, ledgerId, portfolioId } = params
+      const { id: organizationId, ledgerId, portfolioId } = await params
       const deletePortfolioUseCase: DeletePortfolio =
         container.get<DeletePortfolio>(DeletePortfolioUseCase)
 
@@ -63,7 +63,7 @@ export const PATCH = applyMiddleware(
     try {
       const updatePortfolioUseCase: UpdatePortfolio =
         container.get<UpdatePortfolio>(UpdatePortfolioUseCase)
-      const { id: organizationId, ledgerId, portfolioId } = params
+      const { id: organizationId, ledgerId, portfolioId } = await params
       const body = await request.json()
 
       const portfolioUpdated = await updatePortfolioUseCase.execute(
@@ -97,7 +97,7 @@ export const GET = applyMiddleware(
     try {
       const getPortfolioByIdUseCase: FetchPortfolioById =
         container.get<FetchPortfolioById>(FetchPortfolioByIdUseCase)
-      const { id: organizationId, ledgerId, portfolioId } = params
+      const { id: organizationId, ledgerId, portfolioId } = await params
 
       const portfolio = await getPortfolioByIdUseCase.execute(
         organizationId,

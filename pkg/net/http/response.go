@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/gofiber/fiber/v2"
 	"net/http"
 	"strconv"

@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { InputWithIconProps, InputWithIcon } from '.'
 import { Search } from 'lucide-react'
 import { FormProvider, useForm } from 'react-hook-form'

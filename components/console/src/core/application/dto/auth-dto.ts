@@ -22,4 +22,4 @@ export type AuthSessionDto = {
 type AuthResourceDto = string
 type AuthActionDto = string
 
-export type AuthPermissionResponseDto = Record<AuthResourceDto, AuthActionDto[]>
+export type AuthPermissionDto = Record<AuthResourceDto, AuthActionDto[]>

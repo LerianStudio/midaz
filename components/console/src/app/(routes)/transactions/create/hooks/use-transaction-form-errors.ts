@@ -16,8 +16,8 @@ export const useTransactionFormErrors = (
   const { errors, add, remove } = useCustomFormError()
   const { value, source, destination } = values
 
-  const sum = (source: TransactionSourceFormSchema) =>
-    source.reduce((acc, curr) => acc + Number(curr.value), 0)
+  const total = (source: TransactionSourceFormSchema) =>
+    source.reduce((account, current) => account + Number(current.value), 0)
 
   const dataLoss = (values: TransactionFormSchema) => {
     if (
@@ -38,7 +38,7 @@ export const useTransactionFormErrors = (
 
   const totalSumSourceRule = (values: TransactionFormSchema) => {
     const value = Number(values.value)
-    const totalSource = sum(values.source)
+    const totalSource = total(values.source)
 
     if (value !== totalSource) {
       add('debit', {
@@ -57,7 +57,7 @@ export const useTransactionFormErrors = (
 
   const totalSumDestinationRule = (values: TransactionFormSchema) => {
     const value = Number(values.value)
-    const totalDestination = sum(values.destination)
+    const totalDestination = total(values.destination)
 
     if (value !== totalDestination) {
       add('credit', {
@@ -81,16 +81,14 @@ export const useTransactionFormErrors = (
     const asset = values.asset
     const sources = values.source
 
-    // Check if source if has enough funds to
     // complete the transaction
     return sources
       .map((source) => {
-        // External accounts has untrusted balances
-        if (source.account.includes(externalAccountAliasPrefix)) {
+        if (source.accountAlias.includes(externalAccountAliasPrefix)) {
           return false
         }
 
-        const account = accounts[source.account]
+        const account = accounts[source.accountAlias]
         if (!account) {
           return false
         }
@@ -100,13 +98,13 @@ export const useTransactionFormErrors = (
         )
 
         if (!balance) {
-          add(`source.${source.account}`, {
+          add(`source.${source.accountAlias}`, {
             message: intl.formatMessage(
               {
                 id: 'transactions.errors.insufficientFunds',
                 defaultMessage: 'Insufficient funds in {account} account'
               },
-              { account: source.account }
+              { account: source.accountAlias }
             ),
             metadata: {
               account
@@ -117,13 +115,13 @@ export const useTransactionFormErrors = (
         }
 
         if (Number(balance.available) < Number(source.value)) {
-          add(`source.${source.account}`, {
+          add(`source.${source.accountAlias}`, {
             message: intl.formatMessage(
               {
                 id: 'transactions.errors.insufficientFunds',
                 defaultMessage: 'Insufficient funds in {account} account'
               },
-              { account: source.account }
+              { account: source.accountAlias }
             ),
             metadata: {
               account
@@ -133,7 +131,7 @@ export const useTransactionFormErrors = (
           return true
         }
 
-        remove(`source.${source.account}`)
+        remove(`source.${source.accountAlias}`)
         setOpen(false)
         return false
       })
@@ -163,7 +161,7 @@ export const useTransactionFormErrors = (
   React.useEffect(() => {
     totalSumSourceRule(values)
     totalSumDestinationRule(values)
-  }, [value, sum(source), sum(destination)])
+  }, [value, total(source), total(destination)])
 
   return { errors, open, setOpen, validate, add, remove }
 }

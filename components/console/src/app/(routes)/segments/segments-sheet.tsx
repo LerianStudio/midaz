@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { segment } from '@/schema/segment'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
@@ -20,15 +20,15 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCreateSegment, useUpdateSegment } from '@/client/segments'
-import { SegmentType } from '@/types/segment-type'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: SegmentType | null
+  data?: SegmentDto | null
   onSuccess?: () => void
 }
 
@@ -140,7 +140,7 @@ export const SegmentsSheet = ({
 
         <Form {...form}>
           <form
-            className="flex flex-grow flex-col"
+            className="flex grow flex-col"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
             <Tabs defaultValue="details" className="mt-0">
@@ -159,7 +159,7 @@ export const SegmentsSheet = ({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="details">
-                <div className="flex flex-grow flex-col gap-4">
+                <div className="flex grow flex-col gap-4">
                   <InputField
                     name="name"
                     label={intl.formatMessage({
@@ -171,7 +171,7 @@ export const SegmentsSheet = ({
                     required
                   />
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'

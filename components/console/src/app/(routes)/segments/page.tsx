@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useIntl } from 'react-intl'
 import ConfirmationDialog from '@/components/confirmation-dialog'
@@ -12,7 +12,7 @@ import {
   getFilteredRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { SegmentsSheet } from './segments-sheet'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
@@ -20,42 +20,35 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { SegmentsDataTable } from './segments-data-table'
 import { SegmentsSkeleton } from './segments-skeleton'
-import { SegmentType } from '@/types/segment-type'
+import { SegmentDto } from '@/core/application/dto/segment-dto'
+import { EntityBox } from '@/components/entity-box'
+import { InputField } from '@/components/form'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { Form } from '@/components/ui/form'
 
 const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const [columnFilters, setColumnFilters] = useState<any>([])
 
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({
-    total
+    total,
+    initialValues: {
+      id: ''
+    }
   })
 
   const {
     data: segments,
     refetch,
-    isLoading: isSegmentsLoading
+    isFetching: isSegmentsLoading
   } = useListSegments({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
-
-  useEffect(() => {
-    if (!segments?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (segments.items.length >= segments.limit) {
-      setTotal(segments.limit + 1)
-      return
-    }
-
-    setTotal(segments.items.length)
-  }, [segments?.items, segments?.limit])
 
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteSegment({
     organizationId: currentOrganization.id!,
@@ -73,7 +66,7 @@ const Page = () => {
   )
 
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<SegmentType>({
+    useCreateUpdateSheet<SegmentDto>({
       enableRouting: true
     })
 
@@ -114,7 +107,6 @@ const Page = () => {
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   }
@@ -146,7 +138,7 @@ const Page = () => {
 
             <Button onClick={handleCreate} data-testid="new-segment">
               {intl.formatMessage({
-                id: 'segments.listingTemplate.addButton',
+                id: 'ledgers.segments.sheet.title',
                 defaultMessage: 'New Segment'
               })}
             </Button>
@@ -191,13 +183,29 @@ const Page = () => {
         {...sheetProps}
       />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isSegmentsLoading && <SegmentsSkeleton />}
 
         {!isSegmentsLoading && segments && (
           <SegmentsDataTable {...segmentsProps} />
         )}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

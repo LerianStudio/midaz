@@ -47,14 +47,15 @@ export const ComboBoxField = ({
   const intl = useIntl()
   const [open, setOpen] = React.useState(false)
 
-  // Transforms the children into an array of options
   // with the value and label
   const options = React.useMemo(
     () =>
       React.Children.map(
         React.Children.toArray(children),
         (child) =>
-          React.isValidElement(child) && {
+          React.isValidElement<{ value: string; children: React.ReactNode }>(
+            child
+          ) && {
             value: child.props.value,
             label: child.props.children as string
           }
@@ -103,7 +104,7 @@ export const ComboBoxField = ({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
               <Command>
                 <CommandInput
                   placeholder={
@@ -126,7 +127,10 @@ export const ComboBoxField = ({
                     {React.Children.map(
                       React.Children.toArray(children),
                       (child) =>
-                        React.isValidElement(child)
+                        React.isValidElement<{
+                          value: string
+                          children: React.ReactNode
+                        }>(child)
                           ? React.cloneElement(child, {
                               keywords: [child.props.children as string],
                               onSelect: (value: string) => {

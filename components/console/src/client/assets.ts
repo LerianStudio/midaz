@@ -1,4 +1,4 @@
-import { AssetResponseDto } from '@/core/application/dto/asset-dto'
+import { AssetDto } from '@/core/application/dto/asset-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
@@ -10,8 +10,10 @@ import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   useMutation,
   UseMutationOptions,
-  useQuery
+  useQuery,
+  useQueryClient
 } from '@tanstack/react-query'
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
 
 type UseCreateAssetProps = UseMutationOptions & {
   organizationId: string
@@ -31,13 +33,29 @@ type UseDeleteAssetProps = UseCreateAssetProps
 const useCreateAsset = ({
   organizationId,
   ledgerId,
+  onSuccess,
   ...options
 }: UseCreateAssetProps) => {
+  const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
+
   return useMutation<any, any, any>({
     mutationFn: postFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/assets`
     ),
-    ...options
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: ['ledger', organizationId, ledgerId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      layoutQueryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      onSuccess?.(...args)
+    }
   })
 }
 
@@ -48,7 +66,7 @@ const useListAssets = ({
   limit,
   ...options
 }: UseListAssetsProps) => {
-  return useQuery<PaginationDto<AssetResponseDto>>({
+  return useQuery<PaginationDto<AssetDto>>({
     queryKey: ['assets', organizationId, ledgerId, page, limit],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/assets`,

@@ -10,7 +10,6 @@ const messages = defineMessages({
     defaultMessage: 'Required field'
   },
 
-  // too_small
   too_small_string_exact: {
     id: 'errors.too_small.string.exact',
     defaultMessage:
@@ -48,7 +47,6 @@ const messages = defineMessages({
       'Field must contain at least {minimum} {minimum, plural, =0 {items} one {item} other {items}}'
   },
 
-  // too_big
   too_big_string_exact: {
     id: 'errors.too_big.string.exact',
     defaultMessage:
@@ -81,7 +79,6 @@ const messages = defineMessages({
     defaultMessage: 'Date must be before {maximum}'
   },
 
-  // custom
   custom_special_characters: {
     id: 'errors.custom.special_characters',
     defaultMessage: 'Field must not contain special characters'
@@ -118,6 +115,11 @@ const messages = defineMessages({
     id: 'errors.custom.alphanumeric_with_dash_underscore',
     defaultMessage:
       'Field must contain only letters, numbers, hyphens, and underscores'
+  },
+  custom_alphanumeric_alias: {
+    id: 'errors.custom.alphanumeric_alias',
+    defaultMessage:
+      'Field must contain only letters, numbers, hyphens, underscores, and @ and :'
   },
   custom_avatar_invalid_format: {
     id: 'errors.custom.avatar.invalid_format',

@@ -9,7 +9,7 @@ import { BalanceDto } from '@/core/application/dto/balance-dto'
 export type OperationSourceSimpleFieldProps = {
   name: string
   onSubmit?: (value: string, account: AccountDto) => void
-  onRefreshed?: () => void
+  _onRefreshed?: () => void
   onRemove?: (alias: string) => void
   control: Control<TransactionFormSchema>
   expand?: boolean
@@ -18,7 +18,7 @@ export type OperationSourceSimpleFieldProps = {
 export const OperationSourceSimpleField = ({
   name,
   onSubmit,
-  onRefreshed,
+  _onRefreshed,
   onRemove,
   control,
   expand,
@@ -30,7 +30,7 @@ export const OperationSourceSimpleField = ({
 
   const handleRefreshed = (balances: BalanceDto[]) => {
     balances.forEach((balance) => {
-      addBalance(values[0].account, balance)
+      addBalance(values[0].accountAlias, balance)
     })
   }
 
@@ -38,9 +38,9 @@ export const OperationSourceSimpleField = ({
     <>
       {values.length > 0 && (
         <AccountBalanceCard
-          account={accounts[values[0].account!]}
+          account={accounts[values[0].accountAlias!]}
           onRefreshed={handleRefreshed}
-          onDelete={() => onRemove?.(values[0].account)}
+          onDelete={() => onRemove?.(values[0].accountAlias)}
           icon
           expand={expand}
           {...props}

@@ -27,8 +27,7 @@ export const POST = applyMiddleware(
       const createAssetUseCase: CreateAsset =
         container.get<CreateAsset>(CreateAssetUseCase)
       const body = await request.json()
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       const assetCreated = await createAssetUseCase.execute(
         organizationId,
@@ -62,8 +61,7 @@ export const GET = applyMiddleware(
       const { searchParams } = new URL(request.url)
       const limit = Number(searchParams.get('limit')) || 10
       const page = Number(searchParams.get('page')) || 1
-      const organizationId = params.id
-      const ledgerId = params.ledgerId
+      const { id: organizationId, ledgerId } = await params
 
       const assets = await fetchAllAssetsUseCase.execute(
         organizationId,

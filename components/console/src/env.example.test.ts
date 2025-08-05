@@ -3,7 +3,7 @@ import fs from 'fs'
 const getValue = (file: string, variable: string) => {
   const match = file.match(new RegExp(`^${variable}=(.*)$`, 'm'))
   const value = match ? match[1] : null
-  return value?.replaceAll("'", '')
+  return value?.replaceAll("'", '').replaceAll('"', '')
 }
 
 describe('.env.example', () => {

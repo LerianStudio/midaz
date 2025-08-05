@@ -1,4 +1,8 @@
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PortfolioDto,
+  PortfolioSearchParamDto
+} from '@/core/application/dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import {
   getFetcher,
@@ -7,8 +11,6 @@ import {
   deleteFetcher,
   getPaginatedFetcher
 } from '@/lib/fetcher'
-import { PaginationRequest } from '@/types/pagination-request-type'
-import { PortfolioType } from '@/types/portfolio-type'
 import {
   useMutation,
   UseMutationOptions,
@@ -20,29 +22,28 @@ type UseCreatePortfolioProps = UseMutationOptions & {
   ledgerId: string
 }
 
-type UsePortfoliosWithAccountsProps = PaginationRequest & {
+type UsePortfoliosWithAccountsProps = {
   organizationId: string
   ledgerId: string
+  query: PortfolioSearchParamDto
 }
 
 export const usePortfoliosWithAccounts = ({
   organizationId,
   ledgerId,
-  page,
-  limit,
+  query,
   ...options
 }: UsePortfoliosWithAccountsProps) => {
-  return useQuery<PaginationDto<PortfolioType>>({
+  return useQuery<PaginationDto<PortfolioDto>>({
     queryKey: [
       organizationId,
       ledgerId,
       'portfolios-with-accounts',
-      page,
-      limit
+      Object.values(query)
     ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/portfolios-accounts`,
-      { page, limit }
+      query
     ),
     enabled: !!organizationId && !!ledgerId,
     ...options
@@ -131,7 +132,7 @@ export const useGetPortfolio = ({
   portfolioId,
   ...options
 }: UseGetPortfolioProps) => {
-  return useQuery<PortfolioType>({
+  return useQuery<PortfolioDto>({
     queryKey: [organizationId, ledgerId, 'portfolio', portfolioId],
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/portfolios/${portfolioId}`

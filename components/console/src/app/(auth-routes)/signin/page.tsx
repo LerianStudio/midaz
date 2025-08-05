@@ -44,9 +44,7 @@ const SignInPage = () => {
   const [redirectUrl, setRedirectUrl] = React.useState<string | null>(null)
 
   const { data: organizationsData, isLoading: orgLoading } =
-    useListOrganizations({
-      enabled: isLoading
-    })
+    useListOrganizations({})
 
   React.useEffect(() => {
     if (isLoading && !orgLoading) {
@@ -102,7 +100,7 @@ const SignInPage = () => {
             })}
           </h1>
 
-          <p className="pt-4 text-sm text-shadcn-400">
+          <p className="text-shadcn-400 pt-4 text-sm">
             {intl.formatMessage({
               id: 'signIn.descriptionLogin',
               defaultMessage: 'Enter your email and password to continue.'
@@ -153,7 +151,7 @@ const SignInPage = () => {
                   iconPlacement="far-end"
                 >
                   {intl.formatMessage({
-                    id: 'signIn.buttonSignIn',
+                    id: 'common.continue',
                     defaultMessage: 'Continue'
                   })}
                 </LoadingButton>

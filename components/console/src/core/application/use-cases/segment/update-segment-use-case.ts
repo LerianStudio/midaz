@@ -1,5 +1,5 @@
 import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
-import { SegmentResponseDto, UpdateSegmentDto } from '../../dto/segment-dto'
+import { SegmentDto, UpdateSegmentDto } from '../../dto/segment-dto'
 import { SegmentEntity } from '@/core/domain/entities/segment-entity'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
@@ -11,7 +11,7 @@ export interface UpdateSegment {
     ledgerId: string,
     segmentId: string,
     segment: Partial<UpdateSegmentDto>
-  ) => Promise<SegmentResponseDto>
+  ) => Promise<SegmentDto>
 }
 
 @injectable()
@@ -27,7 +27,7 @@ export class UpdateSegmentUseCase implements UpdateSegment {
     ledgerId: string,
     segmentId: string,
     segment: Partial<UpdateSegmentDto>
-  ): Promise<SegmentResponseDto> {
+  ): Promise<SegmentDto> {
     const segmentEntity: Partial<SegmentEntity> =
       SegmentMapper.toDomain(segment)
 

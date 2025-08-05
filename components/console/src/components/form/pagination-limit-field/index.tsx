@@ -16,7 +16,7 @@ export const PaginationLimitField = ({
 
   return (
     <div className="flex items-center gap-4">
-      <p className="whitespace-nowrap text-sm font-medium text-gray-600">
+      <p className="text-sm font-medium whitespace-nowrap text-gray-600">
         {intl.formatMessage({
           id: 'common.itemsPerPage',
           defaultMessage: 'Items per page'

@@ -16,3 +16,5 @@ export const uppercaseLettersOnly = /^[A-Z]+$/
 export const oneSpecialCharacter = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/
 
 export const alphanumericWithDashUnderscoreRegex = /^[a-zA-Z0-9_\-]+$/
+
+export const alphanumericAliasRegex = /^[a-zA-Z0-9@:_-]+$/

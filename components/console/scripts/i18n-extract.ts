@@ -1,4 +1,10 @@
-import { extract } from '@formatjs/cli-lib'
+/**
+ * @formatjs/cli-lib has a breaking change in version 7.0.0
+ * which requires the use of `lib_esnext` instead of `lib`
+ *
+ * https://github.com/formatjs/formatjs/issues/4764
+ */
+import { extract } from '@formatjs/cli-lib/lib_esnext'
 import { glob } from 'glob'
 import { intlConfig } from '../intl.config'
 import { mkdir, open, readFile, writeFile } from 'fs/promises'

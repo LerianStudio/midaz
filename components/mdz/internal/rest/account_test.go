@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/mockutil"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/mockutil"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"

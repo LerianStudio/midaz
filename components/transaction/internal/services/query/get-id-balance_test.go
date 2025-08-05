@@ -3,16 +3,18 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 	"reflect"
 	"testing"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
 )
 
 func TestGetBalanceByID(t *testing.T) {
@@ -80,9 +82,8 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 		AccountID:      accountID.String(),
 		Alias:          "@user1",
 		AssetCode:      "USD",
-		Available:      1000,
-		OnHold:         200,
-		Scale:          2,
+		Available:      decimal.NewFromFloat(1000),
+		OnHold:         decimal.NewFromFloat(200),
 		Version:        1,
 		AccountType:    "checking",
 		AllowSending:   true,
@@ -142,9 +143,8 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 				AccountID:      accountID.String(),
 				Alias:          "@user1",
 				AssetCode:      "USD",
-				Available:      1000,
-				OnHold:         200,
-				Scale:          2,
+				Available:      decimal.NewFromFloat(1000),
+				OnHold:         decimal.NewFromFloat(200),
 				Version:        1,
 				AccountType:    "checking",
 				AllowSending:   true,

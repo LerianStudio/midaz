@@ -1,12 +1,17 @@
-import { TableCell } from '@/components/ui/table'
+import {
+  TableCell,
+  TableCellAction,
+  TableCellWrapper
+} from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
-import { truncateString } from '@/helpers'
 import { useToast } from '@/hooks/use-toast'
+import { truncate } from 'lodash'
+import { Copy } from 'lucide-react'
 import { useIntl } from 'react-intl'
 
 export type IdTableCellProps = {
@@ -16,8 +21,6 @@ export type IdTableCellProps = {
 export const IdTableCell = ({ id }: IdTableCellProps) => {
   const intl = useIntl()
   const { toast } = useToast()
-
-  const displayId = id && id.length > 12 ? `${truncateString(id, 12)}` : id
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(id!)
@@ -30,26 +33,18 @@ export const IdTableCell = ({ id }: IdTableCellProps) => {
   }
 
   return (
-    <TableCell>
-      <TooltipProvider>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger onClick={handleCopyToClipboard}>
-            <p className="text-shadcn-600 underline">{displayId}</p>
-          </TooltipTrigger>
-          <TooltipContent
-            className="border-none bg-shadcn-600"
-            arrowPadding={0}
-          >
-            <p className="text-shadcn-400">{id}</p>
-            <p className="text-center text-white">
-              {intl.formatMessage({
-                id: 'ledgers.columnsTable.tooltipCopyText',
-                defaultMessage: 'Click to copy'
-              })}
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+    <TableCell onClick={handleCopyToClipboard}>
+      <TableCellWrapper>
+        <TooltipProvider>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger>{truncate(id, { length: 16 })}</TooltipTrigger>
+            <TooltipContent>{id}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TableCellAction>
+          <Copy className="size-3.5" />
+        </TableCellAction>
+      </TableCellWrapper>
     </TableCell>
   )
 }

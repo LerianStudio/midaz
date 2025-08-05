@@ -2,13 +2,16 @@ package transaction
 
 import (
 	"database/sql"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/shopspring/decimal"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -16,23 +19,22 @@ import (
 //
 // @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string                     // Unique identifier (UUID format)
-	ParentTransactionID      *string                    // Parent transaction ID (for reversals or child transactions)
-	Description              string                     // Human-readable description
-	Template                 string                     // Template used to create this transaction
-	Status                   string                     // Status code (e.g., "ACTIVE", "PENDING")
-	StatusDescription        *string                    // Status description
-	Amount                   *int64                     // Transaction amount value
-	AmountScale              *int64                     // Decimal places for amount
-	AssetCode                string                     // Asset code for the transaction
-	ChartOfAccountsGroupName string                     // Chart of accounts group name for accounting
-	LedgerID                 string                     // Ledger ID
-	OrganizationID           string                     // Organization ID
-	Body                     libTransaction.Transaction // Transaction body containing detailed operation data
-	CreatedAt                time.Time                  // Creation timestamp
-	UpdatedAt                time.Time                  // Last update timestamp
-	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
-	Metadata                 map[string]any             // Additional custom attributes
+	ID                       string                      // Unique identifier (UUID format)
+	ParentTransactionID      *string                     // Parent transaction ID (for reversals or child transactions)
+	Description              string                      // Human-readable description
+	Status                   string                      // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                     // Status description
+	Amount                   *decimal.Decimal            // Transaction amount value
+	AssetCode                string                      // Asset code for the transaction
+	ChartOfAccountsGroupName string                      // Chart of accounts group name for accounting
+	LedgerID                 string                      // Ledger ID
+	OrganizationID           string                      // Organization ID
+	Body                     *libTransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                   // Creation timestamp
+	UpdatedAt                time.Time                   // Last update timestamp
+	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
+	Route                    *string                     // Route
+	Metadata                 map[string]any              // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -77,13 +79,19 @@ type CreateTransactionInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	//Route
+	// example: "00000000-0000-0000-0000-000000000000"
+	// maxLength: 250
+	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -91,56 +99,54 @@ type CreateTransactionInput struct {
 	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
-//	@example {
-//	  "chartOfAccountsGroupName": "FUNDING",
-//	  "description": "New Transaction",
-//	  "code": "TR12345",
-//	  "metadata": {
-//	    "reference": "TRANSACTION-001",
-//	    "source": "api"
-//	  },
-//	  "send": {
-//	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
-//	    "source": {
-//	      "from": [
-//	        {
-//	          "account": "@external/USD",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
-//	          },
-//	          "description": "Debit Operation",
-//	          "chartOfAccounts": "FUNDING_DEBIT",
-//	          "metadata": {
-//	            "operation": "funding",
-//	            "type": "external"
-//	          }
-//	        }
-//	      ]
-//	    },
-//	    "distribute": {
-//	      "to": [
-//	        {
-//	          "account": "{{accountAlias}}",
-//	          "amount": {
-//	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
-//	          },
-//	          "description": "Credit Operation",
-//	          "chartOfAccounts": "FUNDING_CREDIT",
-//	          "metadata": {
-//	            "operation": "funding",
-//	            "type": "account"
-//	          }
-//	        }
-//	      ]
-//	    }
-//	  }
-//	}
+//		@example {
+//		  "chartOfAccountsGroupName": "FUNDING",
+//		  "description": "New Transaction",
+//		  "code": "TR12345",
+//		  "metadata": {
+//		    "reference": "TRANSACTION-001",
+//		    "source": "api"
+//		  },
+//		  "route": "00000000-0000-0000-0000-000000000000",
+//		  "send": {
+//		    "asset": "USD",
+//		    "value": "100.00",
+//		    "source": {
+//		      "from": [
+//		        {
+//		          "account": "@external/USD",
+//		          "amount": {
+//		            "asset": "USD",
+//	                "value": "100.00",
+//		          },
+//		          "description": "Debit Operation",
+//		          "chartOfAccounts": "FUNDING_DEBIT",
+//		          "metadata": {
+//		            "operation": "funding",
+//		            "type": "external"
+//		          }
+//		        }
+//		      ]
+//		    },
+//		    "distribute": {
+//		      "to": [
+//		        {
+//		          "account": "{{accountAlias}}",
+//		          "amount": {
+//		            "asset": "USD",
+//		            "value": "100.00",
+//		          },
+//		          "description": "Credit Operation",
+//		          "chartOfAccounts": "FUNDING_CREDIT",
+//		          "metadata": {
+//		            "operation": "funding",
+//		            "type": "account"
+//		          }
+//		        }
+//		      ]
+//		    }
+//		  }
+//		}
 //
 // CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
 // This is only used for Swagger documentation generation
@@ -164,8 +170,9 @@ type CreateTransactionSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -180,14 +187,9 @@ type CreateTransactionSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: 100
+		// example: "100.00"
 		// required: true
-		Value int64 `json:"value"`
-
-		// Decimal places for the transaction amount
-		// example: 2
-		// required: true
-		Scale int64 `json:"scale"`
+		Value string `json:"value"`
 
 		// Source accounts and amounts for the transaction
 		// required: true
@@ -209,14 +211,9 @@ type CreateTransactionSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value int64 `json:"value"`
-
-					// Decimal places
-					// example: 2
-					// required: true
-					Scale int64 `json:"scale"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -253,14 +250,9 @@ type CreateTransactionSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value int64 `json:"value"`
-
-					// Decimal places
-					// example: 2
-					// required: true
-					Scale int64 `json:"scale"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -334,23 +326,13 @@ type Transaction struct {
 	// maxLength: 256
 	Description string `json:"description" example:"Transaction description" maxLength:"256"`
 
-	// Template used to create this transaction
-	// example: Transaction template
-	// maxLength: 100
-	Template string `json:"template" example:"Transaction template" maxLength:"100"`
-
 	// Transaction status information
 	Status Status `json:"status"`
 
 	// Transaction amount value in the smallest unit of the asset
 	// example: 1500
 	// minimum: 0
-	Amount *int64 `json:"amount" example:"1500" minimum:"0"`
-
-	// Decimal places for the transaction amount
-	// example: 2
-	// minimum: 0
-	AmountScale *int64 `json:"amountScale" example:"2" minimum:"0"`
+	Amount *decimal.Decimal `json:"amount" example:"1500" minimum:"0"`
 
 	// Asset code for the transaction
 	// example: BRL
@@ -383,6 +365,11 @@ type Transaction struct {
 
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body libTransaction.Transaction `json:"-"`
+
+	//Route
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: string
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
@@ -423,17 +410,22 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
 		Description:              t.Description,
-		Template:                 t.Template,
 		Status:                   status,
 		Amount:                   t.Amount,
-		AmountScale:              t.AmountScale,
 		AssetCode:                t.AssetCode,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
-		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
+	}
+
+	if t.Body != nil && !t.Body.IsEmpty() {
+		transaction.Body = *t.Body
+	}
+
+	if t.Route != nil {
+		transaction.Route = *t.Route
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -455,18 +447,23 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
-		Template:                 transaction.Template,
 		Status:                   transaction.Status.Code,
 		StatusDescription:        transaction.Status.Description,
 		Amount:                   transaction.Amount,
-		AmountScale:              transaction.AmountScale,
 		AssetCode:                transaction.AssetCode,
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
-		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
+	}
+
+	if !transaction.Body.IsEmpty() {
+		t.Body = &transaction.Body
+	}
+
+	if !libCommons.IsNilOrEmpty(&transaction.Route) {
+		t.Route = &transaction.Route
 	}
 
 	if transaction.DeletedAt != nil {
@@ -483,6 +480,7 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 		Code:                     cti.Code,
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
+		Route:                    cti.Route,
 	}
 
 	if cti.Send != nil {
@@ -499,43 +497,60 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 // TransactionRevert is a func that revert transaction
 func (t Transaction) TransactionRevert() libTransaction.Transaction {
 	froms := make([]libTransaction.FromTo, 0)
-
-	for _, to := range t.Body.Send.Distribute.To {
-		to.IsFrom = true
-		froms = append(froms, to)
-	}
-
-	newSource := libTransaction.Source{
-		From:      froms,
-		Remaining: t.Body.Send.Distribute.Remaining,
-	}
-
 	tos := make([]libTransaction.FromTo, 0)
 
-	for _, from := range t.Body.Send.Source.From {
-		from.IsFrom = false
-		tos = append(tos, from)
-	}
+	for _, op := range t.Operations {
+		switch op.Type {
+		case constant.CREDIT:
+			from := libTransaction.FromTo{
+				IsFrom:       true,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
 
-	newDistribute := libTransaction.Distribute{
-		To:        tos,
-		Remaining: t.Body.Send.Source.Remaining,
+			froms = append(froms, from)
+		case constant.DEBIT:
+			to := libTransaction.FromTo{
+				IsFrom:       false,
+				AccountAlias: op.AccountAlias,
+				Amount: &libTransaction.Amount{
+					Asset: op.AssetCode,
+					Value: *op.Amount.Value,
+				},
+				Description:     op.Description,
+				ChartOfAccounts: op.ChartOfAccounts,
+				Metadata:        op.Metadata,
+				Route:           op.Route,
+			}
+
+			tos = append(tos, to)
+		}
 	}
 
 	send := libTransaction.Send{
-		Asset:      t.Body.Send.Asset,
-		Value:      t.Body.Send.Value,
-		Scale:      t.Body.Send.Scale,
-		Source:     newSource,
-		Distribute: newDistribute,
+		Asset: t.AssetCode,
+		Value: *t.Amount,
+		Source: libTransaction.Source{
+			From: froms,
+		},
+		Distribute: libTransaction.Distribute{
+			To: tos,
+		},
 	}
 
 	transaction := libTransaction.Transaction{
-		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
-		Description:              t.Body.Description,
-		Code:                     t.Body.Code,
-		Pending:                  t.Body.Pending,
-		Metadata:                 t.Body.Metadata,
+		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
+		Description:              t.Description,
+		Pending:                  false,
+		Metadata:                 t.Metadata,
+		Route:                    t.Route,
 		Send:                     send,
 	}
 
@@ -604,14 +619,15 @@ type CreateTransactionInflowInput struct {
 	// maxLength: 100
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
-	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
-
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Transaction route
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Send operation details including distribution only (no source)
 	// required: true
@@ -629,16 +645,14 @@ type CreateTransactionInflowInput struct {
 //	  },
 //	  "send": {
 //	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
+//	    "value": "100.00",
 //	    "distribute": {
 //	      "to": [
 //	        {
 //	          "account": "{{accountAlias}}",
 //	          "amount": {
 //	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
+//	            "value": "100.00",
 //	          },
 //	          "description": "Credit Operation",
 //	          "chartOfAccounts": "FUNDING_CREDIT",
@@ -659,8 +673,7 @@ type CreateTransactionInflowInput struct {
 // @Description SendInflow is the struct designed to represent the sending fields of an inflow operation without source information.
 type SendInflow struct {
 	Asset      string                    `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value      int64                     `json:"value,omitempty" validate:"required" example:"1000"`
-	Scale      int64                     `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Value      decimal.Decimal           `json:"value,omitempty" validate:"required" example:"1000"`
 	Distribute libTransaction.Distribute `json:"distribute,omitempty" validate:"required"`
 } // @name SendInflow
 
@@ -685,10 +698,6 @@ type CreateTransactionInflowSwaggerModel struct {
 	// maxLength: 100
 	Code string `json:"code,omitempty"`
 
-	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
-
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
@@ -702,14 +711,9 @@ type CreateTransactionInflowSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: 100
+		// example: "100.00"
 		// required: true
-		Value int64 `json:"value"`
-
-		// Decimal places for the transaction amount
-		// example: 2
-		// required: true
-		Scale int64 `json:"scale"`
+		Value string `json:"value"`
 
 		// Destination accounts and amounts for the transaction
 		// required: true
@@ -731,14 +735,9 @@ type CreateTransactionInflowSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value int64 `json:"value"`
-
-					// Decimal places
-					// example: 2
-					// required: true
-					Scale int64 `json:"scale"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -762,12 +761,11 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 	listFrom := make([]libTransaction.FromTo, 0)
 
 	from := libTransaction.FromTo{
-		IsFrom:  true,
-		Account: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
+		IsFrom:       true,
+		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
 		Amount: &libTransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
-			Scale: c.Send.Scale,
 		},
 	}
 
@@ -777,12 +775,11 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
-		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
+		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
-			Scale:      c.Send.Scale,
 			Distribute: c.Send.Distribute,
 			Source: libTransaction.Source{
 				From: listFrom,
@@ -812,13 +809,19 @@ type CreateTransactionOutflowInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"TR12345" maxLength:"100"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
+
+	// Transaction route
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
 	// Send operation details including source only (no distribution)
 	// required: true
@@ -836,16 +839,14 @@ type CreateTransactionOutflowInput struct {
 //	  },
 //	  "send": {
 //	    "asset": "USD",
-//	    "value": 100,
-//	    "scale": 2,
+//	    "value": "100.00",
 //	    "source": {
 //	      "from": [
 //	        {
 //	          "account": "{{accountAlias}}",
 //	          "amount": {
 //	            "asset": "USD",
-//	            "value": 100,
-//	            "scale": 2
+//	            "value": "100.00",
 //	          },
 //	          "description": "Debit Operation",
 //	          "chartOfAccounts": "WITHDRAWAL_DEBIT",
@@ -866,8 +867,7 @@ type CreateTransactionOutflowInput struct {
 // @Description SendOutflow is the struct designed to represent the sending fields of an outflow operation without distribution information.
 type SendOutflow struct {
 	Asset  string                `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value  int64                 `json:"value,omitempty" validate:"required" example:"1000"`
-	Scale  int64                 `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Value  decimal.Decimal       `json:"value,omitempty" validate:"required" example:"1000"`
 	Source libTransaction.Source `json:"source,omitempty" validate:"required"`
 } // @name SendOutflow
 
@@ -893,8 +893,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 	Code string `json:"code,omitempty"`
 
 	// Whether the transaction should be created in pending state
-	// swagger:ignore
-	Pending bool `json:"pending,omitempty"`
+	// example: true
+	// swagger: type boolean
+	Pending bool `json:"pending" example:"true" default:"false"`
 
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
@@ -909,14 +910,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 		Asset string `json:"asset"`
 
 		// Transaction amount value in the smallest unit of the asset
-		// example: 100
+		// example: "100.00"
 		// required: true
-		Value int64 `json:"value"`
-
-		// Decimal places for the transaction amount
-		// example: 2
-		// required: true
-		Scale int64 `json:"scale"`
+		Value string `json:"value"`
 
 		// Source accounts and amounts for the transaction
 		// required: true
@@ -938,14 +934,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 					Asset string `json:"asset"`
 
 					// Amount value in smallest unit
-					// example: 100
+					// example: "100.00"
 					// required: true
-					Value int64 `json:"value"`
-
-					// Decimal places
-					// example: 2
-					// required: true
-					Scale int64 `json:"scale"`
+					Value string `json:"value"`
 				} `json:"amount"`
 
 				// Operation description
@@ -969,12 +960,11 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 	listTo := make([]libTransaction.FromTo, 0)
 
 	to := libTransaction.FromTo{
-		IsFrom:  false,
-		Account: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
+		IsFrom:       false,
+		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
 		Amount: &libTransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
-			Scale: c.Send.Scale,
 		},
 	}
 
@@ -986,10 +976,10 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 		Code:                     c.Code,
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
+		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
-			Scale: c.Send.Scale,
 			Distribute: libTransaction.Distribute{
 				To: listTo,
 			},

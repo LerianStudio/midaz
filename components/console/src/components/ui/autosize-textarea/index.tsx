@@ -19,7 +19,6 @@ export const useAutosizeTextArea = ({
 }: UseAutosizeTextAreaProps) => {
   const [init, setInit] = React.useState(true)
   React.useEffect(() => {
-    // We need to reset the height momentarily to get the correct scrollHeight for the textarea
     const textAreaElement = textAreaRef.current
     if (textAreaElement) {
       if (init) {
@@ -32,7 +31,6 @@ export const useAutosizeTextArea = ({
       textAreaElement.style.height = `${minHeight}px`
       const scrollHeight = textAreaElement.scrollHeight
 
-      // We then set the height directly, outside of the render loop
       // Trying to set this with state or a ref will segment an incorrect value.
       if (scrollHeight > maxHeight) {
         textAreaElement.style.height = `${maxHeight}px`
@@ -98,8 +96,8 @@ export const AutosizeTextarea = React.forwardRef<
         value={value}
         ref={textAreaRef}
         className={cn(
-          'flex h-9 w-full overflow-y-hidden rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          'read-only:cursor-default read-only:select-text read-only:bg-zinc-100 read-only:caret-transparent read-only:opacity-50 read-only:focus:outline-none read-only:focus:ring-0 read-only:focus:ring-offset-0',
+          'border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full overflow-y-hidden rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden',
+          'read-only:cursor-default read-only:bg-zinc-100 read-only:caret-transparent read-only:opacity-50 read-only:select-text read-only:focus:ring-0 read-only:focus:ring-offset-0 read-only:focus:outline-hidden',
           'disabled:cursor-not-allowed disabled:opacity-50',
           className
         )}

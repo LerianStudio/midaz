@@ -36,20 +36,17 @@ import Link from 'next/link'
 import React from 'react'
 import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import {
   TransactionOperationDto,
   TransactionDto
 } from '@/core/application/dto/transaction-dto'
-import { useFormatAmount } from '@/hooks/use-format-amount'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 type TransactionsDataTableProps = {
   transactions: PaginationDto<TransactionDto> | undefined
-  form: UseFormReturn<any>
   total: number
   pagination: PaginationProps
   onCreateTransaction: () => void
@@ -91,7 +88,7 @@ const statusMessages = defineMessages({
 
 const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   const intl = useIntl()
-  const { formatAmount } = useFormatAmount()
+  const { formatNumber } = useFormatNumber()
   const {
     status: { code },
     createdAt,
@@ -99,6 +96,32 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     source = [],
     destination = []
   } = transaction.original
+
+  const sourceAliases = new Set(
+    source.map((sourceItem) => sourceItem.accountAlias?.toLowerCase())
+  )
+
+  const isFeeOperation = (operation: TransactionOperationDto) => {
+    const description = operation.description?.toLowerCase() ?? ''
+    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
+    const accountAliasMatch = sourceAliases.has(
+      (operation.accountAlias ?? '').toLowerCase()
+    )
+    const amountDiffers =
+      Number(operation.amount) !== Number(transaction.original.amount)
+
+    const creditToSource = accountAliasMatch && amountDiffers
+
+    return (
+      description.includes('fee') ||
+      chartOfAccounts.includes('fee') ||
+      creditToSource
+    )
+  }
+
+  const nonFeeDestinations = destination.filter(
+    (destinationItem) => !isFeeOperation(destinationItem)
+  )
 
   const badgeVariant = getBadgeVariant(code)
 
@@ -136,7 +159,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   }
 
   const renderSource = renderItemsList(source, 'source')
-  const renderDestination = renderItemsList(destination, 'destination')
+  const renderDestination = renderItemsList(nonFeeDestinations, 'destination')
 
   return (
     <React.Fragment>
@@ -156,7 +179,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
         </TableCell>
         <TableCell className="text-base font-medium text-zinc-600">
           <span className="mr-2 text-xs font-normal">{asset}</span>
-          {formatAmount(transaction.original.amount)}
+          {formatNumber(transaction.original.amount)}
         </TableCell>
         <TableCell align="center">
           <DropdownMenu>
@@ -188,7 +211,6 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
 
 export const TransactionsDataTable = ({
   transactions,
-  form,
   total,
   pagination,
   onCreateTransaction
@@ -214,11 +236,7 @@ export const TransactionsDataTable = ({
   })
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(transactions?.items) || transactions.items.length === 0 ? (
           <EmptyResource
@@ -271,7 +289,7 @@ export const TransactionsDataTable = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.transactions.value',
+                      id: 'common.value',
                       defaultMessage: 'Value'
                     })}
                   </TableHead>
@@ -316,6 +334,6 @@ export const TransactionsDataTable = ({
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

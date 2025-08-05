@@ -9,12 +9,12 @@ import { DialogProps } from '@radix-ui/react-dialog'
 import { useIntl } from 'react-intl'
 import { CreateUserForm } from './users-create-form'
 import { EditUserForm } from './users-edit-form'
-import { UsersType } from '@/types/users-type'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
+import { UserDto } from '@/core/application/dto/user-dto'
 
 export type UsersSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data?: UsersType | null
+  data?: UserDto | null
   onSuccess?: () => void
 }
 
@@ -34,7 +34,7 @@ export const UsersSheet = ({
         data-testid="ledgers-sheet"
         className="flex flex-col justify-between"
       >
-        <div className="flex flex-grow flex-col">
+        <div className="flex grow flex-col">
           {mode === 'create' && (
             <SheetHeader className="mb-8">
               <SheetTitle>

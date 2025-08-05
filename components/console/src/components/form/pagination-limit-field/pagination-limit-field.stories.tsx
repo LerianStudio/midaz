@@ -1,5 +1,5 @@
 import React from 'react'
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { PaginationLimitField, PaginationLimitFieldProps } from '.'
 import { useForm } from 'react-hook-form'
 import { Form } from '@/components/ui/form'

@@ -63,7 +63,7 @@ export const AccountBalanceList = ({
         <>
           <div
             className={cn(
-              'mb-4 flex flex-grow flex-col justify-center gap-2 rounded bg-zinc-200 p-4',
+              'mb-4 flex grow flex-col justify-center gap-2 rounded bg-zinc-200 p-4',
               {
                 'mb-14': !expand
               }
@@ -71,15 +71,15 @@ export const AccountBalanceList = ({
           >
             {values?.map((source, index) => (
               <AccountBalanceCard
-                key={source.account}
+                key={source.accountAlias}
                 open={opened[index]}
                 onOpenChange={(open) => handleOpenChange(index, open)}
-                account={accounts[source.account!]}
+                account={accounts[source.accountAlias!]}
                 onRefreshed={(balances) =>
-                  handleRefreshed(source.account!, balances)
+                  handleRefreshed(source.accountAlias!, balances)
                 }
                 onDelete={() => {
-                  onRemove?.(source.account!)
+                  onRemove?.(source.accountAlias!)
                   setOpened((prev) => [
                     ...prev.slice(0, index),
                     ...prev.slice(index + 1)

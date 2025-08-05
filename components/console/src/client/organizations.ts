@@ -1,8 +1,12 @@
-import { OrganizationResponseDto } from '@/core/application/dto/organization-dto'
+import {
+  OrganizationDto,
+  OrganizationSearchParamDto
+} from '@/core/application/dto/organization-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
   getFetcher,
+  getPaginatedFetcher,
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
@@ -12,11 +16,19 @@ import {
   useQuery,
   useQueryClient
 } from '@tanstack/react-query'
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
 
-export const useListOrganizations = ({ ...options }) => {
-  return useQuery<PaginationDto<OrganizationResponseDto>>({
-    queryKey: ['organizations'],
-    queryFn: getFetcher(`/api/organizations`),
+export type UseListOrganizationsProps = {
+  query?: OrganizationSearchParamDto
+}
+
+export const useListOrganizations = ({
+  query,
+  ...options
+}: UseListOrganizationsProps) => {
+  return useQuery<PaginationDto<OrganizationDto>>({
+    queryKey: ['organizations', Object.values(query ?? {})],
+    queryFn: getPaginatedFetcher(`/api/organizations`, query),
     ...options
   })
 }
@@ -40,15 +52,19 @@ export const useGetOrganization = ({
 export const useCreateOrganization = ({
   onSuccess,
   ...options
-}: UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+}: UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: postFetcher(`/api/organizations`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)
@@ -61,15 +77,19 @@ export const useUpdateOrganization = ({
   onSuccess,
   ...options
 }: UseGetOrganizationProps &
-  UseMutationOptions<OrganizationResponseDto, Error, any>) => {
+  UseMutationOptions<OrganizationDto, Error, any>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: patchFetcher(`/api/organizations/${organizationId}`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)
@@ -80,15 +100,19 @@ export const useUpdateOrganization = ({
 export const useDeleteOrganization = ({
   onSuccess,
   ...options
-}: UseMutationOptions<OrganizationResponseDto, Error, unknown>) => {
+}: UseMutationOptions<OrganizationDto, Error, unknown>) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation({
     mutationKey: ['organizations'],
     mutationFn: deleteFetcher(`/api/organizations`),
     ...options,
-    onSuccess: (data: OrganizationResponseDto, ...args) => {
+    onSuccess: (data: OrganizationDto, ...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['organizations']
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['organizations']
       })
       onSuccess?.(data, ...args)

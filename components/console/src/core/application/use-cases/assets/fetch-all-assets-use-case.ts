@@ -1,5 +1,5 @@
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
-import { AssetResponseDto } from '../../dto/asset-dto'
+import { AssetDto } from '../../dto/asset-dto'
 import { PaginationDto } from '../../dto/pagination-dto'
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
@@ -16,7 +16,7 @@ export interface FetchAllAssets {
     type?: string,
     code?: string,
     metadata?: Record<string, string>
-  ) => Promise<PaginationDto<AssetResponseDto>>
+  ) => Promise<PaginationDto<AssetDto>>
 }
 
 @injectable()
@@ -35,7 +35,7 @@ export class FetchAllAssetsUseCase implements FetchAllAssets {
     type?: string,
     code?: string,
     metadata?: Record<string, string>
-  ): Promise<PaginationDto<AssetResponseDto>> {
+  ): Promise<PaginationDto<AssetDto>> {
     const assetsResult: PaginationEntity<AssetEntity> =
       await this.assetRepository.fetchAll(
         organizationId,

@@ -1,14 +1,34 @@
 import { z } from 'zod'
 import { transaction } from '@/schema/transactions'
 
+// Using intersection type to add specific fields to the record
+const extendedAccountMetadata = z
+  .intersection(
+    z.record(z.string(), z.any()),
+    z.object({
+      route: z.string().optional() // Route can be specified per account
+    })
+  )
+  .nullable()
+
+const extendedTransactionMetadata = z
+  .intersection(
+    z.record(z.string(), z.any()),
+    z.object({
+      route: z.string().optional(), // Default route for the transaction
+      segmentId: z.string().optional() // Segment ID can be passed via metadata
+    })
+  )
+  .nullable()
+
 export const transactionSourceFormSchema = z
   .array(
     z.object({
-      account: transaction.source.account,
+      accountAlias: transaction.source.accountAlias,
       value: transaction.value,
       description: transaction.description.optional(),
       chartOfAccounts: transaction.chartOfAccounts.optional(),
-      metadata: transaction.metadata
+      metadata: extendedAccountMetadata
     })
   )
   .nonempty()
@@ -21,7 +41,7 @@ export const transactionFormSchema = z.object({
   value: transaction.value,
   source: transactionSourceFormSchema,
   destination: transactionSourceFormSchema,
-  metadata: transaction.metadata
+  metadata: extendedTransactionMetadata
 })
 
 export type TransactionSourceFormSchema = z.infer<
@@ -37,14 +57,19 @@ export const initialValues = {
   asset: '',
   source: [],
   destination: [],
-  metadata: {}
+  metadata: {
+    route: '', // Default transaction route
+    segmentId: '' // Optional segment ID
+  }
 }
 
 export const sourceInitialValues = {
-  account: '',
+  accountAlias: '',
   value: '',
   asset: '',
   description: '',
   chartOfAccounts: '',
-  metadata: {}
+  metadata: {
+    route: '' // Optional account-specific route
+  }
 }

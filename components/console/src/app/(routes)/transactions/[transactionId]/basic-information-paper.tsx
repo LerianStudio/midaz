@@ -39,7 +39,7 @@ export const BasicInformationPaper = ({
               defaultMessage: 'Accounting route group'
             })}
           </label>
-          <div className="flex h-9 items-center rounded-md bg-shadcn-100 px-3">
+          <div className="bg-shadcn-100 flex h-9 items-center rounded-md px-3">
             {chartOfAccountsGroupName}
           </div>
         </div>
@@ -52,11 +52,11 @@ export const BasicInformationPaper = ({
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">
               {intl.formatMessage({
-                id: 'entity.transaction.value',
+                id: 'common.value',
                 defaultMessage: 'Value'
               })}
             </label>
-            <div className="flex h-9 items-center rounded-md bg-shadcn-100 px-3">
+            <div className="bg-shadcn-100 flex h-9 items-center rounded-md px-3">
               {value}
             </div>
           </div>
@@ -68,7 +68,7 @@ export const BasicInformationPaper = ({
               defaultMessage: 'Asset'
             })}
           </label>
-          <div className="flex h-9 items-center rounded-md bg-shadcn-100 px-3">
+          <div className="bg-shadcn-100 flex h-9 items-center rounded-md px-3">
             {asset}
           </div>
         </div>

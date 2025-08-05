@@ -12,7 +12,7 @@ package repository
 import (
 	reflect "reflect"
 
-	model "github.com/LerianStudio/midaz/components/mdz/internal/model"
+	model "github.com/LerianStudio/midaz/v3/components/mdz/internal/model"
 	gomock "go.uber.org/mock/gomock"
 )
 

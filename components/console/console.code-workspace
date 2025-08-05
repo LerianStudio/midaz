@@ -1,5 +1,9 @@
 {
-  "folders": [{ "path": "." }],
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
   "settings": {
     "git.autoRepositoryDetection": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",

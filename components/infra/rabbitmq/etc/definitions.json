@@ -17,6 +17,12 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
+    },
+    {
+      "name":"consumer",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -41,6 +47,13 @@
     },
     {
       "user": "transaction",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "consumer",
       "vhost": "/",
       "configure": ".*",
       "write": ".*",
@@ -70,6 +83,12 @@
       "name": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
       "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "transaction.transaction_events.exchange",
+      "vhost": "/",
+      "type": "topic",
       "durable": true
     }
   ],

@@ -15,7 +15,7 @@ import { PageFooter, PageFooterSection } from '@/components/page-footer'
 import { Button } from '@/components/ui/button'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useUpdateTransaction } from '@/client/transactions'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useToast } from '@/hooks/use-toast'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
@@ -23,7 +23,7 @@ import { ArrowRight } from 'lucide-react'
 import { OperationAccordion } from './operation-accordion'
 import { MetaAccordionTransactionDetails } from './meta-accordion-transaction-details'
 import { SectionTitle } from './primitives'
-import { useFormatAmount } from '@/hooks/use-format-amount'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 const initialValues = {
   description: '',
@@ -47,7 +47,7 @@ export const TransactionDataTab = ({
   onSuccess
 }: TransactionDataTabProps) => {
   const intl = useIntl()
-  const { formatAmount } = useFormatAmount()
+  const { formatNumber } = useFormatNumber()
   const { toast } = useToast()
   const { currentOrganization, currentLedger } = useOrganization()
 
@@ -90,6 +90,33 @@ export const TransactionDataTab = ({
     }
   )
 
+  const sourceAliases = new Set(
+    (data?.source ?? []).map((sourceItem) =>
+      sourceItem.accountAlias.toLowerCase()
+    )
+  )
+
+  const isFeeOperation = (operation: TransactionOperationDto) => {
+    const description = operation.description?.toLowerCase() ?? ''
+    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
+    const aliasMatch = sourceAliases.has(
+      (operation.accountAlias ?? '').toLowerCase()
+    )
+    const amountDiffers = Number(operation.amount) !== Number(data.amount)
+
+    const creditToSource = aliasMatch && amountDiffers
+
+    return (
+      description.includes('fee') ||
+      chartOfAccounts.includes('fee') ||
+      creditToSource
+    )
+  }
+
+  const nonFeeSource = data?.source ?? []
+  const nonFeeDestination =
+    data?.destination?.filter((operation) => !isFeeOperation(operation)) || []
+
   return (
     <Form {...form}>
       <ConfirmationDialog
@@ -109,13 +136,13 @@ export const TransactionDataTab = ({
         <div className="col-span-2 flex flex-col gap-12">
           <BasicInformationPaper
             chartOfAccountsGroupName={data?.chartOfAccountsGroupName}
-            value={formatAmount(data?.amount)}
+            value={formatNumber(data?.amount)}
             asset={data?.asset}
             control={form.control}
           />
 
           <div className="grid grid-cols-11 gap-x-4">
-            <div className="col-span-5 flex flex-grow flex-col gap-1">
+            <div className="col-span-5 flex grow flex-col gap-1">
               <SectionTitle>
                 {intl.formatMessage({
                   id: 'entity.transactions.source',
@@ -123,7 +150,7 @@ export const TransactionDataTab = ({
                 })}
               </SectionTitle>
             </div>
-            <div className="col-span-5 col-start-7 mb-8 flex flex-grow flex-col gap-1">
+            <div className="col-span-5 col-start-7 mb-8 flex grow flex-col gap-1">
               <SectionTitle>
                 {intl.formatMessage({
                   id: 'entity.transactions.destination',
@@ -133,13 +160,13 @@ export const TransactionDataTab = ({
             </div>
 
             <div className="col-span-5 flex items-center justify-center">
-              <AccountBalanceList values={data?.source} />
+              <AccountBalanceList values={nonFeeSource} />
             </div>
             <div className="flex items-center justify-center">
-              <ArrowRight className="h-5 w-5 shrink-0 text-shadcn-400" />
+              <ArrowRight className="text-shadcn-400 h-5 w-5 shrink-0" />
             </div>
             <div className="col-span-5 flex items-center justify-center">
-              <AccountBalanceList values={data?.destination} />
+              <AccountBalanceList values={nonFeeDestination} />
             </div>
           </div>
 
@@ -163,7 +190,7 @@ export const TransactionDataTab = ({
               (operation: TransactionOperationDto, index: number) => (
                 <OperationAccordion
                   key={index}
-                  type="credit"
+                  type={isFeeOperation(operation) ? 'fee' : 'credit'}
                   operation={operation}
                 />
               )

@@ -2,31 +2,38 @@ package redis
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/redis/go-redis/v9"
 	"strconv"
 	"strings"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/redis/go-redis/v9"
 )
 
+//go:embed scripts/add_sub.lua
+var addSubLua string
+
 // RedisRepository provides an interface for redis.
-// It defines methods for setting, getting, deleting keys, and incrementing values.
+// It defines methods for setting, getting keys, and incrementing values.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error)
+	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -107,14 +114,18 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
 
 		return "", err
 	}
 
 	val, err := rds.Get(ctx, key).Result()
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+
+		logger.Errorf("Failed to get on redis: %v", err)
 
 		return "", err
 	}
@@ -166,141 +177,12 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
-func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error) {
+func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.Lock_balance")
+	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
 	defer span.End()
-
-	//nolint:dupword
-	script := redis.NewScript(`
-		local INT64_MAX = 9223372036854775807
-		local INT64_MIN = -9223372036854775808
-		
-		local function willOverflow(a, b, scale)
-			if b > 0 and a > INT64_MAX - b then
-				return true
-			elseif b < 0 and a < INT64_MIN - b then
-				return true
-			elseif scale > 18 then
-				return true
-			end
-
-			return false
-		end
-
-		local function Scale(v, s0, s1)
-		  local result = v *  math.pow(10, s1 - s0)
-		  if result >= 0 then
-		  	return math.floor(result)
-		  else
-		  	return math.ceil(result)
-		  end
-		end
-		
-		local function OperateBalances(amount, balance, operation)
-		  local scale = 0
-		  local total = 0
-
-		  if operation == "DEBIT" then
-			  if balance.Scale < amount.Scale then
-				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
-				if willOverflow(v0, -amount.Available, amount.Scale) then
-					return nil, "overflow"
-				end
-				total = v0 - amount.Available
-				scale = amount.Scale
-			  else
-				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
-				if willOverflow(balance.Available, -v0, amount.Scale) then
-					return nil, "overflow"
-				end
-				total = balance.Available - v0
-				scale = balance.Scale
-			  end
-		  else
-			  if balance.Scale < amount.Scale then
-				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
-				if willOverflow(v0, amount.Available, amount.Scale) then
-					return nil, "overflow"
-				end
-				total = v0 + amount.Available
-				scale = amount.Scale
-			  else
-				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
-				if willOverflow(balance.Available, v0, amount.Scale) then
-					return nil, "overflow"
-				end
-				total = balance.Available + v0
-				scale = balance.Scale
-			  end
-		  end
-		
-		  return {
-			ID = balance.ID,
-			Available = total,
-			OnHold = balance.OnHold,
-			Scale = scale,
-			Version = balance.Version + 1,
-			AccountType = balance.AccountType,
-            AllowSending = balance.AllowSending,
-            AllowReceiving = balance.AllowReceiving,
-			AssetCode = balance.AssetCode,
-            AccountID = balance.AccountID,
-		  }, nil
-		end
-
-		local function main()
-			local ttl = 3600        
-			local key = KEYS[1]
-			local operation = ARGV[1]
-			
-			local amount = {
-			  Asset = ARGV[2],
-			  Available = tonumber(ARGV[3]),
-			  Scale = tonumber(ARGV[4])
-			}
-
-			local balance = {
-              ID = ARGV[5],
-			  Available = tonumber(ARGV[6]),
-			  OnHold = tonumber(ARGV[7]),
-			  Scale = tonumber(ARGV[8]),
-			  Version = tonumber(ARGV[9]),
-			  AccountType = ARGV[10],
-		      AllowSending = tonumber(ARGV[11]),
-		      AllowReceiving = tonumber(ARGV[12]),
-              AssetCode = ARGV[13],
-              AccountID = ARGV[14],
-			}
-
-			local currentValue = redis.call("GET", key)
-			if not currentValue then
-			  local balanceEncoded = cjson.encode(balance)
-			  redis.call("SET", key, balanceEncoded, "EX", ttl)
-			else
-			  balance = cjson.decode(currentValue)
-			end
-			
-			local finalBalance, err = OperateBalances(amount, balance, operation)
-			if err == "overflow" then
-				return redis.error_reply("0097")
-			end
-			
-			if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
-			  return redis.error_reply("0018")
-			end
-			
-			local finalBalanceEncoded = cjson.encode(finalBalance)
-			redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
-	
-			local balanceEncoded = cjson.encode(balance)
-			return balanceEncoded
-		end
-
-		return main()
-	`)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -321,15 +203,19 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		allowReceiving = 1
 	}
 
+	isPending := 0
+	if pending {
+		isPending = 1
+	}
+
 	args := []any{
-		operation,
-		amount.Asset,
-		strconv.FormatInt(amount.Value, 10),
-		strconv.FormatInt(amount.Scale, 10),
+		isPending,
+		transactionStatus,
+		amount.Operation,
+		amount.Value.String(),
 		balance.ID,
-		strconv.FormatInt(balance.Available, 10),
-		strconv.FormatInt(balance.OnHold, 10),
-		strconv.FormatInt(balance.Scale, 10),
+		balance.Available.String(),
+		balance.OnHold.String(),
 		strconv.FormatInt(balance.Version, 10),
 		balance.AccountType,
 		allowSending,
@@ -338,18 +224,18 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		balance.AccountID,
 	}
 
+	script := redis.NewScript(addSubLua)
+
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
-
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
-		if strings.Contains(err.Error(), constant.ErrOverFlowInt64.Error()) {
-			return nil, libCommons.ValidateBusinessError(libConstants.ErrOverFlowInt64, "overflowBalance", balance.Alias)
-		}
+		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
 			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
+			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
 		}
 
 		return nil, err
@@ -385,7 +271,6 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	balance.AccountID = b.AccountID
 	balance.Available = b.Available
 	balance.OnHold = b.OnHold
-	balance.Scale = b.Scale
 	balance.Version = b.Version
 	balance.AccountType = b.AccountType
 	balance.AllowSending = b.AllowSending == 1
@@ -393,4 +278,56 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
+}
+
+func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.set_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return err
+	}
+
+	logger.Infof("Setting binary data with TTL: %v", ttl*time.Second)
+
+	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
+
+		return err
+	}
+
+	return nil
+}
+
+func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_bytes")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return nil, err
+	}
+
+	val, err := rds.Get(ctx, key).Bytes()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get bytes on redis", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
+
+	return val, nil
 }

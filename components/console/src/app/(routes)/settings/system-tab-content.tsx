@@ -13,11 +13,11 @@ import { useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { z } from 'zod'
 
-const formSchema = z.object({
+const _formSchema = z.object({
   locale: z.string().min(1)
 })
 
-type FormSchema = z.infer<typeof formSchema>
+type FormSchema = z.infer<typeof _formSchema>
 
 const initialValues = {
   locale: ''
@@ -42,7 +42,7 @@ export const SystemTabContent = () => {
     <React.Fragment>
       <div className="grid grid-cols-3">
         <Paper className="col-span-2 mb-6 flex flex-col">
-          <p className="p-6 text-sm font-medium text-shadcn-400">
+          <p className="text-shadcn-400 p-6 text-sm font-medium">
             {intl.formatMessage({
               id: 'settings.system.paper.description',
               defaultMessage: 'Adjust system preferences.'

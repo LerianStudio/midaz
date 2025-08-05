@@ -1,14 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  trailingSlash: process.env.NODE_ENV === 'production' ? true : false,
   logging: {
     fetches: {
       fullUrl: true
     }
-  },
-  env: {
-    MIDAZ_CONSOLE_BASE_PATH: process.env.MIDAZ_CONSOLE_BASE_PATH,
-    MIDAZ_SERVER_BASE_PATH: process.env.MIDAZ_SERVER_BASE_PATH
   },
   headers: async () => {
     return [
@@ -64,29 +61,28 @@ const nextConfig = {
     return config
   },
 
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      'pino',
-      'pino-pretty',
-      '@opentelemetry/instrumentation',
-      '@opentelemetry/api',
-      '@opentelemetry/api-logs',
-      '@opentelemetry/exporter-logs-otlp-http',
-      '@opentelemetry/exporter-metrics-otlp-http',
-      '@opentelemetry/exporter-trace-otlp-http',
-      '@opentelemetry/instrumentation',
-      '@opentelemetry/instrumentation-http',
-      '@opentelemetry/instrumentation-pino',
-      '@opentelemetry/instrumentation-runtime-node',
-      '@opentelemetry/resources',
-      '@opentelemetry/sdk-logs',
-      '@opentelemetry/sdk-metrics',
-      '@opentelemetry/sdk-node',
-      '@opentelemetry/sdk-trace-base',
-      '@opentelemetry/instrumentation-undici'
-    ]
-  }
+  transpilePackages: ['@lerianstudio/console-layout'],
+
+  serverExternalPackages: [
+    'pino',
+    'pino-pretty',
+    '@opentelemetry/instrumentation',
+    '@opentelemetry/api',
+    '@opentelemetry/api-logs',
+    '@opentelemetry/exporter-logs-otlp-http',
+    '@opentelemetry/exporter-metrics-otlp-http',
+    '@opentelemetry/exporter-trace-otlp-http',
+    '@opentelemetry/instrumentation',
+    '@opentelemetry/instrumentation-http',
+    '@opentelemetry/instrumentation-pino',
+    '@opentelemetry/instrumentation-runtime-node',
+    '@opentelemetry/resources',
+    '@opentelemetry/sdk-logs',
+    '@opentelemetry/sdk-metrics',
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/sdk-trace-base',
+    '@opentelemetry/instrumentation-undici'
+  ]
 }
 
 export default nextConfig

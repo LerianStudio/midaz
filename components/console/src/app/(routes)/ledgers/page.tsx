@@ -5,33 +5,34 @@ import { PageHeader } from '@/components/page-header'
 import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
 import ConfirmationDialog from '@/components/confirmation-dialog'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  useReactTable
-} from '@tanstack/react-table'
 import { LedgersDataTable } from './ledgers-data-table'
 import { LedgersSheet } from './ledgers-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { useDeleteLedger, useListLedgers } from '@/client/ledgers'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { LedgersSkeleton } from './ledgers-skeleton'
 import { useQueryParams } from '@/hooks/use-query-params'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useToast } from '@/hooks/use-toast'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { InputField } from '@/components/form/input-field'
 
 const Page = () => {
   const intl = useIntl()
-  const [total, setTotal] = React.useState(0)
+  const [total, setTotal] = React.useState(1000000)
   const { currentOrganization, currentLedger, setLedger } = useOrganization()
   const { toast } = useToast()
-  const [columnFilters, setColumnFilters] = React.useState<any>([])
   const { handleCreate, handleEdit, sheetProps } = useCreateUpdateSheet<any>({
     enableRouting: true
   })
-  const { form, searchValues, pagination } = useQueryParams({ total })
+  const { form, searchValues, pagination } = useQueryParams({
+    total,
+    initialValues: { id: '' }
+  })
 
   const {
     data: ledgers,
@@ -39,23 +40,8 @@ const Page = () => {
     isLoading
   } = useListLedgers({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
-
-  React.useEffect(() => {
-    if (!ledgers?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (ledgers.items.length >= ledgers.limit) {
-      setTotal(ledgers.limit + 1)
-      return
-    }
-
-    setTotal(ledgers.items.length)
-  }, [ledgers?.items, ledgers?.limit])
 
   const {
     handleDialogOpen,
@@ -93,51 +79,31 @@ const Page = () => {
     }
   })
 
-  const table = useReactTable({
-    data: ledgers?.items!,
-    columns: [
-      { accessorKey: 'id' },
-      { accessorKey: 'name' },
-      { accessorKey: 'assets' },
-      { accessorKey: 'metadata' },
-      { accessorKey: 'status' },
-      { accessorKey: 'actions' }
-    ],
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    state: {
-      columnFilters
-    }
-  })
-
-  const breadcrumbPaths = getBreadcrumbPaths([
-    {
-      name: currentOrganization.legalName
-    },
-    {
-      name: intl.formatMessage({
-        id: `ledgers.title`,
-        defaultMessage: 'Ledgers'
-      })
-    }
-  ])
-
   const ledgersProps = {
     ledgers,
-    table,
     handleDialogOpen,
     handleCreate,
     handleEdit,
     refetch,
-    form,
     pagination,
     total
   }
 
   return (
     <React.Fragment>
-      <Breadcrumb paths={breadcrumbPaths} />
+      <Breadcrumb
+        paths={getBreadcrumbPaths([
+          {
+            name: currentOrganization.legalName
+          },
+          {
+            name: intl.formatMessage({
+              id: `ledgers.title`,
+              defaultMessage: 'Ledgers'
+            })
+          }
+        ])}
+      />
 
       <PageHeader.Root>
         <PageHeader.Wrapper>
@@ -161,7 +127,7 @@ const Page = () => {
             />
             <Button onClick={handleCreate} data-testid="new-ledger">
               {intl.formatMessage({
-                id: 'ledgers.listingTemplate.addButton',
+                id: 'ledgers.sheetCreate.title',
                 defaultMessage: 'New Ledger'
               })}
             </Button>
@@ -203,11 +169,27 @@ const Page = () => {
 
       <LedgersSheet onSuccess={refetch} {...sheetProps} />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isLoading && <LedgersSkeleton />}
 
         {!isLoading && ledgers && <LedgersDataTable {...ledgersProps} />}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

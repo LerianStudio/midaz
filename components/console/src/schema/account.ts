@@ -1,14 +1,14 @@
 import { z } from 'zod'
 import { metadata } from './metadata'
-import { alphanumericWithDashUnderscoreRegex, regex } from './regex'
+import { alphanumericAliasRegex, regex } from './regex'
 
 const name = z.string().min(3).max(255)
 
 const alias = z
   .string()
   .max(255)
-  .refine(regex(alphanumericWithDashUnderscoreRegex), {
-    params: { id: 'custom_alphanumeric_with_dash_underscore' }
+  .refine(regex(alphanumericAliasRegex), {
+    params: { id: 'custom_alphanumeric_alias' }
   })
 
 const entityId = z.string().max(255)

@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -56,7 +55,7 @@ func (mr *MockProducerRepositoryMockRecorder) CheckRabbitMQHealth() *gomock.Call
 }
 
 // ProducerDefault mocks base method.
-func (m *MockProducerRepository) ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error) {
+func (m *MockProducerRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ProducerDefault", ctx, exchange, key, message)
 	ret0, _ := ret[0].(*string)

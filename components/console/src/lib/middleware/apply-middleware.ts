@@ -20,7 +20,6 @@ export function applyMiddleware(
   action: RouteHandler
 ) {
   return async (req: NextRequest, ...args: any) => {
-    // Index to keep track of current middleware
     let i = 0
 
     /**
@@ -29,10 +28,8 @@ export function applyMiddleware(
      * @returns Promise containing the result of the middleware chain
      */
     const next: NextHandler = async (err) => {
-      // Clone request to prevent mutations between middleware
       const localReq = req.clone() as NextRequest
 
-      // If there's an error or we've run all middleware, execute final handler
       if (err != null) {
         return await action(req, ...args)
       }
@@ -41,19 +38,15 @@ export function applyMiddleware(
         return await action(req, ...args)
       }
 
-      // Get next middleware in the chain
       const layer = middlewares[i++]
       try {
-        // Execute current middleware with cloned request and next function
         return await layer(localReq, next)
       } catch (error) {
-        // Log any errors and continue chain with error
         console.error(error)
         return await next(error)
       }
     }
 
-    // Start the middleware chain
     return await next()
   }
 }

@@ -15,7 +15,7 @@ type TransactionModeButtonProps = {
 }
 
 export const TransactionModeButtonSkeleton = () => (
-  <div className="mb-4 flex w-60 flex-col rounded-[8px] bg-shadcn-200 px-6 py-5">
+  <div className="bg-shadcn-200 mb-4 flex w-60 flex-col rounded-[8px] px-6 py-5">
     <div className="flex cursor-default justify-between">
       <Skeleton className="h-6 w-9" />
       <Skeleton className="h-12 w-12" />
@@ -47,14 +47,14 @@ export const TransactionModeButton = ({
           <>
             <p className="text-2xl font-extrabold text-zinc-600">1-1</p>
             <GitCompare
-              className="h-12 w-12 rotate-90 -scale-x-100 transform text-zinc-800 opacity-40"
+              className="h-12 w-12 -scale-x-100 rotate-90 transform text-zinc-800 opacity-40"
               strokeWidth={1}
             />
           </>
         )}
         {mode === TransactionMode.COMPLEX && (
           <>
-            <p className="text-2xl font-extrabold text-shadcn-100">n:n</p>
+            <p className="text-shadcn-100 text-2xl font-extrabold">n:n</p>
             <GitFork
               className="h-12 w-12 rotate-90 text-white"
               strokeWidth={1}

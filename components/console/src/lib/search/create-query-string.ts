@@ -8,15 +8,12 @@ import { isEmpty, isNil, omitBy } from 'lodash'
  * @returns URL converted query string
  */
 export function createQueryString(data?: {}) {
-  // Returns empty string if data is null or undefined
   if (isNil(data)) {
     return ''
   }
 
-  // Clear any null, undefined or empty values from the data object
   const clearData = omitBy(omitBy(data, isNil), (v) => v === '')
 
-  // If clearData is empty, there isn't any query params to be added
   if (isEmpty(clearData)) {
     return ''
   }

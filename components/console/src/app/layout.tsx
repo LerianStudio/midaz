@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-sync-scripts */
 import 'reflect-metadata'
 import React from 'react'
 import localFont from 'next/font/local'
@@ -20,6 +21,9 @@ export default async function RootLayout({
 }) {
   return (
     <html suppressHydrationWarning className={inter.variable}>
+      <head>
+        <script src="/runtime-env.js" />
+      </head>
       <body suppressHydrationWarning className="font-sans">
         <NextAuthSessionProvider>
           <App>{children}</App>
@@ -36,6 +40,6 @@ export async function generateMetadata(props: {}): Promise<Metadata> {
     title: title,
     icons: icons,
     description: description,
-    ...props
+    ...(await props)
   }
 }

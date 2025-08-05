@@ -1,9 +1,10 @@
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-exceptions'
 import { HttpStatus, ApiException } from '@/lib/http'
 import { getIntl } from '@/lib/intl'
 import { AuthApiException } from '@/core/infrastructure/midaz-plugins/auth/exceptions/auth-exceptions'
+import { DatabaseException } from '@/core/infrastructure/mongo/exceptions/database-exception'
 
 export interface ErrorResponse {
   message: string
@@ -12,7 +13,7 @@ export interface ErrorResponse {
 
 export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   const intl = await getIntl()
-  const logger = container.get(LoggerAggregator)
+  const logger = container.get<LoggerAggregator>(LoggerAggregator)
 
   const errorMetadata = {
     errorType: error.constructor.name,
@@ -32,6 +33,11 @@ export async function apiErrorHandler(error: any): Promise<ErrorResponse> {
   if (error instanceof ApiException) {
     logger.error(`Api error`, errorMetadata)
     return { message: error.message, status: error.getStatus() }
+  }
+
+  if (error instanceof DatabaseException) {
+    logger.error(`Database error`, errorMetadata)
+    return { message: error.message, status: HttpStatus.BAD_REQUEST }
   }
 
   logger.error(`Unknown error`, errorMetadata)

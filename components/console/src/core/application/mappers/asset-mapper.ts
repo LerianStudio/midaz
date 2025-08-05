@@ -1,5 +1,5 @@
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
-import { AssetResponseDto } from '../dto/asset-dto'
+import { AssetDto } from '../dto/asset-dto'
 import { CreateAssetDto } from '../dto/asset-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
@@ -14,7 +14,7 @@ export class AssetMapper {
     }
   }
 
-  public static toResponseDto(entity: AssetEntity): AssetResponseDto {
+  public static toResponseDto(entity: AssetEntity): AssetDto {
     return {
       id: entity.id!,
       organizationId: entity.organizationId!,
@@ -31,7 +31,7 @@ export class AssetMapper {
 
   public static toPaginationResponseDto(
     result: PaginationEntity<AssetEntity>
-  ): PaginationEntity<AssetResponseDto> {
+  ): PaginationEntity<AssetDto> {
     return PaginationMapper.toResponseDto(result, AssetMapper.toResponseDto)
   }
 }

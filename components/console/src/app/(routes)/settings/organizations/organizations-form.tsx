@@ -1,11 +1,10 @@
 'use client'
 
 import React from 'react'
-import type { OrganizationsType } from '@/types/organizations-type'
 import { Card } from '@/components/card'
 import { Separator } from '@/components/ui/separator'
-import { CardContent, CardFooter } from '@/components/ui/card'
-import { Form, FormField } from '@/components/ui/form'
+import { CardContent } from '@/components/ui/card'
+import { Form } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,11 +30,12 @@ import {
 } from '@/components/transactions/primitives/paper-collapsible'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 import { PageFooter, PageFooterSection } from '@/components/page-footer'
+import { OrganizationDto } from '@/core/application/dto/organization-dto'
 
 type OrganizationsViewProps = {
-  data?: OrganizationsType
+  data?: OrganizationDto
   onSuccess?: () => void
 }
 
@@ -75,7 +75,7 @@ const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   metadata: data?.metadata || initialValues.metadata
 })
 
-const parseInputData = (data?: OrganizationsType) =>
+const parseInputData = (data?: OrganizationDto) =>
   Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
 export const parseCreateData = (data?: OrganizationFormData) => data
@@ -125,7 +125,7 @@ export const OrganizationsForm = ({
     <Form {...form}>
       <div className="mb-16 flex gap-6">
         <div className="grow space-y-6">
-          <Card.Root className="gap-0 space-x-0 space-y-0 p-0 shadow">
+          <Card.Root className="gap-0 space-y-0 space-x-0 p-0 shadow-sm">
             <Card.Header
               title={
                 isNewOrganization
@@ -145,7 +145,7 @@ export const OrganizationsForm = ({
                         defaultMessage: 'View and edit the Organization fields.'
                       })
               }
-              className="space-x-0 space-y-0 p-6 text-sm font-medium normal-case text-zinc-400"
+              className="space-y-0 space-x-0 p-6 text-sm font-medium text-zinc-400 normal-case"
             />
             <Separator />
 
@@ -323,13 +323,13 @@ export const OrganizationsForm = ({
 
           <PaperCollapsible className="mb-32">
             <PaperCollapsibleBanner className="flex items-center justify-between">
-              <p className="text-lg font-medium normal-case text-zinc-600">
+              <p className="text-lg font-medium text-zinc-600 normal-case">
                 {intl.formatMessage({
                   id: 'common.metadata',
                   defaultMessage: 'Metadata'
                 })}
               </p>
-              <p className="text-xs italic text-shadcn-400">
+              <p className="text-shadcn-400 text-xs italic">
                 {intl.formatMessage(
                   {
                     id: 'organizations.organizationForm.metadataRegisterCountText',
@@ -356,9 +356,9 @@ export const OrganizationsForm = ({
         </div>
 
         <div className="grow space-y-6">
-          <Card.Root className="p-6 shadow">
+          <Card.Root className="p-6 shadow-sm">
             <Card.Header
-              className="text-md w-full font-medium normal-case text-zinc-600"
+              className="text-md w-full font-medium text-zinc-600 normal-case"
               title={intl.formatMessage({
                 id: 'entity.organization.avatar',
                 defaultMessage: 'Avatar'
@@ -379,7 +379,7 @@ export const OrganizationsForm = ({
             </CardContent>
           </Card.Root>
 
-          <Card.Root className="hidden p-6 shadow">
+          <Card.Root className="hidden p-6 shadow-sm">
             <Card.Header
               className="text-sm font-medium text-zinc-600"
               title={intl.formatMessage({

@@ -15,6 +15,7 @@ import { useIntl } from 'react-intl'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTime } from '@/hooks/use-time'
 import dayjs from 'dayjs'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
 
 const AccountBalanceCardContext = React.createContext<{ open?: boolean }>({
   open: false
@@ -74,11 +75,11 @@ AccountBalanceCardTitle.displayName = 'AccountBalanceCardTitle'
 export const AccountBalanceCardDeleteButton = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentPropsWithoutRef<typeof Button>
->(({ className, children, ...props }, ref) => (
+>(({ className, children: _children, ...props }, ref) => (
   <Button
     ref={ref}
     variant="plain"
-    className={cn('absolute right-3 top-3 h-8 w-8 p-0', className)}
+    className={cn('absolute top-3 right-3 h-8 w-8 p-0', className)}
     {...props}
   >
     <Trash className="h-4 w-4 text-zinc-600" />
@@ -93,7 +94,7 @@ export const AccountBalanceCardContent = React.forwardRef<
   <CollapsibleContent
     ref={ref}
     className={cn(
-      'overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden',
       className
     )}
     {...props}
@@ -104,7 +105,7 @@ AccountBalanceCardContent.displayName = 'AccountBalanceCardContent'
 export const AccountBalanceCardLoading = React.forwardRef<
   HTMLDivElement,
   React.HtmlHTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, _ref) => (
   <Skeleton
     className={cn('mt-3 h-3 w-full rounded-md bg-zinc-200', className)}
     {...props}
@@ -115,14 +116,14 @@ AccountBalanceCardLoading.displayName = 'AccountBalanceCardLoading'
 export const AccountBalanceCardEmpty = React.forwardRef<
   HTMLParagraphElement,
   React.HtmlHTMLAttributes<HTMLParagraphElement>
->(({ className, children, ...props }, ref) => {
+>(({ className, children: _children, ...props }, ref) => {
   const intl = useIntl()
 
   return (
     <p
       ref={ref}
       className={cn(
-        'mt-3 text-center text-sm font-normal text-shadcn-500',
+        'text-shadcn-500 mt-3 text-center text-sm font-normal',
         className
       )}
       {...props}
@@ -139,26 +140,27 @@ AccountBalanceCardEmpty.displayName = 'AccountBalanceCardEmpty'
 export type AccountBalanceCardInfoProps =
   React.HtmlHTMLAttributes<HTMLDivElement> & {
     assetCode: string
-    value: number
+    value: string
   }
 
 export const AccountBalanceCardInfo = React.forwardRef<
   HTMLDivElement,
   AccountBalanceCardInfoProps
->(({ className, assetCode, value, children, ...props }, ref) => {
-  const intl = useIntl()
+>(({ className, assetCode, value, children: _children, ...props }, ref) => {
+  const _intl = useIntl()
+  const { formatNumber } = useFormatNumber()
 
   return (
     <div
       ref={ref}
       className={cn(
-        'mt-3 flex flex-row items-center justify-between text-sm font-normal text-shadcn-500',
+        'text-shadcn-500 mt-3 flex flex-row items-center justify-between text-sm font-normal',
         className
       )}
       {...props}
     >
       <p>{assetCode}</p>
-      <p>{intl.formatNumber(value, { roundingPriority: 'morePrecision' })}</p>
+      <p>{formatNumber(value)}</p>
     </div>
   )
 })
@@ -174,62 +176,74 @@ export type AccountBalanceCardUpdateButtonProps =
 export const AccountBalanceCardUpdateButton = React.forwardRef<
   React.ElementRef<typeof Button>,
   AccountBalanceCardUpdateButtonProps
->(({ className, loading, timestamp, onRefresh, children, ...props }, ref) => {
-  const intl = useIntl()
-  const time = useTime({ interval: 1000 * 60 })
+>(
+  (
+    {
+      className: _className,
+      loading,
+      timestamp,
+      onRefresh,
+      children: _children,
+      ...props
+    },
+    ref
+  ) => {
+    const intl = useIntl()
+    const _time = useTime({ interval: 1000 * 60 })
 
-  const updated = React.useMemo(() => {
-    return !dayjs(timestamp).isBefore(dayjs().subtract(1, 'minute'))
-  }, [time, timestamp])
+    const updated = React.useMemo(() => {
+      return !dayjs(timestamp).isBefore(dayjs().subtract(1, 'minute'))
+    }, [_time, timestamp])
 
-  return (
-    <div className="mb-3 flex flex-row items-center justify-end gap-2">
-      <p className="text-xs font-medium text-shadcn-500">
-        {loading &&
-          intl.formatMessage({
-            id: 'common.updating',
-            defaultMessage: 'Updating...'
-          })}
-        {!loading &&
-          !updated &&
-          intl.formatMessage(
-            {
-              id: 'common.updatedIn',
-              defaultMessage: 'Updated {time}'
-            },
-            {
-              time: dayjs(timestamp).fromNow()
-            }
-          )}
-        {!loading &&
-          updated &&
-          intl.formatMessage({
-            id: 'common.updated',
-            defaultMessage: 'Updated'
-          })}
-      </p>
-      {updated && <CheckCircle2 className="h-4 w-4 text-green-600" />}
-      {!updated && (
-        <Button
-          ref={ref}
-          variant="link"
-          className="h-3 p-0"
-          onClick={onRefresh}
-          disabled={loading}
-          {...props}
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
-  )
-})
+    return (
+      <div className="mb-3 flex flex-row items-center justify-end gap-2">
+        <p className="text-shadcn-500 text-xs font-medium">
+          {loading &&
+            intl.formatMessage({
+              id: 'common.updating',
+              defaultMessage: 'Updating...'
+            })}
+          {!loading &&
+            !updated &&
+            intl.formatMessage(
+              {
+                id: 'common.updatedIn',
+                defaultMessage: 'Updated {time}'
+              },
+              {
+                time: dayjs(timestamp).fromNow()
+              }
+            )}
+          {!loading &&
+            updated &&
+            intl.formatMessage({
+              id: 'common.updated',
+              defaultMessage: 'Updated'
+            })}
+        </p>
+        {updated && <CheckCircle2 className="h-4 w-4 text-green-600" />}
+        {!updated && (
+          <Button
+            ref={ref}
+            variant="link"
+            className="h-3 p-0"
+            onClick={onRefresh}
+            disabled={loading}
+            {...props}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    )
+  }
+)
 AccountBalanceCardUpdateButton.displayName = 'AccountBalanceCardUpdateButton'
 
 export const AccountBalanceCardTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentPropsWithoutRef<typeof Button>
->(({ className, children, ...props }, ref) => {
+>(({ className, children: _children, ...props }, ref) => {
   const intl = useIntl()
   const { open } = React.useContext(AccountBalanceCardContext)
 

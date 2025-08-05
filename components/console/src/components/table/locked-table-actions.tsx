@@ -23,7 +23,7 @@ export const LockedTableActions: React.FC<LockedTableActionsProps> = ({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'flex h-[36px] w-[36px] items-center justify-center rounded-md border border-border bg-muted',
+              'border-border bg-muted flex h-[36px] w-[36px] items-center justify-center rounded-md border',
               className
             )}
           >

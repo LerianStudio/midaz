@@ -34,8 +34,8 @@ export const InfoTooltip = ({ subtitle }: InfoTooltipProps) => {
           <Copy size={16} className="cursor-pointer" />
         </TooltipTrigger>
 
-        <TooltipContent className="border-none bg-shadcn-600" arrowPadding={0}>
-          <p className="text-sm font-medium text-shadcn-400">{subtitle}</p>
+        <TooltipContent className="bg-shadcn-600 border-none" arrowPadding={0}>
+          <p className="text-shadcn-400 text-sm font-medium">{subtitle}</p>
           <p className="text-center text-white">
             {intl.formatMessage({
               id: 'common.tooltipCopyText',

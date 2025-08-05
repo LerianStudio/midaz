@@ -2,16 +2,17 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"reflect"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
@@ -32,13 +33,12 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+			if fromTo[i].AccountAlias == blc.ID || fromTo[i].AccountAlias == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{
 					Available: &blc.Available,
 					OnHold:    &blc.OnHold,
-					Scale:     &blc.Scale,
 				}
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], validate, blc.ConvertToLibBalance())
@@ -49,14 +49,12 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				amount := operation.Amount{
-					Amount: &amt.Value,
-					Scale:  &amt.Scale,
+					Value: &amt.Value,
 				}
 
 				balanceAfter := operation.Balance{
 					Available: &bat.Available,
 					OnHold:    &bat.OnHold,
-					Scale:     &bat.Scale,
 				}
 
 				description := fromTo[i].Description

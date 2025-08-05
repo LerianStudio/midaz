@@ -1,14 +1,14 @@
 'use client'
 
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolio-dto'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 import {
   useDeletePortfolio,
   usePortfoliosWithAccounts
 } from '@/client/portfolios'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -20,14 +20,21 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { InputField } from '@/components/form'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 
 const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
   const { form, searchValues, pagination } = useQueryParams({
-    total
+    total,
+    initialValues: {
+      id: ''
+    }
   })
 
   const {
@@ -37,22 +44,8 @@ const Page = () => {
   } = usePortfoliosWithAccounts({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
-
-  useEffect(() => {
-    if (!portfolios?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (portfolios.items.length >= portfolios.limit) {
-      setTotal(portfolios.limit + 1)
-      return
-    }
-
-    setTotal(portfolios.items.length)
-  }, [portfolios?.items, portfolios?.limit])
 
   const { mutate: deletePortfolio, isPending: deletePending } =
     useDeletePortfolio({
@@ -78,7 +71,7 @@ const Page = () => {
   )
 
   const { handleCreate, handleEdit, sheetProps } =
-    useCreateUpdateSheet<PortfolioResponseDto>({
+    useCreateUpdateSheet<PortfolioDto>({
       enableRouting: true
     })
 
@@ -102,7 +95,6 @@ const Page = () => {
     handleCreate,
     handleDialogOpen,
     handleEdit,
-    form,
     pagination,
     total
   }
@@ -134,7 +126,7 @@ const Page = () => {
 
             <Button onClick={handleCreate} data-testid="new-portfolio">
               {intl.formatMessage({
-                id: 'portfolios.listingTemplate.addButton',
+                id: 'ledgers.portfolio.sheet.title',
                 defaultMessage: 'New Portfolio'
               })}
             </Button>
@@ -174,13 +166,29 @@ const Page = () => {
 
       <PortfolioSheet onSuccess={refetch} {...sheetProps} />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="id"
+              placeholder={intl.formatMessage({
+                id: 'common.searchById',
+                defaultMessage: 'Search by ID...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isLoadingPortfolios && <PortfoliosSkeleton />}
 
         {!isLoadingPortfolios && (
           <PortfoliosDataTable {...portfoliosTableProps} />
         )}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

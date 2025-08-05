@@ -3,10 +3,10 @@ package main
 import (
 	"os"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/root"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/output"
 )
 
 func main() {

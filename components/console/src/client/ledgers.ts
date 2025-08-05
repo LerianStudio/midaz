@@ -1,12 +1,16 @@
-import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
+import { useLayoutQueryClient } from '@lerianstudio/console-layout'
+import {
+  LedgerDto,
+  LedgerSearchParamDto
+} from '@/core/application/dto/ledger-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
   getFetcher,
+  getPaginatedFetcher,
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
-import { PaginationRequest } from '@/types/pagination-request-type'
 import {
   useMutation,
   UseMutationOptions,
@@ -21,7 +25,7 @@ type UseCreateLedgerProps = UseMutationOptions & {
 
 type UseListLedgersProps = {
   organizationId: string
-  enabled?: boolean
+  query: LedgerSearchParamDto
 }
 
 type UseLedgerByIdProps = UseMutationOptions & {
@@ -48,32 +52,28 @@ const useCreateLedger = ({
 
   return useMutation<any, any, any>({
     mutationFn: postFetcher(`/api/organizations/${organizationId}/ledgers`),
-    onSuccess: async (...args) => {
-      await queryClient.invalidateQueries({
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
         queryKey: ['ledgers']
       })
 
-      await queryClient.refetchQueries({
+      queryClient.refetchQueries({
         queryKey: ['ledgers', organizationId]
       })
 
-      await onSuccess?.(...args)
+      onSuccess?.(...args)
     },
     ...options
   })
 }
 
-const useListLedgers = ({
-  organizationId,
-  limit = 10,
-  page = 1
-}: UseListLedgersProps & PaginationRequest) => {
-  return useQuery<PaginationDto<LedgerResponseDto>>({
-    queryKey: ['ledgers', organizationId, { limit, page }],
-    queryFn: getFetcher(
-      `/api/organizations/${organizationId}/ledgers/ledgers-assets?limit=${limit}&page=${page}`
-    ),
-    enabled: !!organizationId
+const useListLedgers = ({ organizationId, query }: UseListLedgersProps) => {
+  return useQuery<PaginationDto<LedgerDto>>({
+    queryKey: ['ledgers', organizationId, Object.values(query)],
+    queryFn: getPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/ledgers-assets`,
+      query
+    )
   })
 }
 
@@ -82,12 +82,11 @@ const useLedgerById = ({
   ledgerId,
   ...options
 }: UseLedgerByIdProps) => {
-  return useQuery<LedgerResponseDto>({
+  return useQuery<LedgerDto>({
     queryKey: ['ledger', organizationId, ledgerId],
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}`
     ),
-    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -99,6 +98,7 @@ const useUpdateLedger = ({
   ...options
 }: UseUpdateLedgerProps) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation<any, any, any>({
     mutationKey: [organizationId, ledgerId],
@@ -108,6 +108,12 @@ const useUpdateLedger = ({
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: ['ledger', organizationId, ledgerId]
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      layoutQueryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
       })
       onSuccess?.(...args)
     },
@@ -121,12 +127,16 @@ const useDeleteLedger = ({
   ...options
 }: UseDeleteLedgerProps) => {
   const queryClient = useQueryClient()
+  const layoutQueryClient = useLayoutQueryClient()
 
   return useMutation<any, any, any>({
     mutationKey: [organizationId],
     mutationFn: deleteFetcher(`/api/organizations/${organizationId}/ledgers`),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
+        queryKey: ['ledgers', organizationId]
+      })
+      layoutQueryClient.invalidateQueries({
         queryKey: ['ledgers', organizationId]
       })
       onSuccess?.(...args)

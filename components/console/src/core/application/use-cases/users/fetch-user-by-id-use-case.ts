@@ -1,11 +1,11 @@
-import { UserResponseDto } from '../../dto/user-dto'
+import { UserDto } from '../../dto/user-dto'
 import { UserMapper } from '../../mappers/user-mapper'
 import { inject } from 'inversify'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 import { UserRepository } from '@/core/domain/repositories/identity/user-repository'
 
 export interface FetchUserById {
-  execute: (userId: string) => Promise<UserResponseDto>
+  execute: (userId: string) => Promise<UserDto>
 }
 
 export class FetchUserByIdUseCase implements FetchUserById {
@@ -15,9 +15,9 @@ export class FetchUserByIdUseCase implements FetchUserById {
   ) {}
 
   @LogOperation({ layer: 'application' })
-  async execute(userId: string): Promise<UserResponseDto> {
+  async execute(userId: string): Promise<UserDto> {
     const userEntity = await this.userRepository.fetchById(userId)
-    const userResponseDto: UserResponseDto = UserMapper.toDto(userEntity)
+    const userResponseDto: UserDto = UserMapper.toDto(userEntity)
 
     return userResponseDto
   }

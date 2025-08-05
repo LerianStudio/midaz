@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
 )
 
 func TestFormat(t *testing.T) {

@@ -1,4 +1,9 @@
 import { MetadataEntity } from './metadata-entity'
+import { PaginationSearchEntity } from './pagination-entity'
+
+export type PortfolioSearchEntity = PaginationSearchEntity & {
+  id?: string
+}
 
 export type PortfolioEntity = {
   id?: string

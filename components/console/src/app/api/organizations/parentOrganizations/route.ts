@@ -1,4 +1,3 @@
-export const dynamic = 'force-dynamic'
 import { container } from '@/core/infrastructure/container-registry/container-registry'
 import {
   FetchParentOrganizations,
@@ -7,6 +6,8 @@ import {
 import { NextResponse } from 'next/server'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
+
+export const dynamic = 'force-dynamic'
 
 export const GET = applyMiddleware(
   [
@@ -26,7 +27,7 @@ export const GET = applyMiddleware(
         await fetchParentOrganizations.execute(organizationId)
 
       return NextResponse.json(organizations)
-    } catch (error: unknown) {
+    } catch {
       return NextResponse.json(
         { message: 'Error fetching parent organizations' },
         { status: 400 }

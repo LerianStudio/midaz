@@ -93,4 +93,13 @@ export class MidazAssetRepository implements AssetRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/${assetId}`
     )
   }
+
+  async count(
+    organizationId: string,
+    ledgerId: string
+  ): Promise<{ total: number }> {
+    return await this.httpService.count(
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/assets/metrics/count`
+    )
+  }
 }

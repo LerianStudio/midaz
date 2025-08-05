@@ -19,23 +19,21 @@ export class MidazTransactionMapper {
         chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
         send: {
           asset: transaction.asset,
-          value: transaction.amount.value,
-          scale: transaction.amount.scale,
+          value: transaction.amount,
           source: {
             from: transaction.source.map((source) =>
               omitBy(
                 {
-                  account: source.account,
+                  accountAlias: source.accountAlias,
                   amount: {
-                    value: source.amount.value,
-                    scale: source.amount.scale,
+                    value: source.amount,
                     asset: transaction.asset
                   },
                   description: source.description,
                   chartOfAccounts: source.chartOfAccounts,
                   metadata: source.metadata
                 },
-                (v: any) => v === ''
+                (propertyValue: any) => propertyValue === ''
               )
             )
           },
@@ -43,24 +41,23 @@ export class MidazTransactionMapper {
             to: transaction.destination.map((destination) =>
               omitBy(
                 {
-                  account: destination.account,
+                  accountAlias: destination.accountAlias,
                   amount: {
-                    value: destination.amount.value,
-                    scale: destination.amount.scale,
+                    value: destination.amount,
                     asset: transaction.asset
                   },
                   description: destination.description,
                   chartOfAccounts: destination.chartOfAccounts,
                   metadata: destination.metadata
                 },
-                (v: any) => v === ''
+                (propertyValue: any) => propertyValue === ''
               )
             )
           }
         },
         metadata: transaction.metadata
       },
-      (v) => v === ''
+      (value) => value === ''
     ) as MidazCreateTransactionDto
   }
 
@@ -74,10 +71,36 @@ export class MidazTransactionMapper {
   }
 
   public static toEntity(transaction: MidazTransactionDto): TransactionEntity {
-    const source =
-      transaction.operations?.filter((t) => t.type === 'DEBIT') ?? []
-    const destination =
-      transaction.operations?.filter((t) => t.type === 'CREDIT') ?? []
+    const aggregate = (
+      operations: typeof transaction.operations,
+      type: 'DEBIT' | 'CREDIT'
+    ) => {
+      const filteredOperations =
+        operations?.filter((operation) => operation.type === type) ?? []
+      const operationsMap = new Map<string, (typeof filteredOperations)[0]>()
+
+      const isFee = (operationItem: any) =>
+        operationItem.description?.toLowerCase().includes('fee') ||
+        operationItem.chartOfAccounts?.toLowerCase().includes('fee')
+
+      filteredOperations.forEach((operation) => {
+        if (isFee(operation)) {
+          operationsMap.set(`${operation.accountAlias}-${Math.random()}`, {
+            ...operation
+          })
+          return
+        }
+
+        const accountKey = operation.accountAlias
+        if (!operationsMap.has(accountKey)) {
+          operationsMap.set(accountKey, { ...operation })
+        }
+      })
+      return Array.from(operationsMap.values())
+    }
+
+    const source = aggregate(transaction.operations, 'DEBIT')
+    const destination = aggregate(transaction.operations, 'CREDIT')
 
     return {
       id: transaction.id,
@@ -86,19 +109,13 @@ export class MidazTransactionMapper {
       description: transaction.description,
       chartOfAccountsGroupName: transaction.chartOfAccountsGroupName,
       status: transaction.status,
-      amount: {
-        value: transaction.amount,
-        scale: transaction.amountScale
-      },
+      amount: transaction.amount,
       asset: transaction.assetCode,
       source: source.map((source) => ({
         account: source.accountId,
         accountAlias: source.accountAlias,
         asset: source.assetCode,
-        amount: {
-          value: source.amount.amount,
-          scale: source.amount.scale
-        },
+        amount: source.amount.value,
         description: source.description,
         chartOfAccounts: source.chartOfAccounts,
         metadata: source.metadata ?? {}
@@ -107,10 +124,7 @@ export class MidazTransactionMapper {
         account: destination.accountId,
         accountAlias: destination.accountAlias,
         asset: destination.assetCode,
-        amount: {
-          value: destination.amount.amount,
-          scale: destination.amount.scale
-        },
+        amount: destination.amount.value,
         description: destination.description,
         chartOfAccounts: destination.chartOfAccounts,
         metadata: destination.metadata ?? {}

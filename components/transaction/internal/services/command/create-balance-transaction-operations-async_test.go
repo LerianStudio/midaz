@@ -2,20 +2,24 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	libLog "github.com/LerianStudio/lib-commons/commons/log"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"testing"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // Int64Ptr returns a pointer to the given int64 value
@@ -54,6 +58,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -61,6 +67,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -74,15 +82,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(40),
 				},
 			},
 		}
@@ -94,9 +100,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -109,9 +114,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias2",
-				Available:      200,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(200),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -138,7 +142,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -170,6 +174,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -184,6 +194,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with mock repositories
 		uc := &UseCase{
@@ -191,6 +203,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -204,15 +218,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(40),
 				},
 			},
 		}
@@ -224,9 +236,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -252,7 +263,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -287,6 +298,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -294,6 +307,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -307,8 +322,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 		}
@@ -320,9 +334,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -348,7 +361,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -375,8 +388,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, pgErr).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata (should not be called due to duplicate error)
-		// We don't need to mock this since the method returns early after handling the duplicate error
+		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
 
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -391,6 +413,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -398,6 +422,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -411,15 +437,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(40),
 				},
 			},
 		}
@@ -431,9 +455,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -446,9 +469,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias2",
-				Available:      200,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(200),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -458,6 +480,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		}
 
 		// Create operations for the transaction
+		Amount := decimal.NewFromInt(50)
 		operation1 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -467,12 +490,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(50),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
 
+		Amount = decimal.NewFromInt(40)
 		operation2 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -482,8 +505,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(40),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -506,7 +528,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -555,6 +577,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(2)
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -569,6 +597,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -576,6 +606,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -589,15 +621,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(40),
 				},
 			},
 		}
@@ -609,9 +639,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -621,6 +650,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		}
 
 		// Create operations for the transaction
+		Amount := decimal.NewFromInt(50)
 		operation1 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -630,12 +660,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(50),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
 
+		Amount = decimal.NewFromInt(40)
 		operation2 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -645,8 +675,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(40),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -669,7 +698,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -723,6 +752,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -730,6 +761,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -743,15 +776,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 			To: map[string]libTransaction.Amount{
 				"alias2": {
 					Asset: "EUR",
-					Value: int64(40),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(40),
 				},
 			},
 		}
@@ -763,9 +794,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -775,6 +805,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		}
 
 		// Create operations for the transaction
+		Amount := decimal.NewFromInt(50)
 		operation1 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -784,12 +815,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(50),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
 
+		Amount = decimal.NewFromInt(50)
 		operation2 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -799,8 +830,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "credit",
 			AssetCode:      "EUR",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(40),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key2": "value2"},
 		}
@@ -823,7 +853,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -874,6 +904,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
+		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -888,6 +924,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		// Create a UseCase with all required dependencies
 		uc := &UseCase{
@@ -895,6 +933,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OperationRepo:   mockOperationRepo,
 			MetadataRepo:    mockMetadataRepo,
 			BalanceRepo:     mockBalanceRepo,
+			RabbitMQRepo:    mockRabbitMQRepo,
+			RedisRepo:       mockRedisRepo,
 		}
 
 		ctx := context.Background()
@@ -908,8 +948,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			From: map[string]libTransaction.Amount{
 				"alias1": {
 					Asset: "USD",
-					Value: int64(50),
-					Scale: int64(2),
+					Value: decimal.NewFromInt(50),
 				},
 			},
 		}
@@ -921,9 +960,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
-				Available:      100,
-				OnHold:         0,
-				Scale:          2,
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
 				AllowSending:   true,
@@ -933,6 +971,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		}
 
 		// Create operations for the transaction
+		Amount := decimal.NewFromInt(50)
 		operation1 := &operation.Operation{
 			ID:             uuid.New().String(),
 			TransactionID:  transactionID,
@@ -942,8 +981,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Type:           "debit",
 			AssetCode:      "USD",
 			Amount: operation.Amount{
-				Amount: Int64Ptr(50),
-				Scale:  Int64Ptr(2),
+				Value: &Amount,
 			},
 			Metadata: map[string]interface{}{"key1": "value1"},
 		}
@@ -966,7 +1004,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ParseDSL:    parseDSL,
 		}
 
-		transactionBytes, _ := json.Marshal(transactionQueue)
+		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -1071,6 +1109,8 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Create a real UseCase with mock repositories
 	uc := &UseCase{
@@ -1078,6 +1118,8 @@ func TestCreateBTOAsync(t *testing.T) {
 		TransactionRepo: mockTransactionRepo,
 		MetadataRepo:    mockMetadataRepo,
 		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -1090,8 +1132,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		From: map[string]libTransaction.Amount{
 			"alias1": {
 				Asset: "USD",
-				Value: int64(50),
-				Scale: int64(2),
+				Value: decimal.NewFromInt(50),
 			},
 		},
 	}
@@ -1103,9 +1144,8 @@ func TestCreateBTOAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          "alias1",
-			Available:      100,
-			OnHold:         0,
-			Scale:          2,
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.NewFromInt(0),
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   true,
@@ -1131,7 +1171,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		ParseDSL:    parseDSL,
 	}
 
-	transactionBytes, _ := json.Marshal(transactionQueue)
+	transactionBytes, _ := msgpack.Marshal(transactionQueue)
 	queueData := []mmodel.QueueData{
 		{
 			ID:    uuid.New(),
@@ -1161,6 +1201,12 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
+	// Mock RabbitMQRepo.ProducerDefault for transaction events
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
 	// Call the method - this should not panic
-	uc.CreateBTOAsync(ctx, queue)
+	uc.CreateBTOSync(ctx, queue)
 }

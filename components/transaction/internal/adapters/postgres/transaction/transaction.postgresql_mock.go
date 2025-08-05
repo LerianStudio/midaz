@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/commons/net/http"
-	http0 "github.com/LerianStudio/midaz/pkg/net/http"
+	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -116,6 +116,37 @@ func (m *MockRepository) FindByParentID(ctx context.Context, organizationID, led
 func (mr *MockRepositoryMockRecorder) FindByParentID(ctx, organizationID, ledgerID, parentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByParentID", reflect.TypeOf((*MockRepository)(nil).FindByParentID), ctx, organizationID, ledgerID, parentID)
+}
+
+// FindOrListAllWithOperations mocks base method.
+func (m *MockRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http0.Pagination) ([]*Transaction, http.CursorPagination, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrListAllWithOperations", ctx, organizationID, ledgerID, ids, filter)
+	ret0, _ := ret[0].([]*Transaction)
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FindOrListAllWithOperations indicates an expected call of FindOrListAllWithOperations.
+func (mr *MockRepositoryMockRecorder) FindOrListAllWithOperations(ctx, organizationID, ledgerID, ids, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrListAllWithOperations", reflect.TypeOf((*MockRepository)(nil).FindOrListAllWithOperations), ctx, organizationID, ledgerID, ids, filter)
+}
+
+// FindWithOperations mocks base method.
+func (m *MockRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithOperations", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(*Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithOperations indicates an expected call of FindWithOperations.
+func (mr *MockRepositoryMockRecorder) FindWithOperations(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithOperations", reflect.TypeOf((*MockRepository)(nil).FindWithOperations), ctx, organizationID, ledgerID, id)
 }
 
 // ListByIDs mocks base method.

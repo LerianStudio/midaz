@@ -5,9 +5,8 @@ export type BalanceEntity = {
   accountId?: string
   alias?: string
   assetCode?: string
-  available?: number
-  onHold?: number
-  scale?: number
+  available?: string
+  onHold?: string
   allowSending?: boolean
   allowReceiving?: boolean
   createdAt?: Date

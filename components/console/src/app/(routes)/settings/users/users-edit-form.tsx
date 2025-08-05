@@ -15,12 +15,12 @@ import React from 'react'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { AlertTriangle } from 'lucide-react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
-import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
 import { getInitialValues } from '@/lib/form'
 import { useToast } from '@/hooks/use-toast'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
+import { UserDto } from '@/core/application/dto/user-dto'
 
 const initialValues = {
   firstName: '',
@@ -50,7 +50,7 @@ type UpdateFormData = z.infer<typeof UpdateFormSchema>
 type PasswordFormData = z.infer<typeof PasswordSchema>
 
 interface EditUserFormProps {
-  user: UsersType
+  user: UserDto
   onSuccess?: () => void
   onOpenChange?: (open: boolean) => void
   isReadOnly?: boolean
@@ -97,7 +97,7 @@ export const EditUserForm = ({
     userId: user.id,
     onSuccess: async (response: unknown) => {
       const responseData = response as any
-      const updatedUser = responseData.userUpdated as UsersType
+      const updatedUser = responseData.userUpdated as UserDto
 
       await onSuccess?.()
       onOpenChange?.(false)
@@ -166,7 +166,7 @@ export const EditUserForm = ({
 
       <Tabs
         defaultValue="personal-information"
-        className="mt-0 flex flex-grow flex-col"
+        className="mt-0 flex grow flex-col"
         onValueChange={setActiveTab}
         value={activeTab}
       >
@@ -186,7 +186,7 @@ export const EditUserForm = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="personal-information" className="flex-grow">
+          <TabsContent value="personal-information" className="grow">
             <Form {...form}>
               <form
                 id="profile-form"
@@ -198,7 +198,7 @@ export const EditUserForm = ({
                     <InputField
                       name="firstName"
                       label={intl.formatMessage({
-                        id: 'entity.user.name',
+                        id: 'common.name',
                         defaultMessage: 'Name'
                       })}
                       control={form.control}
@@ -251,7 +251,7 @@ export const EditUserForm = ({
                     ))}
                   </SelectField>
 
-                  <p className="text-xs font-normal italic text-shadcn-400">
+                  <p className="text-shadcn-400 text-xs font-normal italic">
                     {intl.formatMessage({
                       id: 'common.requiredFields',
                       defaultMessage: '(*) required fields.'
@@ -262,7 +262,7 @@ export const EditUserForm = ({
             </Form>
           </TabsContent>
 
-          <TabsContent value="password" className="flex-grow">
+          <TabsContent value="password" className="grow">
             <Form {...passwordForm}>
               <form
                 id="password-form"

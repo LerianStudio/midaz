@@ -3,14 +3,15 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/google/uuid"
 	"reflect"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
 )
 
 // UpdateTransaction update a transaction from the repository by given id.
@@ -53,25 +54,20 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
-func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, description string) (*transaction.Transaction, error) {
+func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
 
-	logger.Infof("Trying to update transaction using status: : %v", description)
+	logger.Infof("Trying to update transaction using status: : %v", tran.Status.Description)
 
-	status := transaction.Status{
-		Code:        description,
-		Description: &description,
-	}
+	organizationID := uuid.MustParse(tran.OrganizationID)
+	ledgerID := uuid.MustParse(tran.LedgerID)
+	transactionID := uuid.MustParse(tran.ID)
 
-	trans := &transaction.Transaction{
-		Status: status,
-	}
-
-	_, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
+	updateTran, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, tran)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update status transaction on repo by id", err)
 
@@ -84,5 +80,5 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return nil, nil
+	return updateTran, nil
 }

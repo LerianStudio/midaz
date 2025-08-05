@@ -14,9 +14,9 @@ import { Form } from '@/components/ui/form'
 import { useIntl } from 'react-intl'
 import { useCreatePortfolio, useUpdatePortfolio } from '@/client/portfolios'
 import { DialogProps } from '@radix-ui/react-dialog'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolio-dto'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { MetadataField } from '@/components/form/metadata-field'
 import { InputField } from '@/components/form'
 import { portfolio } from '@/schema/portfolio'
@@ -25,11 +25,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
 
 export type PortfolioSheetProps = DialogProps & {
   mode: 'create' | 'edit'
-  data?: PortfolioResponseDto | null
+  data?: PortfolioDto | null
   onSuccess?: () => void
 }
 
@@ -105,7 +105,7 @@ export const PortfolioSheet = ({
     if (mode === 'create') {
       createPortfolio(values)
     } else if (mode === 'edit') {
-      const { entityId, ...data } = values
+      const { ...data } = values
       updatePortfolio(data)
     }
   }
@@ -162,7 +162,7 @@ export const PortfolioSheet = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex flex-grow flex-col"
+              className="flex grow flex-col"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
@@ -180,7 +180,7 @@ export const PortfolioSheet = ({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="details">
-                  <div className="flex flex-grow flex-col gap-4">
+                  <div className="flex grow flex-col gap-4">
                     <InputField
                       name="name"
                       label={intl.formatMessage({
@@ -208,7 +208,7 @@ export const PortfolioSheet = ({
                         readOnly={isReadOnly}
                       />
                     )}
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'

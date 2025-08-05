@@ -1,4 +1,4 @@
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { LoggerAggregator } from '@lerianstudio/lib-logs'
 import {
   AuthEntity,
   AuthResponseEntity,
@@ -71,8 +71,6 @@ export class IdentityAuthLoginRepository implements AuthLoginRepository {
 
       return authSession
     } catch (error: any) {
-      // TODO - handle unauthorized error
-
       this.midazLogger.error('[ERROR] - Login ', {
         username: loginData.username,
         event: 'login failed',

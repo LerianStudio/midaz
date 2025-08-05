@@ -1,5 +1,10 @@
-import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { MetadataDto } from './metadata-dto'
+import { AssetDto } from './asset-dto'
+import { SearchParamDto } from './request-dto'
+
+export type LedgerSearchParamDto = SearchParamDto & {
+  id?: string
+}
 
 export type CreateLedgerDto = {
   name: string
@@ -8,7 +13,7 @@ export type CreateLedgerDto = {
 
 export type UpdateLedgerDto = Partial<CreateLedgerDto>
 
-export type LedgerResponseDto = {
+export type LedgerDto = {
   id: string
   organizationId: string
   name: string
@@ -16,5 +21,5 @@ export type LedgerResponseDto = {
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
-  assets?: AssetEntity[]
+  assets?: AssetDto[]
 }

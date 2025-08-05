@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/setting"
 	"github.com/stretchr/testify/assert"
 	"gotest.tools/golden"
 )

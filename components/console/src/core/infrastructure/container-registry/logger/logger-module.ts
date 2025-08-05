@@ -1,9 +1,28 @@
 import { Container, ContainerModule } from '../../utils/di/container'
-import { LoggerRepository } from '@/core/domain/repositories/logger-repository'
-import { PinoLoggerRepository } from '@/core/infrastructure/logger/pino-logger-repository'
-import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import {
+  LoggerRepository,
+  PinoLoggerRepository,
+  LoggerAggregator,
+  RequestIdRepository
+} from '@lerianstudio/lib-logs'
 
 export const LoggerModule = new ContainerModule((container: Container) => {
-  container.bind<LoggerRepository>(LoggerRepository).to(PinoLoggerRepository)
-  container.bind<LoggerAggregator>(LoggerAggregator).toSelf().inSingletonScope()
+  container
+    .bind<RequestIdRepository>(RequestIdRepository)
+    .toSelf()
+    .inSingletonScope()
+  container.bind<LoggerRepository>(LoggerRepository).toConstantValue(
+    new PinoLoggerRepository({
+      debug: Boolean(process.env.ENABLE_DEBUG)
+    })
+  )
+  container
+    .bind<LoggerAggregator>(LoggerAggregator)
+    .toDynamicValue((context) => {
+      const loggerRepository = context.get<LoggerRepository>(LoggerRepository)
+      return new LoggerAggregator(loggerRepository, {
+        debug: Boolean(process.env.ENABLE_DEBUG)
+      })
+    })
+    .inSingletonScope()
 })

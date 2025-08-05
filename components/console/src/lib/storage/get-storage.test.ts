@@ -5,7 +5,6 @@ describe('getStorage', () => {
   const defaultValue = 'defaultValue'
 
   beforeEach(() => {
-    // Clear localStorage before each test
     localStorage.clear()
   })
 

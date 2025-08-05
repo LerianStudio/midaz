@@ -1,5 +1,8 @@
 import { PaginationEntity } from '../entities/pagination-entity'
-import { TransactionEntity } from '../entities/transaction-entity'
+import {
+  TransactionEntity,
+  TransactionSearchEntity
+} from '../entities/transaction-entity'
 
 export abstract class TransactionRepository {
   abstract create: (
@@ -10,8 +13,7 @@ export abstract class TransactionRepository {
   abstract fetchAll: (
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: TransactionSearchEntity
   ) => Promise<PaginationEntity<TransactionEntity>>
   abstract fetchById: (
     organizationId: string,

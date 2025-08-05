@@ -42,19 +42,19 @@ plugins:
     failComment: false
     labels: []
   
- # Plugin to perform the backmerge between the 'main' and 'develop' branches
-  # - path: "@saithodev/semantic-release-backmerge"
-  #   backmergeBranches:
-  #     - from: main
-  #       to: develop
-  #   message: "chore(release): Preparations for next release [skip ci]"
+  # Plugin to perform the backmerge between the 'main' and 'develop' branches
+  - path: "@saithodev/semantic-release-backmerge"
+    backmergeBranches:
+      - from: main
+        to: develop
+    message: "chore(release): Preparations for next release [skip ci]"
 
   - path: "@semantic-release/exec"
 
 branches:
-  - main
+  - name: main
   - name: develop
     prerelease: beta
-  - name: hotfix/MIDAZ-997
+  - name: hotfix/*
     prerelease: false
     channel: false

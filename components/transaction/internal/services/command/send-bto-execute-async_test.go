@@ -2,14 +2,17 @@ package command
 
 import (
 	"context"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.uber.org/mock/gomock"
 	"os"
 	"testing"
+
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.uber.org/mock/gomock"
 )
 
 func TestSendBTOExecuteAsync(t *testing.T) {
@@ -32,10 +35,12 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 
 	// Create mock repositories
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Create the UseCase instance
 	uc := &UseCase{
 		RabbitMQRepo: mockRabbitMQRepo,
+		RedisRepo:    mockRedisRepo,
 	}
 
 	// Test data
@@ -53,15 +58,13 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		From: map[string]libTransaction.Amount{
 			"alias1": {
 				Asset: "USD",
-				Value: int64(50), // Value should be an int64
-				Scale: int64(2),  // Scale is an int64
+				Value: decimal.NewFromInt(50), // Value should be an int64
 			},
 		},
 		To: map[string]libTransaction.Amount{
 			"alias2": {
 				Asset: "EUR",
-				Value: int64(40), // Value should be an int64
-				Scale: int64(2),  // Scale is an int64
+				Value: decimal.NewFromInt(40), // Value should be an int64
 			},
 		},
 	}
@@ -73,10 +76,8 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          "alias1",
-			Available:      100,
-			OnHold:         0,
-			Scale:          2,
-			Version:        1,
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.NewFromInt(0),
 			AccountType:    "deposit",
 			AllowSending:   true,
 			AllowReceiving: true,
@@ -88,9 +89,8 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          "alias2",
-			Available:      200,
-			OnHold:         0,
-			Scale:          2,
+			Available:      decimal.NewFromInt(200),
+			OnHold:         decimal.NewFromInt(0),
 			Version:        1,
 			AccountType:    "deposit",
 			AllowSending:   true,
@@ -112,8 +112,10 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 		Times(1)
 
 	// Call the method with the correct parameters
-	uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+	err := uc.SendBTOExecuteAsync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
 
-	// No assertions needed as the function doesn't return anything
-	// The test passes if the mock expectations are met
+	// Assert that no error occurred
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
 }

@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/commons/net/http"
-	http0 "github.com/LerianStudio/midaz/pkg/net/http"
+	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )

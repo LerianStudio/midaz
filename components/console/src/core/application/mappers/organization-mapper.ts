@@ -1,7 +1,6 @@
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { CreateOrganizationDto } from '../dto/organization-dto'
-import { OrganizationResponseDto } from '../dto/organization-dto'
-import { PaginationMapper } from './pagination-mapper'
+import { OrganizationDto } from '../dto/organization-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { OrganizationAvatarEntity } from '@/core/domain/entities/organization-avatar-entity'
 
@@ -21,7 +20,7 @@ export class OrganizationMapper {
   public static toResponseDto(
     entity: OrganizationEntity,
     avatar?: string
-  ): OrganizationResponseDto {
+  ): OrganizationDto {
     return {
       id: entity.id!,
       legalName: entity.legalName,
@@ -40,7 +39,7 @@ export class OrganizationMapper {
   public static toPaginationResponseDto(
     result: PaginationEntity<OrganizationEntity>,
     organizationAvatar?: OrganizationAvatarEntity[]
-  ): PaginationEntity<OrganizationResponseDto> {
+  ): PaginationEntity<OrganizationDto> {
     const items = result.items.map((item) => {
       if (!organizationAvatar) {
         return OrganizationMapper.toResponseDto(item)

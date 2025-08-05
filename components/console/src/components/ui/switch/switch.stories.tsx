@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/nextjs'
 import { Switch } from '.'
 import { SwitchProps } from '@radix-ui/react-switch'
 import { Label } from '../label'

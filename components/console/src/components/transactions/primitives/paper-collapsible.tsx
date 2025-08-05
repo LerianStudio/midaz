@@ -29,7 +29,7 @@ export const PaperCollapsibleBanner = forwardRef<
   HTMLAttributes<HTMLDivElement>
 >(({ className, children, ...props }, ref) => (
   <div ref={ref} className={cn('flex flex-row p-6', className)} {...props}>
-    <div className="flex flex-grow flex-col">{children}</div>
+    <div className="flex grow flex-col">{children}</div>
     <PaperCollapsibleTrigger />
   </div>
 ))
@@ -38,7 +38,7 @@ PaperCollapsibleBanner.displayName = 'PaperCollapsibleBanner'
 export const PaperCollapsibleTrigger = forwardRef<
   ElementRef<typeof CollapsibleTrigger>,
   CollapsibleTriggerProps
->(({ className, children, ...props }, ref) => (
+>(({ className, children: _children, ...props }, ref) => (
   <CollapsibleTrigger
     ref={ref}
     className={cn(
@@ -59,7 +59,7 @@ export const PaperCollapsibleContent = forwardRef<
   <CollapsibleContent
     ref={ref}
     className={cn(
-      'overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down',
+      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden',
       className
     )}
     {...props}

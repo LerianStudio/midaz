@@ -2,11 +2,12 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -31,7 +32,6 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.DEBIT,
 		}
 	}
@@ -40,7 +40,6 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
 			Value:     v.Value,
-			Scale:     v.Scale,
 			Operation: constant.CREDIT,
 		}
 	}
@@ -74,33 +73,18 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	fromTo := make(map[string]libTransaction.Amount)
 	for k, v := range validate.From {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Scale:     v.Scale,
-			Operation: constant.DEBIT,
-		}
+		fromTo[k] = v
 	}
 
 	for k, v := range validate.To {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Scale:     v.Scale,
-			Operation: constant.CREDIT,
-		}
+		fromTo[k] = v
 	}
 
 	newBalances := make([]*mmodel.Balance, 0)
 
 	for _, balance := range balances {
-		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
-			libTransaction.Balance{
-				Scale:     balance.Scale,
-				Available: balance.Available,
-				OnHold:    balance.OnHold,
-			},
-			fromTo[balance.Alias].Operation)
+		balance.ConvertToLibBalance()
+		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
@@ -112,7 +96,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		newBalances = append(newBalances, &mmodel.Balance{
 			ID:        balance.ID,
 			Alias:     balance.Alias,
-			Scale:     calculateBalances.Scale,
 			Available: calculateBalances.Available,
 			OnHold:    calculateBalances.OnHold,
 			Version:   balance.Version + 1,

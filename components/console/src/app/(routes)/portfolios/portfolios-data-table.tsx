@@ -27,28 +27,25 @@ import { isNil } from 'lodash'
 import { MoreVertical } from 'lucide-react'
 import React from 'react'
 import { useIntl } from 'react-intl'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { IdTableCell } from '@/components/table/id-table-cell'
-import { PortfolioType } from '@/types/portfolio-type'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
+import { PortfolioDto } from '@/core/application/dto/portfolio-dto'
 
 type PortfoliosDataTableProps = {
-  portfolios: PaginationDto<PortfolioType> | undefined
-  form: UseFormReturn<any>
+  portfolios: PaginationDto<PortfolioDto> | undefined
   total: number
   pagination: PaginationProps
   handleCreate: () => void
   handleDialogOpen: (id: string) => void
-  handleEdit: (portfolio: PortfolioType) => void
+  handleEdit: (portfolio: PortfolioDto) => void
 }
 
 type PortfoliosRowProps = {
-  portfolio: Row<PortfolioType>
+  portfolio: Row<PortfolioDto>
   handleDialogOpen: (id: string) => void
-  handleEdit: (portfolio: PortfolioType) => void
+  handleEdit: (portfolio: PortfolioDto) => void
 }
 
 const PortfolioRow: React.FC<PortfoliosRowProps> = ({
@@ -61,8 +58,8 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
   return (
     <React.Fragment>
       <TableRow key={portfolio.id}>
-        <IdTableCell id={portfolio.original.id} />
         <TableCell>{portfolio.original.name}</TableCell>
+        <IdTableCell id={portfolio.original.id} />
         <TableCell>
           {intl.formatMessage(
             {
@@ -76,7 +73,7 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
           )}
         </TableCell>
 
-        <MetadataTableCell metadata={portfolio.original.metadata} />
+        <MetadataTableCell metadata={portfolio.original.metadata!} />
 
         <TableCell className="w-0">
           <DropdownMenu>
@@ -91,7 +88,7 @@ const PortfolioRow: React.FC<PortfoliosRowProps> = ({
                   handleEdit({
                     ...portfolio.original,
                     entityId: portfolio.original.id
-                  } as PortfolioType)
+                  } as PortfolioDto)
                 }
               >
                 {intl.formatMessage({
@@ -129,7 +126,6 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
     handleCreate,
     handleDialogOpen,
     handleEdit,
-    form,
     pagination,
     total
   } = props
@@ -150,11 +146,7 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
   })
 
   return (
-    <FormProvider {...form}>
-      <div className="mb-4 flex justify-end">
-        <PaginationLimitField control={form.control} />
-      </div>
-
+    <>
       <EntityDataTable.Root>
         {isNil(portfolios?.items) || portfolios.items.length === 0 ? (
           <EmptyResource
@@ -165,7 +157,7 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'common.new.portfolio',
+                id: 'ledgers.portfolio.sheet.title',
                 defaultMessage: 'New Portfolio'
               })}
             </Button>
@@ -177,14 +169,14 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
                 <TableRow>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.id',
-                      defaultMessage: 'ID'
+                      id: 'common.name',
+                      defaultMessage: 'Name'
                     })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'common.name',
-                      defaultMessage: 'Name'
+                      id: 'common.id',
+                      defaultMessage: 'ID'
                     })}
                   </TableHead>
                   <TableHead>
@@ -240,6 +232,6 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
-    </FormProvider>
+    </>
   )
 }

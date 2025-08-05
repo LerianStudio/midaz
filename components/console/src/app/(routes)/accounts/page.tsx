@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
 import {
   getCoreRowModel,
@@ -13,7 +13,6 @@ import {
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useAccountsWithPortfolios, useDeleteAccount } from '@/client/accounts'
-import { AccountType } from '@/types/accounts-type'
 import { AccountSheet } from './accounts-sheet'
 import { AccountsDataTable } from './accounts-data-table'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -23,6 +22,11 @@ import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths
 import { Breadcrumb } from '@/components/breadcrumb'
 import { useListAssets } from '@/client/assets'
 import { useToast } from '@/hooks/use-toast'
+import { AccountDto } from '@/core/application/dto/account-dto'
+import { Form } from '@/components/ui/form'
+import { EntityBox } from '@/components/entity-box'
+import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { InputField } from '@/components/form'
 
 const Page = () => {
   const intl = useIntl()
@@ -30,10 +34,13 @@ const Page = () => {
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { toast } = useToast()
 
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({
-    total
+    total,
+    initialValues: {
+      alias: ''
+    }
   })
 
   const {
@@ -43,24 +50,10 @@ const Page = () => {
   } = useAccountsWithPortfolios({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    ...(searchValues as any)
+    query: searchValues as any
   })
 
-  useEffect(() => {
-    if (!accountsData?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (accountsData.items.length >= accountsData.limit) {
-      setTotal(accountsData.limit + 1)
-      return
-    }
-
-    setTotal(accountsData.items.length)
-  }, [accountsData?.items, accountsData?.limit])
-
-  const accountsList: AccountType[] = useMemo(() => {
+  const accountsList: AccountDto[] = useMemo(() => {
     return (
       accountsData?.items.map((account: any) => ({
         ...account,
@@ -79,7 +72,7 @@ const Page = () => {
     dialogProps,
     handleDialogClose,
     data: selectedAccount
-  } = useConfirmDialog<AccountType>({
+  } = useConfirmDialog<AccountDto>({
     onConfirm: () => deleteAccount(selectedAccount)
   })
 
@@ -117,11 +110,11 @@ const Page = () => {
     handleCreate,
     handleEdit: handleEditOriginal,
     sheetProps
-  } = useCreateUpdateSheet<AccountType>({
+  } = useCreateUpdateSheet<AccountDto>({
     enableRouting: true
   })
 
-  const handleEdit = (account: AccountType) => {
+  const handleEdit = (account: AccountDto) => {
     handleEditOriginal(account)
   }
 
@@ -235,7 +228,7 @@ const Page = () => {
               disabled={!hasAssets}
             >
               {intl.formatMessage({
-                id: 'accounts.listingTemplate.addButton',
+                id: 'accounts.sheet.create.title',
                 defaultMessage: 'New Account'
               })}
             </Button>
@@ -279,7 +272,23 @@ const Page = () => {
         {...sheetProps}
       />
 
-      <div className="mt-10">
+      <Form {...form}>
+        <EntityBox.Root>
+          <div>
+            <InputField
+              name="alias"
+              placeholder={intl.formatMessage({
+                id: 'accounts.search.placeholder',
+                defaultMessage: 'Search by ID or Alias...'
+              })}
+              control={form.control}
+            />
+          </div>
+          <EntityBox.Actions>
+            <PaginationLimitField control={form.control} />
+          </EntityBox.Actions>
+        </EntityBox.Root>
+
         {isAccountsLoading && <AccountsSkeleton />}
 
         {!isAccountsLoading && accountsList && !isAssetsLoading && (
@@ -290,14 +299,13 @@ const Page = () => {
             handleCreate={handleCreate}
             handleEdit={handleEdit}
             onDelete={handleDialogOpen}
-            refetch={refetchAccounts}
+            _refetch={refetchAccounts}
             total={total}
             pagination={pagination}
-            form={form}
             hasAssets={hasAssets || false}
           />
         )}
-      </div>
+      </Form>
     </React.Fragment>
   )
 }

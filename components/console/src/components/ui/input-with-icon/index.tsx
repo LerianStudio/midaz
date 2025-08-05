@@ -4,6 +4,8 @@ import { Input } from '../input'
 import { cn } from '@/lib/utils'
 import { VariantProps, cva } from 'class-variance-authority'
 
+import type { JSX } from 'react'
+
 const InputVariants = cva('relative', {
   variants: {
     iconPosition: {
@@ -38,9 +40,9 @@ const InputWithIcon = React.forwardRef<HTMLInputElement, InputWithIconProps>(
         <Input
           ref={ref}
           className={cn(
-            'flex h-9 w-full rounded-md border border-[#d4d4d8] bg-transparent py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+            'border-shadcn-300 placeholder:text-muted-foreground flex h-9 w-full rounded-md border bg-transparent py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
             className,
-            iconPosition !== 'right' ? 'pl-10 pr-4' : 'pl-4 pr-10'
+            iconPosition !== 'right' ? 'pr-4 pl-10' : 'pr-10 pl-4'
           )}
           {...props}
         />

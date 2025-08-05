@@ -1,4 +1,7 @@
-import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
+import {
+  PortfolioEntity,
+  PortfolioSearchEntity
+} from '@/core/domain/entities/portfolios-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class PortfolioRepository {
@@ -10,8 +13,7 @@ export abstract class PortfolioRepository {
   abstract fetchAll: (
     organizationId: string,
     ledgerId: string,
-    limit: number,
-    page: number
+    filters: PortfolioSearchEntity
   ) => Promise<PaginationEntity<PortfolioEntity>>
   abstract fetchById: (
     organizationId: string,
@@ -29,4 +31,8 @@ export abstract class PortfolioRepository {
     ledgerId: string,
     portfolioId: string
   ) => Promise<void>
+  abstract count: (
+    organizationId: string,
+    ledgerId: string
+  ) => Promise<{ total: number }>
 }

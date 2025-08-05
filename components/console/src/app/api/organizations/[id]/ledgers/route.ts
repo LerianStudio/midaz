@@ -4,47 +4,21 @@ import {
   CreateLedger,
   CreateLedgerUseCase
 } from '@/core/application/use-cases/ledgers/create-ledger-use-case'
-import {
-  FetchAllLedgers,
-  FetchAllLedgersUseCase
-} from '@/core/application/use-cases/ledgers/fetch-all-ledgers-use-case'
 import { NextResponse } from 'next/server'
+import { getController } from '@/lib/http/server'
+import { LedgerController } from '@/core/application/controllers/ledger-controller'
 
-const fetchAllLedgersUseCases = container.get<FetchAllLedgers>(
-  FetchAllLedgersUseCase
-)
 const createLedgerUseCases = container.get<CreateLedger>(CreateLedgerUseCase)
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const limit = Number(searchParams.get('limit')) || 10
-    const page = Number(searchParams.get('page')) || 1
-    const organizationId = params.id
-
-    const ledgers = await fetchAllLedgersUseCases.execute(
-      organizationId,
-      limit,
-      page
-    )
-
-    return NextResponse.json(ledgers)
-  } catch (error: any) {
-    const { message, status } = await apiErrorHandler(error)
-
-    return NextResponse.json({ message }, { status })
-  }
-}
+export const GET = getController(LedgerController, (c) => c.fetchAll)
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params
   try {
-    const organizationId = params.id
+    const { id: organizationId } = await params
     const body = await request.json()
 
     const ledger = await createLedgerUseCases.execute(organizationId, body)

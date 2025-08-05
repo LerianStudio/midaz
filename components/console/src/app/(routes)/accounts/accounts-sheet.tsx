@@ -15,32 +15,35 @@ import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
+import { useOrganization } from '@lerianstudio/console-layout'
 import { MetadataField } from '@/components/form/metadata-field'
 import { useListSegments } from '@/client/segments'
 import { useCreateAccount, useUpdateAccount } from '@/client/accounts'
 import { useListPortfolios } from '@/client/portfolios'
 import { isNil, omitBy } from 'lodash'
 import { useListAssets } from '@/client/assets'
+import { useGetBalanceByAccountId } from '@/client/balances'
 import { accounts } from '@/schema/account'
-import { AccountType } from '@/types/accounts-type'
 import { SelectItem } from '@/components/ui/select'
 import { InputField, SelectField } from '@/components/form'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { ChevronRight, InfoIcon } from 'lucide-react'
+import { ChevronRight, InfoIcon, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SwitchField } from '@/components/form/switch-field'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce } from '@lerianstudio/console-layout'
+import { AccountDto } from '@/core/application/dto/account-dto'
+import { useFormatNumber } from '@/lib/intl/use-format-number'
+import { Separator } from '@/components/ui/separator'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: AccountType | null
+  data?: AccountDto | null
   onSuccess?: () => void
 }
 
@@ -84,6 +87,7 @@ export const AccountSheet = ({
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
+  const { formatNumber } = useFormatNumber()
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -127,6 +131,17 @@ export const AccountSheet = ({
     )
   }, [rawAssetListData])
 
+  const {
+    data: balanceData,
+    isFetching: balanceLoading,
+    refetch: refetchBalance
+  } = useGetBalanceByAccountId({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    accountId: data?.id!,
+    enabled: mode === 'edit' && !!data?.id
+  })
+
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     values: getInitialValues(initialValues, data!),
@@ -147,7 +162,7 @@ export const AccountSheet = ({
             id: 'success.accounts.created',
             defaultMessage: '{accountName} account successfully created'
           },
-          { accountName: (data as AccountType)?.name! }
+          { accountName: (data as AccountDto)?.name! }
         ),
         variant: 'success'
       })
@@ -160,6 +175,7 @@ export const AccountSheet = ({
     ledgerId: currentLedger.id,
     accountId: data?.id!,
     onSuccess: (data) => {
+      refetchBalance()
       onSuccess?.()
       onOpenChange?.(false)
       toast({
@@ -168,7 +184,7 @@ export const AccountSheet = ({
             id: 'success.accounts.update',
             defaultMessage: '{accountName} account successfully updated'
           },
-          { accountName: (data as AccountType)?.name! }
+          { accountName: (data as AccountDto)?.name! }
         ),
         variant: 'success'
       })
@@ -183,7 +199,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const { type, assetCode, entityId, ...updateData } = cleanedData
+      const { ...updateData } = cleanedData
       updateAccount(updateData)
     }
   }
@@ -240,7 +256,7 @@ export const AccountSheet = ({
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex flex-grow flex-col"
+              className="flex grow flex-col"
             >
               <Tabs defaultValue="details" className="mt-0">
                 <TabsList className="mb-8 px-0">
@@ -252,7 +268,7 @@ export const AccountSheet = ({
                   </TabsTrigger>
                   <TabsTrigger value="portfolio">
                     {intl.formatMessage({
-                      id: 'entity.portfolio',
+                      id: 'common.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                   </TabsTrigger>
@@ -264,7 +280,7 @@ export const AccountSheet = ({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="details">
-                  <div className="flex flex-grow flex-col gap-4">
+                  <div className="flex grow flex-col gap-4">
                     <InputField
                       control={form.control}
                       name="name"
@@ -403,6 +419,79 @@ export const AccountSheet = ({
                       ))}
                     </SelectField>
 
+                    {mode === 'edit' && data?.id && (
+                      <>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-shadcn-700 text-sm font-medium">
+                              {intl.formatMessage({
+                                id: 'accounts.field.balance',
+                                defaultMessage: 'Account Balance'
+                              })}
+                            </h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => refetchBalance()}
+                              disabled={balanceLoading}
+                              className="h-6 px-2 text-xs"
+                            >
+                              <RefreshCw
+                                className={`h-3 w-3 ${balanceLoading ? 'animate-spin' : ''}`}
+                              />
+                            </Button>
+                          </div>
+
+                          {balanceLoading && (
+                            <div className="space-y-2">
+                              <div className="h-4 animate-pulse rounded bg-gray-200" />
+                              <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200" />
+                            </div>
+                          )}
+
+                          {!balanceLoading &&
+                            balanceData?.items &&
+                            balanceData.items.length > 0 && (
+                              <div className="space-y-2">
+                                {balanceData.items.map((balance) => (
+                                  <div
+                                    key={balance.id}
+                                    className="flex flex-row items-center justify-between text-sm"
+                                  >
+                                    <div className="space-y-1">
+                                      <p className="text-shadcn-600 font-medium">
+                                        {balance.assetCode}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-shadcn-700 font-semibold">
+                                        {formatNumber(balance.available)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                          {!balanceLoading &&
+                            (!balanceData?.items ||
+                              balanceData.items.length === 0) && (
+                              <div className="py-4 text-center">
+                                <p className="text-shadcn-400 text-sm">
+                                  {intl.formatMessage({
+                                    id: 'accounts.balance.empty',
+                                    defaultMessage:
+                                      'No balance information available'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                        </div>
+                        <Separator className="my-4" />
+                      </>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <SwitchField
                         control={form.control}
@@ -449,7 +538,7 @@ export const AccountSheet = ({
                       />
                     </div>
 
-                    <p className="text-xs font-normal italic text-shadcn-400">
+                    <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({
                         id: 'common.requiredFields',
                         defaultMessage: '(*) required fields.'
@@ -482,7 +571,7 @@ export const AccountSheet = ({
                     control={form.control}
                     name="portfolioId"
                     label={intl.formatMessage({
-                      id: 'accounts.field.portfolio',
+                      id: 'common.portfolio',
                       defaultMessage: 'Portfolio'
                     })}
                     tooltip={intl.formatMessage({
@@ -499,8 +588,8 @@ export const AccountSheet = ({
                   </SelectField>
 
                   <div className="mt-4 flex flex-row items-center">
-                    <div className="flex-grow">
-                      <p className="text-xs font-normal italic text-shadcn-400">
+                    <div className="grow">
+                      <p className="text-shadcn-400 text-xs font-normal italic">
                         {isNil(portfolioId) || portfolioId === ''
                           ? intl.formatMessage({
                               id: 'accounts.sheet.noLinkedPortfolio',

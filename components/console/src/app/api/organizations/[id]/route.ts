@@ -30,7 +30,7 @@ export const GET = applyMiddleware(
           FetchOrganizationByIdUseCase
         )
 
-      const organizationId = params.id
+      const { id: organizationId } = await params
       const organizations =
         await fetchOrganizationByIdUseCase.execute(organizationId)
 

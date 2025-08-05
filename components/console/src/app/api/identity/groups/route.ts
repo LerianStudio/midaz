@@ -16,7 +16,7 @@ export const GET = applyMiddleware(
       method: 'GET'
     })
   ],
-  async (request: Request) => {
+  async (_request: Request) => {
     try {
       const fetchAllGroupsUseCase: FetchAllGroups =
         container.get<FetchAllGroups>(FetchAllGroupsUseCase)

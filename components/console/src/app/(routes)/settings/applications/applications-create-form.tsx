@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { Enforce } from '@/providers/permission-provider/enforce'
+import { Enforce, getRuntimeEnv } from '@lerianstudio/console-layout'
 import { ComboBoxField } from '@/components/form/combo-box-field'
 import { CommandItem } from '@/components/ui/command'
 import { SheetFooter } from '@/components/ui/sheet'
@@ -27,10 +27,16 @@ const initialValues = {
   description: ''
 }
 
-const getApplicationOptions = () =>
-  process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS?.split(',').map((option) =>
-    option.trim()
-  ) ?? []
+const getApplicationOptions = () => {
+  const applicationOptionsValue =
+    getRuntimeEnv('NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS') ||
+    process.env.NEXT_PUBLIC_MIDAZ_APPLICATION_OPTIONS
+
+  const applicationOptions =
+    applicationOptionsValue?.split(',').map((option) => option.trim()) ?? []
+
+  return applicationOptions
+}
 
 type CreateApplicationFormProps = {
   onSuccess?: () => void
@@ -73,7 +79,7 @@ export const CreateApplicationForm = ({
   }
 
   return (
-    <div className="flex flex-grow flex-col justify-between">
+    <div className="flex grow flex-col justify-between">
       <Form {...form}>
         <form
           id="application-create-form"
@@ -88,7 +94,7 @@ export const CreateApplicationForm = ({
               defaultMessage: 'Application Name'
             })}
             placeholder={intl.formatMessage({
-              id: 'combobox.placeholder',
+              id: 'common.typePlaceholder',
               defaultMessage: 'Type...'
             })}
             required
@@ -111,7 +117,7 @@ export const CreateApplicationForm = ({
           />
 
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-normal italic text-shadcn-400">
+            <p className="text-shadcn-400 text-xs font-normal italic">
               {intl.formatMessage({
                 id: 'common.requiredFields',
                 defaultMessage: '(*) required fields.'

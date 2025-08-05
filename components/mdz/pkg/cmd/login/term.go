@@ -1,8 +1,8 @@
 package login
 
 import (
-	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/rest"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/tui"
 )
 
 func (l *factoryLogin) terminalLogin() error {

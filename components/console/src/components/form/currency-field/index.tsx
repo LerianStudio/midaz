@@ -37,15 +37,15 @@ type CurrencySelectProps = SelectProps &
 const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
   (
     {
-      name,
+      name: _name,
       value,
       placeholder,
       onChange,
       emptyMessage,
       readOnly,
-      ...others
+      ..._others
     }: CurrencySelectProps,
-    ref
+    _ref
   ) => {
     const intl = useIntl()
     const [open, setOpen] = React.useState(false)
@@ -92,7 +92,7 @@ const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-0"
+          className="w-(--radix-popover-trigger-width) p-0"
           usePortal={false}
         >
           <Command>

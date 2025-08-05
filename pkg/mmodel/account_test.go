@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )

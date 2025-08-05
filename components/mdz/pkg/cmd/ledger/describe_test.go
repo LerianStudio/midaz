@@ -9,11 +9,11 @@ import (
 	"go.uber.org/mock/gomock"
 	"gotest.tools/golden"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func Test_newCmdLedgerDescribe(t *testing.T) {

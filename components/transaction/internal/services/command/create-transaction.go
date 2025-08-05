@@ -2,15 +2,16 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/google/uuid"
 	"reflect"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
@@ -42,10 +43,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
 		Description:              t.Description,
-		Template:                 t.ChartOfAccountsGroupName,
 		Status:                   status,
 		Amount:                   &t.Send.Value,
-		AmountScale:              &t.Send.Scale,
 		AssetCode:                t.Send.Asset,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Body:                     *t,

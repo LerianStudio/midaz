@@ -1320,6 +1320,949 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
+            "get": {
+                "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operation Route"
+                ],
+                "summary": "Retrieve all operation routes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/OperationRoute"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "page": {
+                                            "type": "object"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation Route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Endpoint to create a new Operation Route.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operation Route"
+                ],
+                "summary": "Create Operation Route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Operation Route Input",
+                        "name": "operation-route",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.CreateOperationRouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created operation route",
+                        "schema": {
+                            "$ref": "#/definitions/OperationRoute"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}": {
+            "get": {
+                "description": "Returns detailed information about an operation route identified by its UUID within the specified ledger",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operation Route"
+                ],
+                "summary": "Retrieve a specific operation route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation Route ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved operation route",
+                        "schema": {
+                            "$ref": "#/definitions/OperationRoute"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}": {
+            "delete": {
+                "description": "Deletes an existing operation route identified by its UUID within the specified ledger",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operation Route"
+                ],
+                "summary": "Delete an operation route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation Route ID in UUID format",
+                        "name": "operation_route_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successfully deleted operation route"
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation Route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Updates an existing operation route's properties such as title, description, and type within the specified ledger",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operation Route"
+                ],
+                "summary": "Update an operation route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation Route ID in UUID format",
+                        "name": "operation_route_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Operation Route Input",
+                        "name": "operation-route",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateOperationRouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated operation route",
+                        "schema": {
+                            "$ref": "#/definitions/OperationRoute"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation Route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Operation Route with the same title already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes": {
+            "get": {
+                "description": "Endpoint to get all Transaction Routes with optional metadata filtering.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transaction Route"
+                ],
+                "summary": "Get all Transaction Routes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/TransactionRoute"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "page": {
+                                            "type": "object"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Endpoint to create a new Transaction Route.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transaction Route"
+                ],
+                "summary": "Create Transaction Route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Route Input",
+                        "name": "transaction-route",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateTransactionRouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created transaction route",
+                        "schema": {
+                            "$ref": "#/definitions/TransactionRoute"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}": {
+            "get": {
+                "description": "Endpoint to get a Transaction Route by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transaction Route"
+                ],
+                "summary": "Get Transaction Route by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Route ID in UUID format",
+                        "name": "transaction_route_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved transaction route",
+                        "schema": {
+                            "$ref": "#/definitions/TransactionRoute"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction Route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Endpoint to delete a Transaction Route by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transaction Route"
+                ],
+                "summary": "Delete Transaction Route by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Route ID in UUID format",
+                        "name": "transaction_route_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successfully deleted transaction route"
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction Route not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Endpoint to update a Transaction Route by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transaction Route"
+                ],
+                "summary": "Update Transaction Route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Route ID in UUID format",
+                        "name": "transaction_route_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Route Input",
+                        "name": "transaction-route",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateTransactionRouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated transaction route",
+                        "schema": {
+                            "$ref": "#/definitions/TransactionRoute"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
             "get": {
                 "description": "Get all Transactions with the input metadata or without metadata",
@@ -1670,7 +2613,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
                         }
                     }
                 ],
@@ -1975,6 +2918,98 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel": {
+            "post": {
+                "description": "Cancel a previously created pre transaction",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Cancel a pre transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or transaction cannot be reverted",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit": {
             "post": {
                 "description": "Commit a previously created transaction",
@@ -2024,23 +3059,45 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
-                        "schema": {}
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
                     },
                     "400": {
-                        "description": "Bad Request",
-                        "schema": {}
+                        "description": "Invalid request or transaction cannot be reverted",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "401": {
-                        "description": "Unauthorized",
-                        "schema": {}
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "404": {
-                        "description": "Not Found",
-                        "schema": {}
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     },
                     "500": {
-                        "description": "Internal Server Error",
-                        "schema": {}
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -2251,17 +3308,11 @@ const docTemplate = `{
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
             "properties": {
-                "amount": {
+                "value": {
                     "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
-                },
-                "scale": {
-                    "description": "Decimal places for the amount (e.g., 2 for dollars/euros, 8 for BTC)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 }
             }
         },
@@ -2354,22 +3405,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "available": {
-                    "description": "Amount available for transactions (in smallest unit of asset)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "description": "Amount available for transactions (in the smallest unit of asset)\nexample: 1500\nminimum: 0",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
                 },
                 "onHold": {
-                    "description": "Amount on hold and unavailable for transactions (in smallest unit of asset)\nexample: 500\nminimum: 0",
-                    "type": "integer",
+                    "description": "Amount on hold and unavailable for transactions (in the smallest unit of asset)\nexample: 500\nminimum: 0",
+                    "type": "number",
                     "minimum": 0,
                     "example": 500
-                },
-                "scale": {
-                    "description": "Decimal places for the balance (e.g., 2 for dollars/euros)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 }
             }
         },
@@ -2453,10 +3498,6 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
-                },
                 "send": {
                     "description": "Send operation details including distribution only\nrequired: true",
                     "type": "object",
@@ -2487,13 +3528,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -2515,13 +3552,9 @@ const docTemplate = `{
                                 }
                             }
                         },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
-                        },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
                 }
@@ -2549,8 +3582,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source only\nrequired: true",
@@ -2559,10 +3594,6 @@ const docTemplate = `{
                         "asset": {
                             "description": "Asset code for the transaction\nexample: USD\nrequired: true",
                             "type": "string"
-                        },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
                         },
                         "source": {
                             "description": "Source accounts and amounts for the transaction\nrequired: true",
@@ -2586,13 +3617,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -2615,10 +3642,44 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
+                }
+            }
+        },
+        "CreateTransactionRouteInput": {
+            "description": "CreateTransactionRouteInput payload",
+            "type": "object",
+            "required": [
+                "operationRoutes",
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "description": "A description for the Transaction Route.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Settlement route for service charges"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationRoutes": {
+                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "Charge Settlement"
                 }
             }
         },
@@ -2762,6 +3823,12 @@ const docTemplate = `{
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "route": {
+                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "type": "string",
+                    "format": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "status": {
                     "description": "Operation status information",
                     "allOf": [
@@ -2784,6 +3851,73 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "description": "Timestamp when the operation was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "OperationRoute": {
+            "description": "OperationRoute object",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
+                    ]
+                },
+                "createdAt": {
+                    "description": "The timestamp when the operation route was created.",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "The timestamp when the operation route was deleted.",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "description": "Detailed description of the operation route purpose and usage.",
+                    "type": "string",
+                    "example": "This operation route handles cash-in transactions from service charge collections"
+                },
+                "id": {
+                    "description": "The unique identifier of the Operation Route.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "ledgerId": {
+                    "description": "The unique identifier of the Ledger.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationType": {
+                    "description": "The type of the operation route.",
+                    "type": "string",
+                    "example": "source"
+                },
+                "organizationId": {
+                    "description": "The unique identifier of the Organization.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+                    "type": "string",
+                    "example": "Cashin from service charge"
+                },
+                "updatedAt": {
+                    "description": "The timestamp when the operation route was last updated.",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
@@ -2839,15 +3973,9 @@ const docTemplate = `{
             "properties": {
                 "amount": {
                     "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
-                },
-                "amountScale": {
-                    "description": "Decimal places for the transaction amount\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 },
                 "assetCode": {
                     "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
@@ -2926,6 +4054,12 @@ const docTemplate = `{
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "route": {
+                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "type": "string",
+                    "format": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "source": {
                     "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
                     "type": "array",
@@ -2944,17 +4078,69 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "template": {
-                    "description": "Template used to create this transaction\nexample: Transaction template\nmaxLength: 100",
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "Transaction template"
-                },
                 "updatedAt": {
                     "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "TransactionRoute": {
+            "description": "TransactionRoute object",
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "description": "The timestamp when the transaction route was created.",
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "description": "The timestamp when the transaction route was deleted.",
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
+                },
+                "description": {
+                    "description": "A description for the Transaction Route.",
+                    "type": "string",
+                    "example": "Settlement route for service charges"
+                },
+                "id": {
+                    "description": "The unique identifier of the Transaction Route.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "ledgerId": {
+                    "description": "The unique identifier of the Ledger.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationRoutes": {
+                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/OperationRoute"
+                    }
+                },
+                "organizationId": {
+                    "description": "The unique identifier of the Organization.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
+                    "type": "string",
+                    "example": "Charge Settlement"
+                },
+                "updatedAt": {
+                    "description": "The timestamp when the transaction route was last updated.",
+                    "type": "string",
+                    "example": "2025-01-01T00:00:00Z"
                 }
             }
         },
@@ -2991,6 +4177,37 @@ const docTemplate = `{
                 }
             }
         },
+        "UpdateOperationRouteInput": {
+            "description": "UpdateOperationRouteInput payload",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "description": "The account selection rule configuration.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountRule"
+                        }
+                    ]
+                },
+                "description": {
+                    "description": "Detailed description of the operation route purpose and usage.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "This operation route handles cash-in transactions from service charge collections"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "Cashin from service charge"
+                }
+            }
+        },
         "UpdateTransactionInput": {
             "description": "UpdateTransactionInput is the input payload to update a transaction. Contains fields that can be modified after a transaction is created.",
             "type": "object",
@@ -3008,7 +4225,37 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+        "UpdateTransactionRouteInput": {
+            "description": "UpdateTransactionRouteInput payload",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "A description for the Transaction Route.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Settlement route for service charges"
+                },
+                "metadata": {
+                    "description": "Additional metadata stored as JSON",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operationRoutes": {
+                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "Charge Settlement"
+                }
+            }
+        },
+        "github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
             "description": "Schema for creating transaction with the complete Send operation structure defined inline",
             "type": "object",
             "properties": {
@@ -3030,8 +4277,10 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "pending": {
-                    "description": "Whether the transaction should be created in pending state\nswagger:ignore",
-                    "type": "boolean"
+                    "description": "Whether the transaction should be created in pending state\nexample: true\nswagger: type boolean",
+                    "type": "boolean",
+                    "default": false,
+                    "example": true
                 },
                 "send": {
                     "description": "Send operation details including source and distribution\nrequired: true",
@@ -3063,13 +4312,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -3090,10 +4335,6 @@ const docTemplate = `{
                                     }
                                 }
                             }
-                        },
-                        "scale": {
-                            "description": "Decimal places for the transaction amount\nexample: 2\nrequired: true",
-                            "type": "integer"
                         },
                         "source": {
                             "description": "Source accounts and amounts for the transaction\nrequired: true",
@@ -3117,13 +4358,9 @@ const docTemplate = `{
                                                         "description": "Asset code\nexample: USD\nrequired: true",
                                                         "type": "string"
                                                     },
-                                                    "scale": {
-                                                        "description": "Decimal places\nexample: 2\nrequired: true",
-                                                        "type": "integer"
-                                                    },
                                                     "value": {
-                                                        "description": "Amount value in smallest unit\nexample: 100\nrequired: true",
-                                                        "type": "integer"
+                                                        "description": "Amount value in smallest unit\nexample: \"100.00\"\nrequired: true",
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -3146,12 +4383,15 @@ const docTemplate = `{
                             }
                         },
                         "value": {
-                            "description": "Transaction amount value in the smallest unit of the asset\nexample: 100\nrequired: true",
-                            "type": "integer"
+                            "description": "Transaction amount value in the smallest unit of the asset\nexample: \"100.00\"\nrequired: true",
+                            "type": "string"
                         }
                     }
                 }
             }
+        },
+        "mmodel.AccountRule": {
+            "type": "object"
         },
         "mmodel.Balance": {
             "description": "Complete balance entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for balance operations. Balances represent the amount of a specific asset held in an account, including available and on-hold amounts.",
@@ -3194,7 +4434,7 @@ const docTemplate = `{
                 },
                 "available": {
                     "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 1500
                 },
@@ -3205,7 +4445,7 @@ const docTemplate = `{
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "description": "Timestamp when the balance was soft deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
+                    "description": "Timestamp when the balance was softly deleted, null if not deleted (RFC3339 format)\nexample: null\nformat: date-time",
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
@@ -3229,7 +4469,7 @@ const docTemplate = `{
                 },
                 "onHold": {
                     "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
-                    "type": "integer",
+                    "type": "number",
                     "minimum": 0,
                     "example": 500
                 },
@@ -3238,12 +4478,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "scale": {
-                    "description": "Decimal places for the asset (e.g. 2 for USD/EUR, 8 for BTC)\nexample: 2\nminimum: 0",
-                    "type": "integer",
-                    "minimum": 0,
-                    "example": 2
                 },
                 "updatedAt": {
                     "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
@@ -3258,6 +4492,9 @@ const docTemplate = `{
                     "example": 1
                 }
             }
+        },
+        "mmodel.CreateOperationRouteInput": {
+            "type": "object"
         }
     }
 }`

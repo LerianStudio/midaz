@@ -30,7 +30,7 @@ export const TransactionFormSkeleton = () => (
     </div>
 
     <div className="relative col-span-2 overflow-y-auto py-16 pr-16">
-      <Skeleton className="mb-24 mt-48 h-60 w-full rounded-lg bg-zinc-200" />
+      <Skeleton className="mt-48 mb-24 h-60 w-full rounded-lg bg-zinc-200" />
     </div>
   </div>
 )

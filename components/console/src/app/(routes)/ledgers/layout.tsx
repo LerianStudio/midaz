@@ -1,9 +1,11 @@
-import { ReactNode } from 'react'
-import { Header } from '@/components/header'
-import { Sidebar } from '@/components/sidebar'
+import { Sidebar, Header } from '@lerianstudio/console-layout'
 import { PageContent, PageRoot, PageView } from '@/components/page'
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children
+}: {
+  children: React.ReactNode
+}) {
   return (
     <PageRoot>
       <Sidebar />

@@ -47,13 +47,13 @@ export const useListAccounts = ({
 type UseAccountsWithPortfoliosProps = PaginationRequest & {
   organizationId: string
   ledgerId: string
+  query?: AccountSearchParamDto
 }
 
 export const useAccountsWithPortfolios = ({
   organizationId,
   ledgerId,
-  page,
-  limit,
+  query,
   ...options
 }: UseAccountsWithPortfoliosProps) => {
   return useQuery<PaginationDto<AccountDto>>({
@@ -61,12 +61,11 @@ export const useAccountsWithPortfolios = ({
       organizationId,
       ledgerId,
       'accounts-with-portfolios',
-      page,
-      limit
+      ...Object.values(query ?? {})
     ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts-portfolios`,
-      { page, limit }
+      query
     ),
     enabled: !!organizationId && !!ledgerId,
     ...options

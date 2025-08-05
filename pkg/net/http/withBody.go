@@ -3,20 +3,22 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gopkg.in/go-playground/validator.v9"
-	"reflect"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -76,7 +78,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
-	diffFields := findUnknownFields(originalMap, marshaledMap)
+	diffFields := FindUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
 		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
@@ -156,6 +158,8 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
 			case "invalidaliascharacters":
 				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaccounttype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
 			}
 		}
 
@@ -216,6 +220,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
 	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
+	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -293,6 +298,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("invalidaliascharacters", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaliascharacters", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("invalidaccounttype", trans, func(ut ut.Translator) error {
+		return ut.Add("invalidaccounttype", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("invalidaccounttype", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -391,6 +404,18 @@ func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	return validChars.MatchString(f)
 }
 
+// validateAccountType checks if the string contains only alphanumeric characters, _ or -, and no spaces.
+func validateAccountType(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	match, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, f)
+
+	return match
+}
+
 // formatErrorFieldName formats metadata field error names for error messages
 func formatErrorFieldName(text string) string {
 	re, _ := regexp.Compile(`\.(.+)$`)
@@ -459,8 +484,10 @@ func parseMetadata(s any, originalMap map[string]any) {
 	}
 }
 
-// findUnknownFields finds fields that are present in the original map but not in the marshaled map.
-func findUnknownFields(original, marshaled map[string]any) map[string]any {
+// FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
+//
+//nolint:gocognit,gocyclo
+func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
 	numKinds := libCommons.GetMapNumKinds()
@@ -472,21 +499,18 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 
 		marshaledValue, ok := marshaled[key]
 		if !ok {
-			// If the key is not present in the marshaled map, marking as difference
 			diffFields[key] = value
 			continue
 		}
 
-		// Check for nested structures and direct value comparison
 		switch originalValue := value.(type) {
 		case map[string]any:
 			if marshaledMap, ok := marshaledValue.(map[string]any); ok {
-				nestedDiff := findUnknownFields(originalValue, marshaledMap)
+				nestedDiff := FindUnknownFields(originalValue, marshaledMap)
 				if len(nestedDiff) > 0 {
 					diffFields[key] = nestedDiff
 				}
 			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				// If types mismatch (map vs non-map), marking as difference
 				diffFields[key] = value
 			}
 
@@ -497,12 +521,19 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 					diffFields[key] = arrayDiff
 				}
 			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
-				// If types mismatch (slice vs non-slice), marking as difference
 				diffFields[key] = value
 			}
+		case string:
+			if isStringNumeric(originalValue) {
+				if isDecimalEqual(originalValue, marshaledValue) {
+					continue
+				}
+			}
 
+			if !reflect.DeepEqual(value, marshaledValue) {
+				diffFields[key] = value
+			}
 		default:
-			// Using reflect.DeepEqual for simple types (strings, ints, etc.)
 			if !reflect.DeepEqual(value, marshaledValue) {
 				diffFields[key] = value
 			}
@@ -510,6 +541,47 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 	}
 
 	return diffFields
+}
+
+func isDecimalEqual(a, b any) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	var decimalA, decimalB decimal.Decimal
+
+	var err error
+
+	switch valA := a.(type) {
+	case string:
+		decimalA, err = decimal.NewFromString(valA)
+		if err != nil {
+			return false
+		}
+	case decimal.Decimal:
+		decimalA = valA
+	default:
+		return false
+	}
+
+	switch valB := b.(type) {
+	case string:
+		decimalB, err = decimal.NewFromString(valB)
+		if err != nil {
+			return false
+		}
+	case decimal.Decimal:
+		decimalB = valB
+	default:
+		return false
+	}
+
+	return decimalA.Equal(decimalB)
+}
+
+func isStringNumeric(s string) bool {
+	_, err := decimal.NewFromString(s)
+	return err == nil
 }
 
 // compareSlices compares two slices and returns differences.
@@ -526,7 +598,7 @@ func compareSlices(original, marshaled []any) []any {
 			// Compare individual items at the same index
 			if originalMap, ok := item.(map[string]any); ok {
 				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
-					nestedDiff := findUnknownFields(originalMap, marshaledMap)
+					nestedDiff := FindUnknownFields(originalMap, marshaledMap)
 					if len(nestedDiff) > 0 {
 						diff = append(diff, nestedDiff)
 					}

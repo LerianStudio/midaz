@@ -1,14 +1,15 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.
@@ -30,6 +31,9 @@ type UseCase struct {
 
 	// AssetRepo provides an abstraction on top of the asset data source.
 	AssetRepo asset.Repository
+
+	// AccountTypeRepo provides an abstraction on top of the account type data source.
+	AccountTypeRepo accounttype.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

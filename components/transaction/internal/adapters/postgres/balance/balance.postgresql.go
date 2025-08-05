@@ -4,23 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Repository provides an interface for operations related to balance template entities.
@@ -82,7 +83,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		return err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
 		record.OrganizationID,
 		record.LedgerID,
@@ -91,7 +92,6 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		record.AssetCode,
 		record.Available,
 		record.OnHold,
-		record.Scale,
 		record.Version,
 		record.AccountType,
 		record.AllowSending,
@@ -171,7 +171,6 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -231,8 +230,8 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
@@ -267,7 +266,6 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -342,8 +340,8 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("account_id = ?", accountID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
@@ -378,7 +376,6 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -463,7 +460,6 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -555,7 +551,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			&balance.AssetCode,
 			&balance.Available,
 			&balance.OnHold,
-			&balance.Scale,
 			&balance.Version,
 			&balance.AccountType,
 			&balance.AllowSending,
@@ -581,11 +576,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	for _, balance := range balances {
 		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
 			libTransaction.Balance{
-				Scale:     balance.Scale,
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
-			},
-			fromTo[balance.Alias].Operation)
+			})
 
 		if err != nil {
 			return err
@@ -600,9 +593,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
 		args = append(args, calculateBalances.OnHold)
-
-		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, calculateBalances.Scale)
 
 		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
 		version := balance.Version + 1
@@ -694,9 +684,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.OnHold)
 
-		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, balance.Scale)
-
 		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Version)
 
@@ -770,7 +757,6 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.AssetCode,
 		&balance.Available,
 		&balance.OnHold,
-		&balance.Scale,
 		&balance.Version,
 		&balance.AccountType,
 		&balance.AllowSending,

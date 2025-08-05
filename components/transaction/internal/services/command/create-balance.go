@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/jackc/pgx/v5/pgconn"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {

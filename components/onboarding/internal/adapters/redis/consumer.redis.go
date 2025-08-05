@@ -2,10 +2,11 @@ package redis
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 )
 
 // RedisRepository provides an interface for redis.
@@ -48,7 +49,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	}
 
 	if ttl <= 0 {
-		ttl = libRedis.RedisTTL
+		ttl = time.Duration(libRedis.TTL)
 	}
 
 	logger.Infof("value of ttl: %v", ttl)

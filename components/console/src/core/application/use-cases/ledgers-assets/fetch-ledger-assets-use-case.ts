@@ -1,20 +1,18 @@
 import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
-import { LedgerResponseDto } from '../../dto/ledger-dto'
+import { type LedgerDto, type LedgerSearchParamDto } from '../../dto/ledger-dto'
 import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { inject, injectable } from 'inversify'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
+import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 
 export interface FetchAllLedgersAssets {
   execute: (
     organizationId: string,
-    limit: number,
-    page: number
-  ) => Promise<PaginationDto<LedgerResponseDto>>
+    filters: LedgerSearchParamDto
+  ) => Promise<PaginationDto<LedgerDto>>
 }
 
 @injectable()
@@ -29,13 +27,14 @@ export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
   @LogOperation({ layer: 'application' })
   async execute(
     organizationId: string,
-    limit: number,
-    page: number
-  ): Promise<PaginationDto<LedgerResponseDto>> {
-    const ledgersResult: PaginationEntity<LedgerEntity> =
-      await this.ledgerRepository.fetchAll(organizationId, limit, page)
+    filters: LedgerSearchParamDto
+  ): Promise<PaginationDto<LedgerDto>> {
+    const ledgersResult = await this.ledgerRepository.fetchAll(
+      organizationId,
+      filters
+    )
 
-    let ledgersAssetResponseDTO: PaginationDto<LedgerResponseDto> = {
+    let ledgersAssetResponseDTO: PaginationDto<LedgerDto> = {
       items: [],
       limit: ledgersResult.limit,
       page: ledgersResult.page
@@ -49,11 +48,11 @@ export class FetchAllLedgersAssetsUseCase implements FetchAllLedgersAssets {
           await this.assetRepository.fetchAll(
             organizationId,
             ledger.id!,
-            limit,
-            page
+            100,
+            1
           )
 
-        const ledgerAssets: LedgerResponseDto = {
+        const ledgerAssets: LedgerDto = {
           id: ledger.id!,
           organizationId: ledger.organizationId!,
           name: ledger.name!,
