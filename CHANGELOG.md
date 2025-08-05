@@ -1,3 +1,18 @@
+## [v3.0.0-beta.34] - 2025-08-05
+
+This release introduces a new configuration feature to enhance code quality management and ensures documentation is up-to-date for improved project transparency.
+
+### ✨ Features  
+- **Configurable Code Complexity**: We've added a new option to set the minimum complexity value in GolangCI. This feature empowers developers to enforce stricter code complexity standards, promoting better code quality and maintainability across your projects. By configuring this setting, teams can ensure their codebase remains clean and efficient.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been refreshed to accurately reflect the latest changes and improvements. This ensures that users have clear insights into what has been updated or added, facilitating better understanding and project management.
+
+### 🔧 Maintenance
+- **Release Management**: We've made behind-the-scenes updates to streamline the release process, ensuring that future updates are delivered smoothly and efficiently. This maintenance work supports ongoing project stability and reliability.
+
+This changelog focuses on the user benefits and impacts of the new features and maintenance updates, providing a clear and concise overview of what users can expect from the latest release.
+
 ## [v3.0.0-beta.33] - 2025-08-04
 
 This release of midaz introduces dynamic permissions routing, enhancing security and user management, alongside improvements in language support and pagination accuracy.
