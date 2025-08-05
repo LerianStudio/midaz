@@ -575,7 +575,6 @@ if (pm.response.code === 200) {
                           "account": "@external/USD",
                           "amount": {
                             "asset": "USD",
-                            "scale": "{{currentBalanceScale}}",
                             "value": "{{currentBalanceAmount}}"
                           },
                           "chartOfAccounts": "Example chartOfAccounts",
@@ -592,7 +591,6 @@ if (pm.response.code === 200) {
                           "account": "{{accountAlias}}",
                           "amount": {
                             "asset": "USD",
-                            "scale": "{{currentBalanceScale}}",
                             "value": "{{currentBalanceAmount}}"
                           },
                           "chartOfAccounts": "Example chartOfAccounts",
@@ -603,7 +601,6 @@ if (pm.response.code === 200) {
                         }
                       ]
                     },
-                    "scale": "{{currentBalanceScale}}",
                     "value": "{{currentBalanceAmount}}"
                   }
                 };

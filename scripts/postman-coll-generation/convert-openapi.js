@@ -1508,27 +1508,29 @@ const REQUEST_BODY_EXAMPLES = {};
 //=============================================================================
 
 /**
- * Generate an example for a Send object based on the Midaz API documentation standards
+ * Generate an example for a Send object with URL-aware account logic
+ * @param {string} url - The URL context for determining transaction type
  * @returns {Object} Example Send object
  */
-function generateSendExample() {
+function generateSendExample(url = '') {
+  const isOutflowTransaction = url.includes('/transactions/outflow');
+  
   return {
     asset: "USD",
-    value: 10000,
-    scale: 2,
+    value: "100.00",
     source: {
       from: [
         {
-          account: "account_123",
+          account: isOutflowTransaction ? "{{accountAlias}}" : "@external/USD",
           amount: {
             asset: "USD",
-            value: 10000,
-            scale: 2
+            value: "100.00"
           },
-          description: "Funding from source account",
-          chartOfAccounts: "ASSETS",
+          description: isOutflowTransaction ? "Debit Operation" : "External funding",
+          chartOfAccounts: isOutflowTransaction ? "WITHDRAWAL_DEBIT" : "FUNDING_DEBIT",
           metadata: {
-            externalId: "ext_123"
+            operation: isOutflowTransaction ? "withdrawal" : "funding",
+            type: isOutflowTransaction ? "account" : "external"
           }
         }
       ]
@@ -1536,16 +1538,16 @@ function generateSendExample() {
     distribute: {
       to: [
         {
-          account: "account_456",
+          account: isOutflowTransaction ? "@external/USD" : "{{accountAlias}}",
           amount: {
             asset: "USD",
-            value: 10000,
-            scale: 2
+            value: "100.00"
           },
-          description: "Transfer to destination account",
-          chartOfAccounts: "LIABILITIES",
+          description: isOutflowTransaction ? "External withdrawal" : "Credit Operation",
+          chartOfAccounts: isOutflowTransaction ? "WITHDRAWAL_CREDIT" : "FUNDING_CREDIT",
           metadata: {
-            externalId: "ext_456"
+            operation: isOutflowTransaction ? "withdrawal" : "funding",
+            type: isOutflowTransaction ? "external" : "account"
           }
         }
       ]
@@ -1613,18 +1615,26 @@ function generateObjectExample(schema, path = '', url = '') {
           } else {
             example[propName] = "{{accountAlias}}"; // Default to created account
           }
+        } else if (propName.toLowerCase() === 'value') {
+          // Handle decimal value fields as strings for decimal.Decimal compatibility
+          example[propName] = "100.00";
         } else {
           example[propName] = `Example ${propName}`;
         }
         break;
       case 'integer':
       case 'number':
-        // Skip scale field for asset creation - backend rejects it
-        if (propName.toLowerCase().includes('scale') && currentPath.includes('/assets')) {
-          // Don't add scale field for asset creation endpoints
+        // Skip scale fields entirely - decimal.Decimal doesn't use separate scale in JSON
+        if (propName.toLowerCase().includes('scale')) {
+          // Don't add scale field anywhere - it's not part of the JSON representation
           break;
         }
-        example[propName] = propName.toLowerCase().includes('scale') ? 2 : 100;
+        // Handle value fields as strings for decimal.Decimal compatibility
+        if (propName.toLowerCase() === 'value') {
+          example[propName] = "100.00";
+        } else {
+          example[propName] = 100;
+        }
         break;
       case 'boolean':
         example[propName] = false;
@@ -1652,7 +1662,7 @@ function generateObjectExample(schema, path = '', url = '') {
           
           // Special handling for Send schema
           if (refName === 'Send') {
-            example[propName] = generateSendExample();
+            example[propName] = generateSendExample(url);
           } else if (refName.toLowerCase().includes('status')) {
             // Follow project standard for status fields - always use {"code": "ACTIVE"}
             example[propName] = { code: "ACTIVE" };
@@ -1721,7 +1731,7 @@ function generateArrayExample(schema, path = '', url = '') {
   } else if (itemSchema.$ref) {
     const refName = itemSchema.$ref.split('/').pop();
     if (refName === 'Send') {
-      exampleItem = generateSendExample();
+      exampleItem = generateSendExample(url);
     } else {
       exampleItem = null;
     }
@@ -1764,7 +1774,7 @@ function generateExampleFromSchema(schema, spec, url = '') {
     if (refSchema) {
       // Special handling for specific schemas
       if (refName === 'Send') {
-        return generateSendExample();
+        return generateSendExample(url);
       }
       
       return generateExampleFromSchema(refSchema, spec, url);
@@ -1824,18 +1834,26 @@ function buildExampleFromProperties(properties, spec) {
         } else if (propName.toLowerCase().includes('currency') || propName.toLowerCase().includes('asset')) {
           // Follow project standard for currency/asset examples
           example[propName] = "USD";
+        } else if (propName.toLowerCase() === 'value') {
+          // Handle decimal value fields as strings for decimal.Decimal compatibility
+          example[propName] = "100.00";
         } else {
           example[propName] = `Example ${propName}`;
         }
         break;
       case 'integer':
       case 'number':
-        // Skip scale field for asset creation - backend rejects it
-        if (propName.toLowerCase().includes('scale') && currentPath.includes('/assets')) {
-          // Don't add scale field for asset creation endpoints
+        // Skip scale fields entirely - decimal.Decimal doesn't use separate scale in JSON
+        if (propName.toLowerCase().includes('scale')) {
+          // Don't add scale field anywhere - it's not part of the JSON representation
           break;
         }
-        example[propName] = propName.toLowerCase().includes('scale') ? 2 : 100;
+        // Handle value fields as strings for decimal.Decimal compatibility
+        if (propName.toLowerCase() === 'value') {
+          example[propName] = "100.00";
+        } else {
+          example[propName] = 100;
+        }
         break;
       case 'boolean':
         example[propName] = false;
@@ -1863,7 +1881,7 @@ function buildExampleFromProperties(properties, spec) {
           
           // Special handling for Send schema
           if (refName === 'Send') {
-            example[propName] = generateSendExample();
+            example[propName] = generateSendExample(url);
           } else if (refName.toLowerCase().includes('status')) {
             // Follow project standard for status fields - always use {"code": "ACTIVE"}
             example[propName] = { code: "ACTIVE" };
