@@ -675,6 +675,23 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
+	transactionDate := time.Now()
+	if !parserDSL.TransactionDate.IsZero() {
+		if parserDSL.TransactionDate.After(time.Now()) {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
+
+			libOpentelemetry.HandleSpanError(&span, "transaction date cannot be a future date", err)
+
+			logger.Infof("transaction date cannot be a future date: %v", err.Error())
+
+			return http.WithError(c, err)
+		} else if transactionStatus == constant.PENDING {
+			transactionDate = time.Now()
+		} else {
+			transactionDate = parserDSL.TransactionDate
+		}
+	}
+
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
@@ -787,8 +804,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
+		CreatedAt:                transactionDate,
+		UpdatedAt:                transactionDate,
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
@@ -846,10 +863,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
+					CreatedAt:       transactionDate,
+					UpdatedAt:       transactionDate,
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
+					BalanceAffected: true,
 				})
 			}
 		}
@@ -1008,6 +1026,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 					UpdatedAt:       time.Now(),
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
+					BalanceAffected: true,
 				})
 			}
 		}

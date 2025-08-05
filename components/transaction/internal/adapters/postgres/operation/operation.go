@@ -34,6 +34,7 @@ type OperationPostgreSQLModel struct {
 	UpdatedAt             time.Time        // Last update timestamp
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
+	BalanceAffected       bool             // BalanceAffected default true
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -173,6 +174,10 @@ type Operation struct {
 	// format: string
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
 
+	// BalanceAffected default true
+	// format: boolean
+	BalanceAffected bool `json:"balanceAffected"  example:"true" format:"boolean"`
+
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -229,6 +234,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		AccountAlias:    t.AccountAlias,
 		LedgerID:        t.LedgerID,
 		OrganizationID:  t.OrganizationID,
+		BalanceAffected: t.BalanceAffected,
 		BalanceID:       t.BalanceID,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
@@ -275,6 +281,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		OrganizationID:        operation.OrganizationID,
 		CreatedAt:             operation.CreatedAt,
 		UpdatedAt:             operation.UpdatedAt,
+		BalanceAffected:       operation.BalanceAffected,
 	}
 
 	if !libCommons.IsNilOrEmpty(&operation.Route) {

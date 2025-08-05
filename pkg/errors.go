@@ -1003,6 +1003,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Account Types Found",
 			Message:    "No account types were found in the search. Please review the search criteria and try again.",
 		},
+		constant.ErrInvalidFutureTransactionDate: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidFutureTransactionDate.Error(),
+			Title:      "Invalid Future Date Error",
+			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

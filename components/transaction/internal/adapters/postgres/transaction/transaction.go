@@ -93,6 +93,11 @@ type CreateTransactionInput struct {
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// format: date-time
+	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
 	// Send operation details including source and distribution
 	// required: true
 	// swagger:type object
@@ -177,6 +182,11 @@ type CreateTransactionSwaggerModel struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// swagger: type string
+	TransactionDate time.Time `json:"transactionDate,omitempty"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -480,6 +490,7 @@ func (cti *CreateTransactionInput) FromDSL() *libTransaction.Transaction {
 		Code:                     cti.Code,
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
+		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
 	}
 
@@ -629,6 +640,11 @@ type CreateTransactionInflowInput struct {
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
 
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// format: date-time
+	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
 	// Send operation details including distribution only (no source)
 	// required: true
 	// swagger:type object
@@ -701,6 +717,11 @@ type CreateTransactionInflowSwaggerModel struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// swagger: type string
+	TransactionDate time.Time `json:"transactionDate,omitempty"`
 
 	// Send operation details including distribution only
 	// required: true
@@ -776,6 +797,7 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *libTransaction.Transacti
 		Description:              c.Description,
 		Code:                     c.Code,
 		Metadata:                 c.Metadata,
+		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset:      c.Send.Asset,
@@ -822,6 +844,11 @@ type CreateTransactionOutflowInput struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// format: date-time
+	TransactionDate time.Time `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source only (no distribution)
 	// required: true
@@ -901,6 +928,11 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 
+	// TransactionDate Period from transaction creation date until now
+	// Example "2021-01-01T00:00:00Z"
+	// swagger: type string
+	TransactionDate time.Time `json:"transactionDate,omitempty"`
+
 	// Send operation details including source only
 	// required: true
 	Send struct {
@@ -976,6 +1008,7 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *libTransaction.Transac
 		Code:                     c.Code,
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
+		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		Send: libTransaction.Send{
 			Asset: c.Send.Asset,
