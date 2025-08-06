@@ -1007,7 +1007,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFutureTransactionDate.Error(),
 			Title:      "Invalid Future Date Error",
-			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date.",
+			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date."},
+		constant.ErrInvalidPendingFutureTransactionDate: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidPendingFutureTransactionDate.Error(),
+			Title:      "Invalid Field for Pending Transaction Error",
+			Message:    "Pending transactions do not support the 'transactionDate' field. To proceed, please remove it from your request.",
 		},
 	}
 

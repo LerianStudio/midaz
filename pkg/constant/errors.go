@@ -129,4 +129,5 @@ var (
 	ErrAccountingAccountTypeValidationFailed    = errors.New("0119")
 	ErrInvalidAccountTypeKeyValue               = errors.New("0120")
 	ErrInvalidFutureTransactionDate             = errors.New("0121")
+	ErrInvalidPendingFutureTransactionDate      = errors.New("0122")
 )

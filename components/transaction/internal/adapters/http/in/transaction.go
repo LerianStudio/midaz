@@ -686,7 +686,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 			return http.WithError(c, err)
 		} else if transactionStatus == constant.PENDING {
-			transactionDate = time.Now()
+			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
+
+			libOpentelemetry.HandleSpanError(&span, "pending transaction cannot use together a transaction date", err)
+
+			logger.Infof("pending transaction cannot use together a transaction date: %v", err.Error())
+
+			return http.WithError(c, err)
 		} else {
 			transactionDate = parserDSL.TransactionDate
 		}
@@ -766,9 +772,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
 	defer spanValidateBalances.End()
 
-	blcs := mmodel.ConvertBalancesToLibBalances(balances)
-
-	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
+	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, mmodel.ConvertBalancesToLibBalances(balances))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
