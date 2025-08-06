@@ -665,6 +665,29 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 	return result
 }
 
+func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
+	transactionDate := time.Now()
+	if !parserDSL.TransactionDate.IsZero() {
+		if parserDSL.TransactionDate.After(time.Now()) {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
+
+			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
+
+			return transactionDate, err
+		} else if transactionStatus == constant.PENDING {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
+
+			logger.Warnf("pending transaction cannot be used together a transaction date: %v", err.Error())
+
+			return transactionDate, err
+		} else {
+			transactionDate = parserDSL.TransactionDate
+		}
+	}
+
+	return transactionDate, nil
+}
+
 // createTransaction func that received struct from DSL parsed and create Transaction
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
@@ -675,27 +698,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	transactionDate := time.Now()
-	if !parserDSL.TransactionDate.IsZero() {
-		if parserDSL.TransactionDate.After(time.Now()) {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
-
-			libOpentelemetry.HandleSpanError(&span, "transaction date cannot be a future date", err)
-
-			logger.Infof("transaction date cannot be a future date: %v", err.Error())
-
-			return http.WithError(c, err)
-		} else if transactionStatus == constant.PENDING {
-			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
-
-			libOpentelemetry.HandleSpanError(&span, "pending transaction cannot use together a transaction date", err)
-
-			logger.Infof("pending transaction cannot use together a transaction date: %v", err.Error())
-
-			return http.WithError(c, err)
-		} else {
-			transactionDate = parserDSL.TransactionDate
-		}
+	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
+	if err != nil {
+		return http.WithError(c, err)
 	}
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
