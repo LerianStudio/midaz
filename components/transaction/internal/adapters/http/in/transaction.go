@@ -788,6 +788,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	var parentTransactionID *string
+	
 	if transactionID != uuid.Nil {
 		str := transactionID.String()
 		parentTransactionID = &str
