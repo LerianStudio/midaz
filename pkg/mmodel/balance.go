@@ -144,6 +144,11 @@ type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
 
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string `json:"alias" example:"@person1" maxLength:"256"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -318,4 +323,12 @@ type BalanceErrorResponse struct {
 		// example: {"field": "assetCode", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}
+}
+
+// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
+type BalanceOperation struct {
+	Balance     *Balance
+	Alias       string
+	Amount      libTransaction.Amount
+	InternalKey string
 }
