@@ -667,6 +667,7 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 
 func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
 	transactionDate := time.Now()
+	
 	if !parserDSL.TransactionDate.IsZero() {
 		if parserDSL.TransactionDate.After(time.Now()) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
