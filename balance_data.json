@@ -1,4 +1,0 @@
-{"id":"01987c16-a61e-7a6c-9098-c259102b73c2","organizationId":"01987c0c-3d8b-706f-a294-8443df7b442f","ledgerId":"01987c15-7f08-7b69-a63c-0b645fdebd58","accountId":"01987c16-a619-7613-b8db-9a53f5fce0d5","alias":"main-ops-usd","assetCode":"USD","available":"1300","onHold":"0","version":3,"accountType":"asset","allowSending":true,"allowReceiving":true,"createdAt":"2025-08-05T21:15:15.870683Z","updatedAt":"2025-08-05T23:15:09.223794Z","deletedAt":null}
-
-HTTP Status: 200
-Response Time: 0.003659s

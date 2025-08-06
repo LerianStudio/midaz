@@ -536,15 +536,13 @@ newman: newman-install newman-env-check
 	newman run "./postman/MIDAZ.postman_collection.json" \
 		--environment "./postman/MIDAZ.postman_environment.json" \
 		--folder "Complete API Workflow" \
-		--reporters cli,html,htmlextra \
-		--reporter-html-export "./reports/newman/workflow-report.html" \
-		--reporter-htmlextra-export "./reports/newman/workflow-detailed-report.html" \
-		--reporter-htmlextra-title "Midaz API Workflow Test Report" \
-		--reporter-htmlextra-showOnlyFails \
+		--reporters cli,json \
+		--reporter-json-export "./reports/newman/workflow-json.json" \
 		--timeout-request 30000 \
 		--timeout-script 10000 \
 		--delay-request 100 \
-		--color on
+		--color on \
+		--verbose
 	@echo ""
 	@echo "📊 Test Reports Generated:"
 	@echo "  - CLI Summary: displayed above"

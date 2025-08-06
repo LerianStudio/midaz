@@ -1993,7 +1993,7 @@
                 "count"
               ]
             },
-            "description": "**Workflow Step 25: Count Organizations**\n\nReturns count in response headers"
+            "description": "**Workflow Step 25: Count Organizations**\n\nReturns 204 No Content with X-Total-Count header containing the count"
           },
           "response": [],
           "event": [
@@ -2056,7 +2056,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 26: Count Ledgers**\n\nGets the total count of ledgers in the organization\n\n---\n\n**Uses:**\n- `[object Object]`\n"
+            "description": "**Workflow Step 26: Count Ledgers**\n\nReturns 204 No Content with X-Total-Count header containing the count\n\n---\n\n**Uses:**\n- `[object Object]`\n"
           },
           "response": [],
           "event": [
@@ -2126,7 +2126,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 27: Count Accounts**\n\nGets the total count of accounts in the ledger\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
+            "description": "**Workflow Step 27: Count Accounts**\n\nReturns 204 No Content with X-Total-Count header containing the count\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
           },
           "response": [],
           "event": [
@@ -2196,7 +2196,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 28: Count Assets**\n\nGets the total count of assets in the ledger\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
+            "description": "**Workflow Step 28: Count Assets**\n\nReturns 204 No Content with X-Total-Count header containing the count\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
           },
           "response": [],
           "event": [
@@ -2266,7 +2266,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 29: Count Portfolios**\n\nGets the total count of portfolios in the ledger\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
+            "description": "**Workflow Step 29: Count Portfolios**\n\nReturns 204 No Content with X-Total-Count header containing the count\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
           },
           "response": [],
           "event": [
@@ -2336,7 +2336,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 30: Count Segments**\n\nGets the total count of segments in the ledger\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
+            "description": "**Workflow Step 30: Count Segments**\n\nReturns 204 No Content with X-Total-Count header containing the count\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n"
           },
           "response": [],
           "event": [
@@ -2588,7 +2588,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "\n// ===== STEP 33: Create Transaction =====\nconsole.log(\"🔍 Executing Step 33: Create Transaction\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_33_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_33\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n        console.log(\"💾 Stored \" + operationIdVar + \":\", jsonData.operations[0].id);\n        \n        // Extract and store accountId\n        if (jsonData.operations[0].accountId) {\n            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n            console.log(\"💾 Stored \" + accountIdVar + \":\", jsonData.operations[0].accountId);\n        }\n        \n        if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \":\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
+                  "\n// ===== STEP 33: Create Transaction =====\nconsole.log(\"🔍 Executing Step 33: Create Transaction\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_33_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_33\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        // Find the user operation (non-external account) first\n        const userOperation = jsonData.operations.find(op => \n            op.accountAlias && !op.accountAlias.startsWith(\"@external/\")  \n        ) || jsonData.operations[0]; // fallback to first operation if no user account found\n        \n        // Extract operation ID from the user operation (not external account)\n        if (userOperation && userOperation.id) {\n            pm.environment.set(operationIdVar, userOperation.id);\n            console.log(\"💾 Stored \" + operationIdVar + \" from user account:\", userOperation.id);\n            console.log(\"    Operation belongs to account:\", userOperation.accountAlias || userOperation.accountId);\n        } else {\n            // Fallback to first operation if no user operation found\n            pm.environment.set(operationIdVar, jsonData.operations[0].id);\n            console.log(\"⚠️ Stored \" + operationIdVar + \" from first operation (might be external):\", jsonData.operations[0].id);\n        }\n        \n        // Extract and store accountId - prefer non-external accounts\n        if (userOperation && userOperation.accountId) {\n            // Only store if we do not already have an accountId (preserve treasury account ID)\n            const existingAccountId = pm.environment.get(\"accountId\");\n            if (!existingAccountId) {\n                pm.environment.set(accountIdVar, userOperation.accountId);\n                console.log(\"💾 Stored \" + accountIdVar + \":\", userOperation.accountId);\n            } else {\n                console.log(\"⚠️ Preserving existing accountId:\", existingAccountId, \"(not overwriting with:\", userOperation.accountId + \")\");\n            }\n        }\n        \n        // Extract balance ID from user operation as well\n        if (userOperation && userOperation.balanceId) {\n            pm.environment.set(balanceIdVar, userOperation.balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \" from user account:\", userOperation.balanceId);\n        } else if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"⚠️ Stored \" + balanceIdVar + \" from first operation (might be external):\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
                 ]
               }
             }
@@ -2666,7 +2666,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "\n// ===== STEP 34: Create Transaction (Inflow) =====\nconsole.log(\"🔍 Executing Step 34: Create Transaction (Inflow)\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_34_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_34\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n        console.log(\"💾 Stored \" + operationIdVar + \":\", jsonData.operations[0].id);\n        \n        // Extract and store accountId\n        if (jsonData.operations[0].accountId) {\n            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n            console.log(\"💾 Stored \" + accountIdVar + \":\", jsonData.operations[0].accountId);\n        }\n        \n        if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \":\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
+                  "\n// ===== STEP 34: Create Transaction (Inflow) =====\nconsole.log(\"🔍 Executing Step 34: Create Transaction (Inflow)\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_34_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_34\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        // Find the user operation (non-external account) first\n        const userOperation = jsonData.operations.find(op => \n            op.accountAlias && !op.accountAlias.startsWith(\"@external/\")  \n        ) || jsonData.operations[0]; // fallback to first operation if no user account found\n        \n        // Extract operation ID from the user operation (not external account)\n        if (userOperation && userOperation.id) {\n            pm.environment.set(operationIdVar, userOperation.id);\n            console.log(\"💾 Stored \" + operationIdVar + \" from user account:\", userOperation.id);\n            console.log(\"    Operation belongs to account:\", userOperation.accountAlias || userOperation.accountId);\n        } else {\n            // Fallback to first operation if no user operation found\n            pm.environment.set(operationIdVar, jsonData.operations[0].id);\n            console.log(\"⚠️ Stored \" + operationIdVar + \" from first operation (might be external):\", jsonData.operations[0].id);\n        }\n        \n        // Extract and store accountId - prefer non-external accounts\n        if (userOperation && userOperation.accountId) {\n            // Only store if we do not already have an accountId (preserve treasury account ID)\n            const existingAccountId = pm.environment.get(\"accountId\");\n            if (!existingAccountId) {\n                pm.environment.set(accountIdVar, userOperation.accountId);\n                console.log(\"💾 Stored \" + accountIdVar + \":\", userOperation.accountId);\n            } else {\n                console.log(\"⚠️ Preserving existing accountId:\", existingAccountId, \"(not overwriting with:\", userOperation.accountId + \")\");\n            }\n        }\n        \n        // Extract balance ID from user operation as well\n        if (userOperation && userOperation.balanceId) {\n            pm.environment.set(balanceIdVar, userOperation.balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \" from user account:\", userOperation.balanceId);\n        } else if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"⚠️ Stored \" + balanceIdVar + \" from first operation (might be external):\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
                 ]
               }
             }
@@ -2744,7 +2744,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "\n// ===== STEP 35: Create Transaction (Outflow) =====\nconsole.log(\"🔍 Executing Step 35: Create Transaction (Outflow)\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_35_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_35\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n        console.log(\"💾 Stored \" + operationIdVar + \":\", jsonData.operations[0].id);\n        \n        // Extract and store accountId\n        if (jsonData.operations[0].accountId) {\n            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n            console.log(\"💾 Stored \" + accountIdVar + \":\", jsonData.operations[0].accountId);\n        }\n        \n        if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \":\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
+                  "\n// ===== STEP 35: Create Transaction (Outflow) =====\nconsole.log(\"🔍 Executing Step 35: Create Transaction (Outflow)\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_35_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_35\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        // Find the user operation (non-external account) first\n        const userOperation = jsonData.operations.find(op => \n            op.accountAlias && !op.accountAlias.startsWith(\"@external/\")  \n        ) || jsonData.operations[0]; // fallback to first operation if no user account found\n        \n        // Extract operation ID from the user operation (not external account)\n        if (userOperation && userOperation.id) {\n            pm.environment.set(operationIdVar, userOperation.id);\n            console.log(\"💾 Stored \" + operationIdVar + \" from user account:\", userOperation.id);\n            console.log(\"    Operation belongs to account:\", userOperation.accountAlias || userOperation.accountId);\n        } else {\n            // Fallback to first operation if no user operation found\n            pm.environment.set(operationIdVar, jsonData.operations[0].id);\n            console.log(\"⚠️ Stored \" + operationIdVar + \" from first operation (might be external):\", jsonData.operations[0].id);\n        }\n        \n        // Extract and store accountId - prefer non-external accounts\n        if (userOperation && userOperation.accountId) {\n            // Only store if we do not already have an accountId (preserve treasury account ID)\n            const existingAccountId = pm.environment.get(\"accountId\");\n            if (!existingAccountId) {\n                pm.environment.set(accountIdVar, userOperation.accountId);\n                console.log(\"💾 Stored \" + accountIdVar + \":\", userOperation.accountId);\n            } else {\n                console.log(\"⚠️ Preserving existing accountId:\", existingAccountId, \"(not overwriting with:\", userOperation.accountId + \")\");\n            }\n        }\n        \n        // Extract balance ID from user operation as well\n        if (userOperation && userOperation.balanceId) {\n            pm.environment.set(balanceIdVar, userOperation.balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \" from user account:\", userOperation.balanceId);\n        } else if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"⚠️ Stored \" + balanceIdVar + \" from first operation (might be external):\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
                 ]
               }
             }
@@ -3877,7 +3877,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "\n// ===== STEP 48: Check Account Balance Before Zeroing =====\nconsole.log(\"🔍 Executing Step 48: Check Account Balance Before Zeroing\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_48_start\", Date.now());\n\npm.test(\"✅ Status: GET request successful (200)\", function () {\n    pm.expect(pm.response.code).to.equal(200);\n    console.log(\"✅ GET operation completed successfully\");\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_48\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n// Extract balance information for zero-out transaction\nif (pm.response.code === 200) {\n    const responseJson = pm.response.json();\n    console.log(\"🏦 Balance response structure:\", JSON.stringify(responseJson, null, 2));\n    \n    if (responseJson.items && responseJson.items.length > 0) {\n        // Get the first balance (USD balance for the account)\n        const balance = responseJson.items[0];\n        if (balance.available !== undefined && balance.scale !== undefined) {\n            const balanceAmount = Math.abs(balance.available); // Use absolute value of available balance\n            const balanceScale = balance.scale;\n            \n            pm.environment.set(\"currentBalanceAmount\", balanceAmount);\n            pm.environment.set(\"currentBalanceScale\", balanceScale);\n            \n            console.log(\"💰 Extracted balance amount:\", balanceAmount);\n            console.log(\"📊 Extracted balance scale:\", balanceScale);\n            console.log(\"✅ Balance variables set for zero-out transaction\");\n        } else {\n            console.warn(\"⚠️ No balance amount/scale found in response\");\n            console.warn(\"⚠️ Balance object structure:\", JSON.stringify(balance, null, 2));\n            // Set default values to prevent failures\n            pm.environment.set(\"currentBalanceAmount\", 0);\n            pm.environment.set(\"currentBalanceScale\", 2);\n        }\n    } else {\n        console.warn(\"⚠️ No balance items found in response\");\n        // Set default values to prevent failures\n        pm.environment.set(\"currentBalanceAmount\", 0);\n        pm.environment.set(\"currentBalanceScale\", 2);\n    }\n}"
+                  "\n// ===== STEP 48: Check Account Balance Before Zeroing =====\nconsole.log(\"🔍 Executing Step 48: Check Account Balance Before Zeroing\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_48_start\", Date.now());\n\npm.test(\"✅ Status: GET request successful (200)\", function () {\n    pm.expect(pm.response.code).to.equal(200);\n    console.log(\"✅ GET operation completed successfully\");\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_48\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n// Extract balance information for zero-out transaction\nif (pm.response.code === 200) {\n    const responseJson = pm.response.json();\n    console.log(\"🏦 Balance response structure:\", JSON.stringify(responseJson, null, 2));\n    \n                        if (responseJson.items && responseJson.items.length > 0) {\n                        // Get the first balance (USD balance for the account)\n                        const balance = responseJson.items[0];\n                        if (balance.available !== undefined) {\n                            const balanceAmount = Math.abs(balance.available); // Use absolute value of available balance\n                            \n                            pm.environment.set(\"currentBalanceAmount\", balanceAmount);\n                            \n                            console.log(\"💰 Extracted balance amount:\", balanceAmount);\n                            console.log(\"✅ Balance amount variable set for zero-out transaction\");\n                            console.log(\"📋 Balance object:\", JSON.stringify(balance, null, 2));\n                        } else {\n                            console.warn(\"⚠️ No balance amount found in response\");\n                            console.warn(\"⚠️ Balance object structure:\", JSON.stringify(balance, null, 2));\n                            // Set default values to prevent failures\n                            pm.environment.set(\"currentBalanceAmount\", 0);\n                        }\n    } else {\n        console.warn(\"⚠️ No balance items found in response\");\n        // Set default values to prevent failures\n        pm.environment.set(\"currentBalanceAmount\", 0);\n    }\n}"
                 ]
               }
             }
@@ -3934,7 +3934,7 @@
                 }
               ]
             },
-            "description": "**Workflow Step 49: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers the current balance amount from account to external/USD, completely zeroing the balance\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n- `[object Object]`\n- `[object Object]`\n- `[object Object]`\n",
+            "description": "**Workflow Step 49: Zero Out Balance**\n\n**Description:** Creates a transaction that transfers the current balance amount from account to external/USD, completely zeroing the balance\n\n---\n\n**Uses:**\n- `[object Object]`\n- `[object Object]`\n- `[object Object]`\n- `[object Object]`\n",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Zero Out Balance Transaction\",\n  \"description\": \"Reverse transaction to zero out the account balance using actual current balance\",\n  \"metadata\": {\n    \"purpose\": \"balance_zeroing\",\n    \"reference_step\": \"48\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"accountAlias\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"{{currentBalanceAmount}}\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"External account for balance zeroing\",\n          \"metadata\": {\n            \"operation_type\": \"credit\"\n          }\n        }\n      ]\n    },\n    \"source\": {\n      \"from\": [\n        {\n          \"accountAlias\": \"{{accountAlias}}\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"{{currentBalanceAmount}}\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Source account for balance zeroing\",\n          \"metadata\": {\n            \"operation_type\": \"debit\"\n          }\n        }\n      ]\n    },\n    \"value\": \"{{currentBalanceAmount}}\"\n  }\n}",
@@ -3961,7 +3961,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "\n// ===== STEP 49: Zero Out Balance =====\nconsole.log(\"🔍 Executing Step 49: Zero Out Balance\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_49_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_49\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n        console.log(\"💾 Stored \" + operationIdVar + \":\", jsonData.operations[0].id);\n        \n        // Extract and store accountId\n        if (jsonData.operations[0].accountId) {\n            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n            console.log(\"💾 Stored \" + accountIdVar + \":\", jsonData.operations[0].accountId);\n        }\n        \n        if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \":\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
+                  "\n// ===== STEP 49: Zero Out Balance =====\nconsole.log(\"🔍 Executing Step 49: Zero Out Balance\");\n\n// Record start time for performance tracking\npm.globals.set(\"step_49_start\", Date.now());\n\npm.test(\"✅ Status: POST request successful (200/201)\", function () {\n    pm.expect(pm.response.code).to.be.oneOf([200, 201]);\n    if (pm.response.code === 201) {\n        console.log(\"✅ Resource created successfully\");\n    } else {\n        console.log(\"✅ POST operation completed successfully\");\n    }\n});\n\npm.test(\"⚡ Performance: Response time acceptable\", function () {\n    const responseTime = pm.response.responseTime;\n    const maxTime = pm.environment.get(\"max_response_time\") || 5000;\n    \n    pm.expect(responseTime).to.be.below(maxTime);\n    console.log(\"⚡ Response time: \" + responseTime + \"ms (max: \" + maxTime + \"ms)\");\n    \n    // Track performance for regression detection\n    const perfKey = \"perf_step_49\";\n    const previousTime = pm.environment.get(perfKey);\n    pm.environment.set(perfKey, responseTime);\n    \n    if (previousTime) {\n        const increase = ((responseTime - previousTime) / previousTime) * 100;\n        if (increase > 50) {\n            console.warn(\"⚠️ Performance regression: \" + increase.toFixed(1) + \"% slower than previous run\");\n        }\n    }\n});\n\npm.test(\"📋 Structure: Response has valid JSON structure\", function() {\n    pm.response.to.be.json;\n    \n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.be.an('object');\n    \n    // Log response structure for debugging\n    console.log(\"📋 Response structure keys:\", Object.keys(jsonData));\n});\n\npm.test(\"💸 Business Logic: Transaction has required fields\", function() {\n    // Only validate if response was successful\n    if (pm.response.code !== 200 && pm.response.code !== 201) {\n        console.log(\"⚠️ Skipping transaction validation - response code:\", pm.response.code);\n        pm.test.skip();\n        return;\n    }\n    \n    const jsonData = pm.response.json();\n    \n    // Required fields validation\n    pm.expect(jsonData).to.have.property('id');\n    pm.expect(jsonData).to.have.property('status');\n    pm.expect(jsonData).to.have.property('createdAt');\n    pm.expect(jsonData).to.have.property('updatedAt');\n    \n    // UUID format validation\n    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\n    pm.expect(jsonData.id).to.match(uuidRegex, \"Transaction ID should be a valid UUID\");\n    \n    // ISO timestamp format validation\n    const isoTimestampRegex = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/;\n    pm.expect(jsonData.createdAt).to.match(isoTimestampRegex, \"Transaction createdAt should be ISO timestamp\");\n    pm.expect(jsonData.updatedAt).to.match(isoTimestampRegex, \"Transaction updatedAt should be ISO timestamp\");\n    \n    // Determine transaction type and set appropriate variable names\n    const currentUrl = pm.request.url.toString();\n    let varPrefix = \"\";\n    \n    if (currentUrl.includes(\"/transactions/json\")) {\n        varPrefix = \"\"; // Standard transaction - use original variable names\n    } else if (currentUrl.includes(\"/transactions/dsl\")) {\n        varPrefix = \"dsl\"; // DSL transaction\n    } else if (currentUrl.includes(\"/transactions/inflow\")) {\n        varPrefix = \"inflow\"; // Inflow transaction\n    } else if (currentUrl.includes(\"/transactions/outflow\")) {\n        varPrefix = \"outflow\"; // Outflow transaction\n    }\n    \n    // Store transaction ID with appropriate prefix\n    const transactionIdVar = varPrefix ? varPrefix + \"TransactionId\" : \"transactionId\";\n    const operationIdVar = varPrefix ? varPrefix + \"OperationId\" : \"operationId\";\n    const balanceIdVar = varPrefix ? varPrefix + \"BalanceId\" : \"balanceId\";\n    const accountIdVar = varPrefix ? varPrefix + \"AccountId\" : \"accountId\";\n    \n    pm.environment.set(transactionIdVar, jsonData.id);\n    console.log(\"💾 Stored \" + transactionIdVar + \":\", jsonData.id);\n    \n    // Extract operation and balance IDs if available\n    if (jsonData.operations && jsonData.operations.length > 0) {\n        // Find the user operation (non-external account) first\n        const userOperation = jsonData.operations.find(op => \n            op.accountAlias && !op.accountAlias.startsWith(\"@external/\")  \n        ) || jsonData.operations[0]; // fallback to first operation if no user account found\n        \n        // Extract operation ID from the user operation (not external account)\n        if (userOperation && userOperation.id) {\n            pm.environment.set(operationIdVar, userOperation.id);\n            console.log(\"💾 Stored \" + operationIdVar + \" from user account:\", userOperation.id);\n            console.log(\"    Operation belongs to account:\", userOperation.accountAlias || userOperation.accountId);\n        } else {\n            // Fallback to first operation if no user operation found\n            pm.environment.set(operationIdVar, jsonData.operations[0].id);\n            console.log(\"⚠️ Stored \" + operationIdVar + \" from first operation (might be external):\", jsonData.operations[0].id);\n        }\n        \n        // Extract and store accountId - prefer non-external accounts\n        if (userOperation && userOperation.accountId) {\n            // Only store if we do not already have an accountId (preserve treasury account ID)\n            const existingAccountId = pm.environment.get(\"accountId\");\n            if (!existingAccountId) {\n                pm.environment.set(accountIdVar, userOperation.accountId);\n                console.log(\"💾 Stored \" + accountIdVar + \":\", userOperation.accountId);\n            } else {\n                console.log(\"⚠️ Preserving existing accountId:\", existingAccountId, \"(not overwriting with:\", userOperation.accountId + \")\");\n            }\n        }\n        \n        // Extract balance ID from user operation as well\n        if (userOperation && userOperation.balanceId) {\n            pm.environment.set(balanceIdVar, userOperation.balanceId);\n            console.log(\"💾 Stored \" + balanceIdVar + \" from user account:\", userOperation.balanceId);\n        } else if (jsonData.operations[0].balanceId) {\n            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n            console.log(\"⚠️ Stored \" + balanceIdVar + \" from first operation (might be external):\", jsonData.operations[0].balanceId);\n        }\n    }\n    \n    console.log(\"💸 Transaction creation validation passed:\", jsonData.id);\n    console.log(\"✅ Required fields verified, UUID and timestamp validation completed\");\n});"
                 ]
               }
             }
@@ -4483,7 +4483,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "95507164-1bf2-48c0-9358-f93ac83bafaa",
+                "id": "6f40938b-bb25-4204-b96c-72018d13cd1a",
                 "exec": [
                   "\n// ===== WORKFLOW SUMMARY =====\nconsole.log(\"📊 Workflow Execution Summary\");\nconsole.log(\"Total Steps: undefined\");\n\n// Calculate total execution time\nconst startTime = pm.globals.get(\"workflow_start_time\");\nif (startTime) {\n    const totalTime = Date.now() - startTime;\n    console.log(\"⏱️ Total Execution Time: \" + totalTime + \"ms\");\n    pm.globals.set(\"workflow_total_time\", totalTime);\n}\n\n// Summary of step performance\nconsole.log(\"📈 Performance Summary:\");\nfor (let i = 1; i <= undefined; i++) {\n    const stepTime = pm.environment.get(\"perf_step_\" + i);\n    if (stepTime) {\n        console.log(\"  Step \" + i + \": \" + stepTime + \"ms\");\n    }\n}\n\nconsole.log(\"✅ Workflow completed successfully\");\n"
                 ],
@@ -4493,7 +4493,7 @@
           ]
         }
       ],
-      "_postman_id": "bbab5302-6844-41a2-b325-bb4fb606bb43",
+      "_postman_id": "27eed443-500c-4ab8-8bc4-13b7f060cfaf",
       "event": []
     },
     {
@@ -5037,7 +5037,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -5552,7 +5557,12 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -5790,7 +5800,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -7257,7 +7275,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -7512,7 +7538,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -8065,7 +8102,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -8320,7 +8365,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"assetId\")) {",
+                  "  console.log(\"Warning: assetId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -8873,7 +8929,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -9128,7 +9192,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"portfolioId\")) {",
+                  "  console.log(\"Warning: portfolioId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -9681,7 +9756,15 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -9936,7 +10019,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"segmentId\")) {",
+                  "  console.log(\"Warning: segmentId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -11218,7 +11312,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -11256,14 +11361,68 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && Array.isArray(jsonData.operations) && jsonData.operations.length > 0) {",
+                  "    var operationToUse = null;",
+                  "    ",
+                  "    // Try multiple strategies to find the right operation",
+                  "    // Strategy 1: Find destination operation based on account alias",
+                  "    if (jsonData.destination && Array.isArray(jsonData.destination) && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.accountAlias === destAccount || ",
+                  "        op.account === destAccount ||",
+                  "        (op.accountId && pm.environment.get(\"accountId\") && op.accountId === pm.environment.get(\"accountId\"))",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 2: Find CREDIT operation (usually the destination in double-entry)",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // Strategy 3: Find operation with non-zero positive amount",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.amount && typeof op.amount === 'object' && op.amount.value > 0",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 4: Use the first operation with valid ID",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.id && op.id.length > 0);",
+                  "    }",
+                  "    ",
+                  "    // Strategy 5: Just use the first operation",
+                  "    if (!operationToUse && jsonData.operations.length > 0) {",
+                  "      operationToUse = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (operationToUse && operationToUse.id) {",
+                  "      pm.environment.set(\"operationId\", operationToUse.id);",
+                  "      console.log(\"operationId set to: \" + operationToUse.id + \" (from operation: \" + JSON.stringify(operationToUse) + \")\");",
+                  "    } else {",
+                  "      console.warn(\"No valid operation found for operationId extraction. Operations: \" + JSON.stringify(jsonData.operations));",
+                  "    }",
+                  "  } else {",
+                  "    console.warn(\"No operations array found in response for operationId extraction. Response: \" + JSON.stringify(jsonData));",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "  console.error(\"Response data: \", pm.response.text());",
+                  "}"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Get an Operation by account",
+          "name": "Get Operation",
           "request": {
             "method": "GET",
             "header": [
@@ -11347,7 +11506,21 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountId\")) {",
+                  "  console.log(\"Warning: accountId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"operationId\")) {",
+                  "  console.log(\"Warning: operationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -11485,7 +11658,21 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"transactionId\")) {",
+                  "  console.log(\"Warning: transactionId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"operationId\")) {",
+                  "  console.log(\"Warning: operationId is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -13203,7 +13390,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountAlias\")) {",
+                  "  console.log(\"Warning: accountAlias is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -13241,7 +13439,109 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"inflowTransactionId\", jsonData.id);",
+                  "    console.log(\"inflowTransactionId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract inflowTransactionId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.balanceId) {",
+                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
+                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
+                  "    }",
+                  "  }",
+                  "  // Check if response is an array with at least one item",
+                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
+                  "  } ",
+                  "  // Check if response has a data array with at least one item",
+                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && Array.isArray(jsonData.operations) && jsonData.operations.length > 0) {",
+                  "    var operationToUse = null;",
+                  "    ",
+                  "    // Try multiple strategies to find the right operation",
+                  "    // Strategy 1: Find destination operation based on account alias",
+                  "    if (jsonData.destination && Array.isArray(jsonData.destination) && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.accountAlias === destAccount || ",
+                  "        op.account === destAccount ||",
+                  "        (op.accountId && pm.environment.get(\"accountId\") && op.accountId === pm.environment.get(\"accountId\"))",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 2: Find CREDIT operation (usually the destination in double-entry)",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // Strategy 3: Find operation with non-zero positive amount",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.amount && typeof op.amount === 'object' && op.amount.value > 0",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 4: Use the first operation with valid ID",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.id && op.id.length > 0);",
+                  "    }",
+                  "    ",
+                  "    // Strategy 5: Just use the first operation",
+                  "    if (!operationToUse && jsonData.operations.length > 0) {",
+                  "      operationToUse = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (operationToUse && operationToUse.id) {",
+                  "      pm.environment.set(\"operationId\", operationToUse.id);",
+                  "      console.log(\"operationId set to: \" + operationToUse.id + \" (from operation: \" + JSON.stringify(operationToUse) + \")\");",
+                  "    } else {",
+                  "      console.warn(\"No valid operation found for operationId extraction. Operations: \" + JSON.stringify(jsonData.operations));",
+                  "    }",
+                  "  } else {",
+                  "    console.warn(\"No operations array found in response for operationId extraction. Response: \" + JSON.stringify(jsonData));",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "  console.error(\"Response data: \", pm.response.text());",
+                  "}"
                 ]
               }
             }
@@ -13578,7 +13878,18 @@
                   "  key: \"X-Request-Id\",",
                   "  value: pm.variables.replaceIn(\"{{$guid}}\")",
                   "});",
-                  ""
+                  "",
+                  "// Validate required variables",
+                  "",
+                  "if (!pm.environment.get(\"organizationId\")) {",
+                  "  console.log(\"Warning: organizationId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"ledgerId\")) {",
+                  "  console.log(\"Warning: ledgerId is not set. This request may fail.\");",
+                  "}",
+                  "if (!pm.environment.get(\"accountAlias\")) {",
+                  "  console.log(\"Warning: accountAlias is not set. This request may fail.\");",
+                  "}"
                 ]
               }
             },
@@ -13616,7 +13927,109 @@
                   "  ",
                   "  // Add specific validation based on response schema here",
                   "});",
-                  ""
+                  "",
+                  "// Extract variables from response for use in subsequent requests",
+                  "",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"outflowTransactionId\", jsonData.id);",
+                  "    console.log(\"outflowTransactionId set to: \" + jsonData.id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract outflowTransactionId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && jsonData.operations.length > 0 && jsonData.operations[0].balanceId) {",
+                  "    // Find the destination operation (the one with account in the 'destination' array)",
+                  "    var destinationOp = null;",
+                  "    if (jsonData.destination && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      destinationOp = jsonData.operations.find(op => op.accountAlias === destAccount);",
+                  "    }",
+                  "    ",
+                  "    // If we couldn't find by alias, try to find a CREDIT operation (usually the destination)",
+                  "    if (!destinationOp) {",
+                  "      destinationOp = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // If we still couldn't find it, use the first operation",
+                  "    if (!destinationOp && jsonData.operations.length > 0) {",
+                  "      destinationOp = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (destinationOp && destinationOp.balanceId) {",
+                  "      pm.environment.set(\"balanceId\", destinationOp.balanceId);",
+                  "      console.log(\"balanceId set to: \" + destinationOp.balanceId);",
+                  "    }",
+                  "  }",
+                  "  // Check if response is an array with at least one item",
+                  "  else if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData[0].id);",
+                  "  } ",
+                  "  // Check if response has a data array with at least one item",
+                  "  else if (jsonData && Array.isArray(jsonData.data) && jsonData.data.length > 0 && jsonData.data[0].id) {",
+                  "    pm.environment.set(\"balanceId\", jsonData.data[0].id);",
+                  "    console.log(\"balanceId set to: \" + jsonData.data[0].id);",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract balanceId: \", error);",
+                  "}",
+                  "try {",
+                  "  var jsonData = pm.response.json();",
+                  "  // Check if this is a transaction response with operations",
+                  "  if (jsonData && jsonData.operations && Array.isArray(jsonData.operations) && jsonData.operations.length > 0) {",
+                  "    var operationToUse = null;",
+                  "    ",
+                  "    // Try multiple strategies to find the right operation",
+                  "    // Strategy 1: Find destination operation based on account alias",
+                  "    if (jsonData.destination && Array.isArray(jsonData.destination) && jsonData.destination.length > 0) {",
+                  "      const destAccount = jsonData.destination[0];",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.accountAlias === destAccount || ",
+                  "        op.account === destAccount ||",
+                  "        (op.accountId && pm.environment.get(\"accountId\") && op.accountId === pm.environment.get(\"accountId\"))",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 2: Find CREDIT operation (usually the destination in double-entry)",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.type === 'CREDIT');",
+                  "    }",
+                  "    ",
+                  "    // Strategy 3: Find operation with non-zero positive amount",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => ",
+                  "        op.amount && typeof op.amount === 'object' && op.amount.value > 0",
+                  "      );",
+                  "    }",
+                  "    ",
+                  "    // Strategy 4: Use the first operation with valid ID",
+                  "    if (!operationToUse) {",
+                  "      operationToUse = jsonData.operations.find(op => op.id && op.id.length > 0);",
+                  "    }",
+                  "    ",
+                  "    // Strategy 5: Just use the first operation",
+                  "    if (!operationToUse && jsonData.operations.length > 0) {",
+                  "      operationToUse = jsonData.operations[0];",
+                  "    }",
+                  "    ",
+                  "    if (operationToUse && operationToUse.id) {",
+                  "      pm.environment.set(\"operationId\", operationToUse.id);",
+                  "      console.log(\"operationId set to: \" + operationToUse.id + \" (from operation: \" + JSON.stringify(operationToUse) + \")\");",
+                  "    } else {",
+                  "      console.warn(\"No valid operation found for operationId extraction. Operations: \" + JSON.stringify(jsonData.operations));",
+                  "    }",
+                  "  } else {",
+                  "    console.warn(\"No operations array found in response for operationId extraction. Response: \" + JSON.stringify(jsonData));",
+                  "  }",
+                  "} catch (error) {",
+                  "  console.error(\"Failed to extract operationId: \", error);",
+                  "  console.error(\"Response data: \", pm.response.text());",
+                  "}"
                 ]
               }
             }

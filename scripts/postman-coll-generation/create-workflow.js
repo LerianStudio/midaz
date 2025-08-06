@@ -503,31 +503,27 @@ if (pm.response.code === 200) {
     const responseJson = pm.response.json();
     console.log("🏦 Balance response structure:", JSON.stringify(responseJson, null, 2));
     
-    if (responseJson.items && responseJson.items.length > 0) {
-        // Get the first balance (USD balance for the account)
-        const balance = responseJson.items[0];
-        if (balance.available !== undefined && balance.scale !== undefined) {
-            const balanceAmount = Math.abs(balance.available); // Use absolute value of available balance
-            const balanceScale = balance.scale;
-            
-            pm.environment.set("currentBalanceAmount", balanceAmount);
-            pm.environment.set("currentBalanceScale", balanceScale);
-            
-            console.log("💰 Extracted balance amount:", balanceAmount);
-            console.log("📊 Extracted balance scale:", balanceScale);
-            console.log("✅ Balance variables set for zero-out transaction");
-        } else {
-            console.warn("⚠️ No balance amount/scale found in response");
-            console.warn("⚠️ Balance object structure:", JSON.stringify(balance, null, 2));
-            // Set default values to prevent failures
-            pm.environment.set("currentBalanceAmount", 0);
-            pm.environment.set("currentBalanceScale", 2);
-        }
+                        if (responseJson.items && responseJson.items.length > 0) {
+                        // Get the first balance (USD balance for the account)
+                        const balance = responseJson.items[0];
+                        if (balance.available !== undefined) {
+                            const balanceAmount = Math.abs(balance.available); // Use absolute value of available balance
+                            
+                            pm.environment.set("currentBalanceAmount", balanceAmount);
+                            
+                            console.log("💰 Extracted balance amount:", balanceAmount);
+                            console.log("✅ Balance amount variable set for zero-out transaction");
+                            console.log("📋 Balance object:", JSON.stringify(balance, null, 2));
+                        } else {
+                            console.warn("⚠️ No balance amount found in response");
+                            console.warn("⚠️ Balance object structure:", JSON.stringify(balance, null, 2));
+                            // Set default values to prevent failures
+                            pm.environment.set("currentBalanceAmount", 0);
+                        }
     } else {
         console.warn("⚠️ No balance items found in response");
         // Set default values to prevent failures
         pm.environment.set("currentBalanceAmount", 0);
-        pm.environment.set("currentBalanceScale", 2);
     }
 }`;
                     

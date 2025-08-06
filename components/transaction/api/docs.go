@@ -528,7 +528,7 @@ const docTemplate = `{
                 "tags": [
                     "Operations"
                 ],
-                "summary": "Get an Operation by account",
+                "summary": "Get Operation",
                 "parameters": [
                     {
                         "type": "string",

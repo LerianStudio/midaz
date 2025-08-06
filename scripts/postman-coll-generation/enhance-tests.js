@@ -364,18 +364,41 @@ function generateEnhancedTestScript(operation, path, method, outputs, stepNumber
         '    \n' +
         '    // Extract operation and balance IDs if available\n' +
         '    if (jsonData.operations && jsonData.operations.length > 0) {\n' +
-        '        pm.environment.set(operationIdVar, jsonData.operations[0].id);\n' +
-        '        console.log("💾 Stored " + operationIdVar + ":", jsonData.operations[0].id);\n' +
+        '        // Find the user operation (non-external account) first\n' +
+        '        const userOperation = jsonData.operations.find(op => \n' +
+        '            op.accountAlias && !op.accountAlias.startsWith("@external/")  \n' +
+        '        ) || jsonData.operations[0]; // fallback to first operation if no user account found\n' +
         '        \n' +
-        '        // Extract and store accountId\n' +
-        '        if (jsonData.operations[0].accountId) {\n' +
-        '            pm.environment.set(accountIdVar, jsonData.operations[0].accountId);\n' +
-        '            console.log("💾 Stored " + accountIdVar + ":", jsonData.operations[0].accountId);\n' +
+        '        // Extract operation ID from the user operation (not external account)\n' +
+        '        if (userOperation && userOperation.id) {\n' +
+        '            pm.environment.set(operationIdVar, userOperation.id);\n' +
+        '            console.log("💾 Stored " + operationIdVar + " from user account:", userOperation.id);\n' +
+        '            console.log("    Operation belongs to account:", userOperation.accountAlias || userOperation.accountId);\n' +
+        '        } else {\n' +
+        '            // Fallback to first operation if no user operation found\n' +
+        '            pm.environment.set(operationIdVar, jsonData.operations[0].id);\n' +
+        '            console.log("⚠️ Stored " + operationIdVar + " from first operation (might be external):", jsonData.operations[0].id);\n' +
         '        }\n' +
         '        \n' +
-        '        if (jsonData.operations[0].balanceId) {\n' +
+        '        // Extract and store accountId - prefer non-external accounts\n' +
+        '        if (userOperation && userOperation.accountId) {\n' +
+        '            // Only store if we do not already have an accountId (preserve treasury account ID)\n' +
+        '            const existingAccountId = pm.environment.get("accountId");\n' +
+        '            if (!existingAccountId) {\n' +
+        '                pm.environment.set(accountIdVar, userOperation.accountId);\n' +
+        '                console.log("💾 Stored " + accountIdVar + ":", userOperation.accountId);\n' +
+        '            } else {\n' +
+        '                console.log("⚠️ Preserving existing accountId:", existingAccountId, "(not overwriting with:", userOperation.accountId + ")");\n' +
+        '            }\n' +
+        '        }\n' +
+        '        \n' +
+        '        // Extract balance ID from user operation as well\n' +
+        '        if (userOperation && userOperation.balanceId) {\n' +
+        '            pm.environment.set(balanceIdVar, userOperation.balanceId);\n' +
+        '            console.log("💾 Stored " + balanceIdVar + " from user account:", userOperation.balanceId);\n' +
+        '        } else if (jsonData.operations[0].balanceId) {\n' +
         '            pm.environment.set(balanceIdVar, jsonData.operations[0].balanceId);\n' +
-        '            console.log("💾 Stored " + balanceIdVar + ":", jsonData.operations[0].balanceId);\n' +
+        '            console.log("⚠️ Stored " + balanceIdVar + " from first operation (might be external):", jsonData.operations[0].balanceId);\n' +
         '        }\n' +
         '    }\n' +
         '    \n' +

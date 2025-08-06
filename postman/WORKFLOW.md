@@ -303,13 +303,13 @@ This document outlines a complete linear workflow for testing all the main endpo
     - `GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}/balances`
     - Gets the current balance of the account before zeroing it out
     - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13
-    - **Output:** `currentBalanceAmount`, `currentBalanceScale`
+    - **Output:** `currentBalanceAmount`
 
 49. **Zero Out Balance**
 
     - `POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json`
     - Creates a reverse transaction to zero out the account balance using the actual current balance
-    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13, `currentBalanceAmount` from step 48, `currentBalanceScale` from step 48
+    - **Uses:** `organizationId` from step 1, `ledgerId` from step 5, `accountAlias` from step 13, `currentBalanceAmount` from step 48
     - **Description:** Creates a transaction that transfers the current balance amount from account to external/USD, completely zeroing the balance
 
 50. **Delete Balance**

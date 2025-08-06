@@ -160,6 +160,10 @@ const DEPENDENCY_MAP = {
     provides: [],
     requires: ["organizationId"]
   },
+  "DELETE /v1/organizations/{id}": {
+    provides: [],
+    requires: ["organizationId"]
+  },
   
   // Ledger endpoints
   "POST /v1/organizations/{organization_id}/ledgers": {
@@ -167,6 +171,10 @@ const DEPENDENCY_MAP = {
     requires: ["organizationId"]
   },
   "GET /v1/organizations/{organization_id}/ledgers/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId"]
+  },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{id}": {
     provides: [],
     requires: ["organizationId", "ledgerId"]
   },
@@ -180,6 +188,10 @@ const DEPENDENCY_MAP = {
     provides: [],
     requires: ["organizationId", "ledgerId", "assetId"]
   },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "assetId"]
+  },
   
   // Account endpoints
   "POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
@@ -187,6 +199,10 @@ const DEPENDENCY_MAP = {
     requires: ["organizationId", "ledgerId"]
   },
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "accountId"]
+  },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
     provides: [],
     requires: ["organizationId", "ledgerId", "accountId"]
   },
@@ -210,7 +226,11 @@ const DEPENDENCY_MAP = {
   },
   
   // Operation endpoints
-  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{id}": {
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+    provides: ["operationId"],
+    requires: ["organizationId", "ledgerId", "accountId"]
+  },
+  "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
     provides: [],
     requires: ["organizationId", "ledgerId", "accountId", "operationId"]
   },
@@ -227,6 +247,10 @@ const DEPENDENCY_MAP = {
   "GET /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/{id}": {
     provides: [],
     requires: ["organizationId", "ledgerId", "accountId", "balanceId"]
+  },
+  "DELETE /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}": {
+    provides: [],
+    requires: ["organizationId", "ledgerId", "balanceId"]
   },
   
   // Asset Rate endpoints

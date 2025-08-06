@@ -420,7 +420,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Internal server error
-      summary: Get an Operation by account
+      summary: Get Operation
       tags:
       - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
