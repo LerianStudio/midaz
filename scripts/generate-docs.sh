@@ -70,6 +70,34 @@ generate_openapi_spec() {
     fi
 }
 
+# Install Node.js dependencies for Postman generation
+install_npm_dependencies() {
+    print_step "Installing Node.js dependencies" "PROCESSING"
+    
+    local npm_out="${LOG_DIR}/npm.out"
+    local npm_err="${LOG_DIR}/npm.err"
+    local start_time=$(date +%s.%N)
+    local postman_dir="${ROOT_DIR}/scripts/postman-coll-generation"
+    
+    # Check if node_modules exists and package.json hasn't changed
+    if [ -d "${postman_dir}/node_modules" ] && [ "${postman_dir}/node_modules" -nt "${postman_dir}/package.json" ]; then
+        print_step "Node.js dependencies already up to date" "SUCCESS" "0.0"
+        return 0
+    fi
+    
+    if (cd "${postman_dir}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Install Node.js dependencies" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${npm_err}" | sed 's/^/        /'
+        return 1
+    fi
+}
+
 # Convert to Postman collection
 convert_to_postman() {
     print_step "Converting to Postman collection" "PROCESSING"
@@ -126,9 +154,11 @@ main() {
         fi
     done
     
-    # If OpenAPI generation succeeded, convert to Postman
+    # If OpenAPI generation succeeded, install dependencies and convert to Postman
     if [ "$overall_success" = true ]; then
-        if ! convert_to_postman; then
+        if ! install_npm_dependencies; then
+            overall_success=false
+        elif ! convert_to_postman; then
             overall_success=false
         fi
     fi

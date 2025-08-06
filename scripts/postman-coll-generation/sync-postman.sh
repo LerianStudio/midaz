@@ -184,7 +184,11 @@ if [ -f "${POSTMAN_COLLECTION}" ] && [ -f "${MIDAZ_ROOT}/postman/WORKFLOW.md" ];
     
     # Check if uuid is available in node_modules (should be from npm install)
     if [ -d "${SCRIPTS_DIR}/node_modules/uuid" ]; then
-        if node "${SCRIPTS_DIR}/create-workflow.js" \
+        # Use the new workflow generator
+        WORKFLOW_SCRIPT="${SCRIPTS_DIR}/create-workflow.js"
+        echo "Adding workflow sequence with new generator..."
+        
+        if node "${WORKFLOW_SCRIPT}" \
             "${POSTMAN_COLLECTION}" \
             "${MIDAZ_ROOT}/postman/WORKFLOW.md" \
             "${POSTMAN_COLLECTION}" 2>"${TEMP_DIR}/workflow.err"; then

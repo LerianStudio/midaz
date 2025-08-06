@@ -546,10 +546,7 @@ newman: newman-install newman-env-check
 	@echo ""
 	@echo "📊 Test Reports Generated:"
 	@echo "  - CLI Summary: displayed above"
-	@echo "  - HTML Report: ./reports/newman/workflow-report.html"
-	@echo "  - Detailed Report: ./reports/newman/workflow-detailed-report.html"
-	@echo ""
-	@echo "🎯 Open detailed report: file://$(PWD)/./reports/newman/workflow-detailed-report.html"
+	@echo "  - JSON Report: ./reports/newman/workflow-json.json"
 
 #-------------------------------------------------------
 # Developer Helper Commands
