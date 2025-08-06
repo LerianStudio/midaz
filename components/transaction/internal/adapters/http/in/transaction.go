@@ -666,21 +666,22 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 }
 
 func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
-	transactionDate := time.Now()
-	
+	now := time.Now()
+	transactionDate := now
+
 	if !parserDSL.TransactionDate.IsZero() {
-		if parserDSL.TransactionDate.After(time.Now()) {
+		if parserDSL.TransactionDate.After(now) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
 
 			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
 
-			return transactionDate, err
+			return time.Time{}, err
 		} else if transactionStatus == constant.PENDING {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
 
 			logger.Warnf("pending transaction cannot be used together a transaction date: %v", err.Error())
 
-			return transactionDate, err
+			return time.Time{}, err
 		} else {
 			transactionDate = parserDSL.TransactionDate
 		}
@@ -746,15 +747,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
 
-		logger.Error("Validation failed:", err.Error())
-
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
@@ -793,10 +788,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	var parentTransactionID *string
-
 	if transactionID != uuid.Nil {
-		value := transactionID.String()
-		parentTransactionID = &value
+		str := transactionID.String()
+		parentTransactionID = &str
 	}
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
@@ -815,7 +809,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
 		CreatedAt:                transactionDate,
-		UpdatedAt:                transactionDate,
+		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
 	}
@@ -874,7 +868,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       transactionDate,
-					UpdatedAt:       transactionDate,
+					UpdatedAt:       time.Now(),
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
 					BalanceAffected: true,
@@ -937,15 +931,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
 
-		logger.Error("Validation failed:", err.Error())
-
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		return http.WithError(c, err)
 	}

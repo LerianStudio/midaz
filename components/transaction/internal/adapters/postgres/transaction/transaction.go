@@ -186,6 +186,7 @@ type CreateTransactionSwaggerModel struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
+	// required: false
 	TransactionDate time.Time `json:"transactionDate,omitempty"`
 
 	// Send operation details including source and distribution
@@ -721,6 +722,7 @@ type CreateTransactionInflowSwaggerModel struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
+	// required: false
 	TransactionDate time.Time `json:"transactionDate,omitempty"`
 
 	// Send operation details including distribution only
@@ -931,6 +933,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
+	// required: false
 	TransactionDate time.Time `json:"transactionDate,omitempty"`
 
 	// Send operation details including source only

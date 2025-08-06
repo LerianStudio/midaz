@@ -176,7 +176,7 @@ type Operation struct {
 
 	// BalanceAffected default true
 	// format: boolean
-	BalanceAffected bool `json:"balanceAffected"  example:"true" format:"boolean"`
+	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
@@ -400,6 +400,10 @@ type OperationLog struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: string
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+
+	// BalanceAffected default true
+	// format: boolean
+	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -419,5 +423,6 @@ func (o *Operation) ToLog() *OperationLog {
 		BalanceID:       o.BalanceID,
 		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
+		BalanceAffected: o.BalanceAffected,
 	}
 }
