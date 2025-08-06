@@ -1,3 +1,18 @@
+## [v3.1.0-beta.1] - 2025-08-06
+
+This release focuses on enhancing the build process for improved reliability and ensuring documentation is up-to-date for better user understanding.
+
+### 🔄 Changes
+- **Build Process Improvement**: The build process has been refined to utilize the v3 module path in the -X ldflags. This ensures that version and environment variables are accurately injected during builds, leading to more reliable and informative software versions. Users can now benefit from enhanced transparency and traceability in software versioning, aiding in tracking and understanding the software lifecycle.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes and improvements. This ensures that users and developers have access to the latest information about modifications in the software, enhancing understanding and documentation of the project's progress.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Continuous updates to the documentation ensure that all users have access to the most current and relevant information, facilitating a smoother user experience and better support for developers.
+
+These updates collectively enhance the software's reliability and user experience by focusing on process improvements and maintaining comprehensive documentation.
+
 ## [v3.0.0] - 2025-08-05
 
 This major release of midaz introduces significant enhancements to user experience, performance, and system capabilities, along with critical updates that may require user action.
@@ -38,7 +53,7 @@ This release is packed with improvements that enhance both the user and develope
 
 This release introduces a new configuration feature to enhance code quality management and ensures documentation is up-to-date for improved project transparency.
 
-### ✨ Features
+### ✨ Features  
 - **Configurable Code Complexity**: We've added a new option to set the minimum complexity value in GolangCI. This feature empowers developers to enforce stricter code complexity standards, promoting better code quality and maintainability across your projects. By configuring this setting, teams can ensure their codebase remains clean and efficient.
 
 ### 📚 Documentation
