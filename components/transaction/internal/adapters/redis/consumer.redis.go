@@ -199,6 +199,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		isPending = 1
 	}
 
+	balances := make([]*mmodel.Balance, 0)
 	mapBalances := make(map[string]*mmodel.Balance)
 	args := []any{}
 
@@ -232,6 +233,14 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
+		if transactionStatus == constant.NOTED {
+			blcs.Balance.Alias = blcs.Alias
+			balances = append(balances, blcs.Balance)
+		}
+	}
+
+	if transactionStatus == constant.NOTED {
+		return balances, nil
 	}
 
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -284,7 +293,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		return nil, err
 	}
 
-	balances := make([]*mmodel.Balance, 0)
+	balances = make([]*mmodel.Balance, 0)
 	for _, b := range blcsRedis {
 		mapBalance, ok := mapBalances[b.Alias]
 		if !ok {

@@ -8,7 +8,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -41,7 +40,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		balances = append(balances, balancesByAliases...)
 	}
 
-	if len(balances) > 1 && transactionStatus != constant.NOTED {
+	if len(balances) > 1 {
 		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, transactionStatus, parser)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
@@ -162,6 +161,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	newBalances, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations, parser)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+
 		logger.Error("Failed to lock balance", err)
 
 		return nil, err
