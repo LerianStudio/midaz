@@ -54,10 +54,9 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 
 	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
-	logger.WithFields(payload.LegalDocument)
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("legalDocument", payload.LegalDocument),
 	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
