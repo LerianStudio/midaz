@@ -2,7 +2,6 @@ import { getSearchParams } from './get-search-params'
 
 describe('getSearchParams', () => {
   beforeEach(() => {
-    // Mock window.location.search
     Object.defineProperty(window, 'location', {
       writable: true,
       value: { search: '' }

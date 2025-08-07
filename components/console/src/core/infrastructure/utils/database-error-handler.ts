@@ -6,6 +6,7 @@
 
 import { getIntl } from '@/lib/intl'
 import mongoose, { MongooseError } from 'mongoose'
+import { MongoServerError } from 'mongodb'
 import { IntlShape } from 'react-intl'
 import {
   DatabaseException,

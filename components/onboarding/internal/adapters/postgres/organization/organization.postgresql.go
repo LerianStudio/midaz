@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	reflect "reflect"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"

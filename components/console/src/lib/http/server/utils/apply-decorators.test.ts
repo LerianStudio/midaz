@@ -13,19 +13,19 @@ describe('applyDecorators', () => {
       calls.push('B')
     }
     @applyDecorators(decoratorA, decoratorB)
-    class Test {}
-    expect(Reflect.getMetadata('A', Test)).toBe(true)
-    expect(Reflect.getMetadata('B', Test)).toBe(true)
+    class _Test {}
+    expect(Reflect.getMetadata('A', _Test)).toBe(true)
+    expect(Reflect.getMetadata('B', _Test)).toBe(true)
     expect(calls).toEqual(['A', 'B'])
   })
 
   it('applies multiple method decorators in order', () => {
     const calls: string[] = []
-    const decoratorA: MethodDecorator = (target, propertyKey, descriptor) => {
+    const decoratorA: MethodDecorator = (target, propertyKey) => {
       Reflect.defineMetadata('A', true, target, propertyKey)
       calls.push('A')
     }
-    const decoratorB: MethodDecorator = (target, propertyKey, descriptor) => {
+    const decoratorB: MethodDecorator = (target, propertyKey) => {
       Reflect.defineMetadata('B', true, target, propertyKey)
       calls.push('B')
     }
@@ -60,7 +60,7 @@ describe('applyDecorators', () => {
   it('does nothing if no decorators are provided', () => {
     expect(() => {
       @applyDecorators()
-      class Test {}
+      class _Test {}
     }).not.toThrow()
   })
 
@@ -70,21 +70,21 @@ describe('applyDecorators', () => {
     }
     expect(() => {
       @applyDecorators(throwingDecorator)
-      class Test {}
+      class _Test {}
     }).toThrow('Decorator error')
   })
 
   it('works with a mix of class, method, and property decorators', () => {
     const calls: string[] = []
-    const classDec: ClassDecorator = (target) => {
+    const classDec: ClassDecorator = () => {
       calls.push('class')
     }
-    const methodDec: MethodDecorator = (target, key, desc) => {
+    const methodDec: MethodDecorator = () => {
       calls.push('method')
     }
-    const propDec: PropertyDecorator = (target, key) => calls.push('prop')
+    const propDec: PropertyDecorator = () => calls.push('prop')
     @applyDecorators(classDec)
-    class Test {
+    class _Test {
       @applyDecorators(methodDec)
       method() {}
       @applyDecorators(propDec)

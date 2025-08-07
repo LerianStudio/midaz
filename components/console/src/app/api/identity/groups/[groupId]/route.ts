@@ -3,10 +3,7 @@ import {
   FetchGroupById,
   FetchGroupByIdUseCase
 } from '@/core/application/use-cases/groups/fetch-group-by-id-use-case'
-import {
-  FetchUserById,
-  FetchUserByIdUseCase
-} from '@/core/application/use-cases/users/fetch-user-by-id-use-case'
+
 import { container } from '@/core/infrastructure/container-registry/container-registry'
 import { applyMiddleware } from '@/lib/middleware'
 import { loggerMiddleware } from '@/utils/logger-middleware-config'
@@ -23,7 +20,7 @@ export const GET = applyMiddleware(
     try {
       const fetchGroupByIdUseCase: FetchGroupById =
         container.get<FetchGroupById>(FetchGroupByIdUseCase)
-      const { groupId } = params
+      const { groupId } = await params
 
       const group = await fetchGroupByIdUseCase.execute(groupId)
 

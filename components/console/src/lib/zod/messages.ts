@@ -10,7 +10,6 @@ const messages = defineMessages({
     defaultMessage: 'Required field'
   },
 
-  // too_small
   too_small_string_exact: {
     id: 'errors.too_small.string.exact',
     defaultMessage:
@@ -48,7 +47,6 @@ const messages = defineMessages({
       'Field must contain at least {minimum} {minimum, plural, =0 {items} one {item} other {items}}'
   },
 
-  // too_big
   too_big_string_exact: {
     id: 'errors.too_big.string.exact',
     defaultMessage:
@@ -81,7 +79,6 @@ const messages = defineMessages({
     defaultMessage: 'Date must be before {maximum}'
   },
 
-  // custom
   custom_special_characters: {
     id: 'errors.custom.special_characters',
     defaultMessage: 'Field must not contain special characters'

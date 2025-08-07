@@ -15,7 +15,6 @@ import {
   UpdateUser,
   UpdateUserUseCase
 } from '@/core/application/use-cases/users/update-user-use-case'
-import { UpdateAccountUseCase } from '@/core/application/use-cases/accounts/update-account-use-case'
 
 export const GET = applyMiddleware(
   [loggerMiddleware({ operationName: 'fetchUserById', method: 'GET' })],

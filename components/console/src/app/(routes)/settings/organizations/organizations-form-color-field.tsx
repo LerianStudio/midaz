@@ -16,7 +16,7 @@ type ColorInputProps = Omit<ControllerRenderProps, 'ref'> & {
 }
 
 const ColorInput = React.forwardRef<HTMLInputElement, ColorInputProps>(
-  ({ name, value, onChange, readOnly, ...others }: ColorInputProps, ref) => {
+  ({ name, value, onChange, readOnly, ...others }: ColorInputProps, _ref) => {
     const [open, setOpen] = React.useState(false)
 
     const handleInputChange = (event: any) => {

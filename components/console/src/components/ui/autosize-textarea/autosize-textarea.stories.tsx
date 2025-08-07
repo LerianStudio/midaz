@@ -1,4 +1,3 @@
-import { ComponentProps } from 'react'
 import { Meta, StoryObj } from '@storybook/nextjs'
 import { AutosizeTextarea, AutosizeTextAreaProps } from '.'
 import { FormProvider, useForm } from 'react-hook-form'

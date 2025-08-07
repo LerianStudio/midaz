@@ -1,3 +1,276 @@
+## [v3.1.0-beta.1] - 2025-08-06
+
+This release focuses on enhancing the build process for improved reliability and ensuring documentation is up-to-date for better user understanding.
+
+### 🔄 Changes
+- **Build Process Improvement**: The build process has been refined to utilize the v3 module path in the -X ldflags. This ensures that version and environment variables are accurately injected during builds, leading to more reliable and informative software versions. Users can now benefit from enhanced transparency and traceability in software versioning, aiding in tracking and understanding the software lifecycle.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes and improvements. This ensures that users and developers have access to the latest information about modifications in the software, enhancing understanding and documentation of the project's progress.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Continuous updates to the documentation ensure that all users have access to the most current and relevant information, facilitating a smoother user experience and better support for developers.
+
+These updates collectively enhance the software's reliability and user experience by focusing on process improvements and maintaining comprehensive documentation.
+
+## [v3.0.0] - 2025-08-05
+
+This major release of midaz introduces significant enhancements to user experience, performance, and system capabilities, along with critical updates that may require user action.
+
+### ⚠️ Breaking Changes
+- **Monetary Fields**: We've converted monetary fields from BIGINT to DECIMAL. This change improves precision but may affect database queries and integrations. Please review and update your database queries to ensure compatibility.
+- **Fee Calculation System**: The fee calculation system has been overhauled, enhancing display components. Integrations consuming fee data might need updates to align with the new structure.
+- **Frontend Update**: Adaptations to React 19 have been implemented. Ensure your custom components are compatible with the latest React version to avoid disruptions.
+- **Console API**: A new fee calculation API with hooks and UI integration is now available. This change may alter existing workflows, necessitating UI updates.
+
+### ✨ Features
+- **Account Management**: A comprehensive account type management system is now available, allowing for creation, deletion, and metadata filtering. This empowers users with greater control over their account configurations.
+- **Fee Insights**: Users can now see a detailed breakdown of deductible fees, providing clearer insights into fee structures and enhancing financial transparency.
+- **Redis Integration**: New methods for binary data handling have been added, significantly boosting performance and data processing flexibility.
+
+### 🐛 Bug Fixes
+- **Navigation Issue**: Resolved a navigation bug that prevented access to account settings, restoring full functionality.
+- **Data Consistency**: Fixed Redis locking issues and normalized datetime filtering, ensuring reliable and consistent data handling.
+
+### ⚡ Performance
+- **Transaction Efficiency**: Improved caching for transaction routes, resulting in faster data retrieval and enhanced user experience.
+- **Settings Management**: New caching functionality reduces load times for settings retrieval and updates, improving overall system responsiveness.
+
+### 🔄 Changes
+- **Frontend Enhancements**: Upgraded Tailwind, React, and Storybook to improve UI performance and developer experience.
+- **Backend Reliability**: Enhanced runtime environment handling, offering greater system reliability and configuration flexibility.
+
+### 📚 Documentation
+- **API Guidance**: Updated documentation for the transaction route creation endpoint, providing clearer guidance for developers and improving ease of integration.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated lib-commons and other dependencies to the latest versions, ensuring compatibility and security.
+- **Code Quality**: Refactored code to remove unused files and improve readability, enhancing maintainability and reducing technical debt.
+
+This release is packed with improvements that enhance both the user and developer experience, while also laying the groundwork for future innovations.
+
+## [v3.0.0-beta.34] - 2025-08-05
+
+This release introduces a new configuration feature to enhance code quality management and ensures documentation is up-to-date for improved project transparency.
+
+### ✨ Features  
+- **Configurable Code Complexity**: We've added a new option to set the minimum complexity value in GolangCI. This feature empowers developers to enforce stricter code complexity standards, promoting better code quality and maintainability across your projects. By configuring this setting, teams can ensure their codebase remains clean and efficient.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been refreshed to accurately reflect the latest changes and improvements. This ensures that users have clear insights into what has been updated or added, facilitating better understanding and project management.
+
+### 🔧 Maintenance
+- **Release Management**: We've made behind-the-scenes updates to streamline the release process, ensuring that future updates are delivered smoothly and efficiently. This maintenance work supports ongoing project stability and reliability.
+
+This changelog focuses on the user benefits and impacts of the new features and maintenance updates, providing a clear and concise overview of what users can expect from the latest release.
+
+## [v3.0.0-beta.33] - 2025-08-04
+
+This release of midaz introduces dynamic permissions routing, enhancing security and user management, alongside improvements in language support and pagination accuracy.
+
+### ✨ Features  
+- **Dynamic Permissions Routing**: Administrators can now customize user access more flexibly, improving security and user management by tailoring permissions dynamically. This feature allows for a more granular control over who can access specific parts of the application, enhancing organizational security.
+
+### 🐛 Bug Fixes
+- **Pagination Accuracy**: Fixed an issue where pagination displayed incorrect total counts for large datasets. Users can now navigate extensive data collections with accurate page numbers, improving data handling and user experience.
+
+### 🔄 Changes
+- **Language Support**: Added new translation keys to support additional languages, broadening the app's accessibility and usability for non-English speakers. This change enhances the user experience for a diverse audience.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Routine updates have been made to dependencies, ensuring the application remains secure and compatible with the latest standards. This behind-the-scenes work helps maintain the app's robustness and reliability.
+- **Changelog Update**: The changelog has been updated to reflect recent changes, providing users with the latest information about the application's evolution.
+
+These updates collectively improve the functionality, accessibility, and reliability of midaz, providing a more secure and efficient user experience.
+
+## [v3.0.0-beta.32] - 2025-08-04
+
+This release focuses on improving the reliability and security of our authentication system, ensuring a smoother and more secure user experience.
+
+### 🐛 Bug Fixes
+- **Authentication**: Enhanced the handling of NextAuth tokens to improve the reliability and security of user logins. This fix addresses previous issues with token management, leading to a more consistent and error-free login experience. Users should notice improved performance when logging in and maintaining their sessions.
+
+
+This changelog highlights the key improvements made in the authentication system, emphasizing the enhanced user experience and security benefits. By focusing on the impact and benefits of the changes, users can quickly understand how this update improves their interaction with the software.
+
+## [v3.0.0-beta.30] - 2025-08-04
+
+This release focuses on enhancing configuration consistency and resolving a key user interface issue, improving overall user experience and maintainability.
+
+### 🐛 Bug Fixes
+- **Authentication & Configuration**: Fixed an issue where the authentication tab was incorrectly displayed. This ensures a cleaner and more intuitive interface, reducing user confusion and improving navigation.
+
+### 🔧 Maintenance
+- **Configuration**: Improved code quality by refining lint settings. This change enhances the consistency and reliability of configuration setups, leading to easier maintenance and fewer errors.
+- **Documentation**: Updated the CHANGELOG to accurately reflect recent updates, ensuring all changes are clearly documented for users and developers.
+
+
+This changelog provides a concise overview of the changes in version 3.0.0, focusing on the benefits and impacts for users, while maintaining a professional and accessible tone.
+
+## [v3.0.0-beta.29] - 2025-08-04
+
+This release enhances the reliability of asset management and ensures up-to-date documentation, providing users with improved data accuracy and transparency.
+
+### 🐛 Bug Fixes
+- **Asset Management**: Fixed an issue where the asset sheet displayed incorrect data. This improvement ensures that asset information is now accurately reflected, enhancing the reliability and trustworthiness of asset management features.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements. This ensures that both users and developers have access to the latest project development history, fostering better transparency and collaboration.
+
+---
+
+In this update, we focused on resolving a key issue with asset management and maintaining comprehensive documentation for a better user experience and project clarity. Enjoy the seamless update process with no breaking changes.
+
+## [v3.0.0-beta.28] - 2025-08-04
+
+This release focuses on improving the reliability and accuracy of transaction processing while maintaining a clean and efficient codebase. Users will experience smoother operations with external transactions and benefit from a more streamlined testing process.
+
+### 🐛 Bug Fixes
+- **Transaction Processing**: Improved the accuracy of external transactions by removing unnecessary fee calculations. This ensures that users dealing with external accounts experience correct transaction processing, enhancing overall satisfaction.
+- **Testing Suite**: Removed outdated test cases, allowing for a more efficient and relevant testing process. This change reduces noise and ensures that the focus remains on current functionalities, improving the reliability of test results.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: A significant reduction of 377 lines of code enhances the readability and maintainability of the project. This cleanup makes it easier for developers to navigate and contribute, ensuring a healthier code environment.
+
+These updates are designed to enhance user experience by focusing on accuracy in transaction handling and maintaining a robust, clean codebase.
+
+## [v3.0.0-beta.26] - 2025-08-01
+
+In this release, we've focused on enhancing the stability and maintainability of the midaz project by updating key library dependencies. While no new features or bug fixes are included, these changes prepare the system for future improvements and ensure a more consistent codebase.
+
+### 🔄 Changes
+- **Backend, Config, Database, Test**: We've updated the import paths to utilize `lib-commons v2` across all components. This update ensures that the system benefits from the latest features and improvements of the library, enhancing code consistency and maintainability. Users can anticipate smoother performance and increased reliability as a result of these changes.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to accurately reflect the recent changes and improvements. This ensures transparency and helps users and developers stay informed about the project's evolution.
+
+### 🔧 Maintenance
+- **General Codebase Improvements**: By updating the library dependencies and refining the documentation, we've laid a solid foundation for future updates. These behind-the-scenes improvements contribute to a more robust and adaptable system, ensuring that future enhancements can be implemented more efficiently.
+
+---
+
+This release is a step forward in maintaining the quality and consistency of the midaz project, setting the stage for upcoming features and improvements. Stay tuned for more updates!
+
+## [v3.0.0-beta.25] - 2025-08-01
+
+This release focuses on enhancing the efficiency and reliability of transaction handling within the MidazTransactionRepository, alongside maintaining up-to-date documentation for improved user guidance.
+
+### 🐛 Bug Fixes
+- **Improved Transaction Efficiency**: We have streamlined the transaction request process by removing unnecessary headers. This enhancement reduces overhead and potential errors, resulting in faster and more reliable transaction handling for users.
+
+### 📚 Documentation
+- **Updated Changelog**: Our changelog has been updated to reflect the latest improvements and changes. This ensures that users and developers have clear and current information about the project's progress and updates.
+
+### 🔧 Maintenance
+- **Changelog Maintenance**: Continued efforts to maintain accurate and comprehensive documentation ensure that users can easily track the evolution of the software and understand the benefits of each update.
+
+No user action is required for this release, as there are no breaking changes or major new features introduced. Enjoy the improved performance and reliability!
+
+## [v3.0.0-beta.24] - 2025-08-01
+
+This release of midaz enhances the user interface, simplifies authentication processes, and improves performance, ensuring a smoother and more efficient user experience.
+
+### ✨ Features  
+- **Enhanced User Interface**: The frontend layout has been updated to provide a more intuitive and responsive user experience. Navigate through the application with ease thanks to visual improvements and optimizations.
+
+### 🐛 Bug Fixes
+- **Authentication Reliability**: Fixed issues with plugin authentication settings in the console environment. Configurations are now applied correctly, reducing errors and improving reliability.
+
+### ⚡ Performance
+- **Optimized Asset Management**: Refactored asset ledger handling within the `AssetsSheet` component, leading to better data management and display accuracy. This update ensures smoother performance and quicker data access.
+
+### 🔄 Changes
+- **Simplified Authentication Setup**: Plugin authentication has been disabled in the console environment configuration for users who do not require it, streamlining the setup process and reducing potential errors.
+
+### 📚 Documentation
+- **Updated Guides**: Documentation has been revised to reflect changes in configuration and authentication processes, offering clearer guidance and reducing the likelihood of user errors.
+
+### 🔧 Maintenance
+- **Changelog Update**: The CHANGELOG has been updated to ensure all recent changes and improvements are documented for transparency and user reference.
+
+These updates are designed to enhance the overall functionality and user experience of the midaz project, providing a more streamlined and efficient system for all users.
+
+## [v3.0.0-beta.23] - 2025-08-01
+
+This major release of midaz introduces a comprehensive overhaul of the fee calculation system, alongside significant enhancements to user experience and system performance. Users will benefit from improved transparency, accuracy, and usability in managing transactions and fees.
+
+### ⚠️ Breaking Changes
+- **Fee Calculation System Overhaul**: The fee calculation system has been revamped to enhance display components and deductible handling. This requires users to update their integrations to align with the new API structure. Please refer to the updated API documentation for detailed migration steps.
+- **Console API and UI Integration**: A new fee calculation API and UI hooks have been implemented. Users need to test their workflows to ensure compatibility with these changes.
+- **Standardized API Field Naming**: API field names have been standardized. Users should update their systems to match these conventions to avoid integration issues.
+- **Fee Terminology Update**: Terminology changes in fee components may affect application compatibility. Review and update your applications accordingly.
+- **Ledger ID Format Change**: The underscore prefix in ledger IDs has been removed. Ensure that any scripts or systems using ledger IDs are updated to accommodate this change.
+
+### ✨ Features
+- **Comprehensive Fee Calculation Infrastructure**: A new infrastructure enhances the backend, frontend, and testing components, offering users a robust system for fee management with more accurate and transparent breakdowns.
+- **Improved Fee Display and Calculation UX**: Users will experience a clearer and more intuitive interface for managing fees, particularly in transaction components, enhancing overall usability.
+
+### 🐛 Bug Fixes
+- **Ledger ID Prefix Removal**: The removal of the underscore prefix from ledger IDs resolves identifier consistency issues, improving system integration.
+
+### ⚡ Performance
+- **Enhanced Ledger Assets Handling**: Improvements in ledger asset management lead to more accurate and reliable financial data processing, boosting overall system performance.
+
+### 🔄 Changes
+- **Account Alias in Fee Breakdown**: The inclusion of account aliases in fee breakdowns provides users with better context and clarity during fee reviews.
+
+### 🗑️ Removed
+- **Unused Files and Tests**: Streamlining the codebase by removing unused files and tests enhances maintainability and reduces clutter.
+
+### 🔧 Maintenance
+- **Error Handling Cleanup**: Standardization and cleanup of error handling processes improve code reliability and readability.
+- **Dependency Updates**: Updated dependencies ensure compatibility and security, contributing to the system's stability.
+
+These updates collectively improve midaz's functionality, performance, and user experience. Users are encouraged to review these changes, especially the breaking changes, to ensure a smooth transition and continued compatibility with their existing setups.
+
+## [v3.0.0-beta.22] - 2025-08-01
+
+This release introduces a significant enhancement to the build process, improving efficiency and flexibility for developers working with complex projects.
+
+### ✨ Features  
+- **Split Artifact Upload**: We've introduced a new feature that allows for the upload of build artifacts in a split manner. This enhancement streamlines the build process, reducing build times and enhancing deployment workflows, especially for teams handling large-scale applications.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to ensure stakeholders have access to the latest information regarding updates and modifications, maintaining transparency and aiding in project documentation.
+
+This changelog focuses on the key feature introduced in this release and the maintenance update, providing users with clear and concise information on how these changes benefit them.
+
+## [v3.0.0-beta.21] - 2025-07-31
+
+This release focuses on enhancing user experience with a redesigned interface, improved performance, and increased reliability across the application.
+
+### ✨ Features  
+- **Redesigned Frontend Layout**: Enjoy a cleaner and more intuitive interface with improved accessibility. The new design removes motion elements for better performance, making navigation smoother and more efficient.
+
+### 🐛 Bug Fixes
+- **Navigation and Asset Updates**: Resolved issues with navigation and asset updates, ensuring users consistently access the latest content without encountering errors or outdated information.
+
+### ⚡ Performance
+- **NextJS 15 Support**: Enhanced asynchronous operations by properly handling await parameters, reducing potential errors during data fetching for a smoother user experience.
+
+### 🔄 Changes
+- **Automatic Resource Updates**: Improved backend and frontend organization for asset management, ensuring that content updates are seamlessly reflected in the application, keeping users informed with the most current information.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated project dependencies to leverage the latest features and security patches, maintaining application stability and security.
+- **Code Quality Improvements**: Refined code style for better readability and maintainability, contributing to overall code quality.
+
+These updates collectively enhance the user experience by improving interface design, ensuring reliable functionality, and maintaining high code quality and security standards.
+
+## [v3.0.0-beta.20] - 2025-07-31
+
+This release focuses on improving the reliability of data display and maintaining up-to-date documentation for a better user experience.
+
+### 🐛 Bug Fixes
+- **Ledger Update Issue**: Fixed a problem where the ledger was not displaying the latest data in the list view. Users will now see the most current information without needing to refresh manually, enhancing both data reliability and user experience.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been thoroughly updated to reflect the latest fixes and changes. This ensures users have access to accurate and current information about the software's evolution, supporting better decision-making and understanding of the software's capabilities.
+
+### 🔧 Maintenance
+- Routine updates have been applied to keep the project in optimal condition, ensuring smooth operation and consistent performance.
+
+
 ## [v3.0.0-beta.19] - 2025-07-31
 
 This release introduces significant enhancements to the configuration system, allowing for more efficient management of multiple updates, and includes important documentation updates for improved transparency.

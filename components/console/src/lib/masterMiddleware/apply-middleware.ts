@@ -22,7 +22,6 @@ export function applyMiddleware(
       try {
         return await layer(req, event, next)
       } catch (error) {
-        console.log(error)
         return await next(error)
       }
     }
@@ -47,7 +46,6 @@ export function applyMiddleware(
       try {
         return await layer(req, event, nextResponse, response)
       } catch (error) {
-        console.log(error)
         return await nextResponse(error)
       }
     }

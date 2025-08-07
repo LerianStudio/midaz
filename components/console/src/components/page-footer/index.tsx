@@ -11,10 +11,10 @@ export const PageFooter = forwardRef<HTMLDivElement, PageFooterProps>(
     <div
       ref={ref}
       className={cn(
-        'shadow-drawer fixed inset-x-0 bottom-0 z-50 mr-16 ml-[136px] flex transform flex-col rounded-t-2xl bg-white transition-transform',
+        'shadow-drawer fixed right-4 bottom-0 left-[136px] z-50 flex transform flex-col rounded-t-2xl bg-white transition-transform',
         open ? 'translate-y-0' : 'translate-y-full',
-        !true && 'ml-[315px]',
-        'duration-300 ease-in-out'
+        'duration-300 ease-in-out',
+        className
       )}
       data-open={open}
       aria-hidden={!open}

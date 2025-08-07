@@ -277,7 +277,7 @@ AutocompleteEmpty.displayName = 'AutocompleteEmpty'
 export const AutocompleteLoading = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Loading>,
   React.ComponentProps<typeof CommandPrimitive.Loading>
->(({ className, children, ...props }, ref) => (
+>(({ className, ...props }, ref) => (
   <CommandPrimitive.Loading
     ref={ref}
     className={cn(
@@ -291,8 +291,7 @@ export const AutocompleteLoading = React.forwardRef<
 ))
 AutocompleteLoading.displayName = 'AutocompleteLoading'
 
-const SIDE_OPTIONS = ['top', 'right', 'bottom', 'left']
-type Side = (typeof SIDE_OPTIONS)[number]
+type Side = 'top' | 'right' | 'bottom' | 'left'
 
 export type AutocompleteContentProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive.List
@@ -435,7 +434,7 @@ AutocompleteGroup.displayName = 'AutocompleteGroup'
 export const AutocompleteItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
->(({ className, value, onClick, onSelect, ...props }, ref) => {
+>(({ className, value, onSelect, ...props }, ref) => {
   const { handleChange } = useAutocomplete()
 
   return (

@@ -58,7 +58,7 @@ export class MidazPortfolioRepository implements PortfolioRepository {
           page: filters.page ?? 1,
           limit: filters.limit ?? 10
         }
-      } catch (error) {
+      } catch {
         return {
           items: [],
           page: filters.page ?? 1,

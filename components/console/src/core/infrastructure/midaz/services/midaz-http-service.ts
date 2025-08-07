@@ -76,7 +76,6 @@ export class MidazHttpService extends HttpService {
 
     const intl = await getIntl()
 
-    // Auth exceptions from Midaz
     if (error?.code && error.code.includes('AUT')) {
       const message =
         authApiMessages[error.code as keyof typeof authApiMessages]
@@ -103,7 +102,6 @@ export class MidazHttpService extends HttpService {
       )
     }
 
-    // Midaz exceptions
     if (error?.code) {
       const message =
         apiErrorMessages[error.code as keyof typeof apiErrorMessages]
@@ -149,7 +147,7 @@ export class MidazHttpService extends HttpService {
    * ```
    * @returns
    */
-  public async count<T>(url: URL | string): Promise<{ total: number }> {
+  public async count<_T>(url: URL | string): Promise<{ total: number }> {
     const request = await this.createRequest(url, {
       method: 'HEAD'
     })

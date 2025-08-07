@@ -85,7 +85,7 @@ export const TransactionComplexForm = ({
           <FadeEffect />
           <SectionTitle className="my-8">
             {intl.formatMessage({
-              id: 'transactions.create.basicInformation.title',
+              id: 'transactions.tab.data',
               defaultMessage: 'Transaction Data'
             })}
           </SectionTitle>

@@ -8,8 +8,6 @@ export function getStorage(key: string, defaultValue: any) {
   let value
   try {
     value = localStorage.getItem(key) || undefined
-  } catch (e) {
-    // Unsupported
-  }
+  } catch {}
   return value || defaultValue
 }

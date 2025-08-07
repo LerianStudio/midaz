@@ -8,7 +8,6 @@ import {
   UnauthorizedApiException,
   UnprocessableEntityApiException
 } from './api-exception'
-import { isNil } from 'lodash'
 
 export interface FetchModuleOptions extends RequestInit {
   baseUrl?: URL | string
@@ -30,7 +29,6 @@ export abstract class HttpService {
 
       this.onAfterFetch(request, response)
 
-      // Parse text/plain error responses
       if (response?.headers?.get('content-type')?.includes('text/plain')) {
         const message = await response.text()
 
@@ -49,7 +47,6 @@ export abstract class HttpService {
         throw new ServiceUnavailableApiException(message)
       }
 
-      // Parse application/json error responses
       // NodeJS native fetch does not throw for logic errors
       if (!response.ok) {
         const error = await response.json()
@@ -69,7 +66,6 @@ export abstract class HttpService {
         throw new ServiceUnavailableApiException(error)
       }
 
-      // Handle 204 Success No Content response
       if (response.status === HttpStatus.NO_CONTENT) {
         return {} as T
       }
@@ -110,14 +106,14 @@ export abstract class HttpService {
    * Event triggered before the request is sent
    * @param request The request to be sent
    */
-  protected onBeforeFetch(request: Request) {}
+  protected onBeforeFetch(_request: Request) {}
 
   /**
    * Event triggered after the request is sent, but before response JSON parsing
    * @param request The request that was sent
    * @param response The raw response received from the server
    */
-  protected onAfterFetch(request: Request, response: Response) {}
+  protected onAfterFetch(_request: Request, _response: Response) {}
 
   /**
    * Catch function to handle errors from the native fetch API

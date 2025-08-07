@@ -13,11 +13,11 @@ import { useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { z } from 'zod'
 
-const formSchema = z.object({
+const _formSchema = z.object({
   locale: z.string().min(1)
 })
 
-type FormSchema = z.infer<typeof formSchema>
+type FormSchema = z.infer<typeof _formSchema>
 
 const initialValues = {
   locale: ''

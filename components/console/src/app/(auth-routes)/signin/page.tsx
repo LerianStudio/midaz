@@ -151,7 +151,7 @@ const SignInPage = () => {
                   iconPlacement="far-end"
                 >
                   {intl.formatMessage({
-                    id: 'signIn.buttonSignIn',
+                    id: 'common.continue',
                     defaultMessage: 'Continue'
                   })}
                 </LoadingButton>

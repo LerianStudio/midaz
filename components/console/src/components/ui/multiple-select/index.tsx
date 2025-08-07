@@ -66,7 +66,6 @@ export const MultipleSelectTrigger = React.forwardRef<
   React.useImperativeHandle(ref, () => _ref.current as HTMLDivElement)
 
   useClickAway(_ref, () => {
-    // Should not close when clicking on the scrollbar
     if (onScrollbar) {
       return
     }
@@ -99,7 +98,6 @@ export const MultipleSelectTrigger = React.forwardRef<
       )}
       data-read-only={readOnly ? '' : undefined}
       onClick={(e) => {
-        // Redirect focus to the input field when clicking on the container
         if (disabled || readOnly) {
           e.preventDefault()
           return
@@ -244,9 +242,7 @@ export const MultipleSelectContent = React.forwardRef<
   ) => {
     const { open, addOption, setOnScrollbar } = useMultipleSelect()
 
-    // Since this component is not going to be rendered in the DOM until open is true,
     // we need to register the options when the component mounts
-    // and when the children change.
     React.useEffect(() => {
       React.Children.forEach(React.Children.toArray(children), (child) => {
         if (
@@ -308,7 +304,7 @@ MultipleSelectGroup.displayName = 'MultipleSelectGroup'
 export const MultipleSelectItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
->(({ className, value, onClick, onSelect, ...props }, ref) => {
+>(({ className, value, onClick: _onClick, onSelect, ...props }, ref) => {
   const { handleChange } = useMultipleSelect()
 
   return (
@@ -407,7 +403,6 @@ export const MultipleSelect = React.forwardRef<
               handleChange(selected[selected.length - 1])
             }
           }
-          // This is not a default behavior of the <input /> field
           if (e.key === 'Escape') {
             e.stopPropagation()
             input.blur()
@@ -417,7 +412,6 @@ export const MultipleSelect = React.forwardRef<
       [selected, handleChange]
     )
 
-    // Keeps the selected value in sync with the value prop
     React.useEffect(() => {
       if (value) {
         setSelected(value)

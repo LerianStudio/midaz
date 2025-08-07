@@ -27,7 +27,7 @@ export const GET = applyMiddleware(
         await fetchParentOrganizations.execute(organizationId)
 
       return NextResponse.json(organizations)
-    } catch (error: unknown) {
+    } catch {
       return NextResponse.json(
         { message: 'Error fetching parent organizations' },
         { status: 400 }

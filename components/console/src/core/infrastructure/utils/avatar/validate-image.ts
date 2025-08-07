@@ -1,4 +1,3 @@
-import { getIntl } from '@/lib/intl'
 import { downloadFile } from '../files/download-file'
 import { validateSVG } from '../svgs/validate-svg'
 import { BadRequestApiException } from '@/lib/http'

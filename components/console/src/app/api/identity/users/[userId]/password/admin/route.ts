@@ -14,7 +14,7 @@ export const PATCH = applyMiddleware(
     try {
       const resetUserPasswordUseCase: ResetUserPassword =
         container.get<ResetUserPassword>(ResetUserPasswordUseCase)
-      const { userId } = params
+      const { userId } = await params
       const { newPassword } = await request.json()
 
       await resetUserPasswordUseCase.execute(userId, newPassword)

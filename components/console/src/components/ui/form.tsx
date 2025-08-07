@@ -13,7 +13,6 @@ import {
 import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 
-import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { TooltipProviderProps } from '@radix-ui/react-tooltip'
 import {
   Tooltip,

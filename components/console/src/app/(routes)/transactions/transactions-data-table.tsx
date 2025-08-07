@@ -97,6 +97,32 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     destination = []
   } = transaction.original
 
+  const sourceAliases = new Set(
+    source.map((sourceItem) => sourceItem.accountAlias?.toLowerCase())
+  )
+
+  const isFeeOperation = (operation: TransactionOperationDto) => {
+    const description = operation.description?.toLowerCase() ?? ''
+    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
+    const accountAliasMatch = sourceAliases.has(
+      (operation.accountAlias ?? '').toLowerCase()
+    )
+    const amountDiffers =
+      Number(operation.amount) !== Number(transaction.original.amount)
+
+    const creditToSource = accountAliasMatch && amountDiffers
+
+    return (
+      description.includes('fee') ||
+      chartOfAccounts.includes('fee') ||
+      creditToSource
+    )
+  }
+
+  const nonFeeDestinations = destination.filter(
+    (destinationItem) => !isFeeOperation(destinationItem)
+  )
+
   const badgeVariant = getBadgeVariant(code)
 
   const renderItemsList = (
@@ -133,7 +159,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   }
 
   const renderSource = renderItemsList(source, 'source')
-  const renderDestination = renderItemsList(destination, 'destination')
+  const renderDestination = renderItemsList(nonFeeDestinations, 'destination')
 
   return (
     <React.Fragment>
@@ -263,7 +289,7 @@ export const TransactionsDataTable = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'entity.transactions.value',
+                      id: 'common.value',
                       defaultMessage: 'Value'
                     })}
                   </TableHead>

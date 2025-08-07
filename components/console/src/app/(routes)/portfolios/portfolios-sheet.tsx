@@ -105,7 +105,7 @@ export const PortfolioSheet = ({
     if (mode === 'create') {
       createPortfolio(values)
     } else if (mode === 'edit') {
-      const { entityId, ...data } = values
+      const { ...data } = values
       updatePortfolio(data)
     }
   }

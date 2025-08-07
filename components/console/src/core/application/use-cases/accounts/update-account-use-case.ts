@@ -36,7 +36,7 @@ export class UpdateAccountUseCase implements UpdateAccount {
     accountId: string,
     account: Partial<UpdateAccountDto>
   ): Promise<AccountDto> {
-    const { alias, ...accountEntity }: Partial<AccountEntity> =
+    const { alias: _alias, ...accountEntity }: Partial<AccountEntity> =
       AccountMapper.toDomain(account)
 
     const updatedAccount: AccountEntity = await this.accountRepository.update(

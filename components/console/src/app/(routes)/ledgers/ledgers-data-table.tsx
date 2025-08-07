@@ -42,6 +42,7 @@ import {
   TooltipTrigger,
   TooltipContent
 } from '@/components/ui/tooltip'
+import { useRouter } from 'next/navigation'
 
 type LedgerRowProps = {
   ledger: { id: string; original: LedgerDto }
@@ -61,6 +62,12 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
   const intl = useIntl()
   const { setLedger } = useOrganization()
   const { handleCreate, sheetProps } = useCreateUpdateSheet<any>()
+  const router = useRouter()
+
+  const handleAssetsClick = () => {
+    setLedger(ledger.original)
+    router.push('/assets')
+  }
 
   return (
     <React.Fragment>
@@ -115,6 +122,7 @@ const LedgerRow: React.FC<LedgerRowProps> = ({
         <AssetTableCell
           assets={ledger.original.assets || []}
           onCreate={handleCreate}
+          onClick={handleAssetsClick}
         />
         <TableCell className="w-0">
           <div className="flex justify-end">
@@ -200,7 +208,6 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     total
   } = props
 
-  // Filter out the current ledger from the list of ledgers
   const items = React.useMemo(
     () =>
       ledgers?.items?.filter((ledger) => ledger.id !== currentLedger.id) ?? [],
@@ -231,7 +238,7 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
           >
             <Button variant="default" onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'ledgers.emptyResource.createButton',
+                id: 'ledgers.sheetCreate.title',
                 defaultMessage: 'New Ledger'
               })}
             </Button>

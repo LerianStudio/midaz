@@ -3338,7 +3338,7 @@
             "description": "**Workflow Step 25: Create Transaction**\n\nCreates a new transaction in the ledger",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": \"Example value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6005,7 +6005,7 @@
           ]
         }
       ],
-      "_postman_id": "3efe9922-4792-4b59-915a-257bfa57842f",
+      "_postman_id": "c7dd87b4-8eec-4043-824e-905b4fe129f3",
       "event": []
     },
     {
@@ -15094,7 +15094,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"scale\": 2,\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"scale\": 2,\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": \"Example value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -15226,7 +15226,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"distribute\": {\n      \"to\": [\n        {\n          \"account\": \"@treasury_checking\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": \"Example value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -15445,7 +15445,7 @@
             "description": "Create a Transaction with the input payload",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": 100\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": 100\n  }\n}",
+              "raw": "{\n  \"chartOfAccountsGroupName\": \"Example chartOfAccountsGroupName\",\n  \"code\": \"Example code\",\n  \"description\": \"Example description\",\n  \"metadata\": {\n    \"key\": \"value\"\n  },\n  \"send\": {\n    \"asset\": \"USD\",\n    \"source\": {\n      \"from\": [\n        {\n          \"account\": \"@external/USD\",\n          \"amount\": {\n            \"asset\": \"USD\",\n            \"value\": \"Example value\"\n          },\n          \"chartOfAccounts\": \"Example chartOfAccounts\",\n          \"description\": \"Example description\",\n          \"metadata\": {\n            \"key\": \"value\"\n          }\n        }\n      ]\n    },\n    \"value\": \"Example value\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

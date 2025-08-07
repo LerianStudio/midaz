@@ -52,7 +52,7 @@ export const BasicInformationPaper = ({
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">
               {intl.formatMessage({
-                id: 'entity.transaction.value',
+                id: 'common.value',
                 defaultMessage: 'Value'
               })}
             </label>

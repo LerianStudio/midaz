@@ -1,6 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
 import { useTransactionFormErrors } from './use-transaction-form-errors'
-import { TransactionMode } from './use-transaction-mode'
 import { externalAccountAliasPrefix } from '@/core/infrastructure/midaz/config/config'
 
 jest.mock('react-intl', () => {
@@ -40,7 +39,7 @@ describe('useTransactionFormErrors', () => {
     expect(result.current.errors).toEqual({})
   })
 
-  it('should return a error if total debit amount sum is not equal to transaction value', () => {
+  it('should return a error if total debit amount total is not equal to transaction value', () => {
     const formData = {
       value: 100,
       source: [
@@ -59,7 +58,7 @@ describe('useTransactionFormErrors', () => {
     expect(result.current.errors['debit']).toBeDefined()
   })
 
-  it('should return a error if total credit amount sum is not equal to transaction value', () => {
+  it('should return a error if total credit amount total is not equal to transaction value', () => {
     const formData = {
       value: 100,
       source: [],

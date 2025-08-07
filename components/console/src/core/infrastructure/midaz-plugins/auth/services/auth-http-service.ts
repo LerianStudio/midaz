@@ -48,8 +48,10 @@ export class AuthHttpService extends HttpService {
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
       const session = await getServerSession(nextAuthOptions)
-      const { access_token } = session?.user
-      headers.Authorization = `${access_token}`
+      const access_token = session?.user?.access_token
+      if (access_token) {
+        headers.Authorization = `${access_token}`
+      }
     }
 
     return { headers }

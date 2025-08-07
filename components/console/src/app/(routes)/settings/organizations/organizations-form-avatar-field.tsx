@@ -41,7 +41,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
       onChange,
       readOnly
     }: AvatarFieldProps,
-    ref
+    _ref
   ) => {
     const intl = useIntl()
     const [open, setOpen] = React.useState(false)
@@ -53,7 +53,7 @@ export const AvatarField = React.forwardRef<unknown, AvatarFieldProps>(
       try {
         validateImageFormat(base64, intl)
         return true
-      } catch (error) {
+      } catch {
         return false
       }
     }

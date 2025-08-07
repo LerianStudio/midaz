@@ -327,13 +327,11 @@ The components directory contains all UI components organized by functionality:
 The core follows Clean Architecture principles with three main layers:
 
 - `application`: Contains use cases, DTOs, and mappers that orchestrate business logic
-
   - `use-cases`: Business logic organized by domain entities
   - `dto`: Data Transfer Objects for passing data between layers
   - `mappers`: Transform data between different representations
 
 - `domain`: Contains business entities and repository interfaces
-
   - `entities`: Domain models representing business concepts
   - `repositories`: Interfaces defining data access methods
 

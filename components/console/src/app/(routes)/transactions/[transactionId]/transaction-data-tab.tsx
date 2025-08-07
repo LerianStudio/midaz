@@ -90,6 +90,33 @@ export const TransactionDataTab = ({
     }
   )
 
+  const sourceAliases = new Set(
+    (data?.source ?? []).map((sourceItem) =>
+      sourceItem.accountAlias.toLowerCase()
+    )
+  )
+
+  const isFeeOperation = (operation: TransactionOperationDto) => {
+    const description = operation.description?.toLowerCase() ?? ''
+    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
+    const aliasMatch = sourceAliases.has(
+      (operation.accountAlias ?? '').toLowerCase()
+    )
+    const amountDiffers = Number(operation.amount) !== Number(data.amount)
+
+    const creditToSource = aliasMatch && amountDiffers
+
+    return (
+      description.includes('fee') ||
+      chartOfAccounts.includes('fee') ||
+      creditToSource
+    )
+  }
+
+  const nonFeeSource = data?.source ?? []
+  const nonFeeDestination =
+    data?.destination?.filter((operation) => !isFeeOperation(operation)) || []
+
   return (
     <Form {...form}>
       <ConfirmationDialog
@@ -133,13 +160,13 @@ export const TransactionDataTab = ({
             </div>
 
             <div className="col-span-5 flex items-center justify-center">
-              <AccountBalanceList values={data?.source} />
+              <AccountBalanceList values={nonFeeSource} />
             </div>
             <div className="flex items-center justify-center">
               <ArrowRight className="text-shadcn-400 h-5 w-5 shrink-0" />
             </div>
             <div className="col-span-5 flex items-center justify-center">
-              <AccountBalanceList values={data?.destination} />
+              <AccountBalanceList values={nonFeeDestination} />
             </div>
           </div>
 
@@ -163,7 +190,7 @@ export const TransactionDataTab = ({
               (operation: TransactionOperationDto, index: number) => (
                 <OperationAccordion
                   key={index}
-                  type="credit"
+                  type={isFeeOperation(operation) ? 'fee' : 'credit'}
                   operation={operation}
                 />
               )

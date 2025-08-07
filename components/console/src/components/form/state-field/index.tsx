@@ -38,7 +38,7 @@ type StateSelectProps = SelectProps &
 const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
   (
     {
-      name,
+      name: _name,
       value,
       placeholder,
       onChange,
@@ -46,7 +46,7 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
       emptyMessage,
       readOnly
     }: StateSelectProps,
-    ref
+    _ref
   ) => {
     const intl = useIntl()
     const [open, setOpen] = React.useState(false)
@@ -65,7 +65,7 @@ const StateComboBox = React.forwardRef<unknown, StateSelectProps>(
       }
 
       return states ?? []
-    }, [country])
+    }, [country, onChange])
 
     const getDisplayValue = React.useCallback(
       (value: string) => {

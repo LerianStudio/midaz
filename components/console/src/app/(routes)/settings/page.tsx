@@ -31,21 +31,21 @@ const Page = () => {
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.organizations`,
+        id: `organizations.title`,
         defaultMessage: 'Organizations'
       }),
       active: () => activeTab === 'organizations'
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.users`,
+        id: `users.title`,
         defaultMessage: 'Users'
       }),
       active: () => activeTab === 'users'
     },
     {
       name: intl.formatMessage({
-        id: `settings.tabs.applications`,
+        id: `applications.title`,
         defaultMessage: 'Applications'
       }),
       active: () => activeTab === 'applications'
@@ -78,24 +78,28 @@ const Page = () => {
         <TabsList>
           <TabsTrigger value="organizations">
             {intl.formatMessage({
-              id: 'settings.tabs.organizations',
+              id: 'organizations.title',
               defaultMessage: 'Organizations'
             })}
           </TabsTrigger>
 
-          <Enforce resource="users" action="get">
+          <Enforce resource="users" action="get" disabledBehaviour="hide">
             <TabsTrigger value="users">
               {intl.formatMessage({
-                id: 'settings.tabs.users',
+                id: 'users.title',
                 defaultMessage: 'Users'
               })}
             </TabsTrigger>
           </Enforce>
 
-          <Enforce resource="applications" action="get">
+          <Enforce
+            resource="applications"
+            action="get"
+            disabledBehaviour="hide"
+          >
             <TabsTrigger value="applications">
               {intl.formatMessage({
-                id: 'settings.tabs.applications',
+                id: 'applications.title',
                 defaultMessage: 'Applications'
               })}
             </TabsTrigger>
@@ -113,13 +117,13 @@ const Page = () => {
           <OrganizationsTabContent />
         </TabsContent>
 
-        <Enforce resource="users" action="get">
+        <Enforce resource="users" action="get" disabledBehaviour="hide">
           <TabsContent value="users">
             <UsersTabContent />
           </TabsContent>
         </Enforce>
 
-        <Enforce resource="applications" action="get">
+        <Enforce resource="applications" action="get" disabledBehaviour="hide">
           <TabsContent value="applications">
             <ApplicationsTabContent />
           </TabsContent>

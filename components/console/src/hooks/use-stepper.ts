@@ -12,7 +12,6 @@ export const useStepper = ({
   const [step, setStep] = useState(defaultStep)
 
   const handleNext = () => {
-    // If maxSteps is defined and the current step is the last step, do nothing
     if (maxSteps && step >= maxSteps - 1) {
       return
     }
@@ -21,7 +20,6 @@ export const useStepper = ({
   }
 
   const handlePrevious = () => {
-    // If the current step is the first step, do nothing
     if (step <= 0) {
       return
     }

@@ -28,7 +28,7 @@ export const Stepper = ({ step = 0 }: StepperProps) => {
         <StepperItemNumber>1</StepperItemNumber>
         <StepperItemText
           title={intl.formatMessage({
-            id: 'transactions.create.stepper.first',
+            id: 'transactions.tab.data',
             defaultMessage: 'Transaction Data'
           })}
           description={intl.formatMessage({

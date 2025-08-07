@@ -37,15 +37,15 @@ type CurrencySelectProps = SelectProps &
 const CurrencyComboBox = React.forwardRef<unknown, CurrencySelectProps>(
   (
     {
-      name,
+      name: _name,
       value,
       placeholder,
       onChange,
       emptyMessage,
       readOnly,
-      ...others
+      ..._others
     }: CurrencySelectProps,
-    ref
+    _ref
   ) => {
     const intl = useIntl()
     const [open, setOpen] = React.useState(false)

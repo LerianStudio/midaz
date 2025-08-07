@@ -27,7 +27,7 @@ export default function TransactionsPage() {
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const [open, setOpen] = React.useState(false)
-  const [total, setTotal] = React.useState(0)
+  const [total, setTotal] = React.useState(1000000)
   const { setMode } = useTransactionMode()
 
   const { form, searchValues, pagination } = useQueryParams({
@@ -41,20 +41,6 @@ export default function TransactionsPage() {
       ledgerId: currentLedger.id,
       query: searchValues as any
     })
-
-  React.useEffect(() => {
-    if (!transactions?.items) {
-      setTotal(0)
-      return
-    }
-
-    if (transactions.items.length >= transactions.limit) {
-      setTotal(transactions.limit + 1)
-      return
-    }
-
-    setTotal(transactions.items.length)
-  }, [transactions?.items, transactions?.limit])
 
   const hasLedgerLoaded = Boolean(currentLedger.id)
 

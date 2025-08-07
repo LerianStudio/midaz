@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	reflect "reflect"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +70,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", ledger.OrganizationID),
+		attribute.String("app.request.ledger_id", ledger.ID),
 	}
 
 	span.SetAttributes(attributes...)
@@ -394,6 +395,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", id.String()),
 	}
 
 	span.SetAttributes(attributes...)

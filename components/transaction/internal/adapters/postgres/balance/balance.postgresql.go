@@ -73,7 +73,6 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		attribute.String("app.request.organization_id", balance.OrganizationID),
 		attribute.String("app.request.ledger_id", balance.LedgerID),
 		attribute.String("app.request.account_id", balance.AccountID),
-		attribute.String("app.request.asset_code", balance.AssetCode),
 	}
 
 	span.SetAttributes(attributes...)
@@ -787,22 +786,12 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
-		balanceAttributes := []attribute.KeyValue{
-			attribute.String("app.request.balance_id", balance.ID),
-			attribute.String("app.request.balance_account_type", balance.AccountType),
-			attribute.String("app.request.balance_asset_code", balance.AssetCode),
-			attribute.String("app.request.balance_alias", balance.Alias),
-			attribute.String("app.request.balance_available", balance.Available.String()),
-			attribute.String("app.request.balance_on_hold", balance.OnHold.String()),
-			attribute.Int64("app.request.balance_version", balance.Version),
-			attribute.String("app.request.balance_account_id", balance.AccountID),
-			attribute.String("app.request.balance_organization_id", balance.OrganizationID),
-			attribute.String("app.request.balance_ledger_id", balance.LedgerID),
+		spanUpdate.SetAttributes(attributes...)
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdate, "app.request.payload", balance)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanUpdate, "Failed to convert payload from entity to JSON string", err)
 		}
-
-		balanceAttributes = append(balanceAttributes, attributes...)
-
-		spanUpdate.SetAttributes(balanceAttributes...)
 
 		var updates []string
 
