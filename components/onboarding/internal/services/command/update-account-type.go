@@ -32,7 +32,7 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.account_type_id", id.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", input); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", input); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

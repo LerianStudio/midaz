@@ -95,12 +95,12 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.status", transaction.Status)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.status", transaction.Status)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction status to JSON string", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.body", transaction.Body)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.body", transaction.Body)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction body to JSON string", err)
 	}
@@ -120,7 +120,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 	}
@@ -182,7 +182,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -232,7 +232,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -556,7 +556,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", transaction)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction from entity to JSON string", err)
 	}
@@ -610,7 +610,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
 	}
@@ -824,7 +824,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -882,7 +882,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}

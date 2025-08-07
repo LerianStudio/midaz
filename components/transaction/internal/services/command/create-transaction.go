@@ -31,7 +31,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.transaction_id", transactionID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", t); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", t); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

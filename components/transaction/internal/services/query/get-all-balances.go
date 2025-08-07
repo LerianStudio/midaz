@@ -32,7 +32,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpenTelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

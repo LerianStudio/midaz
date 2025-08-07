@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		attribute.String("app.request.account_id", accountID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
 	}
 

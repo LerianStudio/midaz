@@ -68,7 +68,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -140,7 +140,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
 	}
@@ -293,7 +293,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}

@@ -31,7 +31,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

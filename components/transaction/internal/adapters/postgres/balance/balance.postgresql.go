@@ -78,7 +78,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", balance)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", balance)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance from entity to JSON string", err)
 	}
@@ -95,7 +95,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert balance record from entity to JSON string", err)
 	}
@@ -240,7 +240,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -289,7 +289,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -371,7 +371,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 
 	span.SetAttributes(attributes...)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
 
@@ -420,7 +420,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -584,7 +584,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", fromTo)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", fromTo)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert fromTo from entity to JSON string", err)
 	}
@@ -998,7 +998,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", balance)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", balance)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance from entity to JSON string", err)
 	}
@@ -1015,7 +1015,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_input", balance)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_input", balance)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert balance from entity to JSON string", err)
 	}

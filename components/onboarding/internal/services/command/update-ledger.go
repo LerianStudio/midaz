@@ -30,7 +30,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		attribute.String("app.request.ledger_id", id.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", uli); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", uli); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

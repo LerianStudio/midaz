@@ -63,7 +63,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", metadata)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata to JSON string", err)
 	}
@@ -88,7 +88,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 	spanInsert.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanInsert, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanInsert, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanInsert, "Failed to convert record to JSON string", err)
 	}
@@ -120,7 +120,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata to JSON string", err)
 	}
@@ -146,7 +146,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanFind, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanFind, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to convert metadata to JSON string", err)
 	}

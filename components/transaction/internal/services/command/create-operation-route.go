@@ -28,7 +28,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

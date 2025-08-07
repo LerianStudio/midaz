@@ -72,7 +72,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	var err error
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanProducer, "app.request.rabbitmq.producer.message", queueMessage)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanProducer, "app.request.rabbitmq.producer.message", queueMessage)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
 	}

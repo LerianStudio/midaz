@@ -77,7 +77,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", transactionRoute)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionRoute)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction_route from entity to JSON string", err)
 	}
@@ -111,7 +111,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction_route record from entity to JSON string", err)
 	}
@@ -350,7 +350,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", transactionRoute)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionRoute)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction_route from entity to JSON string", err)
 	}
@@ -409,7 +409,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction_route record from entity to JSON string", err)
 	}
@@ -548,7 +548,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -598,7 +598,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}

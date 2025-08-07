@@ -117,7 +117,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 						attribute.String("app.request.rabbitmq.consumer.request_id", midazID.(string)),
 					)
 
-					err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanConsumer, "app.request.rabbitmq.consumer.message", strings.ToValidUTF8(string(msg.Body), "�"))
+					err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", strings.ToValidUTF8(string(msg.Body), "�"))
 					if err != nil {
 						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
 					}

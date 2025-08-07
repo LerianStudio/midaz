@@ -32,7 +32,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 		attribute.String("app.request.transaction_route_id", id.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", input); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", input); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

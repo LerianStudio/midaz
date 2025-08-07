@@ -70,7 +70,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 	}
@@ -157,7 +157,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 	}
@@ -346,7 +346,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	payload := p.(*mmodel.UpdateBalance)
 	logger.Infof("Request to update a Balance with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}

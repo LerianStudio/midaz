@@ -40,7 +40,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		attribute.String("app.request.transaction_id", tran.ID),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanSendBTOQueue, "app.request.payload", parseDSL); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanSendBTOQueue, "app.request.payload", parseDSL); err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to convert payload to JSON string", err)
 	}
 
@@ -127,7 +127,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 		attribute.String("app.request.transaction_id", tran.ID),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanSendBTODirect, "app.request.payload", parseDSL); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanSendBTODirect, "app.request.payload", parseDSL); err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to convert payload to JSON string", err)
 	}
 

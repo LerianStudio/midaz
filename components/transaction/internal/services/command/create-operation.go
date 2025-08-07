@@ -30,7 +30,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 		attribute.String("app.request.transaction_id", transactionID),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", dsl); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", dsl); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

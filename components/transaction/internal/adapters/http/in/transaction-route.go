@@ -59,7 +59,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	payload := i.(*mmodel.CreateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -192,7 +192,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 	payload := i.(*mmodel.UpdateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -338,7 +338,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
 	}
@@ -375,7 +375,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 	}

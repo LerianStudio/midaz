@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 		attribute.String("app.request.from_asset_code", fromAssetCode),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
 	}
 

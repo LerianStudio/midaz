@@ -22,7 +22,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		attribute.String("app.request.entity_id", entityID),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", metadata); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", metadata); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

@@ -77,7 +77,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		span.SetAttributes(attribute.String("app.request.portfolio_id", *portfolioID))
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -153,7 +153,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
 	}
@@ -415,7 +415,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}

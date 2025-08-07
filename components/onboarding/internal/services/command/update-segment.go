@@ -31,7 +31,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.segment_id", id.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", upi); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", upi); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

@@ -75,7 +75,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", asset)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", asset)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert asset record from entity to JSON string", err)
 	}
@@ -94,7 +94,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 	}
@@ -210,7 +210,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -247,7 +247,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -409,7 +409,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", asset)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", asset)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert asset record from entity to JSON string", err)
 	}
@@ -457,7 +457,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset record from entity to JSON string", err)
 	}

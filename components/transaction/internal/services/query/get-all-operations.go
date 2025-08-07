@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		attribute.String("app.request.transaction_id", transactionID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

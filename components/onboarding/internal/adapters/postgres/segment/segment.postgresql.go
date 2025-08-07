@@ -76,7 +76,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", segment)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", segment)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert segment record from entity to JSON string", err)
 	}
@@ -95,7 +95,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
 	}
@@ -208,7 +208,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -245,7 +245,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	spanQuery.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanQuery, "app.request.repository_filter", filter)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
 	}
@@ -408,7 +408,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", prd)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", prd)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert segment record from entity to JSON string", err)
 	}
@@ -456,7 +456,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	spanExec.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "app.request.repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
 	}

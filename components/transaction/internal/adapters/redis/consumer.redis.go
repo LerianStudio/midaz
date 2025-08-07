@@ -235,12 +235,12 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.redis.amount", amount)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.amount", amount)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert amount to JSON string", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.redis.balance", balance)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.balance", balance)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance to JSON string", err)
 	}

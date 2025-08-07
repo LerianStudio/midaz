@@ -30,7 +30,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 		attribute.String("app.request.transaction_route_id", route.ID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", route); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", route); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

@@ -37,7 +37,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		attribute.String("app.request.transaction_status", transactionStatus),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", validate); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", validate); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

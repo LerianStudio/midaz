@@ -31,7 +31,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.transaction_id", transactionID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", uti); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", uti); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
@@ -86,7 +86,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 		attribute.String("app.request.transaction_id", transactionID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", tran); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", tran); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

@@ -30,7 +30,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 		attribute.String("app.request.organization_id", organizationID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", filter); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

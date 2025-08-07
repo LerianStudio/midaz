@@ -26,7 +26,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		attribute.String("app.request.account_id", data.AccountID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", data); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", data); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 

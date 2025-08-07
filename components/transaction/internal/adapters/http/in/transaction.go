@@ -73,15 +73,9 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction.transaction_status", transactionStatus),
-		attribute.String("app.request.transaction.chart_of_accounts_group_name", parserDSL.ChartOfAccountsGroupName),
-		attribute.String("app.request.transaction.description", parserDSL.Description),
-		attribute.String("app.request.transaction.code", parserDSL.Code),
-		attribute.Bool("app.request.transaction.pending", parserDSL.Pending),
-		attribute.String("app.request.transaction.route", parserDSL.Route),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", parserDSL.Send)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
@@ -125,13 +119,9 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction.chart_of_accounts_group_name", input.ChartOfAccountsGroupName),
-		attribute.String("app.request.transaction.description", input.Description),
-		attribute.String("app.request.transaction.code", input.Code),
-		attribute.String("app.request.transaction.route", input.Route),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", input.Send)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
@@ -182,14 +172,9 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction.transaction_status", transactionStatus),
-		attribute.String("app.request.transaction.chart_of_accounts_group_name", input.ChartOfAccountsGroupName),
-		attribute.String("app.request.transaction.description", input.Description),
-		attribute.String("app.request.transaction.code", input.Code),
-		attribute.String("app.request.transaction.route", input.Route),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", input.Send)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
@@ -288,7 +273,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	span.SetAttributes(attributes...)
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", parserDSL.Send)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.send", parserDSL.Send)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
@@ -556,7 +541,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	payload := p.(*transaction.UpdateTransactionInput)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", payload); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
@@ -709,7 +694,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
 	}
@@ -804,18 +789,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_id", transactionID.String()),
-		attribute.String("app.request.transaction.transaction_status", transactionStatus),
-		attribute.String("app.request.transaction.chart_of_accounts_group_name", parserDSL.ChartOfAccountsGroupName),
-		attribute.String("app.request.transaction.description", parserDSL.Description),
-		attribute.String("app.request.transaction.code", parserDSL.Code),
-		attribute.String("app.request.transaction.route", parserDSL.Route),
-		attribute.Bool("app.request.transaction.pending", parserDSL.Pending),
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.transaction.send", parserDSL.Send)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction to JSON string", err)
 
@@ -911,6 +889,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 		spanValidateBalances.End()
+
+		logger.Errorf("Failed to validate balances: %v", err.Error())
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 

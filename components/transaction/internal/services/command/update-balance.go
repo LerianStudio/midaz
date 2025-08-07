@@ -27,7 +27,7 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanUpdateBalances, "app.request.payload", balances)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "app.request.payload", balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 	}
@@ -156,7 +156,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		attribute.String("app.request.balance_id", balanceID.String()),
 	)
 
-	if err := libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&span, "app.request.payload", update); err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", update); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
