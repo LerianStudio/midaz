@@ -38,23 +38,28 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-	defer spanUpdateBalances.End()
+	if t.Transaction.Status.Code != constant.NOTED {
+		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+		defer spanUpdateBalances.End()
 
-	logger.Infof("Trying to update balances")
+		logger.Infof("Trying to update balances")
 
-	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 
-		logger.Errorf("Failed to update balances: %v", err.Error())
+			logger.Errorf("Failed to update balances: %v", err.Error())
 
-		return err
+			return err
+		}
 	}
 
-	tran, err := uc.CreateOrUpdateTransaction(ctxProcessBalances, logger, tracer, t)
+	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	defer spanUpdateTransaction.End()
+
+	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to create or update transaction", err)
+		libOpentelemetry.HandleSpanError(&spanUpdateTransaction, "Failed to create or update transaction", err)
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
