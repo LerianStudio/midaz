@@ -5,12 +5,15 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)
 
@@ -24,6 +27,15 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 			Data:       metadata,
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
+		}
+
+		span.SetAttributes(
+			attribute.String("app.request.request_id", reqId),
+		)
+
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", metadata)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {

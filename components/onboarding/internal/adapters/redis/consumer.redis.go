@@ -7,6 +7,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 // RedisRepository provides an interface for redis.
@@ -37,9 +38,17 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {

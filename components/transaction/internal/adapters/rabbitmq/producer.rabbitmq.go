@@ -12,6 +12,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -60,15 +61,35 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
-	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
+	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
+		attribute.String("app.request.rabbitmq.producer.key", key),
+	}
 
 	var err error
 
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanProducer, "app.request.rabbitmq.producer.message", message)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
+	}
+
+	spanProducer.SetAttributes(attributes...)
+
 	backoff := initialBackoff
+
+	headers := amqp.Table{
+		libConstants.HeaderID: reqId,
+	}
+
+	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		err = prmq.conn.Channel.Publish(
@@ -79,10 +100,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			amqp.Publishing{
 				ContentType:  "application/json",
 				DeliveryMode: amqp.Persistent,
-				Headers: amqp.Table{
-					libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
-				},
-				Body: message,
+				Headers:      headers,
+				Body:         message,
 			},
 		)
 
