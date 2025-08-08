@@ -665,6 +665,31 @@ func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.
 	return result
 }
 
+func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) (time.Time, error) {
+	now := time.Now()
+	transactionDate := now
+
+	if !parserDSL.TransactionDate.IsZero() {
+		if parserDSL.TransactionDate.After(now) {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
+
+			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
+
+			return time.Time{}, err
+		} else if transactionStatus == constant.PENDING {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
+
+			logger.Warnf("pending transaction cannot be used together a transaction date: %v", err.Error())
+
+			return time.Time{}, err
+		} else {
+			transactionDate = parserDSL.TransactionDate
+		}
+	}
+
+	return transactionDate, nil
+}
+
 // createTransaction func that received struct from DSL parsed and create Transaction
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
@@ -674,6 +699,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	defer span.End()
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
+
+	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -717,15 +747,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
 
-		logger.Error("Validation failed:", err.Error())
-
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
@@ -749,9 +773,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
 	defer spanValidateBalances.End()
 
-	blcs := mmodel.ConvertBalancesToLibBalances(balances)
-
-	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
+	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, mmodel.ConvertBalancesToLibBalances(balances))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
@@ -766,10 +788,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	}
 
 	var parentTransactionID *string
-
+	
 	if transactionID != uuid.Nil {
-		value := transactionID.String()
-		parentTransactionID = &value
+		str := transactionID.String()
+		parentTransactionID = &str
 	}
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
@@ -787,7 +809,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		Amount:                   &parserDSL.Send.Value,
 		AssetCode:                parserDSL.Send.Asset,
 		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
-		CreatedAt:                time.Now(),
+		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
 		Route:                    parserDSL.Route,
 		Metadata:                 parserDSL.Metadata,
@@ -846,10 +868,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
+					CreatedAt:       transactionDate,
 					UpdatedAt:       time.Now(),
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
+					BalanceAffected: true,
 				})
 			}
 		}
@@ -909,15 +932,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate send source and distribute", err)
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
 
-		logger.Error("Validation failed:", err.Error())
-
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		return http.WithError(c, err)
 	}
@@ -1008,6 +1025,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 					UpdatedAt:       time.Now(),
 					Route:           fromTo[i].Route,
 					Metadata:        fromTo[i].Metadata,
+					BalanceAffected: true,
 				})
 			}
 		}
