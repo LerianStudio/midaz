@@ -127,12 +127,16 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -149,7 +153,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account", err)
 
 		return nil, err
 	}
@@ -339,12 +343,15 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
 
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 		return nil, err
 	}
 
@@ -418,11 +425,15 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -497,11 +508,15 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -832,12 +847,16 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -854,7 +873,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", err)
 
 		return nil, err
 	}

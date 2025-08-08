@@ -37,7 +37,7 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-replace github.com/LerianStudio/lib-auth/v2 => ../lib-auth
+replace github.com/LerianStudio/lib-commons/v2 => ../lib-commons
 
 require (
 	cloud.google.com/go/auth v0.16.3 // indirect

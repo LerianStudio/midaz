@@ -113,12 +113,16 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
 		return nil, err
 	}
@@ -135,7 +139,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create asset. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -464,12 +468,16 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -486,7 +494,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update asset. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -542,7 +550,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete asset. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete asset. Rows affected is 0", err)
 
 		return err
 	}

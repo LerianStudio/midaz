@@ -113,12 +113,16 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
 
 		return nil, err
 	}
@@ -133,7 +137,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to create account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -362,12 +366,16 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -382,7 +390,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", err)
 
 		return nil, err
 	}

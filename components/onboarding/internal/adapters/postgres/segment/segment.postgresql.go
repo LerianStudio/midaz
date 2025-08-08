@@ -112,12 +112,16 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -134,7 +138,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create segment. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -379,11 +383,15 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	if err := row.Scan(&segment.ID, &segment.Name, &segment.LedgerID, &segment.OrganizationID,
 		&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -463,12 +471,16 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -485,7 +497,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update segment. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update segment. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -541,7 +553,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete segment. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete segment. Rows affected is 0", err)
 
 		return err
 	}

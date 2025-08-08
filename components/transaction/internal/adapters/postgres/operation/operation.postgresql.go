@@ -141,7 +141,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create operation. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -431,11 +431,15 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.DeletedAt,
 		&operation.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -503,11 +507,15 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.DeletedAt,
 		&operation.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -598,7 +606,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update operation. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -654,7 +662,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete operation. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation. Rows affected is 0", err)
 
 		return err
 	}

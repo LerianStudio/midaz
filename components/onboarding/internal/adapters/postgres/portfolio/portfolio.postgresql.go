@@ -113,12 +113,16 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -135,7 +139,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -504,12 +508,16 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -526,7 +534,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -582,7 +590,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Portfolio. Rows affected is 0", err)
 
 		return err
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -143,6 +144,13 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.Route,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction query", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		return nil, err
@@ -158,7 +166,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -446,11 +454,15 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.DeletedAt,
 		&transaction.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -519,11 +531,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.DeletedAt,
 		&transaction.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No transaction found", err)
+
 			return nil, nil
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -632,7 +646,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -686,7 +700,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction. Rows affected is 0", err)
 
 		return err
 	}

@@ -125,7 +125,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -472,7 +472,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update asset rate. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset rate. Rows affected is 0", err)
 
 		return nil, err
 	}

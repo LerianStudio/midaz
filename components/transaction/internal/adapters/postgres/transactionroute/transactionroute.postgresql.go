@@ -128,12 +128,16 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert transaction route query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction route query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert transaction route query", err)
 
 		return nil, err
 	}
@@ -148,7 +152,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to create transaction route. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create transaction route. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -170,12 +174,16 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 				record.CreatedAt,
 			)
 			if err != nil {
-				libOpentelemetry.HandleSpanError(&spanRelations, "Failed to insert operation route relation", err)
-
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) {
-					return nil, services.ValidatePGError(pgErr, "operation_transaction_route")
+					err := services.ValidatePGError(pgErr, "operation_transaction_route")
+
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanRelations, "Failed to insert operation route relation", err)
+
+					return nil, err
 				}
+
+				libOpentelemetry.HandleSpanError(&spanRelations, "Failed to insert operation route relation", err)
 
 				return nil, err
 			}
@@ -416,12 +424,16 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -436,7 +448,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update transaction route. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update transaction route. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -722,12 +734,16 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 				now,
 			)
 			if err != nil {
-				libOpentelemetry.HandleSpanError(&spanCreate, "Failed to create operation route relationship", err)
-
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) {
-					return services.ValidatePGError(pgErr, "operation_transaction_route")
+					err := services.ValidatePGError(pgErr, "operation_transaction_route")
+
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreate, "Failed to create operation route relationship", err)
+
+					return err
 				}
+
+				libOpentelemetry.HandleSpanError(&spanCreate, "Failed to create operation route relationship", err)
 
 				return err
 			}

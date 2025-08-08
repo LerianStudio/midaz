@@ -114,12 +114,16 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 		&record.UpdatedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -136,7 +140,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create operation route. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -400,12 +404,16 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -422,7 +430,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update operation route. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update operation route. Rows affected is 0", err)
 
 		return nil, err
 	}

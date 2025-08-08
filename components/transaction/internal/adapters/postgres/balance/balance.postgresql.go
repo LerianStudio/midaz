@@ -134,7 +134,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create balance. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create balance. Rows affected is 0", err)
 
 		return err
 	}
@@ -898,11 +898,15 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.UpdatedAt,
 		&balance.DeletedAt,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -962,7 +966,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete balance. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance. Rows affected is 0", err)
 
 		return err
 	}

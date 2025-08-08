@@ -45,7 +45,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 			return err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get asset on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
 		logger.Errorf("Error getting asset: %v", err)
 
