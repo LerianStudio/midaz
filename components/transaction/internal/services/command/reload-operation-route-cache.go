@@ -21,9 +21,9 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 
 	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route IDs", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route IDs", err)
 
-		logger.Errorf("Failed to find transaction route IDs for operation route %s: %v", id, err)
+		logger.Warnf("Failed to find transaction route IDs for operation route %s: %v", id, err)
 
 		return err
 	}
@@ -39,17 +39,17 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 	for _, transactionRouteID := range transactionRouteIDs {
 		transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction route", err)
 
-			logger.Errorf("Failed to retrieve transaction route %s: %v", transactionRouteID, err)
+			logger.Warnf("Failed to retrieve transaction route %s: %v", transactionRouteID, err)
 
 			continue
 		}
 
 		if err := uc.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create cache for transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create cache for transaction route", err)
 
-			logger.Errorf("Failed to create cache for transaction route %s: %v", transactionRouteID, err)
+			logger.Warnf("Failed to create cache for transaction route %s: %v", transactionRouteID, err)
 
 			continue
 		}

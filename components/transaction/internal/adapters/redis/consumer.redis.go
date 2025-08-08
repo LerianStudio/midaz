@@ -295,13 +295,21 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
-		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
-
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
 		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
+			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
 
 		return nil, err
 	}

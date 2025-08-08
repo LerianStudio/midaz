@@ -41,11 +41,17 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation routes on repo", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
+
+			logger.Warnf("Error getting operation routes on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
 		logger.Errorf("Error getting operation routes on repo: %v", err)
 
@@ -60,9 +66,13 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID, le
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), metadataFilter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation route", err)
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation route", err)
+
+			logger.Warnf("Error getting metadata on mongodb operation route: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

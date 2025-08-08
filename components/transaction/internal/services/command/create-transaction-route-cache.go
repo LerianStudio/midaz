@@ -42,7 +42,7 @@ func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel
 
 	cacheBytes, err := cacheData.ToMsgpack()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert route to cache data", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert route to cache data", err)
 
 		logger.Errorf("Failed to convert route to cache data: %v", err)
 

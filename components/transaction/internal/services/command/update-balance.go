@@ -51,7 +51,7 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 
 	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.Aliases, fromTo)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return err
@@ -109,8 +109,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		spanBalance.SetAttributes(balanceAttributes...)
 
 		balance.ConvertToLibBalance()
-		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 
+		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err.Error())
@@ -131,7 +131,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return err
@@ -164,7 +164,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update balance on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)
 
 		return err

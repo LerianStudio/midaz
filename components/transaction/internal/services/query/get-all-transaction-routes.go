@@ -41,11 +41,19 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 	transactionRoutes, cur, err := uc.TransactionRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction routes on repo", err)
+		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
+
+			logger.Warnf("Error getting transaction routes on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
@@ -60,9 +68,13 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb transaction route", err)
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction route", err)
+
+			logger.Warnf("Error getting metadata on mongodb transaction route: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

@@ -67,7 +67,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction on repo", err)
 
 		logger.Errorf("Error creating t: %v", err)
 
@@ -76,7 +76,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	if t.Metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)
 
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create transaction metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction metadata", err)
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)
 

@@ -51,7 +51,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	if len(aliases) > 0 {
 		balancesByAliases, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get account by alias on balance database", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 
 			logger.Error("Failed to get account by alias on balance database", err.Error())
 
@@ -64,7 +64,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	if len(balances) > 1 {
 		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances, transactionStatus)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
 
 			logger.Error("Failed to get balances and update on redis", err.Error())
 
@@ -174,7 +174,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate accounting rules", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate accounting rules", err)
 
 		logger.Error("Failed to validate accounting rules", err)
 
@@ -184,7 +184,8 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	for _, op := range operations {
 		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to lock balance", err)
+
 			logger.Error("Failed to lock balance", err)
 
 			return nil, err

@@ -40,9 +40,13 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation routes on repo by metadata", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo by metadata", err)
+
+		logger.Warnf("Error getting operation routes on repo by metadata: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -53,13 +57,19 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	allOperationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation routes on repo", err)
-
 		logger.Errorf("Error getting operation routes on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
+
+			logger.Warnf("Error getting operation routes on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

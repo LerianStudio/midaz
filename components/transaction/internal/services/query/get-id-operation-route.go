@@ -40,13 +40,19 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 
 	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation route by ID on repository", err)
-
 		logger.Errorf("Error getting operation route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)
+
+			logger.Warnf("Error getting operation route on repo by id: %v", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation route on repo by id", err)
 
 		return nil, err
 	}
@@ -54,7 +60,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, le
 	if operationRoute != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), operationRoute.ID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation route", err)
 
 			logger.Errorf("Error get metadata on mongodb operation route: %v", err)
 

@@ -48,7 +48,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create operation route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route", err)
 
 		logger.Errorf("Failed to create operation route: %v", err)
 
@@ -57,7 +57,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 	if payload.Metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, payload.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)
 
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create operation route metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route metadata", err)
 
 			logger.Errorf("Failed to create operation route metadata: %v", err)
 

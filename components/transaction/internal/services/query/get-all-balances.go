@@ -7,7 +7,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -32,21 +32,27 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	if err := libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
 
 	logger.Infof("Retrieving all balances")
 
 	balance, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get balances on repo", err)
-
 		logger.Errorf("Error getting balances on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
+
+			logger.Warnf("Error getting balances on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -54,9 +60,13 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	if balance != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), filter)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+
+			logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
@@ -94,7 +104,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 
 	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to list balances by alias on balance database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to list balances by alias on balance database", err)
 
 		logger.Error("Failed to list balances by alias on balance database", err.Error())
 

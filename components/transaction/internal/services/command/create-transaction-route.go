@@ -49,7 +49,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find operation routes", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find operation routes", err)
 
 		logger.Errorf("Failed to find operation routes: %v", err)
 
@@ -58,7 +58,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	// Validate operation route types
 	if err := validateOperationRouteTypes(operationRouteList); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate operation route types", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate operation route types", err)
 
 		logger.Errorf("Operation route validation failed: %v", err)
 
@@ -75,7 +75,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	createdTransactionRoute, err := uc.TransactionRouteRepo.Create(ctx, organizationID, ledgerID, transactionRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route", err)
 
 		logger.Errorf("Failed to create transaction route: %v", err)
 
@@ -86,7 +86,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	if payload.Metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, payload.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)
 
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route metadata", err)
 
 			logger.Errorf("Failed to create transaction route metadata: %v", err)
 

@@ -311,7 +311,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 	if len(missingIDs) > 0 {
 		missingIDsStr := strings.Join(missingIDs, ", ")
 
-		libOpentelemetry.HandleSpanError(&span, "Operation route(s) not found", errors.New("operation route not found"))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation route(s) not found", errors.New("operation route not found"))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), missingIDsStr)
 	}

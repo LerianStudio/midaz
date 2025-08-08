@@ -42,9 +42,13 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo by metadata", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo by metadata", err)
+
+		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -57,13 +61,19 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo", err)
-
 		logger.Errorf("Error getting transactions on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+
+			logger.Warnf("Error getting transactions on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

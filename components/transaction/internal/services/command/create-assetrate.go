@@ -36,15 +36,19 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
 	if err := libCommons.ValidateCode(cari.From); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
+		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", err)
+
+		return nil, err
 	}
 
 	if err := libCommons.ValidateCode(cari.To); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
+		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset code", err)
+
+		return nil, err
 	}
 
 	externalID := cari.ExternalID
@@ -57,7 +61,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset rate by currency pair", err)
 
 		logger.Errorf("Error creating asset rate: %v", err)
 
@@ -79,7 +83,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 		arFound, err = uc.AssetRateRepo.Update(ctx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to update asset rate", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset rate", err)
 
 			logger.Errorf("Error updating asset rate: %v", err)
 
@@ -88,7 +92,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 		metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), arFound.ID, cari.Metadata)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
 			return nil, err
 		}
@@ -122,7 +126,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate on repository", err)
 
 		logger.Errorf("Error creating asset rate: %v", err)
 
@@ -131,9 +135,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	if cari.Metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+			err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 
-			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate metadata", err)
+
+			return nil, err
 		}
 
 		meta := mongodb.Metadata{
@@ -145,7 +151,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate metadata", err)
 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
 

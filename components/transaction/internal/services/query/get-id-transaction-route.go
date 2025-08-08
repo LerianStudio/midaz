@@ -36,13 +36,19 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
-
 		logger.Errorf("Error getting transaction route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
+
+			logger.Warnf("Error getting transaction route on repo by id: %v", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
 
 		return nil, err
 	}
@@ -50,7 +56,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 	if transactionRoute != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), transactionRoute.ID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction route", err)
 
 			logger.Errorf("Error get metadata on mongodb transaction route: %v", err)
 

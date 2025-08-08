@@ -40,9 +40,13 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction routes on repo by metadata", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo by metadata", err)
+
+		logger.Warnf("Error getting transaction routes on repo by metadata: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -53,13 +57,19 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 
 	allTransactionRoutes, cur, err := uc.TransactionRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction routes on repo", err)
-
 		logger.Errorf("Error getting transaction routes on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
+
+			logger.Warnf("Error getting transaction routes on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

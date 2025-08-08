@@ -35,7 +35,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 	hasLinks, err := uc.OperationRouteRepo.HasTransactionRouteLinks(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to check transaction route links", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check transaction route links", err)
 
 		logger.Errorf("Error checking transaction route links for operation route %s: %v", id.String(), err)
 
@@ -43,18 +43,25 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 	}
 
 	if hasLinks {
-		logger.Errorf("Operation Route ID %s cannot be deleted because it is linked to transaction routes", id.String())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation Route cannot be deleted because it is linked to transaction routes", nil)
+
+		logger.Warnf("Operation Route ID %s cannot be deleted because it is linked to transaction routes", id.String())
 
 		return pkg.ValidateBusinessError(constant.ErrOperationRouteLinkedToTransactionRoutes, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 	}
 
 	if err := uc.OperationRouteRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete operation route on repo by id", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Errorf("Operation Route ID not found: %s", id.String())
-			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation Route ID not found", err)
+
+			logger.Warnf("Operation Route ID not found: %s", id.String())
+
+			return err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete operation route on repo by id", err)
 
 		logger.Errorf("Error deleting operation route: %v", err)
 

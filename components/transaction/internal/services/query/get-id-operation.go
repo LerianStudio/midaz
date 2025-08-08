@@ -32,7 +32,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 	o, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation on repo by id", err)
 
 		logger.Errorf("Error getting operation: %v", err)
 
@@ -42,7 +42,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	if o != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 

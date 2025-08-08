@@ -54,7 +54,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], validate, blc.ConvertToLibBalance())
 				if er != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to validate operation", er)
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate operation", er)
 
 					err <- er
 				}
@@ -101,7 +101,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 				op, er := uc.OperationRepo.Create(ctx, save)
 				if er != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to create operation", er)
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation", er)
 
 					logger.Errorf("Error creating operation: %v", er)
 					err <- er
@@ -109,7 +109,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 				er = uc.CreateMetadata(ctx, logger, fromTo[i].Metadata, op)
 				if er != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata on operation", er)
+
 					logger.Errorf("Failed to create metadata on operation: %v", er)
 					logger.Errorf("Returning error: %v", er)
 					err <- er

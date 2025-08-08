@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -53,7 +54,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
 
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
@@ -62,7 +63,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	tran, err := uc.CreateOrUpdateTransaction(ctxProcessBalances, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to create or update transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to create or update transaction", err)
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
@@ -79,7 +80,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanCreateMetadata, "Failed to create metadata on transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
@@ -101,11 +102,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				logger.Infof("Skiping to create operation, operation already exists: %v", oper.ID)
+				msg := fmt.Sprintf("Skiping to create operation, operation already exists: %v", oper.ID)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
+
+				logger.Warnf(msg)
 
 				continue
 			} else {
-				libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
 
 				logger.Errorf("Error creating operation: %v", err)
 
@@ -115,7 +120,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
 
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
@@ -158,7 +163,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
 				_, err = uc.UpdateTransactionStatus(ctx, tran)
 				if err != nil {
-					libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to update transaction", err)
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
 
 					logger.Errorf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
 
@@ -168,7 +173,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 			logger.Infof("skiping to create transaction, transaction already exists: %v", tran.ID)
 		} else {
-			libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
 			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 

@@ -41,9 +41,13 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operations on repo by metadata", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo by metadata", err)
+
+		logger.Warnf("Error getting operations on repo by metadata: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -54,13 +58,19 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operations on repo", err)
-
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
+
+			logger.Warnf("Error getting operations on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

@@ -123,7 +123,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 					err = handlerFunc(ctx, msg.Body)
 					if err != nil {
-						libOpentelemetry.HandleSpanError(&spanConsumer, "Error processing message from queue", err)
+						libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
 
 						spanConsumer.End()
 

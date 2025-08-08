@@ -41,12 +41,18 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get balances on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
+
+			logger.Warnf("Error getting balances on repo: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		return nil, libHTTP.CursorPagination{}, err
@@ -55,9 +61,13 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 	if balance != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), filter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+
+			logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

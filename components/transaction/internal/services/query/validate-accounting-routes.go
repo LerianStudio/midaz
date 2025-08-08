@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -42,9 +43,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
-		libOpentelemetry.HandleSpanError(&span, "Transaction route is empty", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction route is empty", err)
 
-		logger.Errorf("Transaction route is empty")
+		logger.Warnf("Transaction route is empty")
 
 		return err
 	}
@@ -53,16 +54,16 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
 
-		libOpentelemetry.HandleSpanError(&span, "Invalid transaction route ID format", validationErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction route ID format", validationErr)
 
-		logger.Errorf("Invalid transaction route ID format: %v", err)
+		logger.Warnf("Invalid transaction route ID format: %v", err)
 
 		return validationErr
 	}
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to load transaction route cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to load transaction route cache", err)
 
 		logger.Errorf("Failed to load transaction route cache: %v", err)
 
@@ -76,9 +77,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	if uniqueFromCount != sourceRoutesCount || uniqueToCount != destinationRoutesCount {
 		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount)
-		libOpentelemetry.HandleSpanError(&span, "Accounting route count mismatch", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
 
-		logger.Errorf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
+		logger.Warnf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
 
 		return err
 	}
@@ -131,18 +132,18 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 
 		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.alias)
-			libOpentelemetry.HandleSpanError(&span, "Accounting route not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route not found", err)
 
-			logger.Errorf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.alias)
+			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.alias)
 
 			return err
 		}
 
 		if cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Operation failed validation against route rules", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation failed validation against route rules", err)
 
-				logger.Errorf("Operation '%s' failed validation against route rules: %v", operation.alias, err)
+				logger.Warnf("Operation '%s' failed validation against route rules: %v", operation.alias, err)
 
 				return err
 			}
@@ -178,10 +179,8 @@ func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache)
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
-		for _, allowedType := range allowedTypes {
-			if op.balance.AccountType == allowedType {
-				return nil
-			}
+		if slices.Contains(allowedTypes, op.balance.AccountType) {
+			return nil
 		}
 
 		return pkg.ValidateBusinessError(

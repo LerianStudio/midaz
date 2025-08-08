@@ -21,7 +21,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	tracer := libCommons.NewTracerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
+	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()
 
 	span.SetAttributes(
@@ -55,12 +55,16 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		if err == services.ErrDatabaseItemNotFound {
-			logger.Info("Transaction route not found in database")
+			msg := "Transaction route not found in database"
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, msg, err)
+
+			logger.Warn(msg)
 
 			return mmodel.TransactionRouteCache{}, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to fetch transaction route from database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to fetch transaction route from database", err)
 
 		logger.Errorf("Error fetching transaction route from database: %v", err.Error())
 

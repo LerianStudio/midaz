@@ -94,7 +94,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTOQueue, queueMessage)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send message directly to database", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTOQueue, "Failed to send message directly to database", err)
 
 			logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
@@ -162,7 +162,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 
 	err = uc.CreateBalanceTransactionOperationsAsync(ctxSendBTODirect, queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTODirect, "Failed to send message directly to database", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTODirect, "Failed to send message directly to database", err)
 
 		logger.Errorf("Failed to send message directly to database: %s", err.Error())
 
