@@ -352,6 +352,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 		return nil, err
 	}
 
