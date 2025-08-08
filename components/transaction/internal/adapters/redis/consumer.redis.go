@@ -234,6 +234,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		)
 
 		mapBalances[blcs.Alias] = blcs.Balance
+
 		if transactionStatus == constant.NOTED {
 			blcs.Balance.Alias = blcs.Alias
 
@@ -248,6 +249,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	script := redis.NewScript(addSubLua)
 
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
 	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
@@ -289,6 +291,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	}
 
 	balances = make([]*mmodel.Balance, 0)
+
 	for _, b := range blcsRedis {
 		mapBalance, ok := mapBalances[b.Alias]
 		if !ok {
