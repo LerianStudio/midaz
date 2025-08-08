@@ -17,7 +17,7 @@ func TestValidateAccountingRules(t *testing.T) {
 	tests := []struct {
 		name         string
 		accountCache *mmodel.AccountCache
-		operation    lockOperation
+		operation    mmodel.BalanceOperation
 		expectError  bool
 	}{
 		{
@@ -26,9 +26,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "alias",
 				ValidIf:  "prefix:test-alias",
 			},
-			operation: lockOperation{
-				alias: "prefix:test-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -40,9 +40,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "alias",
 				ValidIf:  "expected-alias",
 			},
-			operation: lockOperation{
-				alias: "prefix:wrong-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:wrong-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -54,9 +54,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "account_type",
 				ValidIf:  []string{"asset", "liability"},
 			},
-			operation: lockOperation{
-				alias: "prefix:test-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -68,9 +68,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "account_type",
 				ValidIf:  []string{"asset", "liability"},
 			},
-			operation: lockOperation{
-				alias: "prefix:test-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "equity",
 				},
 			},
@@ -82,9 +82,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "account_type",
 				ValidIf:  []any{"asset", "liability"},
 			},
-			operation: lockOperation{
-				alias: "prefix:test-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "liability",
 				},
 			},
@@ -96,9 +96,9 @@ func TestValidateAccountingRules(t *testing.T) {
 				RuleType: "invalid",
 				ValidIf:  "test",
 			},
-			operation: lockOperation{
-				alias: "prefix:test-alias",
-				balance: &mmodel.Balance{
+			operation: mmodel.BalanceOperation{
+				Alias: "prefix:test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -175,10 +175,10 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 		differentLedger := libCommons.GenerateUUIDv7()
 		os.Setenv("TRANSACTION_ROUTE_VALIDATION", differentOrg.String()+":"+differentLedger.String())
 
-		operations := []lockOperation{
+		operations := []mmodel.BalanceOperation{
 			{
-				alias: "test-alias",
-				balance: &mmodel.Balance{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -205,10 +205,10 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		os.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
 
-		operations := []lockOperation{
+		operations := []mmodel.BalanceOperation{
 			{
-				alias: "test-alias",
-				balance: &mmodel.Balance{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -235,10 +235,10 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		os.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
 
-		operations := []lockOperation{
+		operations := []mmodel.BalanceOperation{
 			{
-				alias: "test-alias",
-				balance: &mmodel.Balance{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
@@ -265,10 +265,10 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		os.Unsetenv("TRANSACTION_ROUTE_VALIDATION")
 
-		operations := []lockOperation{
+		operations := []mmodel.BalanceOperation{
 			{
-				alias: "test-alias",
-				balance: &mmodel.Balance{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
 					AccountType: "asset",
 				},
 			},
