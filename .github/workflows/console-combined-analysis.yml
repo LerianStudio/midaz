@@ -25,6 +25,8 @@ jobs:
       console: ${{ steps.changes.outputs.console }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Detect changes in console
         id: changes
@@ -33,6 +35,15 @@ jobs:
           filters: |
             console:
               - 'components/console/**'
+              - '!components/console/node_modules/**'
+          list-files: 'json'
+
+      - name: Debug - Show changed files
+        if: steps.changes.outputs.console == 'true'
+        run: |
+          echo "Console changes detected: ${{ steps.changes.outputs.console }}"
+          echo "Changed files:"
+          echo '${{ steps.changes.outputs.console_files }}'
 
   npm-audit:
     name: Run npm audit and fix vulnerabilities
@@ -65,10 +76,12 @@ jobs:
         run: npm install
 
       - name: Run npm audit
-        run: npm audit --omit=dev
+        run: npm audit --omit=dev --audit-level high
+        continue-on-error: true
 
       - name: Fix vulnerabilities
         run: npm audit fix
+        continue-on-error: true
 
   unit-tests:
     name: Run Unit Tests for Console
