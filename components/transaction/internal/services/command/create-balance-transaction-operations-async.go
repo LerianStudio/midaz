@@ -112,9 +112,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	go uc.SendTransactionEvents(ctx, tran)
 
-	transactionKey := libCommons.TransactionInternalKey(data.OrganizationID, data.LedgerID, tran.ID)
-	_ = uc.RedisRepo.Del(ctx, transactionKey)
-
 	return nil
 }
 
