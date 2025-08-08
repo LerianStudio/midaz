@@ -31,7 +31,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 	tran, err := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction on repo by id", err)
 
 		logger.Errorf("Error getting transaction: %v", err)
 
@@ -41,7 +41,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	if tran != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 

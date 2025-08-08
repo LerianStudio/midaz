@@ -21,9 +21,9 @@ func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID
 
 	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route IDs", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route IDs", err)
 
-		logger.Warnf("Failed to find transaction route IDs for operation route %s: %v", id, err)
+		logger.Errorf("Failed to find transaction route IDs for operation route %s: %v", id, err)
 
 		return err
 	}

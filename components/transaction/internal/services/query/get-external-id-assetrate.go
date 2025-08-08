@@ -31,7 +31,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset rate by external id on repository", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get asset rate by external id on repository", err)
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
@@ -41,7 +41,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 	if assetRate != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRate.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb asset rate", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset rate", err)
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 
