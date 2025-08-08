@@ -6,17 +6,30 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_portfolio")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", cpi); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
@@ -44,7 +57,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create portfolio", err)
 
 		logger.Errorf("Error creating portfolio: %v", err)
 
@@ -53,7 +66,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create portfolio metadata", err)
 
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 

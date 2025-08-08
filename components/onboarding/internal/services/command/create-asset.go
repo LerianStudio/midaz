@@ -11,24 +11,36 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateAsset creates a new asset persists data in the repository.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", cii); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to create asset: %v", cii)
 
 	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Message Broker is unavailable", err)
 
-		logger.Errorf("Message Broker is unavailable: %v", err)
+		logger.Warnf("Message Broker is unavailable: %v", err)
 
 		return nil, err
 	}
@@ -45,32 +57,42 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	status.Description = cii.Status.Description
 
 	if err := libCommons.ValidateType(cii.Type); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
+		err := pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset type", err)
+
+		return nil, err
 	}
 
 	if err := libCommons.ValidateCode(cii.Code); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
-
 		if err.Error() == constant.ErrInvalidCodeFormat.Error() {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", err)
+
+			return nil, err
 		} else if err.Error() == constant.ErrCodeUppercaseRequirement.Error() {
-			return nil, pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", err)
+
+			return nil, err
 		}
 	}
 
 	if cii.Type == "currency" {
 		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
+			err := pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 
-			return nil, pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset currency", err)
+
+			return nil, err
 		}
 	}
 
 	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find asset by name or code", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset by name or code", err)
 
 		logger.Errorf("Error creating asset: %v", err)
 
@@ -90,7 +112,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create asset", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset", err)
 
 		logger.Errorf("Error creating asset: %v", err)
 
@@ -99,7 +121,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset metadata", err)
 
 		logger.Errorf("Error creating asset metadata: %v", err)
 
@@ -113,7 +135,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve asset external account", err)
 
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
@@ -145,7 +167,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		acc, err := uc.AccountRepo.Create(ctx, eAccount)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create asset external account", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset external account", err)
 
 			logger.Errorf("Error creating asset external account: %v", err)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // AssetRateHandler struct contains a cqrs use case for managing asset rate.
@@ -43,29 +44,34 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
-	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
-
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
 
 	payload := p.(*assetrate.CreateAssetRateInput)
 	logger.Infof("Request to create an AssetRate with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create AssetRate on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create AssetRate on command", err)
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
@@ -99,6 +105,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
@@ -107,12 +114,19 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	externalID := c.Locals("external_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.external_id", externalID.String()),
+	)
+
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
 		organizationID.String(), ledgerID.String(), externalID.String())
 
 	assetRate, err := handler.Query.GetAssetRateByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 
@@ -154,17 +168,34 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	assetCode := c.Params("asset_code")
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.asset_code", assetCode),
+	)
+
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert query parameters to JSON string", err)
 	}
 
 	pagination := libPostgres.Pagination{
@@ -175,10 +206,6 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 		EndDate:    headerParams.EndDate,
 	}
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	assetCode := c.Locals("asset_code").(string)
-
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and asset_code: '%s'",
 		organizationID.String(), ledgerID.String(), assetCode)
 
@@ -186,7 +213,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 

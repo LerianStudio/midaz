@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -24,6 +26,7 @@ import (
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	var t transaction.TransactionQueue
 
@@ -42,11 +45,17 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
 		defer spanUpdateBalances.End()
 
+		spanUpdateBalances.SetAttributes(
+			attribute.String("app.request.request_id", reqId),
+			attribute.String("app.request.organization_id", data.OrganizationID.String()),
+			attribute.String("app.request.ledger_id", data.LedgerID.String()),
+		)
+
 		logger.Infof("Trying to update balances")
 
 		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
 
 			logger.Errorf("Failed to update balances: %v", err.Error())
 
@@ -57,9 +66,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
 
+	spanUpdateTransaction.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", data.OrganizationID.String()),
+		attribute.String("app.request.ledger_id", data.LedgerID.String()),
+	)
+
 	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateTransaction, "Failed to create or update transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
@@ -69,9 +84,14 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
+	spanCreateMetadata.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
+
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanCreateMetadata, "Failed to create metadata on transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
@@ -81,6 +101,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
 
+	spanCreateOperation.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.transaction_id", tran.ID),
+	)
+
 	logger.Infof("Trying to create new operations")
 
 	for _, oper := range tran.Operations {
@@ -88,11 +113,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				logger.Infof("Skiping to create operation, operation already exists: %v", oper.ID)
+				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
+
+				logger.Warnf(msg)
 
 				continue
 			} else {
-				libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
 
 				logger.Errorf("Error creating operation: %v", err)
 
@@ -102,7 +131,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
 
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
@@ -148,7 +177,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
 				_, err = uc.UpdateTransactionStatus(ctx, tran)
 				if err != nil {
-					libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to update transaction", err)
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
 
 					logger.Errorf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
 
@@ -156,9 +185,9 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 				}
 			}
 
-			logger.Infof("skiping to create transaction, transaction already exists: %v", tran.ID)
+			logger.Infof("skipping to create transaction, transaction already exists: %v", tran.ID)
 		} else {
-			libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
 			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 

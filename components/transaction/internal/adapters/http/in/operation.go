@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // OperationHandler struct contains a cqrs use case for managing operations.
@@ -48,6 +49,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
@@ -56,9 +58,16 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+	)
+
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -76,16 +85,14 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Operations by account and metadata")
 
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
-
-			return http.WithError(c, err)
 		}
 
 		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account and metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account and metadata", err)
 
 			logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
 
@@ -104,16 +111,9 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
-
-		return http.WithError(c, err)
-	}
-
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account", err)
 
 		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err.Error())
 
@@ -151,6 +151,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
@@ -160,11 +161,19 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	accountID := c.Locals("account_id").(uuid.UUID)
 	operationID := c.Locals("operation_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
+		attribute.String("app.request.operation_id", operationID.String()),
+	)
+
 	logger.Infof("Initiating retrieval of Operation by account")
 
 	op, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation by account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation by account", err)
 
 		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err.Error())
 
@@ -202,6 +211,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
@@ -211,21 +221,27 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 	operationID := c.Locals("operation_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
+		attribute.String("app.request.operation_id", operationID.String()),
+	)
+
 	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 
 	payload := p.(*operation.UpdateOperationInput)
-	logger.Infof("Request to update an Operation with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
-	if err != nil {
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
-	_, err = handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	logger.Infof("Request to update an Operation with details: %#v", payload)
+
+	_, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Operation on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation on command", err)
 
 		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error())
 
@@ -234,7 +250,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation on query", err)
 
 		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
 
