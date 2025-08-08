@@ -729,6 +729,25 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 	return transactionDate, nil
 }
 
+func (handler *TransactionHandler) sendTransactionToRedisQueue(ctx context.Context, logger libLog.Logger, transactionKey string, parserDSL libTransaction.Transaction) {
+
+	queue := mmodel.TransactionRedisQueue{
+		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
+		ParserDSL: parserDSL,
+		TTL:       time.Now(),
+	}
+
+	raw, err := json.Marshal(queue)
+	if err != nil {
+		logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
+	}
+
+	err = handler.Command.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
+	if err != nil {
+		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
+	}
+}
+
 func (handler *TransactionHandler) buildOperations(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -828,6 +847,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
+	transactionID := libCommons.GenerateUUIDv7()
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
@@ -835,10 +859,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
-	transactionID := libCommons.GenerateUUIDv7()
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	handler.sendTransactionToRedisQueue(ctx, logger, transactionKey, parserDSL)
 
 	var fromTo []libTransaction.FromTo
 

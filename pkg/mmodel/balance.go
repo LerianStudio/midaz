@@ -332,3 +332,10 @@ type BalanceOperation struct {
 	Amount      libTransaction.Amount
 	InternalKey string
 }
+
+type TransactionRedisQueue struct {
+	HeaderID  string                     `json:"header_id"`
+	Balances  []BalanceRedis             `json:"balances"`
+	ParserDSL libTransaction.Transaction `json:"parserDSL"`
+	TTL       time.Time                  `json:"ttl"`
+}

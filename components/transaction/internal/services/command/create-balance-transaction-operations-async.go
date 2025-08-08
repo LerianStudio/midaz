@@ -113,7 +113,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	go uc.SendTransactionEvents(ctx, tran)
 
 	transactionKey := libCommons.TransactionInternalKey(data.OrganizationID, data.LedgerID, tran.ID)
-	_ = uc.RedisRepo.Del(ctx, transactionKey)
+	go uc.ackAndRemoveFromRedisQueue(ctx, logger, transactionKey)
 
 	return nil
 }
@@ -208,4 +208,13 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	}
 
 	return nil
+}
+
+// ackAndRemoveFromRedisQueue func that ack and remove message from redis
+func (uc *UseCase) ackAndRemoveFromRedisQueue(ctx context.Context, logger libLog.Logger, msgID string) {
+	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, msgID); err != nil {
+		logger.Warnf("err to remove message on redis: %s", err.Error())
+	} else {
+		logger.Infof("message removed from redis successfully: %s", msgID)
+	}
 }
