@@ -102,7 +102,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skiping to create operation, operation already exists: %v", oper.ID)
+				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
 
@@ -171,7 +171,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 				}
 			}
 
-			logger.Infof("skiping to create transaction, transaction already exists: %v", tran.ID)
+			logger.Infof("skipping to create transaction, transaction already exists: %v", tran.ID)
 		} else {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to create transaction on repo", err)
 

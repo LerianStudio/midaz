@@ -42,9 +42,9 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
-		logger.Warnf("Error finding transaction route: %v", err)
+		logger.Errorf("Error finding transaction route: %v", err)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find transaction route", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route", err)
 
 		return err
 	}
@@ -56,9 +56,9 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 	err = uc.TransactionRouteRepo.Delete(ctx, organizationID, ledgerID, transactionRouteID, operationRoutesToRemove)
 	if err != nil {
-		logger.Warnf("Error deleting transaction route: %v", err)
+		logger.Errorf("Error deleting transaction route: %v", err)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route", err)
 
 		return err
 	}

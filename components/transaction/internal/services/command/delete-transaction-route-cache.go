@@ -31,7 +31,7 @@ func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organization
 
 	err := uc.RedisRepo.Del(ctx, internalKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route cache", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route cache", err)
 
 		logger.Errorf("Failed to delete transaction route cache: %v", err)
 

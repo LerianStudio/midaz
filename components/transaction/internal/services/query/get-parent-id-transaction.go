@@ -31,7 +31,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 
 	tran, err := uc.TransactionRepo.FindByParentID(ctx, organizationID, ledgerID, parentID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get parent transaction on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get parent transaction on repo by id", err)
 
 		logger.Errorf("Error getting parent transaction: %v", err)
 
@@ -41,7 +41,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 	if tran != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), tran.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
