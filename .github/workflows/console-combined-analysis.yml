@@ -77,11 +77,9 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --omit=dev --audit-level high
-        continue-on-error: true
 
       - name: Fix vulnerabilities
-        run: npm audit fix
-        continue-on-error: true
+        run: npm audit fix --audit-level high
 
   unit-tests:
     name: Run Unit Tests for Console

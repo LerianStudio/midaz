@@ -156,7 +156,6 @@ func TestGetBalances(t *testing.T) {
 				constant.CREATED,
 				false,
 				gomock.Any(), // balance operations
-				gomock.Any(), // parser
 			).
 			Return([]*mmodel.Balance{
 				{
@@ -180,8 +179,7 @@ func TestGetBalances(t *testing.T) {
 
 		// --- execução & asserts ---
 		transactionID := uuid.New()
-		parser := libTransaction.Transaction{}
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED, parser)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED)
 		assert.NoError(t, err)
 		assert.Len(t, balances, 3)
 
@@ -277,7 +275,6 @@ func TestGetBalances(t *testing.T) {
 				constant.CREATED,
 				false,
 				gomock.Any(), // balance operations
-				gomock.Any(), // parser
 			).
 			Return([]*mmodel.Balance{
 				{
@@ -313,8 +310,7 @@ func TestGetBalances(t *testing.T) {
 
 		// Call the method
 		transactionID := uuid.New()
-		parser := libTransaction.Transaction{}
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED, parser)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED)
 
 		// Assertions
 		assert.NoError(t, err)
@@ -380,13 +376,11 @@ func TestGetAccountAndLock(t *testing.T) {
 				constant.CREATED,
 				false,
 				gomock.Any(), // balance operations
-				gomock.Any(), // parser
 			).
 			Return(balances, nil)
 
 		transactionID := uuid.New()
-		parser := libTransaction.Transaction{}
-		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, constant.CREATED, parser)
+		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, constant.CREATED)
 
 		assert.NoError(t, err)
 		assert.Len(t, lockedBalances, 1)
