@@ -24,6 +24,8 @@ import (
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
+const TransactionBackupQueue = "backup_queue:{transactions}"
+
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
 type RedisRepository interface {
@@ -253,7 +255,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	script := redis.NewScript(addSubLua)
 
-	result, err := script.Run(ctx, rds, []string{transactionKey}, args).Result()
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
