@@ -178,12 +178,35 @@ local function cloneBalance(tbl)
     return copy
 end
 
+local function updateTransactionHash(transactionBackupQueue, transactionKey, balances)
+    local transaction
+
+    local raw = redis.call("HGET", transactionBackupQueue, transactionKey)
+    if not raw then
+        transaction = { balances = balances }
+    else
+        local ok, decoded = pcall(cjson.decode, raw)
+        if ok and type(decoded) == "table" then
+            transaction = decoded
+            transaction.balances = balances
+        else
+            transaction = { balances = balances }
+        end
+    end
+
+    local updated = cjson.encode(transaction)
+    redis.call("HSET", transactionBackupQueue, transactionKey, updated)
+
+    return updated
+end
+
 local function main()
     local ttl = 3600
     local groupSize = 15
     local returnBalances = {}
 
-    local redisTransactionKey = KEYS[1]
+    local transactionBackupQueue = KEYS[1]
+    local transactionKey = KEYS[2]
 
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
@@ -265,17 +288,7 @@ local function main()
         redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
     end
 
-    local transaction = {
-        Balances = returnBalances
-    }
-
-    local parser = redis.call("GET", redisTransactionKey)
-    if parser then
-        transaction.ParserDSL = parser
-    end
-
-    local updateTransaction = cjson.encode(transaction)
-    redis.call("SET", redisTransactionKey, updateTransaction)
+    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
 
     local returnBalancesEncoded = cjson.encode(returnBalances)
     return returnBalancesEncoded
