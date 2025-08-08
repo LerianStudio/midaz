@@ -12,21 +12,31 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeleteAccountByID delete an account from the repository by ids.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", id.String()),
+	)
 
 	logger.Infof("Remove account for id: %s", id.String())
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
+
 		logger.Errorf("Error finding account by alias: %v", err)
 
 		return err
@@ -37,12 +47,17 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete account on repo by id", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Errorf("Account ID not found: %s", id.String())
-			return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warnf("Account ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
+
+			return err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
 		logger.Errorf("Error deleting account: %v", err)
 

@@ -28,9 +28,11 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -43,13 +45,19 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	accountTypes, err := uc.AccountTypeRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get account types on repo", err)
-
 		logger.Errorf("Error getting account types on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
+
+			logger.Warn("No account types found")
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

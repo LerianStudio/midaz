@@ -9,15 +9,26 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
-	span.End()
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", cli); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -34,7 +45,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find ledger by name", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -51,7 +62,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -62,7 +73,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger metadata", err)
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 

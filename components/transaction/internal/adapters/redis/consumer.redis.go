@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 //go:embed scripts/add_sub.lua
@@ -58,9 +59,17 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -84,9 +93,17 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -110,9 +127,17 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.redis.key", key),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -140,9 +165,17 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.redis.key", key),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -165,9 +198,17 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.redis.key", key),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -182,9 +223,26 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
+		attribute.String("app.request.redis.transactionStatus", transactionStatus),
+		attribute.Bool("app.request.redis.pending", pending),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.balances_operation", balancesOperation)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert balances operation to JSON string", err)
+	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -246,6 +304,10 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 		return balances, nil
 	}
 
+	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
+
+	spanScript.SetAttributes(attributes...)
+
 	script := redis.NewScript(addSubLua)
 
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
@@ -254,16 +316,26 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
-		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
-
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
 		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
 
 		return nil, err
 	}
+
+	spanScript.End()
 
 	logger.Infof("result value: %v", result)
 
@@ -322,9 +394,19 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.redis.key", key),
+		attribute.Int("app.request.redis.len", len(value)),
+		attribute.Int64("app.request.redis.ttl", int64(ttl)),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -348,9 +430,17 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.redis.key", key),
+	}
+
+	span.SetAttributes(attributes...)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -365,6 +455,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.Int("app.response.redis.len", len(val)))
 
 	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
 
