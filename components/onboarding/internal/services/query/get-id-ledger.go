@@ -34,13 +34,19 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 
 	ledger, err := uc.LedgerRepo.Find(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger on repo by id", err)
-
 		logger.Errorf("Error getting ledger on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger on repo by id", err)
+
+			logger.Warn("No ledger found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger on repo by id", err)
 
 		return nil, err
 	}
@@ -48,9 +54,11 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 	if ledger != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb ledger", err)
+			err := pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb ledger: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb ledger", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

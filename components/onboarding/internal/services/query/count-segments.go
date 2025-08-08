@@ -35,12 +35,19 @@ func (uc *UseCase) CountSegments(ctx context.Context, organizationID, ledgerID u
 
 	count, err := uc.SegmentRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count segments on repo", err)
 		logger.Errorf("Error counting segments on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			logger.Warnf("No segments found for organization: %s", organizationID.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count segments on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count segments on repo", err)
 
 		return 0, err
 	}

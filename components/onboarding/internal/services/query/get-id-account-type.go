@@ -35,13 +35,19 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 
 	accountType, err := uc.AccountTypeRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get account type on repo by id", err)
-
 		logger.Errorf("Error getting account type on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account type on repo by id", err)
+
+			logger.Warn("No account type found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account type on repo by id", err)
 
 		return nil, err
 	}
@@ -49,9 +55,11 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 	if accountType != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account type", err)
+			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb account type: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account type", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

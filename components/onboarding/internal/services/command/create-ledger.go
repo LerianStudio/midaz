@@ -45,7 +45,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find ledger by name", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -62,7 +62,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -73,7 +73,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger metadata", err)
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 

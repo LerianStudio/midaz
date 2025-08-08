@@ -39,7 +39,9 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+		logger.Errorf("Error finding account by alias: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by alias", err)
 
 		return nil, err
 	}
@@ -59,20 +61,28 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
-
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warnf("Account ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata", err)
 
 		return nil, err
 	}

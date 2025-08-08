@@ -45,20 +45,28 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update portfolio on repo by id", err)
-
 		logger.Errorf("Error updating portfolio on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			logger.Warnf("Portfolio ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update portfolio on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update portfolio on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}

@@ -38,13 +38,19 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledger
 
 	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, ids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids", err)
-
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrIDsNotFoundForAccounts, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrIDsNotFoundForAccounts, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by ids", err)
+
+			logger.Warn("No accounts found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by ids", err)
 
 		return nil, err
 	}

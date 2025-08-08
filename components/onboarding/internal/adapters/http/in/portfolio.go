@@ -75,7 +75,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Portfolio on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -130,7 +130,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -155,7 +155,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
 
 			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 
@@ -175,7 +175,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
 
 		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 
@@ -231,7 +231,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -297,7 +297,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Portfolio on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio on command", err)
 
 		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -306,7 +306,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -359,7 +359,7 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove Portfolio on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Portfolio on command", err)
 
 		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 

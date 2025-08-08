@@ -317,7 +317,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrLedgerNameConflict, reflect.TypeOf(mmodel.Ledger{}).Name(), name)
 
-		libOpentelemetry.HandleSpanError(&span, "Ledger name conflict", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger name conflict", err)
 
 		return true, err
 	}

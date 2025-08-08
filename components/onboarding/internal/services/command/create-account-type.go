@@ -47,7 +47,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create account type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
 
 		logger.Errorf("Failed to create account type: %v", err)
 
@@ -56,7 +56,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)
 
 		logger.Errorf("Failed to create metadata: %v", err)
 

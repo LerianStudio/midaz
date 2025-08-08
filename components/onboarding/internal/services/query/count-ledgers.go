@@ -33,12 +33,19 @@ func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (
 
 	count, err := uc.LedgerRepo.Count(ctx, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count ledgers on repo", err)
 		logger.Errorf("Error counting ledgers on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			logger.Warnf("No ledgers found for organization: %s", organizationID.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
 
 		return 0, err
 	}

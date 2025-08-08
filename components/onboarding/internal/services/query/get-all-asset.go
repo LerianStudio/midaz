@@ -39,13 +39,19 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get assets on repo", err)
-
 		logger.Errorf("Error getting assets on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			logger.Warn("No assets found")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
 
 		return nil, err
 	}
@@ -53,9 +59,11 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	if assets != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), filter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+			err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-			return nil, pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+			return nil, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

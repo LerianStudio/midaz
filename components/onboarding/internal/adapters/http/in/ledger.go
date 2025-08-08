@@ -71,7 +71,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -120,7 +120,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve ledger on query", err)
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -173,7 +173,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -198,7 +198,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
@@ -218,7 +218,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers on query", err)
 
 		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
@@ -282,7 +282,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update ledger on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger on command", err)
 
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -291,7 +291,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve ledger on query", err)
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -341,17 +341,17 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", constant.ErrActionNotPermitted)
-
-		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
-
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove ledger on command", err)
+
+		logger.Warnf("Failed to remove Ledger with ID: %s in ", id.String())
 
 		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove ledger on command", err)
 
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -398,7 +398,8 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountLedgers(ctx, organizationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count ledgers", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers", err)
+
 		logger.Errorf("Failed to count ledgers, Error: %s", err.Error())
 
 		return http.WithError(c, err)

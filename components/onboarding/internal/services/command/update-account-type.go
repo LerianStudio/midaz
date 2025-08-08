@@ -45,20 +45,28 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 	accountTypeUpdated, err := uc.AccountTypeRepo.Update(ctx, organizationID, ledgerID, id, accountType)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update account type on repo by id", err)
-
 		logger.Errorf("Error updating account type on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			logger.Warnf("Account type ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String(), input.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata", err)
 
 		return nil, err
 	}

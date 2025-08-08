@@ -39,13 +39,19 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get portfolios on repo", err)
-
 		logger.Errorf("Error getting portfolios on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
+
+			logger.Warn("No portfolios found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
 
 		return nil, err
 	}
@@ -53,9 +59,13 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 	if portfolios != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), filter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			return nil, pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+			logger.Warn("No metadata found")
+
+			return nil, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

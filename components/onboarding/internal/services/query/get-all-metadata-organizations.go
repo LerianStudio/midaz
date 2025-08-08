@@ -38,9 +38,13 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+		logger.Warn("No metadata found")
+
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -53,13 +57,19 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 	organizations, err := uc.OrganizationRepo.ListByIDs(ctx, uuids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get organizations on repo", err)
-
 		logger.Errorf("Error getting organizations on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
+
+			logger.Warn("No organizations found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
 
 		return nil, err
 	}

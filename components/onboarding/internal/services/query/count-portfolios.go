@@ -35,12 +35,19 @@ func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID
 
 	count, err := uc.PortfolioRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count portfolios on repo", err)
 		logger.Errorf("Error counting portfolios on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			logger.Warnf("No portfolios found for organization: %s", organizationID.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count portfolios on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count portfolios on repo", err)
 
 		return 0, err
 	}

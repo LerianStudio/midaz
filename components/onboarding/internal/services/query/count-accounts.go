@@ -33,12 +33,19 @@ func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID u
 
 	count, err := uc.AccountRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count accounts on repo", err)
 		logger.Errorf("Error counting accounts on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warnf("No accounts found for organization: %s", organizationID.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
 
 		return 0, err
 	}

@@ -35,13 +35,19 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 
 	portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get portfolio on repo by id", err)
-
 		logger.Errorf("Error getting portfolio on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolio on repo by id", err)
+
+			logger.Warn("No portfolio found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolio on repo by id", err)
 
 		return nil, err
 	}
@@ -49,9 +55,11 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 	if portfolio != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb portfolio", err)
+			err := pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb portfolio: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb portfolio", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

@@ -57,7 +57,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create portfolio", err)
 
 		logger.Errorf("Error creating portfolio: %v", err)
 
@@ -66,7 +66,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create portfolio metadata", err)
 
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 

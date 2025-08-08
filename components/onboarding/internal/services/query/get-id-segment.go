@@ -35,13 +35,19 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 	segment, err := uc.SegmentRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get segment on repo by id", err)
-
 		logger.Errorf("Error getting segment on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
+
+			logger.Warn("No segment found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
 
 		return nil, err
 	}
@@ -49,9 +55,11 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 	if segment != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb segment", err)
+			err := pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb segment: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb segment", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

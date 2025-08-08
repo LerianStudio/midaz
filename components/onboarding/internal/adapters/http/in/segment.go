@@ -74,7 +74,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 
 	segment, err := handler.Command.CreateSegment(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Segment on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Segment on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -129,7 +129,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -154,7 +154,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 		segments, err := handler.Query.GetAllMetadataSegments(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Segments on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
 
 			logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
 
@@ -174,7 +174,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 	segments, err := handler.Query.GetAllSegments(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Segments on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
 
 		logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
 
@@ -229,7 +229,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Segment on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Segment on query", err)
 
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -295,7 +295,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdateSegmentByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Segment on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Segment on command", err)
 
 		logger.Errorf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -304,7 +304,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Segment on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Segment on query", err)
 
 		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -357,7 +357,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := handler.Command.DeleteSegmentByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove Segment on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Segment on command", err)
 
 		logger.Errorf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -407,7 +407,8 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountSegments(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count segments", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count segments", err)
+
 		logger.Errorf("Error counting segments: %v", err)
 
 		return http.WithError(c, err)

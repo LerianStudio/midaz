@@ -31,12 +31,19 @@ func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 
 	count, err := uc.OrganizationRepo.Count(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count organizations on repo", err)
 		logger.Errorf("Error counting organizations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+
+			logger.Warn("No organizations found")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
 
 		return 0, err
 	}

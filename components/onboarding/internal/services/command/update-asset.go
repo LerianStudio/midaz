@@ -44,20 +44,28 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 	assetUpdated, err := uc.AssetRepo.Update(ctx, organizationID, ledgerID, id, asset)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update asset on repo by id", err)
-
 		logger.Errorf("Error updating asset on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			logger.Warnf("Asset ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}

@@ -79,7 +79,7 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create operation route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route", err)
 
 		return http.WithError(c, err)
 	}
@@ -138,7 +138,7 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation Route on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation Route on query", err)
 
 		logger.Errorf("Failed to retrieve Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
@@ -208,14 +208,14 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	_, err = handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Operation Route on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation Route on command", err)
 
 		return http.WithError(c, err)
 	}
 
 	operationRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation Route on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation Route on query", err)
 
 		return http.WithError(c, err)
 	}
@@ -224,7 +224,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	if payload.Account != nil {
 		if err := handler.Command.ReloadOperationRouteCache(ctx, organizationID, ledgerID, id); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to reload operation route cache", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to reload operation route cache", err)
 
 			logger.Errorf("Failed to reload operation route cache: %v", err)
 		}
@@ -273,7 +273,7 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	logger.Infof("Initiating deletion of Operation Route with Operation Route ID: %s", id.String())
 
 	if err := handler.Command.DeleteOperationRouteByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete Operation Route on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Operation Route on command", err)
 
 		logger.Errorf("Failed to delete Operation Route with Operation Route ID: %s, Error: %s", id.String(), err.Error())
 
@@ -328,7 +328,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -353,7 +353,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operation Routes by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operation Routes by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
 
@@ -374,7 +374,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 	operationRoutes, cur, err := handler.Query.GetAllOperationRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operation Routes on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operation Routes on query", err)
 
 		logger.Errorf("Failed to retrieve all Operation Routes, Error: %s", err.Error())
 
@@ -414,7 +414,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	if account.RuleType != "" && account.ValidIf == nil {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.validIf")
 
-		libOpentelemetry.HandleSpanError(&span, "Account rule type provided but validIf is missing", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account rule type provided but validIf is missing", err)
 
 		return err
 	}
@@ -422,7 +422,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	if account.RuleType == "" && account.ValidIf != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, reflect.TypeOf(mmodel.OperationRoute{}).Name(), "account.ruleType")
 
-		libOpentelemetry.HandleSpanError(&span, "Account validIf provided but rule type is missing", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Account validIf provided but rule type is missing", err)
 
 		return err
 	}
@@ -433,7 +433,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			if _, ok := account.ValidIf.(string); !ok {
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-				libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf type for alias rule", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf type for alias rule", err)
 
 				return err
 			}
@@ -445,7 +445,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 					if _, ok := item.(string); !ok {
 						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-						libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf array element type", err)
+						libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf array element type", err)
 
 						return err
 					}
@@ -453,14 +453,14 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			default:
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-				libOpentelemetry.HandleSpanError(&span, "Invalid ValidIf type for account_type rule", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ValidIf type for account_type rule", err)
 
 				return err
 			}
 		default:
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			libOpentelemetry.HandleSpanError(&span, "Invalid account rule type", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account rule type", err)
 
 			return err
 		}

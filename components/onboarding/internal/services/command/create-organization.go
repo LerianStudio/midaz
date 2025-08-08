@@ -50,9 +50,11 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
 
 	if err := libCommons.ValidateCountryAddress(coi.Address.Country); err != nil {
-		libOpentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
+		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
+
+		return nil, err
 	}
 
 	spanAddressValidation.End()
@@ -70,7 +72,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create organization on repository", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on repository", err)
 
 		logger.Errorf("Error creating organization: %v", err)
 
@@ -79,7 +81,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create organization metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization metadata", err)
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 

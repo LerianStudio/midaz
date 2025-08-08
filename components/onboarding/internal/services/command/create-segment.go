@@ -56,14 +56,16 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 	_, err := uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error finding segment by name: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find segment by name", err)
+
+		logger.Errorf("Error finding segment by name: %v", err)
 
 		return nil, err
 	}
 
 	prod, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating segment: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment", err)
 
 		logger.Errorf("Error creating segment: %v", err)
 
@@ -72,7 +74,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating segment metadata: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create segment metadata", err)
 
 		logger.Errorf("Error creating segment metadata: %v", err)
 

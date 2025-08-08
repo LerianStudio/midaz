@@ -551,7 +551,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
-		libOpentelemetry.HandleSpanError(&span, "Alias is already taken", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Alias is already taken", err)
 
 		return true, err
 	}

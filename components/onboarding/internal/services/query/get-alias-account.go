@@ -35,12 +35,16 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 	account, err := uc.AccountRepo.FindAlias(ctx, organizationID, ledgerID, portfolioID, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get account on repo by alias", err)
-
 		logger.Errorf("Error getting account on repo by alias: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warnf("No accounts found for alias: %s", alias)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)
+
+			return nil, err
 		}
 
 		return nil, err
@@ -49,7 +53,7 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 	if account != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 

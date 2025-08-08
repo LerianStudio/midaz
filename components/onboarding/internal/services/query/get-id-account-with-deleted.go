@@ -35,13 +35,19 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 
 	account, err := uc.AccountRepo.FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get account on repo by id", err)
-
 		logger.Errorf("Error getting account on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by id", err)
+
+			logger.Warn("No account found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by id", err)
 
 		return nil, err
 	}
@@ -49,9 +55,11 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 	if account != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
+			err := pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

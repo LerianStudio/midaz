@@ -35,13 +35,19 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 
 	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases", err)
-
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warnf("No accounts found for alias: %s", aliases)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by aliases", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by aliases", err)
 
 		return nil, err
 	}

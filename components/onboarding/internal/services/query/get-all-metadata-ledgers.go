@@ -38,9 +38,13 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+		logger.Warn("No metadata found")
+
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -53,13 +57,19 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, organizationID, uuids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get ledgers on repo", err)
-
 		logger.Errorf("Error getting ledgers on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledgers on repo", err)
+
+			logger.Warn("No ledgers found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledgers on repo", err)
 
 		return nil, err
 	}

@@ -33,12 +33,17 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 	logger.Infof("Remove ledger for id: %s", id.String())
 
 	if err := uc.LedgerRepo.Delete(ctx, organizationID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete ledger on repo by id", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Errorf("Ledger ID not found: %s", id.String())
-			return pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			logger.Warnf("Ledger ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger on repo by id", err)
+
+			return err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger on repo by id", err)
 
 		logger.Errorf("Error deleting ledger: %v", err)
 

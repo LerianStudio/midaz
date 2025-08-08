@@ -41,11 +41,17 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get account types on repo", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			logger.Warn("No account types found")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
 		logger.Errorf("Error getting account types on repo: %v", err)
 
@@ -60,9 +66,11 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), metadataFilter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account type", err)
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account type", err)
+
+			return nil, libHTTP.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

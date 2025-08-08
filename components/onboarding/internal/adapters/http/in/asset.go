@@ -75,7 +75,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Asset on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Asset on command", err)
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
@@ -133,7 +133,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -158,7 +158,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
 
 			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
@@ -178,7 +178,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
 
 		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
@@ -234,7 +234,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Asset on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Asset on query", err)
 
 		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -300,7 +300,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Asset on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Asset on command", err)
 
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -309,7 +309,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get update Asset on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get update Asset on query", err)
 
 		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -362,7 +362,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove Asset on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Asset on command", err)
 
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -412,7 +412,8 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountAssets(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count assets", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count assets", err)
+
 		logger.Errorf("Failed to count assets, Error: %s", err.Error())
 
 		return http.WithError(c, err)

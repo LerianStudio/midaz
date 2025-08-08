@@ -79,14 +79,14 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Account on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Account on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -147,7 +147,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
@@ -178,7 +178,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
@@ -198,7 +198,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
@@ -254,7 +254,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
@@ -310,7 +310,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
@@ -364,7 +364,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
@@ -422,7 +422,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 	_, err = handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Account on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Account on command", err)
 
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -431,7 +431,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
@@ -484,7 +484,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Account with ID: %s", id.String())
 
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove Account on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Account on command", err)
 
 		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -534,7 +534,8 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountAccounts(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count accounts", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts", err)
+
 		logger.Errorf("Error counting accounts: %v", err)
 
 		return http.WithError(c, err)

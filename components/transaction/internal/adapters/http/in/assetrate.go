@@ -71,7 +71,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create AssetRate on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create AssetRate on command", err)
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
@@ -126,7 +126,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 
 	assetRate, err := handler.Query.GetAssetRateByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 
@@ -186,7 +186,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -213,7 +213,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
 		logger.Infof("Error to get AssetRate: %s", err.Error())
 

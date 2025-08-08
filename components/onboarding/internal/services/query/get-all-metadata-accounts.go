@@ -27,9 +27,13 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+
+		logger.Warn("No metadata found")
+
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -42,13 +46,19 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 	accounts, err := uc.AccountRepo.ListByIDs(ctx, organizationID, ledgerID, portfolioID, uuids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get accounts on repo", err)
-
 		logger.Errorf("Error getting accounts on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Warn("No accounts found")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
 		return nil, err
 	}

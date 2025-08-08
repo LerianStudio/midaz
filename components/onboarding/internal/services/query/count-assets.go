@@ -34,12 +34,19 @@ func (uc *UseCase) CountAssets(ctx context.Context, organizationID, ledgerID uui
 
 	count, err := uc.AssetRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count assets on repo", err)
 		logger.Errorf("Error counting assets on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return 0, pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+
+			logger.Warnf("No assets found for organization: %s", organizationID.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count assets on repo", err)
+
+			return 0, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count assets on repo", err)
 
 		return 0, err
 	}

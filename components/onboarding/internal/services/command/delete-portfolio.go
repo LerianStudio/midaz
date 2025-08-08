@@ -34,12 +34,17 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 	logger.Infof("Remove portfolio for id: %s", id.String())
 
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete portfolio on repo by id", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Errorf("Portfolio ID not found: %s", id.String())
-			return pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			logger.Warnf("Portfolio ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
+
+			return err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
 		logger.Errorf("Error deleting portfolio: %v", err)
 

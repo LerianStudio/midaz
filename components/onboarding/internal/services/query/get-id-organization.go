@@ -33,13 +33,19 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 
 	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get organization on repo by id", err)
-
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organization on repo by id", err)
+
+			logger.Warn("No organization found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organization on repo by id", err)
 
 		return nil, err
 	}
@@ -47,9 +53,11 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 	if organization != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb organization", err)
+			err := pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb organization: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb organization", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}

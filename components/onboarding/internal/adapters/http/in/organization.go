@@ -66,7 +66,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -122,7 +122,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	_, err = handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on command", err)
 
 		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -131,7 +131,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -178,7 +178,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -226,7 +226,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
@@ -251,7 +251,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
@@ -271,7 +271,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations", err)
 
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
@@ -320,17 +320,17 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
-
-		logger.Errorf("Failed to remove Organization with ID: %s in ", id.String())
-
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
+
+		logger.Warnf("Failed to remove Organization with ID: %s in ", id.String())
 
 		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to remove organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove organization on command", err)
 
 		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -373,7 +373,8 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountOrganizations(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count organizations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations", err)
+
 		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
 
 		return http.WithError(c, err)

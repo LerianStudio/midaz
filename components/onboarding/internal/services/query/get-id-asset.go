@@ -35,13 +35,19 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get asset on repo by id", err)
-
 		logger.Errorf("Error getting asset on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
+			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
+
+			logger.Warn("No asset found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
 		return nil, err
 	}
@@ -49,9 +55,11 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 	if asset != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset", err)
+			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
 
-			logger.Errorf("Error get metadata on mongodb asset: %v", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb asset", err)
+
+			logger.Warn("No metadata found")
 
 			return nil, err
 		}
