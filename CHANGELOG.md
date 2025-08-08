@@ -1,3 +1,69 @@
+## [v3.1.0-beta.1] - 2025-08-06
+
+This release focuses on enhancing the build process for improved reliability and ensuring documentation is up-to-date for better user understanding.
+
+### 🔄 Changes
+- **Build Process Improvement**: The build process has been refined to utilize the v3 module path in the -X ldflags. This ensures that version and environment variables are accurately injected during builds, leading to more reliable and informative software versions. Users can now benefit from enhanced transparency and traceability in software versioning, aiding in tracking and understanding the software lifecycle.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG file has been updated to reflect recent changes and improvements. This ensures that users and developers have access to the latest information about modifications in the software, enhancing understanding and documentation of the project's progress.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Continuous updates to the documentation ensure that all users have access to the most current and relevant information, facilitating a smoother user experience and better support for developers.
+
+These updates collectively enhance the software's reliability and user experience by focusing on process improvements and maintaining comprehensive documentation.
+
+## [v3.0.0] - 2025-08-05
+
+This major release of midaz introduces significant enhancements to user experience, performance, and system capabilities, along with critical updates that may require user action.
+
+### ⚠️ Breaking Changes
+- **Monetary Fields**: We've converted monetary fields from BIGINT to DECIMAL. This change improves precision but may affect database queries and integrations. Please review and update your database queries to ensure compatibility.
+- **Fee Calculation System**: The fee calculation system has been overhauled, enhancing display components. Integrations consuming fee data might need updates to align with the new structure.
+- **Frontend Update**: Adaptations to React 19 have been implemented. Ensure your custom components are compatible with the latest React version to avoid disruptions.
+- **Console API**: A new fee calculation API with hooks and UI integration is now available. This change may alter existing workflows, necessitating UI updates.
+
+### ✨ Features
+- **Account Management**: A comprehensive account type management system is now available, allowing for creation, deletion, and metadata filtering. This empowers users with greater control over their account configurations.
+- **Fee Insights**: Users can now see a detailed breakdown of deductible fees, providing clearer insights into fee structures and enhancing financial transparency.
+- **Redis Integration**: New methods for binary data handling have been added, significantly boosting performance and data processing flexibility.
+
+### 🐛 Bug Fixes
+- **Navigation Issue**: Resolved a navigation bug that prevented access to account settings, restoring full functionality.
+- **Data Consistency**: Fixed Redis locking issues and normalized datetime filtering, ensuring reliable and consistent data handling.
+
+### ⚡ Performance
+- **Transaction Efficiency**: Improved caching for transaction routes, resulting in faster data retrieval and enhanced user experience.
+- **Settings Management**: New caching functionality reduces load times for settings retrieval and updates, improving overall system responsiveness.
+
+### 🔄 Changes
+- **Frontend Enhancements**: Upgraded Tailwind, React, and Storybook to improve UI performance and developer experience.
+- **Backend Reliability**: Enhanced runtime environment handling, offering greater system reliability and configuration flexibility.
+
+### 📚 Documentation
+- **API Guidance**: Updated documentation for the transaction route creation endpoint, providing clearer guidance for developers and improving ease of integration.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated lib-commons and other dependencies to the latest versions, ensuring compatibility and security.
+- **Code Quality**: Refactored code to remove unused files and improve readability, enhancing maintainability and reducing technical debt.
+
+This release is packed with improvements that enhance both the user and developer experience, while also laying the groundwork for future innovations.
+
+## [v3.0.0-beta.34] - 2025-08-05
+
+This release introduces a new configuration feature to enhance code quality management and ensures documentation is up-to-date for improved project transparency.
+
+### ✨ Features  
+- **Configurable Code Complexity**: We've added a new option to set the minimum complexity value in GolangCI. This feature empowers developers to enforce stricter code complexity standards, promoting better code quality and maintainability across your projects. By configuring this setting, teams can ensure their codebase remains clean and efficient.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been refreshed to accurately reflect the latest changes and improvements. This ensures that users have clear insights into what has been updated or added, facilitating better understanding and project management.
+
+### 🔧 Maintenance
+- **Release Management**: We've made behind-the-scenes updates to streamline the release process, ensuring that future updates are delivered smoothly and efficiently. This maintenance work supports ongoing project stability and reliability.
+
+This changelog focuses on the user benefits and impacts of the new features and maintenance updates, providing a clear and concise overview of what users can expect from the latest release.
+
 ## [v3.0.0-beta.33] - 2025-08-04
 
 This release of midaz introduces dynamic permissions routing, enhancing security and user management, alongside improvements in language support and pagination accuracy.
