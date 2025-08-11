@@ -849,13 +849,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
-		logger.Error("Validation failed:", err.Error())
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
 
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
@@ -1077,13 +1073,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
-		logger.Error("Validation failed:", err.Error())
+		logger.Error("Failed to validate send source and distribute: %v", err.Error())
 
-		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
-		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
-			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
-		}
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		return http.WithError(c, err)
 	}
