@@ -75,6 +75,7 @@ jobs:
         run: npm test
 
   publish_release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     needs: [integration_tests_go, integration_tests_console]
     environment:
