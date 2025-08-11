@@ -1011,3 +1011,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 
 	return err
 }
+
+func HandleKnownBusinessValidationErrors(err error) error {
+	switch {
+	case err.Error() == constant.ErrTransactionAmbiguous.Error():
+		return ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+	case err.Error() == constant.ErrTransactionValueMismatch.Error():
+		return ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+	default:
+		return err
+	}
+}
