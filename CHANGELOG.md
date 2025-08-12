@@ -1,3 +1,30 @@
+## [v3.1.0-beta.2] - 2025-08-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.1...v3.1.0-beta.2)
+Contributors: Brecci, MartinezAvellan, lerian-studio
+
+### ✨ Features
+- **Enhanced Observability with OpenTelemetry**: We've implemented OpenTelemetry tracing across the backend and database services. This advancement allows for detailed monitoring and debugging, improving system reliability and performance. Users can now track request IDs and span attributes for better error handling and system insights.
+- **Secure Telemetry Configuration**: New configuration settings for the OpenTelemetry collector include sensitive data masking, ensuring that observability practices align with security and compliance standards.
+
+### 🐛 Bug Fixes
+- **Improved Telemetry Data Handling**: Resolved issues with context propagation and span attribute order in tracing, along with adding nil checks to prevent runtime errors. These fixes enhance the robustness of telemetry data and prevent potential data integrity issues.
+- **Backend Performance Optimization**: Fixed a bug affecting cyclomatic complexity and improved the handling of console npm scripts, resulting in optimized backend performance and reduced execution overhead.
+
+### ⚡ Performance
+- **Dependency Upgrades**: Upgraded critical dependencies such as lib-auth and lib-commons to the latest stable releases. This ensures system stability and leverages new features and security improvements, contributing to overall performance enhancements.
+
+### 🔄 Changes
+- **Standardized Error Handling**: Improved error handling across telemetry spans in the backend and database, ensuring consistent and reliable error reporting. This includes the introduction of business error events for more precise error tracking.
+
+### 📚 Documentation
+- **Updated Configuration and Changelog Documentation**: Revised documentation to reflect the latest release changes, providing users with accurate and up-to-date information about the system's current state.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: Conducted significant refactoring in the backend and database, including the removal of redundant logging and standardization of error handling. These changes enhance the maintainability and readability of the codebase.
+- **Stylistic Enhancements**: Made stylistic improvements in the database code for better readability, contributing to a cleaner and more maintainable codebase.
+
+
 ## [v3.1.0-beta.1] - 2025-08-06
 
 This release focuses on enhancing the build process for improved reliability and ensuring documentation is up-to-date for better user understanding.

@@ -991,15 +991,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 
-	c.SetUserContext(ctxIdempotency)
-
 	spanIdempotency.SetAttributes(attributes...)
 
 	ts, _ := libCommons.StructToJSONString(parserDSL)
 	hash := libCommons.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
-	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanIdempotency, "Error on create or check redis idempotency key", err)
 		spanIdempotency.End()
@@ -1028,10 +1026,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
-		err = pkg.HandleKnownBusinessValidationErrors(err)
-
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
+
+		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
+
+		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
@@ -1177,11 +1176,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
 	if err != nil {
-		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
+
+		logger.Error("Failed to validate send source and distribute: %v", err.Error())
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
 		return http.WithError(c, err)
 	}
