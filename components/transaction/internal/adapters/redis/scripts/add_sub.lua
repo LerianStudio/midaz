@@ -179,17 +179,20 @@ local function cloneBalance(tbl)
 end
 
 local function updateTransactionHash(transactionBackupQueue, transactionKey, balances)
+    local transaction
+
     local raw = redis.call("HGET", transactionBackupQueue, transactionKey)
     if not raw then
-        return nil
+        transaction = { balances = balances }
+    else
+        local ok, decoded = pcall(cjson.decode, raw)
+        if ok and type(decoded) == "table" then
+            transaction = decoded
+            transaction.balances = balances
+        else
+            transaction = { balances = balances }
+        end
     end
-
-    local ok, transaction = pcall(cjson.decode, raw)
-    if not ok or type(transaction) ~= "table" then
-        return nil
-    end
-
-    transaction.balances = balances
 
     local updated = cjson.encode(transaction)
     redis.call("HSET", transactionBackupQueue, transactionKey, updated)

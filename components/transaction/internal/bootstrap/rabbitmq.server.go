@@ -63,7 +63,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 	err = mq.UseCase.CreateBalance(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error creating balance", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating balance", err)
 
 		logger.Errorf("Error creating balance: %v", err)
 
@@ -98,7 +98,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error creating transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
 
 		logger.Errorf("Error creating transaction: %v", err)
 

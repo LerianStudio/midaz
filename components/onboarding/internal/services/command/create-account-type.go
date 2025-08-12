@@ -9,6 +9,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateAccountType creates a new account type.
@@ -16,9 +17,20 @@ import (
 func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account_type")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	now := time.Now()
 
@@ -35,7 +47,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create account type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
 
 		logger.Errorf("Failed to create account type: %v", err)
 
@@ -44,7 +56,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)
 
 		logger.Errorf("Failed to create metadata: %v", err)
 

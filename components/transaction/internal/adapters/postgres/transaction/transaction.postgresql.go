@@ -21,7 +21,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -62,9 +64,47 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", transaction.OrganizationID),
+		attribute.String("app.request.ledger_id", transaction.LedgerID),
+		attribute.String("app.request.transaction.id", transaction.ID),
+		attribute.String("app.request.transaction.description", transaction.Description),
+		attribute.String("app.request.transaction.asset_code", transaction.AssetCode),
+		attribute.String("app.request.transaction.chart_of_accounts_group_name", transaction.ChartOfAccountsGroupName),
+		attribute.String("app.request.transaction.created_at", transaction.CreatedAt.String()),
+		attribute.String("app.request.transaction.updated_at", transaction.UpdatedAt.String()),
+		attribute.String("app.request.transaction.route", transaction.Route),
+	}
+
+	if transaction.ParentTransactionID != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.parent_transaction_id", *transaction.ParentTransactionID))
+	}
+
+	if transaction.Amount != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.parent_id", transaction.Amount.String()))
+	}
+
+	if transaction.DeletedAt != nil {
+		attributes = append(attributes, attribute.String("app.request.transaction.deleted_at", transaction.DeletedAt.String()))
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.status", transaction.Status)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction status to JSON string", err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.body", transaction.Body)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction body to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -79,11 +119,11 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
@@ -104,6 +144,13 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.Route,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert transaction query", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		return nil, err
@@ -119,7 +166,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -130,9 +177,23 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 // FindAll retrieves Transactions entities from the database.
 func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -176,6 +237,13 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -250,9 +318,18 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -265,6 +342,8 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
@@ -326,9 +405,18 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -343,6 +431,8 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
@@ -364,11 +454,15 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.DeletedAt,
 		&transaction.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -388,9 +482,18 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 // FindByParentID retrieves a Transaction entity from the database using the provided parent ID.
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -405,6 +508,8 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, parentID)
@@ -426,11 +531,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.DeletedAt,
 		&transaction.Route,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No transaction found", err)
+
 			return nil, nil
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		return nil, err
 	}
@@ -450,9 +557,23 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transaction)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -501,11 +622,11 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
@@ -525,7 +646,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -536,9 +657,18 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 // Delete removes a Transaction entity from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -550,7 +680,9 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, `UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
+	spanExec.SetAttributes(attributes...)
+
+	result, err := db.ExecContext(ctx, "UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -568,7 +700,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction. Rows affected is 0", err)
 
 		return err
 	}
@@ -579,9 +711,18 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 // FindWithOperations retrieves a Transaction and Operations entity from the database using the provided ID .
 func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -592,6 +733,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
 		organizationID, ledgerID, id)
@@ -683,9 +826,23 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_or_list_all_with_operations")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -737,6 +894,13 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
