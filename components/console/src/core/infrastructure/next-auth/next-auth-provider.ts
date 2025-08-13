@@ -8,6 +8,7 @@ import { AuthEntity } from '@/core/domain/entities/auth-entity'
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { container } from '../container-registry/container-registry'
+import { apiErrorHandler } from '@/app/api/utils/api-error-handler'
 
 export const nextAuthOptions: NextAuthOptions = {
   session: {
@@ -44,16 +45,17 @@ export const nextAuthOptions: NextAuthOptions = {
         const midazLogger = container.get<LoggerAggregator>(LoggerAggregator)
         const requestIdRepository: RequestIdRepository =
           container.get<RequestIdRepository>(RequestIdRepository)
-        try {
-          const authResponse = await midazLogger.runWithContext(
-            'authLogin',
-            'POST',
-            {
-              operationName: 'next-auth-provider',
-              action: 'authorize',
-              midazId: requestIdRepository.get()
-            },
-            async () => {
+
+        return await midazLogger.runWithContext(
+          'authLogin',
+          'POST',
+          {
+            operationName: 'next-auth-provider',
+            action: 'authorize',
+            midazId: requestIdRepository.get()
+          },
+          async () => {
+            try {
               const authLoginUseCase: AuthLogin =
                 container.get<AuthLogin>(AuthLoginUseCase)
 
@@ -61,7 +63,7 @@ export const nextAuthOptions: NextAuthOptions = {
               const password = credentials?.password
 
               if (!username || !password) {
-                midazLogger.error('Error on authorize', {
+                midazLogger.error('NextAuthProvider Error', {
                   message: 'Username or password not provided'
                 })
                 return null
@@ -71,19 +73,21 @@ export const nextAuthOptions: NextAuthOptions = {
                 username,
                 password
               }
-
               const authLoginResponse: AuthSessionDto =
                 await authLoginUseCase.execute(loginEntity)
-
               return authLoginResponse
-            }
-          )
+            } catch (error) {
+              const { message, status } = await apiErrorHandler(error)
 
-          return authResponse
-        } catch (error: any) {
-          midazLogger.error('Error on authorize', error)
-          return null
-        }
+              midazLogger.error('NextAuthProvider Error', {
+                message,
+                status
+              })
+
+              throw new Error(message)
+            }
+          }
+        )
       }
     })
   ],
