@@ -73,10 +73,8 @@ export const nextAuthOptions: NextAuthOptions = {
                 username,
                 password
               }
-              console.log('loginEntity', loginEntity)
               const authLoginResponse: AuthSessionDto =
                 await authLoginUseCase.execute(loginEntity)
-              console.log('authLoginResponse', authLoginResponse)
               return authLoginResponse
             } catch (error) {
               const { message, status } = await apiErrorHandler(error)
