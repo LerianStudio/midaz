@@ -179,7 +179,7 @@ func TestGetBalances(t *testing.T) {
 
 		// --- execução & asserts ---
 		transactionID := uuid.New()
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 		assert.NoError(t, err)
 		assert.Len(t, balances, 3)
 
@@ -310,7 +310,7 @@ func TestGetBalances(t *testing.T) {
 
 		// Call the method
 		transactionID := uuid.New()
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, constant.CREATED)
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 
 		// Assertions
 		assert.NoError(t, err)
@@ -380,7 +380,7 @@ func TestGetAccountAndLock(t *testing.T) {
 			Return(balances, nil)
 
 		transactionID := uuid.New()
-		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, constant.CREATED)
+		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
 
 		assert.NoError(t, err)
 		assert.Len(t, lockedBalances, 1)

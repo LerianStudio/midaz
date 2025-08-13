@@ -789,6 +789,34 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	return http.OK(c, pagination)
 }
 
+// RetryTransaction func that is responsible to retry a redis queue transaction
+func (handler *TransactionHandler) RetryTransaction(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_transaction")
+	defer span.End()
+
+	c.SetUserContext(ctx)
+
+	parserDSL := p.(*libTransaction.Transaction)
+	logger.Infof("Request to retry an transaction: %#v", parserDSL)
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", parserDSL)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
+	}
+
+	return handler.createTransaction(c, logger, *parserDSL, constant.RETRY)
+}
+
 // handleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
 func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
@@ -833,25 +861,6 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 	}
 
 	return transactionDate, nil
-}
-
-func (handler *TransactionHandler) sendTransactionToRedisQueue(ctx context.Context, logger libLog.Logger, transactionKey string, parserDSL libTransaction.Transaction) {
-
-	queue := mmodel.TransactionRedisQueue{
-		HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-		ParserDSL: parserDSL,
-		TTL:       time.Now(),
-	}
-
-	raw, err := json.Marshal(queue)
-	if err != nil {
-		logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
-	}
-
-	err = handler.Command.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
-	if err != nil {
-		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
-	}
 }
 
 func (handler *TransactionHandler) buildOperations(
@@ -986,9 +995,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		return http.WithError(c, err)
 	}
 
-	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
-	handler.sendTransactionToRedisQueue(ctx, logger, transactionKey, parserDSL)
-
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
@@ -1063,7 +1069,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	spanGetBalances.SetAttributes(attributes...)
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, transactionStatus)
+	handler.Command.SendTransactionToRedisQueue(c, logger, organizationID, ledgerID, transactionID, parserDSL, transactionStatus)
+
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 		spanGetBalances.End()
@@ -1071,6 +1079,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
+
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 
 		return http.WithError(c, err)
 	}
@@ -1080,18 +1090,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
 
 	spanValidateBalances.SetAttributes(attributes...)
-
-	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, mmodel.ConvertBalancesToLibBalances(balances))
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "Failed to validate balances", err)
-		spanValidateBalances.End()
-
-		logger.Errorf("Failed to validate balances: %v", err.Error())
-
-		_ = handler.Command.RedisRepo.Del(ctx, key)
-
-		return http.WithError(c, err)
-	}
 
 	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.PENDING {
@@ -1103,6 +1101,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	if parentID != uuid.Nil {
 		str := parentID.String()
 		parentTransactionID = &str
+	}
+
+	if transactionStatus == constant.RETRY {
+		transactionStatus = constant.CREATED
 	}
 
 	tran := &transaction.Transaction{
@@ -1211,7 +1213,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	spanGetBalances.SetAttributes(attributes...)
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), validate, transactionStatus)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 		spanGetBalances.End()

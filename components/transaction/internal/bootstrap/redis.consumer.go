@@ -3,31 +3,32 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-const CronTimeToRun = 15 * time.Minute
+const CronTimeToRun = 5 * time.Minute
 const MessageTimeOfLife = 60
 const MaxWorkers = 100
 
 type RedisQueueConsumer struct {
-	UseCase *command.UseCase
-	Logger  libLog.Logger
+	Logger             libLog.Logger
+	TransactionHandler in.TransactionHandler
 }
 
-func NewRedisQueueConsumer(useCase *command.UseCase, logger libLog.Logger) *RedisQueueConsumer {
+func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
-		UseCase: useCase,
-		Logger:  logger,
+		Logger:             logger,
+		TransactionHandler: handler,
 	}
 }
 
@@ -60,7 +61,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Infof("Init cron to read messages from redis...")
 
-	messages, err := r.UseCase.RedisRepo.ReadAllMessagesFromQueue(ctx)
+	messages, err := r.TransactionHandler.Command.RedisRepo.ReadAllMessagesFromQueue(ctx)
 	if err != nil {
 		r.Logger.Errorf("Err to read messages from redis: %v", err)
 		return
@@ -120,13 +121,14 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			default:
 			}
 
-			//LOGIC HERE MDZ-1112
+			_ = r.TransactionHandler.RetryTransaction(transaction.ParserDSL, transaction.Context)
 
 			log.Infof("Transaction message processed: %s", key)
 		}(transaction, ctxWithBackground, log)
 	}
 
 	wg.Wait()
+
 	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
 	r.Logger.Infof("Finished processing total of %d eligible messages", total-totalMessagesLessThanOneHour)
 }

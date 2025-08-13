@@ -145,6 +145,21 @@ func (mr *MockRedisRepositoryMockRecorder) ReadAllMessagesFromQueue(ctx any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadAllMessagesFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadAllMessagesFromQueue), ctx)
 }
 
+// ReadMessageFromQueue mocks base method.
+func (m *MockRedisRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadMessageFromQueue", ctx, key)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadMessageFromQueue indicates an expected call of ReadMessageFromQueue.
+func (mr *MockRedisRepositoryMockRecorder) ReadMessageFromQueue(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadMessageFromQueue), ctx, key)
+}
+
 // RemoveMessageFromQueue mocks base method.
 func (m *MockRedisRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()

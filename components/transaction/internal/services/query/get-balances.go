@@ -8,13 +8,14 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetBalances methods responsible to get balances from a database.
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
@@ -31,6 +32,19 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", validate); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
+
+	if transactionStatus == constant.RETRY {
+		balances, err := uc.getBalanceRetry(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances retry", err)
+
+			logger.Error("Failed to get balances retry", err.Error())
+
+			return nil, err
+		}
+
+		return balances, nil
 	}
 
 	balances := make([]*mmodel.Balance, 0)
@@ -53,22 +67,67 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		balances = append(balances, balancesByAliases...)
 	}
 
-	if len(balances) > 1 {
-		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, validate, balances, transactionStatus)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
+	newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, balances, transactionStatus)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
 
-			logger.Error("Failed to get balances and update on redis", err.Error())
+		logger.Error("Failed to get balances and update on redis", err.Error())
 
-			return nil, err
-		}
+		return nil, err
+	}
 
-		if len(newBalances) != 0 {
-			return newBalances, nil
-		}
+	return newBalances, nil
+}
+
+func (uc *UseCase) getBalanceRetry(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]*mmodel.Balance, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "usecase.get_balance_retry")
+	defer span.End()
+
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	data, err := uc.RedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate accounting rules", err)
+
+		logger.Error("Failed to validate accounting rules", err)
+
+		return nil, err
+	}
+
+	var transaction mmodel.TransactionRedisQueue
+	err = json.Unmarshal(data, &transaction)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json data", err)
+
+		logger.Errorf("Error to Deserialization json data: %v", err)
+
+		return nil, err
+	}
+
+	balances := make([]*mmodel.Balance, 0)
+
+	for _, b := range transaction.Balances {
+		balances = append(balances, &mmodel.Balance{
+			Alias:          b.Alias,
+			ID:             b.ID,
+			AccountID:      b.AccountID,
+			Available:      b.Available,
+			OnHold:         b.OnHold,
+			Version:        b.Version,
+			AccountType:    b.AccountType,
+			AllowSending:   b.AllowSending == 1,
+			AllowReceiving: b.AllowReceiving == 1,
+			AssetCode:      b.AssetCode,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+		})
 	}
 
 	return balances, nil
+
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
@@ -123,7 +182,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL *libTransaction.Transaction, validate *libTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) ([]*mmodel.Balance, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -169,6 +228,24 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		logger.Error("Failed to validate accounting rules", err)
 
 		return nil, err
+	}
+
+	if parserDSL != nil {
+		nb := make([]*mmodel.Balance, 0, len(balanceOperations))
+		for _, blcs := range balanceOperations {
+			blcs.Balance.Alias = blcs.Alias
+
+			nb = append(nb, blcs.Balance)
+		}
+
+		err := libTransaction.ValidateBalancesRules(ctx, *parserDSL, *validate, mmodel.ConvertBalancesToLibBalances(nb))
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate balances", err)
+
+			logger.Errorf("Failed to validate balances: %v", err.Error())
+
+			return nil, err
+		}
 	}
 
 	newBalances, err := uc.RedisRepo.AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations)

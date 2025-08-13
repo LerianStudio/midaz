@@ -38,6 +38,7 @@ type RedisRepository interface {
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
+	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 }
@@ -490,6 +491,32 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	logger.Infof("Mensagem save on redis queue with ID: %s", key)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		logger.Warnf("Failed to get redis client: %v", err)
+
+		return nil, err
+	}
+
+	data, err := rds.HGet(ctx, TransactionBackupQueue, key).Bytes()
+	if err != nil {
+		logger.Warnf("Failed to hgetall: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Message read on redis queue with ID: %s", key)
+
+	return data, nil
 }
 
 // ReadAllMessagesFromQueue read all messages from redis queue

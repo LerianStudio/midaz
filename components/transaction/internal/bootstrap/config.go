@@ -284,7 +284,7 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
-	redisConsumer := NewRedisQueueConsumer(useCase, logger)
+	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
 
 	return &Service{
 		Server:             server,

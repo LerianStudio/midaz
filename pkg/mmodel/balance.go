@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
@@ -334,6 +335,7 @@ type BalanceOperation struct {
 }
 
 type TransactionRedisQueue struct {
+	Context   *fiber.Ctx                 `json:"context"`
 	HeaderID  string                     `json:"header_id"`
 	Balances  []BalanceRedis             `json:"balances"`
 	ParserDSL libTransaction.Transaction `json:"parserDSL"`
