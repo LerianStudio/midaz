@@ -1,3 +1,37 @@
+## [v3.1.0-beta.3] - 2025-08-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.2...v3.1.0-beta.3)
+Contributors: Fred Amaral, Gabriel Ferreira, MartinezAvellan, lerian-studio
+
+### ⚠️ Breaking Changes
+- **Monetary Data Handling**: Monetary values are now represented as decimal strings instead of integers. Users must update any systems or integrations processing monetary data to accommodate this change.
+- **E2E Testing Framework**: The introduction of Newman for API workflow testing necessitates updates to test scripts and environments. Users should adapt their testing setups accordingly.
+- **Postman Collections**: The Postman collection generation pipeline has been refactored. Users should review and update their collection usage to ensure compatibility.
+- **Documentation Verification**: The `verify-api-docs.sh` script has been removed. Users relying on this script should modify their documentation workflows.
+
+### ✨ Features
+- **Newman Integration**: Introduced Newman for API workflow testing, enhancing E2E testing capabilities and automation. This provides more robust and reliable API testing.
+- **OpenAPI Documentation**: Enhanced API documentation generation using OpenAPI specs, improving clarity and accessibility for developers.
+
+### 🐛 Bug Fixes
+- **E2E Test Reliability**: Resolved critical E2E test failures, improving the accuracy and robustness of test outcomes.
+- **Navigation Issues**: Fixed navigation problems in the frontend that prevented access to certain settings, enhancing user experience.
+
+### ⚡ Performance
+- **Testing Efficiency**: Installation of the Newman HTML reporter for E2E tests, providing more readable and accessible test result reports.
+
+### 🔄 Changes
+- **Postman Workflow**: Updated Postman files and scripts to streamline the generation workflow, making it more efficient and maintainable.
+
+### 📚 Documentation
+- **OpenAPI and Postman Targets**: Added proper targets for generating OpenAPI and Postman documentation, ensuring comprehensive and up-to-date documentation.
+
+### 🔧 Maintenance
+- **E2E Workflow Optimization**: Updated the E2E workflow to include setup reports and node configuration, optimizing the testing pipeline.
+- **Installation Process**: Removed a complex shell installer script, simplifying the installation process and reducing potential errors.
+- **Codebase Consistency**: Updated Go version quotes for consistency, ensuring uniformity across the codebase.
+
+
 ## [v3.1.0-beta.2] - 2025-08-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.1...v3.1.0-beta.2)
