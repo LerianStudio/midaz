@@ -1,3 +1,27 @@
+## [v3.2.0-beta.1] - 2025-08-14
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.3...v3.2.0-beta.1)
+Contributors: Caio Alexandre Troti Caetano, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **Database Schema Update**: Default metadata has been removed. Users must now explicitly define metadata in their configurations. Please update your database settings and application logic accordingly to ensure compatibility.
+
+### ✨ Features
+- **Revamped Console Layout**: The frontend console has been redesigned for a more intuitive and accessible user experience, making task management more efficient and user-friendly.
+
+### 🐛 Bug Fixes
+- **Console Build Stability**: Fixed an issue causing deployment failures, ensuring reliable console builds and reducing system downtime.
+- **Metadata Validation**: Corrected metadata length validation to prevent processing errors, enhancing data integrity and application stability.
+- **Configuration Port Update**: Resolved an issue with the environment configuration to ensure the application listens on the correct port as specified by the user.
+
+### 📚 Documentation
+- **Environment Setup**: Updated configuration examples and documentation to align with version 3.1.0, providing users with the latest setup instructions for smoother deployments.
+
+### 🔧 Maintenance
+- **Code Cleanup**: Removed redundant console log statements from the authentication component, improving code readability and reducing noise in logs.
+- **Release Management**: Updated the CHANGELOG and versioning in the `.env.example` file, ensuring documentation and environment settings are current for developers and users.
+
+
 ## [v3.1.0-beta.3] - 2025-08-14
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.2...v3.1.0-beta.3)
