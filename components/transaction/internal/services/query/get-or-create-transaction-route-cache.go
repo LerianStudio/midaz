@@ -9,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetOrCreateTransactionRouteCache retrieves a transaction route cache from Redis or database with fallback.
@@ -18,9 +19,17 @@ import (
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
+	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_route_id", transactionRouteID.String()),
+	)
 
 	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
@@ -46,7 +55,11 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		if err == services.ErrDatabaseItemNotFound {
-			logger.Info("Transaction route not found in database")
+			msg := "Transaction route not found in database"
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, msg, err)
+
+			logger.Warn(msg)
 
 			return mmodel.TransactionRouteCache{}, err
 		}

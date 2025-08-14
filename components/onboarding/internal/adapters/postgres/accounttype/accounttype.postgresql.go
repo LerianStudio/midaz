@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to account type entities.
@@ -63,9 +64,23 @@ func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Acc
 // It returns the created account type and an error if the operation fails.
 func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_account_type")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", accountType)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert account type from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -79,11 +94,11 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_type_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account type record from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO account_type VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -98,12 +113,16 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
 
 		return nil, err
 	}
@@ -118,7 +137,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to create account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -132,9 +151,19 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 // It returns the account type if found, otherwise it returns an error.
 func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_type_by_id")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_type_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -146,6 +175,8 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 	var record AccountTypePostgreSQLModel
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, `
 		SELECT 
@@ -195,9 +226,19 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 // It returns the account type if found, otherwise it returns an error.
 func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.AccountType, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_type_by_key")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.key", key),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -209,6 +250,8 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 	var record AccountTypePostgreSQLModel
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, `
 		SELECT 
@@ -258,9 +301,25 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 // It returns the updated account type if found, otherwise it returns an error.
 func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account_type")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_type_id", id.String()),
+	}
+
+	if accountType != nil {
+		attributes = append(attributes, attribute.String("app.request.account_type.name", accountType.Name))
+		attributes = append(attributes, attribute.String("app.request.account_type.description", accountType.Description))
+		attributes = append(attributes, attribute.String("app.request.account_type.key_value", accountType.KeyValue))
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -298,21 +357,25 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 	defer spanExec.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromStructWithObfuscation(&spanExec, "account_type_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account type from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.AccountType{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -327,7 +390,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	if rowsAffected == 0 {
 		err := services.ErrDatabaseItemNotFound
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to update account type. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -339,9 +402,23 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 // It returns the account types, pagination cursor, and an error if the operation fails.
 func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_account_types")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -385,6 +462,13 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 	defer spanQuery.End()
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -442,9 +526,18 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 // It returns the account types matching the provided IDs or an error if the operation fails.
 func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.AccountType, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_account_types_by_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -456,6 +549,8 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	var accountTypes []*mmodel.AccountType
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	query := `SELECT 
 		id, 
@@ -518,9 +613,19 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 // It returns an error if the operation fails or if the account type is not found.
 func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_account_type")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_type_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -533,6 +638,8 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 	args := []any{organizationID, ledgerID, id}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {

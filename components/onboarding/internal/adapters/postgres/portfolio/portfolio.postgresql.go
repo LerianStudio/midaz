@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to portfolio entities.
@@ -61,9 +62,24 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Portf
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_portfolio")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", portfolio.OrganizationID),
+		attribute.String("app.request.ledger_id", portfolio.LedgerID),
+		attribute.String("app.request.portfolio_id", portfolio.ID),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", portfolio)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert portfolio record from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -77,11 +93,11 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "portfolio_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert portfolio record from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
@@ -97,12 +113,16 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -119,7 +139,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -130,9 +150,19 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 // FindByIDEntity find portfolio from the database using the Entity id.
 func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio_by_id_entity")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.entity_id", entityID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -144,6 +174,8 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	portfolio := &PortfolioPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id_entity.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND entity_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, entityID)
@@ -176,9 +208,23 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 // FindAll retrieves Portfolio entities from the database.
 func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -209,6 +255,13 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	spanQuery.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -253,9 +306,19 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 // Find retrieves a Portfolio entity from the database using the provided ID.
 func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.portfolio_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -267,6 +330,8 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	portfolio := &PortfolioPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, id)
@@ -299,9 +364,18 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 // ListByIDs retrieves Portfolios entities from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_portfolios_by_ids")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -313,6 +387,8 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	var portfolios []*mmodel.Portfolio
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_portfolios_by_ids.query")
+
+	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
@@ -358,9 +434,24 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 // Update a Portfolio entity into Postgresql and returns the Portfolio updated.
 func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_portfolio")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.portfolio_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", portfolio)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert portfolio record from entity to JSON string", err)
+	}
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -408,21 +499,25 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "portfolio_repository_input", record)
+	spanExec.SetAttributes(attributes...)
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert portfolio record from entity to JSON string", err)
-
-		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -439,7 +534,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -450,9 +545,19 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 // Delete removes a Portfolio entity from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_portfolio")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.portfolio_id", id.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -462,6 +567,8 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
+
+	spanExec.SetAttributes(attributes...)
 
 	result, err := db.ExecContext(ctx, `UPDATE portfolio SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
@@ -483,7 +590,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete Portfolio. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Portfolio. Rows affected is 0", err)
 
 		return err
 	}
@@ -494,9 +601,18 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 // Count retrieves the number of Portfolio entities in the database.
 func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_portfolios")
 	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	}
+
+	span.SetAttributes(attributes...)
 
 	var count = int64(0)
 
@@ -510,12 +626,18 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
 	defer spanQuery.End()
 
+	spanQuery.SetAttributes(attributes...)
+
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL", organizationID, ledgerID).Scan(&count)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to execute query", err)
 
 		return count, err
 	}
+
+	attributes = append(attributes, attribute.Int64("app.response.count", count))
+
+	span.SetAttributes(attributes...)
 
 	return count, nil
 }
