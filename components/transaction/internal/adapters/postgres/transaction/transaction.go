@@ -211,7 +211,7 @@ type CreateTransactionSwaggerModel struct {
 				// Account identifier or alias
 				// example: @external/USD
 				// required: true
-				Account string `json:"account"`
+				Account string `json:"accountAlias"`
 
 				// Amount details for the operation
 				// required: true
@@ -250,7 +250,7 @@ type CreateTransactionSwaggerModel struct {
 				// Account identifier or alias
 				// example: {{accountAlias}}
 				// required: true
-				Account string `json:"account"`
+				Account string `json:"accountAlias"`
 
 				// Amount details for the operation
 				// required: true
@@ -747,7 +747,7 @@ type CreateTransactionInflowSwaggerModel struct {
 				// Account identifier or alias
 				// example: {{accountAlias}}
 				// required: true
-				Account string `json:"account"`
+				Account string `json:"accountAlias"`
 
 				// Amount details for the operation
 				// required: true
@@ -958,7 +958,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 				// Account identifier or alias
 				// example: {{accountAlias}}
 				// required: true
-				Account string `json:"account"`
+				Account string `json:"accountAlias"`
 
 				// Amount details for the operation
 				// required: true

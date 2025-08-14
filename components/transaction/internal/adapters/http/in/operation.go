@@ -130,7 +130,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 // GetOperationByAccount retrieves an operation by account.
 //
-//	@Summary		Get an Operation by account
+//	@Summary		Get Operation
 //	@Description	Get an Operation with the input ID
 //	@Tags			Operations
 //	@Produce		json

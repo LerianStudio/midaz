@@ -63,10 +63,10 @@ func TestEntityNotFoundError_Unwrap(t *testing.T) {
 	err := EntityNotFoundError{
 		Err: innerErr,
 	}
-	
+
 	unwrapped := err.Unwrap()
 	assert.Equal(t, innerErr, unwrapped)
-	
+
 	// Test with nil inner error
 	err = EntityNotFoundError{
 		Err: nil,
@@ -113,10 +113,10 @@ func TestValidationError_Unwrap(t *testing.T) {
 	err := ValidationError{
 		Err: innerErr,
 	}
-	
+
 	unwrapped := err.Unwrap()
 	assert.Equal(t, innerErr, unwrapped)
-	
+
 	// Test with nil inner error
 	err = ValidationError{
 		Err: nil,
@@ -167,10 +167,10 @@ func TestEntityConflictError_Unwrap(t *testing.T) {
 	err := EntityConflictError{
 		Err: innerErr,
 	}
-	
+
 	unwrapped := err.Unwrap()
 	assert.Equal(t, innerErr, unwrapped)
-	
+
 	// Test with nil inner error
 	err = EntityConflictError{
 		Err: nil,
@@ -388,7 +388,7 @@ func TestResponseError_Error(t *testing.T) {
 			expected: "",
 		},
 		{
-			name: "Empty message, no code",
+			name:     "Empty message, no code",
 			errorObj: ResponseError{},
 			expected: "",
 		},
@@ -476,58 +476,58 @@ func TestValidationUnknownFieldsError_Error(t *testing.T) {
 
 func TestValidateBadRequestFieldsError(t *testing.T) {
 	tests := []struct {
-		name              string
-		requiredFields    map[string]string
+		name               string
+		requiredFields     map[string]string
 		knownInvalidFields map[string]string
-		entityType        string
-		unknownFields     map[string]any
-		expectedError     bool
-		expectedErrorType string
+		entityType         string
+		unknownFields      map[string]any
+		expectedError      bool
+		expectedErrorType  string
 	}{
 		{
-			name:              "All fields are empty",
-			requiredFields:    map[string]string{},
+			name:               "All fields are empty",
+			requiredFields:     map[string]string{},
 			knownInvalidFields: map[string]string{},
-			entityType:        "User",
-			unknownFields:     map[string]any{},
-			expectedError:     true,
-			expectedErrorType: "errorString",
+			entityType:         "User",
+			unknownFields:      map[string]any{},
+			expectedError:      true,
+			expectedErrorType:  "errorString",
 		},
 		{
-			name:              "Unknown fields present",
-			requiredFields:    map[string]string{},
+			name:               "Unknown fields present",
+			requiredFields:     map[string]string{},
 			knownInvalidFields: map[string]string{},
-			entityType:        "User",
-			unknownFields:     map[string]any{"unknown_field": "value"},
-			expectedError:     true,
-			expectedErrorType: "ValidationUnknownFieldsError",
+			entityType:         "User",
+			unknownFields:      map[string]any{"unknown_field": "value"},
+			expectedError:      true,
+			expectedErrorType:  "ValidationUnknownFieldsError",
 		},
 		{
-			name:              "Required fields missing",
-			requiredFields:    map[string]string{"name": "Name is required"},
+			name:               "Required fields missing",
+			requiredFields:     map[string]string{"name": "Name is required"},
 			knownInvalidFields: map[string]string{},
-			entityType:        "User",
-			unknownFields:     map[string]any{},
-			expectedError:     true,
-			expectedErrorType: "ValidationKnownFieldsError",
+			entityType:         "User",
+			unknownFields:      map[string]any{},
+			expectedError:      true,
+			expectedErrorType:  "ValidationKnownFieldsError",
 		},
 		{
-			name:              "Known invalid fields",
-			requiredFields:    map[string]string{},
+			name:               "Known invalid fields",
+			requiredFields:     map[string]string{},
 			knownInvalidFields: map[string]string{"email": "Invalid email format"},
-			entityType:        "User",
-			unknownFields:     map[string]any{},
-			expectedError:     true,
-			expectedErrorType: "ValidationKnownFieldsError",
+			entityType:         "User",
+			unknownFields:      map[string]any{},
+			expectedError:      true,
+			expectedErrorType:  "ValidationKnownFieldsError",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateBadRequestFieldsError(tt.requiredFields, tt.knownInvalidFields, tt.entityType, tt.unknownFields)
-			
+
 			assert.NotNil(t, result, "Expected an error but got nil")
-			
+
 			switch tt.expectedErrorType {
 			case "errorString":
 				_, ok := result.(error)
@@ -595,7 +595,7 @@ func TestValidateBusinessError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := mockValidateBusinessError(tt.err, tt.entityType, tt.args...)
-			
+
 			if _, ok := tt.expected.(error); ok && tt.err.Error() == "custom error" {
 				assert.Equal(t, tt.err.Error(), result.Error())
 			} else {
@@ -608,11 +608,11 @@ func TestValidateBusinessError(t *testing.T) {
 // TestRealValidateBusinessError tests the actual ValidateBusinessError function with a few common error cases
 func TestRealValidateBusinessError(t *testing.T) {
 	tests := []struct {
-		name           string
-		err            error
-		entityType     string
-		args           []interface{}
-		expectedType   interface{}
+		name         string
+		err          error
+		entityType   string
+		args         []interface{}
+		expectedType interface{}
 	}{
 		{
 			name:         "entity not found error",
@@ -647,13 +647,13 @@ func TestRealValidateBusinessError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateBusinessError(tt.err, tt.entityType, tt.args...)
-			
+
 			// For unknown errors, we expect the original error to be returned
 			if tt.err.Error() == "unknown_error" {
 				assert.Equal(t, tt.err, result)
 				return
 			}
-			
+
 			// For known errors, check the type
 			switch expected := tt.expectedType.(type) {
 			case EntityNotFoundError:
@@ -702,19 +702,19 @@ func TestValidateInternalError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateInternalError(tt.err, tt.entityType)
-			
+
 			// Check that we got a non-nil result
 			assert.NotNil(t, result)
-			
+
 			// Check that it's the right type
 			internalErr, ok := result.(InternalServerError)
 			assert.True(t, ok)
-			
+
 			// Check the fields
 			assert.Equal(t, tt.entityType, internalErr.EntityType)
 			assert.Equal(t, "Internal Server Error", internalErr.Title)
 			assert.NotEmpty(t, internalErr.Message)
-			
+
 			// Check if Err is nil or not nil as expected
 			if tt.err == nil {
 				assert.Nil(t, internalErr.Err)

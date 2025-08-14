@@ -16,5 +16,5 @@ export default async function AuthRoutes({
     redirect(`/`, RedirectType.replace)
   }
 
-  return <React.Fragment>{children}</React.Fragment>
+  return children
 }

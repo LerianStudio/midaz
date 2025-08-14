@@ -931,25 +931,25 @@ func TestOrganizationRepository_Count(t *testing.T) {
 	t.Run("Success - Count organizations", func(t *testing.T) {
 		// Setup mock repository
 		repo, mock := setupMockDB(t)
-		
+
 		// Verify that our mock implementation of Count() works as expected
 		ctx := context.Background()
 		count, err := repo.Count(ctx)
-		
+
 		// Assert expectations
 		require.NoError(t, err)
 		assert.Equal(t, int64(10), count) // O mock deve retornar 10
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-	
+
 	t.Run("Error - Database error", func(t *testing.T) {
 		// Setup error repository
 		repo := setupErrorDB()
-		
+
 		// Call the Count method
 		ctx := context.Background()
 		count, err := repo.Count(ctx)
-		
+
 		// Assert expectations
 		require.Error(t, err)
 		assert.Equal(t, int64(0), count)

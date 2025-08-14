@@ -26,7 +26,7 @@ To ensure the security of your deployments, we recommend the following best prac
 
 ## 3. Responsible Disclosure Policy
 
-For transparency, any known securities improvements join in our **[Github Discussions](https://github.com/LerianStudio/midaz/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
+For transparency, any known securities improvements join in our **[Github Discussions](https://github.com/LerianStudio/midaz/v3/discussions)**. This allows our community to follow the progress and updates related to security patches and enhancements.
 
 If you discover a security vulnerability within Midaz, please report it using our responsible disclosure policy. Do not disclose the issue publicly until we have had the opportunity to address it.
 
