@@ -12,12 +12,16 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
+	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/gofiber/fiber/v2/log"
 )
 
-const CronTimeToRun = 5 * time.Minute
-const MessageTimeOfLife = 60
+const CronTimeToRun = 30 * time.Minute
+const MessageTimeOfLife = 30
 const MaxWorkers = 100
 
 type RedisQueueConsumer struct {
@@ -89,13 +93,13 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			continue
 		}
 
-		log := r.Logger.WithFields(
+		logger := r.Logger.WithFields(
 			libConstants.HeaderID, transaction.HeaderID,
 		).WithDefaultMessageTemplate(transaction.HeaderID + " | ")
 
 		ctxWithBackground := libCommons.ContextWithLogger(
 			libCommons.ContextWithHeaderID(ctx, transaction.HeaderID),
-			log,
+			logger,
 		)
 
 		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
@@ -108,7 +112,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 		wg.Add(1)
 
-		go func(m mmodel.TransactionRedisQueue, ctx context.Context, log libLog.Logger) {
+		go func(m mmodel.TransactionRedisQueue, ctx context.Context, logger libLog.Logger) {
 			defer func() {
 				<-sem
 				wg.Done()
@@ -121,10 +125,70 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			default:
 			}
 
-			_ = r.TransactionHandler.RetryTransaction(transaction.ParserDSL, transaction.Context)
+			balances := make([]*mmodel.Balance, 0)
+			for _, balance := range m.Balances {
+				balances = append(balances, &mmodel.Balance{
+					Alias:          balance.Alias,
+					ID:             balance.ID,
+					AccountID:      balance.AccountID,
+					Available:      balance.Available,
+					OnHold:         balance.OnHold,
+					Version:        balance.Version,
+					AccountType:    balance.AccountType,
+					AllowSending:   balance.AllowSending == 1,
+					AllowReceiving: balance.AllowReceiving == 1,
+					AssetCode:      balance.AssetCode,
+					OrganizationID: m.OrganizationID.String(),
+					LedgerID:       m.LedgerID.String(),
+				})
+			}
+
+			fromTo := append(m.ParserDSL.Send.Source.From, m.ParserDSL.Send.Distribute.To...)
+
+			var parentTransactionID *string
+			tran := &postgreTransaction.Transaction{
+				ID:                       m.TransactionID.String(),
+				ParentTransactionID:      parentTransactionID,
+				OrganizationID:           m.OrganizationID.String(),
+				LedgerID:                 m.LedgerID.String(),
+				Description:              m.ParserDSL.Description,
+				Amount:                   &m.ParserDSL.Send.Value,
+				AssetCode:                m.ParserDSL.Send.Asset,
+				ChartOfAccountsGroupName: m.ParserDSL.ChartOfAccountsGroupName,
+				CreatedAt:                m.TransactionDate,
+				UpdatedAt:                time.Now(),
+				Route:                    m.ParserDSL.Route,
+				Metadata:                 m.ParserDSL.Metadata,
+				Status: postgreTransaction.Status{
+					Code:        m.TransactionStatus,
+					Description: &m.TransactionStatus,
+				},
+			}
+
+			operations, _, err := r.TransactionHandler.BuildOperations(ctx, logger, tracer, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
+
+				logger.Errorf("Failed to validate balance: %v", err.Error())
+
+				return
+			}
+
+			tran.Source = m.Validate.Sources
+			tran.Destination = m.Validate.Destinations
+			tran.Operations = operations
+
+			err = r.TransactionHandler.Command.SendBTOExecuteAsync(ctx, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed sending message to queue", err)
+
+				logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+
+				return
+			}
 
 			log.Infof("Transaction message processed: %s", key)
-		}(transaction, ctxWithBackground, log)
+		}(transaction, ctxWithBackground, logger)
 	}
 
 	wg.Wait()

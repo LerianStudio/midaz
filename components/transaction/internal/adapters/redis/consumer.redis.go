@@ -541,7 +541,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		return nil, err
 	}
 
-	logger.Infof("Total read %d messages on redis queue", len(data))
+	logger.Info("Messages read on redis queue successfully")
 
 	return data, nil
 }

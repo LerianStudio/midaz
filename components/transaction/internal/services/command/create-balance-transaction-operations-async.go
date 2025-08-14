@@ -17,7 +17,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
@@ -253,27 +252,28 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 }
 
 // SendTransactionToRedisQueue func that send transaction to redis queue
-func (uc *UseCase) SendTransactionToRedisQueue(c *fiber.Ctx, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, transactionStatus string) {
-	if transactionStatus != constant.RETRY {
-		ctx := c.UserContext()
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-		transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	queue := mmodel.TransactionRedisQueue{
+		HeaderID:          libCommons.NewHeaderIDFromContext(ctx),
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		ParserDSL:         parserDSL,
+		TTL:               time.Now(),
+		Validate:          validate,
+		TransactionStatus: transactionStatus,
+		TransactionDate:   transactionDate,
+	}
 
-		queue := mmodel.TransactionRedisQueue{
-			Context:   c,
-			HeaderID:  libCommons.NewHeaderIDFromContext(ctx),
-			ParserDSL: parserDSL,
-			TTL:       time.Now(),
-		}
+	raw, err := json.Marshal(queue)
+	if err != nil {
+		logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
+	}
 
-		raw, err := json.Marshal(queue)
-		if err != nil {
-			logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
-		}
-
-		err = uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
-		if err != nil {
-			logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
-		}
+	err = uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
+	if err != nil {
+		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
 	}
 }

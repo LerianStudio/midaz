@@ -6,6 +6,5 @@ const (
 	PENDING             = "PENDING"
 	CANCELED            = "CANCELED"
 	NOTED               = "NOTED"
-	RETRY               = "RETRY"
 	UniqueViolationCode = "23505"
 )
