@@ -493,6 +493,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	return nil
 }
 
+// ReadMessageFromQueue read an especific message from redis queue
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
