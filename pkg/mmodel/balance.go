@@ -177,6 +177,7 @@ type BalanceRedis struct {
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
 func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
 	out := make([]*libTransaction.Balance, 0, len(balances))
+
 	for i, b := range balances {
 		if b != nil {
 			out[i] = b.ConvertToLibBalance()

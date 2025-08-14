@@ -70,23 +70,22 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		return
 	}
 
-	total := len(messages)
-	r.Logger.Infof("Total of read %d messages from queue", total)
-	if total == 0 {
+	r.Logger.Infof("Total of read %d messages from queue", len(messages))
+	if len(messages) == 0 {
 		return
 	}
 
 	sem := make(chan struct{}, MaxWorkers)
+
 	var wg sync.WaitGroup
 
 	totalMessagesLessThanOneHour := 0
 
+Outer:
 	for key, message := range messages {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			r.Logger.Warnf("Shutdown in progress: skipping remaining messages")
-			break
-		default:
+			break Outer
 		}
 
 		var transaction mmodel.TransactionRedisQueue
@@ -101,6 +100,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		}
 
 		sem <- struct{}{}
+
 		wg.Add(1)
 
 		go func(key string, m mmodel.TransactionRedisQueue) {
@@ -176,7 +176,9 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", err)
+
 				logger.Errorf("Failed to validate balance: %v", err.Error())
+
 				return
 			}
 
@@ -188,7 +190,9 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.ParserDSL, m.Validate, balances, tran,
 			); err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
+
 				logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+
 				return
 			}
 
@@ -199,5 +203,5 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	wg.Wait()
 
 	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
-	r.Logger.Infof("Finished processing total of %d eligible messages", total-totalMessagesLessThanOneHour)
+	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
 }
