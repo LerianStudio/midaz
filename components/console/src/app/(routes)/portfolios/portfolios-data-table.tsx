@@ -229,7 +229,11 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination 
+            total={total} 
+            currentItemsCount={portfolios?.items?.length} 
+            {...pagination} 
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

@@ -24,12 +24,20 @@ import { Form } from '@/components/ui/form'
 import { EntityBox } from '@/components/entity-box'
 import { InputField } from '@/components/form'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { useHomeMetrics } from '@/client/home'
 
 const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
-  const [total, setTotal] = useState(1000000)
+  
+  const { data: homeMetrics } = useHomeMetrics({
+    organizationId: currentOrganization.id,
+    ledgerId: currentLedger.id
+  })
+
+  const total = homeMetrics?.totalPortfolios || 0
+
   const { form, searchValues, pagination } = useQueryParams({
     total,
     initialValues: {

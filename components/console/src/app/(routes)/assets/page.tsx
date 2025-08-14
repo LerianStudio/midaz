@@ -5,6 +5,7 @@ import { useIntl } from 'react-intl'
 import { Button } from '@/components/ui/button'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { useDeleteAsset, useListAssets } from '@/client/assets'
+import { useHomeMetrics } from '@/client/home'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import {
   getCoreRowModel,
@@ -32,7 +33,12 @@ const Page = () => {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(1000000)
+  const { data: homeMetrics } = useHomeMetrics({
+    organizationId: currentOrganization.id,
+    ledgerId: currentLedger.id
+  })
+
+  const total = homeMetrics?.totalAssets || 0
 
   const { form, searchValues, pagination } = useQueryParams({ total })
 
