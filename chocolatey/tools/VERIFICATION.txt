@@ -6,11 +6,11 @@ This package was published by the author LerianStudio. The binaries provided are
 identical to those on the GitHub release page for the windows_amd64 target.
 
 The binaries included in this package were downloaded directly from the official GitHub release page:
-https://github.com/LerianStudio/midaz/releases
+https://github.com/LerianStudio/midaz/v3/releases
 
 Download the zipped application `windows_amd64.zip` from the github release tab
 
 Inside the zip is an mdz.exe file
-Downloaded from: https://github.com/LerianStudio/midaz/releases/download/v{{VERSION}}/midaz_{{VERSION}}_windows_amd64.zip
+Downloaded from: https://github.com/LerianStudio/midaz/v3/releases/download/v{{VERSION}}/midaz_{{VERSION}}_windows_amd64.zip
 
 It's hash should match SHA256: "{{CHECKSUM}}"

@@ -9,7 +9,7 @@ $outputFile = Join-Path $toolsDir 'mdz.exe'
 $versionFmt = $version -replace '^v', ''
 
 # Zipped file URL
-$url        = "https://github.com/LerianStudio/midaz/releases/download/"+$version+"/midaz_"+$versionFmt+"_windows_amd64.zip"
+$url        = "https://github.com/LerianStudio/midaz/v3/releases/download/"+$version+"/midaz_"+$versionFmt+"_windows_amd64.zip"
 $checksum   = '{{CHECKSUM}}'
 $silentArgs = ''
 
