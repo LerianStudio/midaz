@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export type PaginationProps = UsePaginationReturn & {
   total?: number
+  currentItemsCount?: number
 }
 
 export const Pagination = ({

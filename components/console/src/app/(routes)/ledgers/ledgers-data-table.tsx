@@ -214,6 +214,11 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     [ledgers?.items, currentLedger.id]
   )
 
+  const currentLedgerInPage = React.useMemo(
+    () => ledgers?.items?.some((ledger) => ledger.id === currentLedger.id) ?? false,
+    [ledgers?.items, currentLedger.id]
+  )
+
   const table = useReactTable({
     data: items,
     columns: [
@@ -225,6 +230,8 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel()
   })
+
+  const displayedItemsCount = items.length + (currentLedgerInPage ? 1 : 0)
 
   return (
     <>
@@ -276,7 +283,7 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {currentLedger && (
+                {currentLedger && currentLedgerInPage && (
                   <LedgerRow
                     active
                     ledger={{ id: '1', original: currentLedger }}
@@ -308,12 +315,16 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
                   'Showing {count} {number, plural, =0 {ledgers} one {ledger} other {ledgers}}.'
               },
               {
-                number: items?.length,
-                count: <span className="font-bold">{items?.length}</span>
+                number: displayedItemsCount,
+                count: <span className="font-bold">{displayedItemsCount}</span>
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination 
+            total={total} 
+            currentItemsCount={ledgers?.items?.length} 
+            {...pagination} 
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>
