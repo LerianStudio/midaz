@@ -1,4 +1,4 @@
-import { set } from 'lodash'
+
 import { MetadataInput } from './metadata-input'
 import { MetadataPreview } from './metadata-preview'
 import { Control, ControllerRenderProps } from 'react-hook-form'
@@ -21,7 +21,9 @@ const MetadataWrapper = React.forwardRef<unknown, MetadataWrapperProps>(
 
     const handleRemoveMetadata = (key: string) => {
       if (readOnly) return
-      onChange?.({ target: { name, value: set({ ...value }, [key], null) } })
+      const newValue = { ...value }
+      delete newValue[key]
+      onChange?.({ target: { name, value: newValue } })
     }
 
     return (

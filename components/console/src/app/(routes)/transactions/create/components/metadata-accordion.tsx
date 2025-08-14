@@ -41,7 +41,7 @@ export const MetadataAccordion = ({
                   '{count} added {count, plural, =0 {records} one {record} other {records}}'
               },
               {
-                count: Object.entries(values || 0).length
+                count: Object.entries(values || {}).filter(([_, value]) => value != null && value !== '').length
               }
             )}
           </p>
