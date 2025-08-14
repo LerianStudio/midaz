@@ -71,6 +71,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	}
 
 	r.Logger.Infof("Total of read %d messages from queue", len(messages))
+
 	if len(messages) == 0 {
 		return
 	}

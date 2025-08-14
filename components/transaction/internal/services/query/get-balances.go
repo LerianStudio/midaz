@@ -173,7 +173,9 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 			mmodel.ConvertBalanceOperationsToLibBalances(balanceOperations),
 		); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate balances", err)
+
 			logger.Errorf("Failed to validate balances: %v", err.Error())
+
 			return nil, err
 		}
 	}
