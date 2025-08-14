@@ -1,4 +1,3 @@
-
 import { MetadataInput } from './metadata-input'
 import { MetadataPreview } from './metadata-preview'
 import { Control, ControllerRenderProps } from 'react-hook-form'
