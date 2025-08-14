@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Clean documentation generation script
+# Abstracts swag complexity and provides beautiful output
+
 # Root directory of the repo
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -11,121 +14,181 @@ COMPONENTS=("onboarding" "transaction")
 LOG_DIR="${ROOT_DIR}/tmp"
 mkdir -p "${LOG_DIR}"
 
-# Print a header with a nice box
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Print a nice header
 print_header() {
-  local text="$1"
-  local length=${#text}
-  local padding=$(( (60 - length) / 2 ))
-  local line=$(printf '%*s' 60 | tr ' ' '-')
-  
-  echo -e "\n${line}"
-  printf "%*s%s%*s\n" $padding "" "$text" $padding ""
-  echo -e "${line}\n"
+    echo ""
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${BLUE}  📝 $1${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
 }
 
-print_header "Generating Swagger API Documentation"
-
-# Function to generate docs for a component
-generate_component_docs() {
-  local component=$1
-  local component_dir="${ROOT_DIR}/components/${component}"
-  local out_log="${LOG_DIR}/${component}.out"
-  local err_log="${LOG_DIR}/${component}.err"
-  
-  # Capitalize first letter of component name
-  component_display="$(tr '[:lower:]' '[:upper:]' <<< ${component:0:1})${component:1}"
-  printf "  %-20s " "${component_display}"
-  
-  # Ensure the api directory exists
-  mkdir -p "${component_dir}/api"
-  
-  # Change to the component directory and run the generate-docs target
-  # We use a separate process to avoid directory change issues
-  (
-    cd "${component_dir}" || { 
-      echo -e "❌ Could not access directory"
-      echo "Failed to change to directory: ${component_dir}" > "${err_log}"
-      return 1
-    }
+# Print step with status
+print_step() {
+    local step_name="$1"
+    local status="$2"
+    local time_taken="${3:-}"
     
-    # Run the make command directly
-    if make generate-docs > "${out_log}" 2> "${err_log}"; then
-      echo -e "✅ SUCCESS"
+    if [ "$status" = "SUCCESS" ]; then
+        echo -e "    ${GREEN}✅ ${step_name}${time_taken:+ (${time_taken}s)}${NC}"
+    elif [ "$status" = "FAILED" ]; then
+        echo -e "    ${RED}❌ ${step_name} - FAILED${NC}"
     else
-      echo -e "❌ FAILED"
-      echo "Failed to generate docs for ${component}" >> "${err_log}"
-      return 1
+        echo -e "    ${YELLOW}⏳ ${step_name}...${NC}"
     fi
-  )
-  
-  # Verify that files were generated
-  if [ ! -f "${component_dir}/api/swagger.json" ]; then
-    echo -e "  ⚠️  Warning: swagger.json was not generated"
-    echo "Warning: swagger.json was not generated for ${component}" >> "${err_log}"
-  fi
 }
 
-# Generate docs for each component
-for component in "${COMPONENTS[@]}"; do
-  generate_component_docs "${component}"
-done
-
-# Summary of Swagger documentation generation
-print_header "Documentation Generation Summary"
-
-for component in "${COMPONENTS[@]}"; do
-  out_log="${LOG_DIR}/${component}.out"
-  err_log="${LOG_DIR}/${component}.err"
-  
-  # Count warnings and errors
-  w=$(grep -E "(warning:|WARN)" "${out_log}" "${err_log}" 2>/dev/null | wc -l || echo 0)
-  w=$(echo $w | tr -d ' ')
-  e=$(grep -E "(error:|ERROR|Failed)" "${err_log}" 2>/dev/null | grep -v "warning:" | wc -l || echo 0)
-  e=$(echo $e | tr -d ' ')
-  
-  # Capitalize first letter of component name
-  component_display="$(tr '[:lower:]' '[:upper:]' <<< ${component:0:1})${component:1}"
-  
-  if [[ $e -gt 0 ]]; then
-    echo -e "  ${component_display}: ❌ Failed (${e} errors, ${w} warnings)"
-    echo -e "  Errors:"
-    grep -E "(error:|ERROR|Failed)" "${out_log}" "${err_log}" 2>/dev/null | grep -v "warning:" | sed 's/^/    /' || true
-    echo
-  else
-    if [[ $w -gt 0 ]]; then
-      echo -e "  ${component_display}: ✅ Success (${w} warnings)"
+# Generate OpenAPI specs for a component
+generate_openapi_spec() {
+    local component="$1"
+    local component_dir="${ROOT_DIR}/components/${component}"
+    local start_time=$(date +%s.%N)
+    
+    print_step "Generating ${component} OpenAPI spec" "PROCESSING"
+    
+    # Redirect all swag output to log files
+    local out_log="${LOG_DIR}/${component}_swag.out"
+    local err_log="${LOG_DIR}/${component}_swag.err"
+    
+    if (cd "${component_dir}" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal > "${out_log}" 2> "${err_log}"); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Generated ${component} OpenAPI spec" "SUCCESS" "${elapsed}"
+        return 0
     else
-      echo -e "  ${component_display}: ✅ Success (no warnings)"
+        print_step "Generate ${component} OpenAPI spec" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${err_log}" | sed 's/^/        /'
+        return 1
     fi
-  fi
-  
-  # Check if files were generated
-  if [ ! -f "${ROOT_DIR}/components/${component}/api/swagger.json" ]; then
-    echo -e "  ⚠️  Warning: No swagger.json file was generated"
-  fi
-done
+}
 
-print_header "Syncing Postman Collection"
+# Install Node.js dependencies for Postman generation
+install_npm_dependencies() {
+    print_step "Installing Node.js dependencies" "PROCESSING"
+    
+    local npm_out="${LOG_DIR}/npm.out"
+    local npm_err="${LOG_DIR}/npm.err"
+    local start_time=$(date +%s.%N)
+    local postman_dir="${ROOT_DIR}/scripts/postman-coll-generation"
+    
+    # Check if node_modules exists and package.json hasn't changed
+    if [ -d "${postman_dir}/node_modules" ] && [ "${postman_dir}/node_modules" -nt "${postman_dir}/package.json" ]; then
+        print_step "Node.js dependencies already up to date" "SUCCESS" "0.0"
+        return 0
+    fi
+    
+    if (cd "${postman_dir}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Install Node.js dependencies" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${npm_err}" | sed 's/^/        /'
+        return 1
+    fi
+}
 
-sync_out="${LOG_DIR}/sync.out"
-sync_err="${LOG_DIR}/sync.err"
+# Convert to Postman collection
+convert_to_postman() {
+    print_step "Converting to Postman collection" "PROCESSING"
+    
+    local sync_out="${LOG_DIR}/sync.out"
+    local sync_err="${LOG_DIR}/sync.err"
+    local start_time=$(date +%s.%N)
+    
+    if "${ROOT_DIR}/scripts/postman-coll-generation/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
+        local end_time=$(date +%s.%N)
+        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
+        print_step "Converted to Postman collection" "SUCCESS" "${elapsed}"
+        return 0
+    else
+        print_step "Convert to Postman collection" "FAILED"
+        echo -e "      ${RED}Error details:${NC}"
+        head -5 "${sync_err}" | sed 's/^/        /'
+        return 1
+    fi
+}
 
-printf "  %-30s " "Updating Postman collection"
+# Verify outputs
+verify_outputs() {
+    print_step "Verifying generated files" "PROCESSING"
+    
+    local collection_file="${ROOT_DIR}/postman/MIDAZ.postman_collection.json"
+    local environment_file="${ROOT_DIR}/postman/MIDAZ.postman_environment.json"
+    
+    if [ -f "${collection_file}" ] && [ -f "${environment_file}" ]; then
+        # Check if collection has content
+        local request_count=$(jq '.item | length' "${collection_file}" 2>/dev/null || echo "0")
+        local env_vars_count=$(jq '.values | length' "${environment_file}" 2>/dev/null || echo "0")
+        
+        print_step "Generated collection with ${request_count} folders and ${env_vars_count} environment variables" "SUCCESS"
+        return 0
+    else
+        print_step "Verify generated files" "FAILED"
+        return 1
+    fi
+}
 
-# Run the sync-postman script
-if "${ROOT_DIR}/scripts/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
-  echo -e "✅ SUCCESS"
-else
-  echo -e "❌ FAILED"
-  echo -e "\n  Error details:"
-  cat "${sync_err}" | sed 's/^/    /'
-  exit 1
-fi
+# Main execution
+main() {
+    print_header "Generating Swagger API Documentation"
+    
+    # Track overall success
+    local overall_success=true
+    
+    # Generate OpenAPI specs for each component
+    for component in "${COMPONENTS[@]}"; do
+        if ! generate_openapi_spec "$component"; then
+            overall_success=false
+            break
+        fi
+    done
+    
+    # If OpenAPI generation succeeded, install dependencies and convert to Postman
+    if [ "$overall_success" = true ]; then
+        if ! install_npm_dependencies; then
+            overall_success=false
+        elif ! convert_to_postman; then
+            overall_success=false
+        fi
+    fi
+    
+    # Verify outputs
+    if [ "$overall_success" = true ]; then
+        if ! verify_outputs; then
+            overall_success=false
+        fi
+    fi
+    
+    # Final status
+    echo ""
+    if [ "$overall_success" = true ]; then
+        echo -e "${GREEN}🎉 Documentation generation completed successfully!${NC}"
+        echo -e "   📄 Collection: postman/MIDAZ.postman_collection.json"
+        echo -e "   🌍 Environment: postman/MIDAZ.postman_environment.json"
+    else
+        echo -e "${RED}❌ Documentation generation failed.${NC}"
+        echo -e "   📋 Check logs in: ${LOG_DIR}/"
+        exit 1
+    fi
+    
+    # Clean up temporary logs on success
+    if [ "$overall_success" = true ]; then
+        rm -rf "${LOG_DIR}"
+    fi
+    
+    echo ""
+}
 
-echo -e "\n✅ All tasks completed successfully!"
-
-# Clean up temporary logs and artifacts
-echo "Cleaning up temporary files..."
-rm -rf "${LOG_DIR}"
-
-exit 0
+# Run main function
+main "$@"

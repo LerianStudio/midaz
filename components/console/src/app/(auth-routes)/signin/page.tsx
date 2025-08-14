@@ -16,7 +16,6 @@ import { useIntl } from 'react-intl'
 import { InputField } from '@/components/form'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { ArrowRight } from 'lucide-react'
-import { useListOrganizations } from '@/client/organizations'
 import { useToast } from '@/hooks/use-toast'
 
 const FormSchema = z.object({
@@ -35,58 +34,39 @@ const SignInPage = () => {
   const intl = useIntl()
   const route = useRouter()
   const { toast } = useToast()
+
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues
   })
 
-  const [isLoading, setIsLoading] = React.useState(false)
-  const [redirectUrl, setRedirectUrl] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(false)
 
-  const { data: organizationsData, isLoading: orgLoading } =
-    useListOrganizations({})
+  const handleSubmit = async (values: FormData) => {
+    setLoading(true)
 
-  React.useEffect(() => {
-    if (isLoading && !orgLoading) {
-      if (organizationsData?.items && organizationsData.items.length > 0) {
-        setRedirectUrl('/')
-      } else {
-        setRedirectUrl('/onboarding')
-      }
-    }
-  }, [isLoading, orgLoading, organizationsData])
-
-  const onSubmit = async (values: FormData) => {
     const result = await signIn('credentials', {
       ...values,
       redirect: false
     })
 
     if (result?.error) {
-      console.error('Login error ->', result)
       toast({
-        description: intl.formatMessage({
-          id: 'signIn.toast.error',
-          defaultMessage: 'Invalid credentials.'
-        }),
+        description:
+          result.error ??
+          intl.formatMessage({
+            id: 'signIn.toast.error',
+            defaultMessage: 'Invalid credentials.'
+          }),
         variant: 'destructive'
       })
+      setLoading(false)
       return
     }
-
-    setIsLoading(true)
   }
 
-  if (isLoading) {
-    return (
-      <LoadingScreen
-        onComplete={() => {
-          if (redirectUrl) {
-            route.replace(redirectUrl)
-          }
-        }}
-      />
-    )
+  if (loading) {
+    return <LoadingScreen onComplete={() => route.replace('/')} />
   }
 
   return (
@@ -110,7 +90,7 @@ const SignInPage = () => {
           <div className="pt-8">
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit(onSubmit)}
+                onSubmit={form.handleSubmit(handleSubmit)}
                 className="space-y-8"
                 method="post"
               >

@@ -122,8 +122,8 @@ func (f *factoryAssetCreate) setFlags(cmd *cobra.Command) {
 		"ledger-id", "", "Specify the ledger ID.")
 	cmd.Flags().StringVar(&f.Name, "name", "",
 		"name new ledger your organization")
-	cmd.Flags().StringVar(&f.Type, "type", "", "Defines the asset category, Example of the use: https://github.com/LerianStudio/midaz/blob/main/common/utils.go#L91")
-	cmd.Flags().StringVar(&f.Code, "code", "", "Asset identifier code Example of the use: https://github.com/LerianStudio/midaz/blob/main/common/utils.go#L114")
+	cmd.Flags().StringVar(&f.Type, "type", "", "Defines the asset category, Example of the use: https://github.com/LerianStudio/midaz/v3/blob/main/common/utils.go#L91")
+	cmd.Flags().StringVar(&f.Code, "code", "", "Asset identifier code Example of the use: https://github.com/LerianStudio/midaz/v3/blob/main/common/utils.go#L114")
 	cmd.Flags().StringVar(&f.StatusCode, "status-code", "",
 		"code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "",

@@ -12,15 +12,26 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateOrganizationByID update an organization from the repository.
 func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+	)
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", uoi)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to update organization: %v", uoi)
 
@@ -31,7 +42,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
 		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
 
-		libOpentelemetry.HandleSpanError(&span, "ID cannot be used as the parent ID.", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "ID cannot be used as the parent ID.", err)
 
 		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
 
@@ -40,9 +51,11 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	if !uoi.Address.IsEmpty() {
 		if err := libCommons.ValidateCountryAddress(uoi.Address.Country); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to validate address country", err)
+			err = pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate address country", err)
+
+			return nil, err
 		}
 	}
 
@@ -56,20 +69,28 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, id, organization)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update organization on repo by id", err)
-
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+
+			logger.Warnf("Organization ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}

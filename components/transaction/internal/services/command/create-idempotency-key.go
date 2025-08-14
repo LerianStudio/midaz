@@ -19,7 +19,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.create_idempotency_key")
+	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
 
 	logger.Infof("Trying to create or check idempotency key in redis")
@@ -70,7 +70,7 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.set_value_idempotency_key")
+	ctx, span := tracer.Start(ctx, "command.set_value_idempotency_key")
 	defer span.End()
 
 	logger.Infof("Trying to set value on idempotency key in redis")

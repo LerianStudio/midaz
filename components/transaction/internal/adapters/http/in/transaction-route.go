@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type TransactionRouteHandler struct {
@@ -41,6 +42,8 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
@@ -48,20 +51,24 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
 	payload := i.(*mmodel.CreateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	logger.Infof("Request to create a transaction route with details: %#v", payload)
 
 	transactionRoute, err := handler.Command.CreateTransactionRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route", err)
 
 		return http.WithError(c, err)
 	}
@@ -69,10 +76,20 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	logger.Infof("Successfully created transaction route")
 
 	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route cache", err)
 
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 	}
+
+	labels := map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+	}
+
+	metricFactory.Counter("transaction_route_created", libOpentelemetry.MetricOption{
+		Description: "New Transaction Route created",
+		Unit:        "1",
+	}).WithLabels(labels).Add(ctx, 1)
 
 	return http.Created(c, transactionRoute)
 }
@@ -101,6 +118,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
@@ -109,11 +127,18 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_route_id", id.String()),
+	)
+
 	logger.Infof("Request to get transaction route with ID: %s", id.String())
 
 	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
 
 		return http.WithError(c, err)
 	}
@@ -147,6 +172,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
@@ -155,22 +181,27 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_route_id", id.String()),
+	)
+
 	logger.Infof("Request to update transaction route with ID: %s", id.String())
 
 	payload := i.(*mmodel.UpdateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	logger.Infof("Request to update transaction route with details: %#v", payload)
 
 	_, err = handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route", err)
 
 		logger.Errorf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -179,7 +210,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 	transactionRoute, err := handler.Query.GetTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
 
 		logger.Errorf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -189,7 +220,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	logger.Infof("Successfully updated transaction route with ID: %s", id.String())
 
 	if err := handler.Command.CreateAccountingRouteCache(ctx, transactionRoute); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction route cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route cache", err)
 
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 	}
@@ -221,6 +252,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
@@ -229,11 +261,18 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_route_id", id.String()),
+	)
+
 	logger.Infof("Request to delete transaction route with ID: %s", id.String())
 
 	err := handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route", err)
 
 		return http.WithError(c, err)
 	}
@@ -241,7 +280,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	logger.Infof("Successfully deleted transaction route with ID: %s", id.String())
 
 	if err := handler.Command.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete transaction route cache", err)
 
 		logger.Errorf("Failed to delete transaction route cache: %v", err)
 	}
@@ -276,6 +315,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()
@@ -283,13 +323,24 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
+	}
+
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
 	}
 
 	pagination := libPostgres.Pagination{
@@ -303,16 +354,9 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Transaction Routes by metadata")
 
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
-
-			return http.WithError(c, err)
-		}
-
 		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Transaction Routes by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transaction Routes by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
 
@@ -331,16 +375,14 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
-
-		return http.WithError(c, err)
 	}
 
 	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Transaction Routes", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transaction Routes", err)
 
 		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
 

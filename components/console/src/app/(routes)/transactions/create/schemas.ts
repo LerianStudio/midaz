@@ -57,10 +57,7 @@ export const initialValues = {
   asset: '',
   source: [],
   destination: [],
-  metadata: {
-    route: '', // Default transaction route
-    segmentId: '' // Optional segment ID
-  }
+  metadata: {}
 }
 
 export const sourceInitialValues = {
@@ -69,7 +66,5 @@ export const sourceInitialValues = {
   asset: '',
   description: '',
   chartOfAccounts: '',
-  metadata: {
-    route: '' // Optional account-specific route
-  }
+  metadata: {}
 }
