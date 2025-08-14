@@ -180,7 +180,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 				if err != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
 
-					logger.Errorf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
+					logger.Warnf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
 
 					return nil, err
 				}

@@ -1060,10 +1060,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	spanGetBalances.End()
 
-	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
-
-	spanValidateBalances.SetAttributes(attributes...)
-
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)...)
