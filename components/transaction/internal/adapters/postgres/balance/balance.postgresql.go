@@ -14,7 +14,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -34,7 +33,6 @@ type Repository interface {
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
-	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]libTransaction.Amount) error
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
@@ -564,174 +562,6 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	}
 
 	return balances, nil
-}
-
-// SelectForUpdate a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]libTransaction.Amount) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	logger := libCommons.NewLoggerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "postgres.update_balances")
-	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", fromTo)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert fromTo from entity to JSON string", err)
-	}
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		return err
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to init balances", err)
-
-		return err
-	}
-
-	defer func() {
-		if err != nil {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to init balances", rollbackErr)
-
-				logger.Errorf("err on rollback: %v", rollbackErr)
-			}
-		} else {
-			commitErr := tx.Commit()
-			if commitErr != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to init balances", commitErr)
-
-				logger.Errorf("err on commit: %v", commitErr)
-			}
-		}
-	}()
-
-	var balances []BalancePostgreSQLModel
-
-	query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL FOR UPDATE"
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.select_for_update.query")
-
-	spanQuery.SetAttributes(attributes...)
-
-	rows, err := tx.QueryContext(ctx, query, organizationID, ledgerID, aliases)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
-
-		logger.Errorf("Failed to execute query: %v - err: %v", query, err)
-
-		return err
-	}
-
-	spanQuery.End()
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var balance BalancePostgreSQLModel
-		if err := rows.Scan(
-			&balance.ID,
-			&balance.OrganizationID,
-			&balance.LedgerID,
-			&balance.AccountID,
-			&balance.Alias,
-			&balance.AssetCode,
-			&balance.Available,
-			&balance.OnHold,
-			&balance.Version,
-			&balance.AccountType,
-			&balance.AllowSending,
-			&balance.AllowReceiving,
-			&balance.CreatedAt,
-			&balance.UpdatedAt,
-			&balance.DeletedAt,
-		); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				logger.Errorf("register not found")
-
-				return err
-			}
-
-			logger.Errorf("erro no select for update: %v", err)
-
-			return err
-		}
-
-		balances = append(balances, balance)
-	}
-
-	for _, balance := range balances {
-		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias],
-			libTransaction.Balance{
-				Available: balance.Available,
-				OnHold:    balance.OnHold,
-			})
-
-		if err != nil {
-			return err
-		}
-
-		var updates []string
-
-		var args []any
-
-		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
-		args = append(args, calculateBalances.Available)
-
-		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
-		args = append(args, calculateBalances.OnHold)
-
-		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-		version := balance.Version + 1
-		args = append(args, version)
-
-		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, balance.ID)
-
-		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-			` AND id = $` + strconv.Itoa(len(args)) +
-			` AND deleted_at IS NULL`
-
-		result, err := tx.ExecContext(ctx, queryUpdate, args...)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Err on result exec content", err)
-
-			logger.Errorf("Err on result exec content: %v", err)
-
-			return err
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil || rowsAffected == 0 {
-			libOpentelemetry.HandleSpanError(&span, "Err or zero rows affected", err)
-
-			if err == nil {
-				err = sql.ErrNoRows
-			}
-
-			logger.Errorf("Err or zero rows affected: %v", err)
-
-			return err
-		}
-	}
-
-	return nil
 }
 
 // BalancesUpdate updates the balances in the database.

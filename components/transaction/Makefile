@@ -79,8 +79,7 @@ build:
 .PHONY: test
 test:
 	$(call title1,"Running tests")
-	@go test -v ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
+	@go test -v ./... && echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: cover-html
 cover-html:

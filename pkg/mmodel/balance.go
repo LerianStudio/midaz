@@ -144,6 +144,11 @@ type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
 
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string `json:"alias" example:"@person1" maxLength:"256"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -171,29 +176,25 @@ type BalanceRedis struct {
 
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
 func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
-	result := make([]*libTransaction.Balance, 0)
-	for _, balance := range balances {
-		result = append(result, &libTransaction.Balance{
-			ID:             balance.ID,
-			OrganizationID: balance.OrganizationID,
-			LedgerID:       balance.LedgerID,
-			AccountID:      balance.AccountID,
-			Alias:          balance.Alias,
-			AssetCode:      balance.AssetCode,
-			Available:      balance.Available,
-			OnHold:         balance.OnHold,
-			Version:        balance.Version,
-			AccountType:    balance.AccountType,
-			AllowSending:   balance.AllowSending,
-			AllowReceiving: balance.AllowReceiving,
-			CreatedAt:      balance.CreatedAt,
-			UpdatedAt:      balance.UpdatedAt,
-			DeletedAt:      balance.DeletedAt,
-			Metadata:       balance.Metadata,
-		})
+	out := make([]*libTransaction.Balance, 0, len(balances))
+
+	for i, b := range balances {
+		if b != nil {
+			out[i] = b.ConvertToLibBalance()
+		}
 	}
 
-	return result
+	return out
+}
+
+// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
+func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
+	out := make([]*libTransaction.Balance, 0, len(operations))
+	for _, op := range operations {
+		out = append(out, op.Balance.ConvertToLibBalance())
+	}
+
+	return out
 }
 
 // ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
@@ -318,4 +319,26 @@ type BalanceErrorResponse struct {
 		// example: {"field": "assetCode", "violation": "required"}
 		Details map[string]any `json:"details,omitempty"`
 	}
+}
+
+// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
+type BalanceOperation struct {
+	Balance     *Balance
+	Alias       string
+	Amount      libTransaction.Amount
+	InternalKey string
+}
+
+// TransactionRedisQueue represents a transaction queue for cache-aside
+type TransactionRedisQueue struct {
+	HeaderID          string                     `json:"header_id"`
+	TransactionID     uuid.UUID                  `json:"transaction_id"`
+	OrganizationID    uuid.UUID                  `json:"organization_id"`
+	LedgerID          uuid.UUID                  `json:"ledger_id"`
+	Balances          []BalanceRedis             `json:"balances"`
+	ParserDSL         libTransaction.Transaction `json:"parserDSL"`
+	TTL               time.Time                  `json:"ttl"`
+	Validate          *libTransaction.Responses  `json:"validate"`
+	TransactionStatus string                     `json:"transaction_status"`
+	TransactionDate   time.Time                  `json:"transaction_date"`
 }

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,29 +43,40 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-	defer spanUpdateBalances.End()
+	if t.Transaction.Status.Code != constant.NOTED {
+		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+		defer spanUpdateBalances.End()
 
-	spanUpdateBalances.SetAttributes(
+		spanUpdateBalances.SetAttributes(
+			attribute.String("app.request.request_id", reqId),
+			attribute.String("app.request.organization_id", data.OrganizationID.String()),
+			attribute.String("app.request.ledger_id", data.LedgerID.String()),
+		)
+
+		logger.Infof("Trying to update balances")
+
+		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
+
+			logger.Errorf("Failed to update balances: %v", err.Error())
+
+			return err
+		}
+	}
+
+	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	defer spanUpdateTransaction.End()
+
+	spanUpdateTransaction.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", data.OrganizationID.String()),
 		attribute.String("app.request.ledger_id", data.LedgerID.String()),
 	)
 
-	logger.Infof("Trying to update balances")
-
-	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
+	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
-
-		logger.Errorf("Failed to update balances: %v", err.Error())
-
-		return err
-	}
-
-	tran, err := uc.CreateOrUpdateTransaction(ctxProcessBalances, logger, tracer, t)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to create or update transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
 
 		logger.Errorf("Failed to create or update transaction: %v", err.Error())
 
@@ -128,7 +141,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	go uc.SendTransactionEvents(ctxProcessBalances, tran)
+	go uc.SendTransactionEvents(ctx, tran)
+
+	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
 
 	return nil
 }
@@ -165,7 +180,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 				if err != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
 
-					logger.Errorf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
+					logger.Warnf("Failed to update transaction with STATUS: %v by ID: %v", tran.Status.Code, tran.ID)
 
 					return nil, err
 				}
@@ -223,4 +238,42 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	}
 
 	return nil
+}
+
+// RemoveTransactionFromRedisQueue func that remove transaction from redis queue
+func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID)
+
+	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
+		logger.Warnf("err to remove message on redis: %s", err.Error())
+	} else {
+		logger.Infof("message removed from redis successfully: %s", transactionKey)
+	}
+}
+
+// SendTransactionToRedisQueue func that send transaction to redis queue
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	queue := mmodel.TransactionRedisQueue{
+		HeaderID:          libCommons.NewHeaderIDFromContext(ctx),
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     transactionID,
+		ParserDSL:         parserDSL,
+		TTL:               time.Now(),
+		Validate:          validate,
+		TransactionStatus: transactionStatus,
+		TransactionDate:   transactionDate,
+	}
+
+	raw, err := json.Marshal(queue)
+	if err != nil {
+		logger.Warnf("Failed to marshal transaction to json string: %s", err.Error())
+	}
+
+	err = uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
+	if err != nil {
+		logger.Warnf("Failed to send transaction to redis queue: %s", err.Error())
+	}
 }
