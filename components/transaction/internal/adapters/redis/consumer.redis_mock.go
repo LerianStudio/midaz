@@ -14,8 +14,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	transaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -43,19 +43,19 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 	return m.recorder
 }
 
-// AddSumBalanceRedis mocks base method.
-func (m *MockRedisRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount transaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
+// AddSumBalancesRedis mocks base method.
+func (m *MockRedisRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddSumBalanceRedis", ctx, key, transactionStatus, pending, amount, balance)
-	ret0, _ := ret[0].(*mmodel.Balance)
+	ret := m.ctrl.Call(m, "AddSumBalancesRedis", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	ret0, _ := ret[0].([]*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AddSumBalanceRedis indicates an expected call of AddSumBalanceRedis.
-func (mr *MockRedisRepositoryMockRecorder) AddSumBalanceRedis(ctx, key, transactionStatus, pending, amount, balance any) *gomock.Call {
+// AddSumBalancesRedis indicates an expected call of AddSumBalancesRedis.
+func (mr *MockRedisRepositoryMockRecorder) AddSumBalancesRedis(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalanceRedis), ctx, key, transactionStatus, pending, amount, balance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSumBalancesRedis", reflect.TypeOf((*MockRedisRepository)(nil).AddSumBalancesRedis), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
 }
 
 // Del mocks base method.

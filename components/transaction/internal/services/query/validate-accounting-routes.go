@@ -17,8 +17,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// validateAccountingRules validates the accounting rules for the given operations
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []lockOperation, validate *libTransaction.Responses) error {
+// ValidateAccountingRules validates the accounting rules for the given operations
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *libTransaction.Responses) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
@@ -88,7 +88,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 }
 
 // validateAccountRules validates each operation against its corresponding route rule
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []lockOperation) error {
+func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
@@ -110,11 +110,11 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 
 		var isSource bool
 
-		if _, exists := validate.From[operation.alias]; exists {
-			routeID = validate.OperationRoutesFrom[operation.alias]
+		if _, exists := validate.From[operation.Alias]; exists {
+			routeID = validate.OperationRoutesFrom[operation.Alias]
 			isSource = true
-		} else if _, existsTo := validate.To[operation.alias]; existsTo {
-			routeID = validate.OperationRoutesTo[operation.alias]
+		} else if _, existsTo := validate.To[operation.Alias]; existsTo {
+			routeID = validate.OperationRoutesTo[operation.Alias]
 			isSource = false
 		} else {
 			continue
@@ -131,10 +131,10 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		}
 
 		if !found {
-			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.alias)
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.Alias)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route not found", err)
 
-			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.alias)
+			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias)
 
 			return err
 		}
@@ -143,7 +143,7 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation failed validation against route rules", err)
 
-				logger.Warnf("Operation '%s' failed validation against route rules: %v", operation.alias, err)
+				logger.Warnf("Operation '%s' failed validation against route rules: %v", operation.Alias, err)
 
 				return err
 			}
@@ -154,7 +154,7 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 }
 
 // validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
-func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache) error {
+func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
 	case constant.AccountRuleTypeAlias:
 		expected, ok := account.ValidIf.(string)
@@ -162,7 +162,7 @@ func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache)
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
-		alias := libTransaction.SplitAlias(op.alias)
+		alias := libTransaction.SplitAlias(op.Alias)
 
 		if alias != expected {
 			return pkg.ValidateBusinessError(
@@ -179,14 +179,14 @@ func validateSingleOperationRule(op lockOperation, account *mmodel.AccountCache)
 			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
 		}
 
-		if slices.Contains(allowedTypes, op.balance.AccountType) {
+		if slices.Contains(allowedTypes, op.Balance.AccountType) {
 			return nil
 		}
 
 		return pkg.ValidateBusinessError(
 			constant.ErrAccountingAccountTypeValidationFailed,
 			reflect.TypeOf(mmodel.AccountRule{}).Name(),
-			op.balance.AccountType,
+			op.Balance.AccountType,
 			allowedTypes,
 		)
 
