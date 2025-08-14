@@ -71,6 +71,12 @@ install_node_dependencies() {
     
     # Use npm ci for faster, reliable, reproducible builds
     if [ -f "package-lock.json" ]; then
+        # Check if package-lock.json is up to date with package.json
+        if ! npm install --package-lock-only --dry-run --silent | grep -q 'up to date'; then
+            echo -e "${RED}❌ package-lock.json is not up to date with package.json.${NC}"
+            echo "Please run 'npm install' and commit the updated package-lock.json."
+            exit 1
+        fi
         # Using npm ci
         npm ci --silent --prefer-offline
     else
