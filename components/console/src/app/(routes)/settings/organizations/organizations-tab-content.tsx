@@ -277,7 +277,11 @@ export const OrganizationsTabContent = () => {
                   }
                 )}
               </EntityDataTable.FooterText>
-              <Pagination total={total} hasNextPage={data?.items && data.items.length > 0} {...pagination} />
+              <Pagination
+                total={total}
+                hasNextPage={data?.items && data.items.length > 0}
+                {...pagination}
+              />
             </EntityDataTable.Footer>
           </EntityDataTable.Root>
         )}

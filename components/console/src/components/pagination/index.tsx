@@ -4,7 +4,7 @@ import type { UsePaginationReturn } from '@/hooks/use-pagination'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export type PaginationProps = UsePaginationReturn & {
-  total?: number,
+  total?: number
   hasNextPage?: boolean
 }
 

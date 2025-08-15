@@ -331,7 +331,11 @@ export const TransactionsDataTable = ({
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} hasNextPage={transactions?.items && transactions.items.length > 0} {...pagination} />
+          <Pagination
+            total={total}
+            hasNextPage={transactions?.items && transactions.items.length > 0}
+            {...pagination}
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>
