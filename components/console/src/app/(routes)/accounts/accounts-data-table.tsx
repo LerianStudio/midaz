@@ -52,6 +52,7 @@ type AccountsTableProps = {
   total: number
   pagination: PaginationProps
   hasAssets: boolean
+  shouldDisableNext?: boolean
 }
 
 type AccountRowProps = {
@@ -139,7 +140,8 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
   _refetch,
   total,
   pagination,
-  hasAssets
+  hasAssets,
+  shouldDisableNext = false
 }) => {
   const intl = useIntl()
   const router = useRouter()
@@ -300,7 +302,7 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
             }
           )}
         </EntityDataTable.FooterText>
-        <Pagination total={total} {...pagination} />
+        <Pagination total={total} shouldDisableNext={shouldDisableNext} {...pagination} />
       </EntityDataTable.Footer>
     </EntityDataTable.Root>
   )

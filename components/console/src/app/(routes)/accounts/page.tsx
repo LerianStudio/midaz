@@ -67,6 +67,35 @@ const Page = () => {
     )
   }, [accountsData])
 
+  // ✅ AQUI: Verifica se os itens na tela são maiores que zero
+  const hasItemsOnScreen = accountsList.length > 0
+  
+  // ✅ AQUI: Verifica se é a última página (menos itens que o limite)
+  const isLastPage = accountsList.length < pagination.limit && accountsList.length > 0
+  
+  // ✅ AQUI: Calcula se deve desabilitar o botão "Next"
+  const shouldDisableNext = accountsList.length < pagination.limit || accountsList.length === 0
+
+  // ✅ EXEMPLOS DE USO - você pode usar essas variáveis para qualquer lógica
+  
+  // Exemplo 1: Mostrar mensagem customizada
+  const statusMessage = useMemo(() => {
+    if (!hasItemsOnScreen) {
+      return 'Nenhum item encontrado'
+    }
+    if (isLastPage) {
+      return `Exibindo ${accountsList.length} itens - Última página`
+    }
+    return `Exibindo ${accountsList.length} de ${pagination.limit} itens`
+  }, [hasItemsOnScreen, isLastPage, accountsList.length, pagination.limit])
+
+  // ✅ LOGS para debug (você pode remover depois)
+  console.log('📊 Itens na tela:', accountsList.length)
+  console.log('📊 Tem itens na tela:', hasItemsOnScreen)
+  console.log('📊 É última página:', isLastPage)
+  console.log('📊 Deve desabilitar Next:', shouldDisableNext)
+  console.log('📊 Status:', statusMessage)
+
   const {
     handleDialogOpen,
     dialogProps,
@@ -303,6 +332,7 @@ const Page = () => {
             total={total}
             pagination={pagination}
             hasAssets={hasAssets || false}
+            shouldDisableNext={shouldDisableNext}
           />
         )}
       </Form>
