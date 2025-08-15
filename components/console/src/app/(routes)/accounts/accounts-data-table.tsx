@@ -144,10 +144,6 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
   const intl = useIntl()
   const router = useRouter()
 
-  console.log('pagination.limit', pagination.limit)
-  console.log('accounts?.items.length', accounts?.items.length)
-  console.log('{accounts?.items.length < pagination.limit}', pagination.limit < accounts?.items.length)
-  debugger;
   return (
     <EntityDataTable.Root>
       {isNil(accounts?.items) || accounts?.items.length === 0 ? (
@@ -310,6 +306,6 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
           {...pagination}
         />
       </EntityDataTable.Footer>
-    </EntityDataTable.Root> 
+    </EntityDataTable.Root>
   )
 }

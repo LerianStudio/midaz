@@ -231,7 +231,9 @@ export const PortfoliosDataTable: React.FC<PortfoliosDataTableProps> = (
           </EntityDataTable.FooterText>
           <Pagination
             total={total}
-            hasNextPage={portfolios?.items && portfolios.items.length < pagination.limit}
+            hasNextPage={
+              portfolios?.items && portfolios.items.length < pagination.limit
+            }
             {...pagination}
           />
         </EntityDataTable.Footer>
