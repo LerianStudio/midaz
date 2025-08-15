@@ -279,7 +279,7 @@ export const OrganizationsTabContent = () => {
               </EntityDataTable.FooterText>
               <Pagination
                 total={total}
-                hasNextPage={data?.items && data.items.length > 0}
+                hasNextPage={data?.items && data.items.length < pagination.limit}
                 {...pagination}
               />
             </EntityDataTable.Footer>

@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 export type PaginationProps = UsePaginationReturn & {
   total?: number
   hasNextPage?: boolean
+  totalItems?: number
 }
 
 export const Pagination = ({
@@ -38,7 +39,7 @@ export const Pagination = ({
         variant="outline"
         size="sm"
         onClick={nextPage}
-        disabled={total < limit || !hasNextPage}
+        disabled={total < limit || hasNextPage}
         icon={<ChevronRight size={16} />}
         iconPlacement="end"
       >

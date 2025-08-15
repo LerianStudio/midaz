@@ -333,7 +333,7 @@ export const TransactionsDataTable = ({
           </EntityDataTable.FooterText>
           <Pagination
             total={total}
-            hasNextPage={transactions?.items && transactions.items.length > 0}
+            hasNextPage={transactions?.items && transactions.items.length < pagination.limit}
             {...pagination}
           />
         </EntityDataTable.Footer>

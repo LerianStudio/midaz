@@ -188,7 +188,7 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
           </EntityDataTable.FooterText>
           <Pagination
             total={total}
-            hasNextPage={segments?.items && segments.items.length > 0}
+            hasNextPage={segments?.items && segments.items.length < pagination.limit}
             {...pagination}
           />
         </EntityDataTable.Footer>
