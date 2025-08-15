@@ -36,7 +36,7 @@ const Page = () => {
   const { toast } = useToast()
 
   // const [total, setTotal] = useState(1000000
-  
+
   const { data: homeMetrics } = useHomeMetrics({
     organizationId: currentOrganization.id,
     ledgerId: currentLedger.id

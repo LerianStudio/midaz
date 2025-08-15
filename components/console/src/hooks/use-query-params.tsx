@@ -20,15 +20,15 @@ export function useQueryParams<SearchParams = {}>({
   debounce: debounceProp = 300
 }: UseQueryParams<SearchParams>) {
   const { searchParams, updateSearchParams } = useSearchParams()
-  
+
   // Initialize pagination with values from URL if available
   const initialPage = parseInt(searchParams?.page || '1') || 1
   const initialLimit = parseInt(searchParams?.limit || '10') || 10
-  
-  const pagination = usePagination({ 
-    total, 
+
+  const pagination = usePagination({
+    total,
     initialPage,
-    initialLimit 
+    initialLimit
   })
 
   /**
@@ -89,19 +89,26 @@ export function useQueryParams<SearchParams = {}>({
         if (values.limit && parseInt(values.limit) !== pagination.limit) {
           pagination.setLimit(parseInt(values.limit))
         }
-        
+
         // Sync page changes with pagination
         if (values.page && parseInt(values.page) !== pagination.page) {
           pagination.setPage(parseInt(values.page))
         }
-        
+
         updateSearchParams(values)
         setSearchValues(values)
       }, debounceProp)
     )
 
     return () => unsubscribe()
-  }, [form.watch, debounceProp, pagination.setLimit, pagination.setPage, pagination.limit, pagination.page])
+  }, [
+    form.watch,
+    debounceProp,
+    pagination.setLimit,
+    pagination.setPage,
+    pagination.limit,
+    pagination.page
+  ])
 
   /**
    * Responsible to sync the URL with internal state at the first render

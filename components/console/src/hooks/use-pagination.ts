@@ -6,10 +6,10 @@ export type UsePaginationProps = {
   initialLimit?: number
 }
 
-export function usePagination({ 
-  total = 1, 
-  initialPage = 1, 
-  initialLimit = 10 
+export function usePagination({
+  total = 1,
+  initialPage = 1,
+  initialLimit = 10
 }: UsePaginationProps) {
   const [page, _setPage] = useState(initialPage)
   const [limit, _setLimit] = useState(initialLimit)
@@ -32,13 +32,16 @@ export function usePagination({
     _setPage((page) => page - 1)
   }, [page])
 
-  const setPage = useCallback((newPage: number) => {
-    if (newPage < 1 || (totalPages > 0 && newPage > totalPages)) {
-      return
-    }
+  const setPage = useCallback(
+    (newPage: number) => {
+      if (newPage < 1 || (totalPages > 0 && newPage > totalPages)) {
+        return
+      }
 
-    _setPage(newPage)
-  }, [totalPages])
+      _setPage(newPage)
+    },
+    [totalPages]
+  )
 
   const setLimit = useCallback((newLimit: number) => {
     if (newLimit < 1) {

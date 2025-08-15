@@ -8,7 +8,7 @@ import {
 } from '@/client/portfolios'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { useIntl } from 'react-intl'
-import React, { useState } from 'react'
+import React from 'react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useQueryParams } from '@/hooks/use-query-params'
@@ -30,7 +30,7 @@ const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
-  
+
   const { data: homeMetrics } = useHomeMetrics({
     organizationId: currentOrganization.id,
     ledgerId: currentLedger.id
