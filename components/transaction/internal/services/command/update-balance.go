@@ -6,59 +6,10 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
-
-// SelectForUpdateBalances func that is responsible to select for update balances.
-func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
-
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances")
-	defer spanUpdateBalances.End()
-
-	spanUpdateBalances.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "app.request.payload", balances)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-	}
-
-	fromTo := make(map[string]libTransaction.Amount)
-	for k, v := range validate.From {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Operation: constant.DEBIT,
-		}
-	}
-
-	for k, v := range validate.To {
-		fromTo[k] = libTransaction.Amount{
-			Asset:     v.Asset,
-			Value:     v.Value,
-			Operation: constant.CREDIT,
-		}
-	}
-
-	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.Aliases, fromTo)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Errorf("Failed to update balances on database: %v", err.Error())
-
-		return err
-	}
-
-	return nil
-}
 
 // UpdateBalances func that is responsible to update balances without select for update.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
@@ -77,7 +28,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	spanUpdateBalances.SetAttributes(attributes...)
 
-	fromTo := make(map[string]libTransaction.Amount)
+	fromTo := make(map[string]libTransaction.Amount, len(validate.From)+len(validate.To))
 	for k, v := range validate.From {
 		fromTo[k] = v
 	}
@@ -86,7 +37,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		fromTo[k] = v
 	}
 
-	newBalances := make([]*mmodel.Balance, 0)
+	newBalances := make([]*mmodel.Balance, 0, len(balances))
 
 	for _, balance := range balances {
 		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
@@ -108,8 +59,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 		spanBalance.SetAttributes(balanceAttributes...)
 
-		balance.ConvertToLibBalance()
-
 		calculateBalances, err := libTransaction.OperateBalances(fromTo[balance.Alias], *balance.ConvertToLibBalance())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
@@ -129,8 +78,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		spanBalance.End()
 	}
 
-	err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
-	if err != nil {
+	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
