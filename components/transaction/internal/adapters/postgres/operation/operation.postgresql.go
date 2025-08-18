@@ -99,7 +99,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert operation record from entity to JSON string", err)
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO operation VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
 		record.ID,
 		record.TransactionID,
 		record.Description,
@@ -122,6 +122,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		record.UpdatedAt,
 		record.DeletedAt,
 		record.Route,
+		record.BalanceAffected,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -256,6 +257,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
 			&operation.Route,
+			&operation.BalanceAffected,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -353,6 +355,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
 			&operation.Route,
+			&operation.BalanceAffected,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -430,6 +433,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
 		&operation.Route,
+		&operation.BalanceAffected,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -506,6 +510,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.UpdatedAt,
 		&operation.DeletedAt,
 		&operation.Route,
+		&operation.BalanceAffected,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -785,6 +790,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
 			&operation.Route,
+			&operation.BalanceAffected,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
