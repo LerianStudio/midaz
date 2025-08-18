@@ -17,7 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -47,9 +46,7 @@ type LedgerHandler struct {
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
@@ -58,11 +55,6 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -100,21 +92,13 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	)
 
 	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
 
@@ -157,19 +141,12 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -254,9 +231,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
@@ -268,12 +243,6 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -322,21 +291,13 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	)
 
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
@@ -380,19 +341,12 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
 
 	logger.Infof("Initiating count of all ledgers for organization: %s", organizationID)
 
