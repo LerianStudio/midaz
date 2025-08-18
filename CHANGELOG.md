@@ -1,3 +1,15 @@
+## [v3.3.0-beta.2] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.1...v3.3.0-beta.2)
+Contributors: lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest project changes and improvements. This helps users and developers stay informed about the project's evolution and understand the context of recent updates.
+
+### 🔧 Maintenance
+- **Configuration Update**: The version number in the `.env.example` file has been updated to v3.3.0. This change ensures that new installations or setups are aligned with the latest release, reducing configuration errors and improving setup consistency.
+
+
 ## [v3.3.0-beta.1] - 2025-08-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.2.0...v3.3.0-beta.1)
