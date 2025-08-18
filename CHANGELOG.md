@@ -1,3 +1,44 @@
+## [v3.3.0-beta.2] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.1...v3.3.0-beta.2)
+Contributors: lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest project changes and improvements. This helps users and developers stay informed about the project's evolution and understand the context of recent updates.
+
+### 🔧 Maintenance
+- **Configuration Update**: The version number in the `.env.example` file has been updated to v3.3.0. This change ensures that new installations or setups are aligned with the latest release, reducing configuration errors and improving setup consistency.
+
+
+## [v3.3.0-beta.1] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.2.0...v3.3.0-beta.1)
+Contributors: MartinezAvellan, lerian-studio
+
+### ✨ Features
+- **Enhanced Transactions**: Transactions now include annotation capabilities and improved balance operations. This ensures more accurate financial processing and provides users with detailed insights into transaction impacts.
+- **Improved Balance Operations**: The backend now supports optimized balance operations for NOTED transactions, preventing unnecessary updates and boosting system performance.
+
+### 🐛 Bug Fixes
+- **Transaction Tests Reliability**: Resolved issues in transaction tests, enhancing test accuracy and development efficiency.
+- **Redis Key Management**: Fixed errors related to unused Redis keys, leading to a cleaner and more efficient codebase.
+- **Improved Test Coverage**: Addressed linting issues and expanded test coverage, reducing potential bugs and ensuring code quality.
+
+### ⚡ Performance
+- **Real-time Balance Updates**: Adjusted Lua scripts for better management of balances within the Redis queue, improving system responsiveness and real-time update efficiency.
+
+### 🔄 Changes
+- **Balance Insights**: Added a 'BalanceAffected' flag to transaction GET operations, offering users clearer insights into balance impacts.
+- **Transaction Validation**: Implemented transaction date validation, enhancing data integrity and transaction accuracy.
+
+### 📚 Documentation
+- **RabbitMQ Update**: Updated RabbitMQ version for improved compatibility and system stability, ensuring smoother operations.
+
+### 🔧 Maintenance
+- **CI Workflow Improvements**: Enhanced CI workflows and dependency management, reducing build times and increasing system reliability.
+- **Code Refactoring**: Simplified the `createTransaction` method to improve code readability and maintainability.
+
+
 ## [v3.2.0] - 2025-08-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.0.0...v3.2.0)
