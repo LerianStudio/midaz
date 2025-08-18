@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetOrCreateTransactionRouteCache retrieves a transaction route cache from Redis or database with fallback.
@@ -17,19 +16,10 @@ import (
 // If not found in cache, it fetches the transaction route from database and creates the cache for future use.
 // The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.get_or_create_transaction_route_cache")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_route_id", transactionRouteID.String()),
-	)
 
 	internalKey := libCommons.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 

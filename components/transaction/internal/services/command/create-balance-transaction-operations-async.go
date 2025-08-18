@@ -18,15 +18,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	var t transaction.TransactionQueue
 
@@ -45,12 +42,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
 		defer spanUpdateBalances.End()
 
-		spanUpdateBalances.SetAttributes(
-			attribute.String("app.request.request_id", reqId),
-			attribute.String("app.request.organization_id", data.OrganizationID.String()),
-			attribute.String("app.request.ledger_id", data.LedgerID.String()),
-		)
-
 		logger.Infof("Trying to update balances")
 
 		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
@@ -66,12 +57,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
 
-	spanUpdateTransaction.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", data.OrganizationID.String()),
-		attribute.String("app.request.ledger_id", data.LedgerID.String()),
-	)
-
 	tran, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
@@ -84,11 +69,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessMetadata, spanCreateMetadata := tracer.Start(ctx, "command.create_balance_transaction_operations.create_metadata")
 	defer spanCreateMetadata.End()
 
-	spanCreateMetadata.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction_id", tran.ID),
-	)
-
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
@@ -100,11 +80,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
-
-	spanCreateOperation.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction_id", tran.ID),
-	)
 
 	logger.Infof("Trying to create new operations")
 
@@ -224,7 +199,10 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 
 // CreateBTOSync func that create balance transaction operations synchronously
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_balance_transaction_operations.create_bto_sync")
+	defer span.End()
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {
