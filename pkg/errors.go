@@ -312,7 +312,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 // ValidateBusinessError validates the error and returns the appropriate business error code, title, and message.
 //
 // Parameters:
-//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/common/constant/errors.go).
+//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/v3/common/constant/errors.go).
 //   - entityType: The type of the entity related to the error.
 //   - args: Additional arguments for formatting error messages.
 //
@@ -1010,4 +1010,15 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	}
 
 	return err
+}
+
+func HandleKnownBusinessValidationErrors(err error) error {
+	switch {
+	case err.Error() == constant.ErrTransactionAmbiguous.Error():
+		return ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+	case err.Error() == constant.ErrTransactionValueMismatch.Error():
+		return ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+	default:
+		return err
+	}
 }

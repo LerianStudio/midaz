@@ -6,8 +6,8 @@ toolchain go1.24.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v2 v2.1.0
-	github.com/LerianStudio/lib-commons/v2 v2.1.0
+	github.com/LerianStudio/lib-auth/v2 v2.2.0
+	github.com/LerianStudio/lib-commons/v2 v2.2.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -23,7 +23,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/redis/go-redis/v9 v9.11.0
+	github.com/redis/go-redis/v9 v9.12.0
 	github.com/rodaine/table v1.3.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
@@ -31,6 +31,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.mongodb.org/mongo-driver v1.17.4
+	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/mock v0.5.2
 	gotest.tools v2.2.0+incompatible
@@ -93,7 +94,6 @@ require (
 	go.opentelemetry.io/contrib/bridges/otelzap v0.12.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect
-	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.13.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
@@ -112,10 +112,11 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/api v0.244.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250728155136-f173205681a0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250728155136-f173205681a0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/grpc v1.74.2 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
+	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )
 
 require (
@@ -139,7 +140,6 @@ require (
 	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

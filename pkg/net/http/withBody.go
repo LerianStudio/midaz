@@ -486,7 +486,7 @@ func parseMetadata(s any, originalMap map[string]any) {
 
 // FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
 //
-//nolint:gocognit,gocyclo
+//nolint:gocognit
 func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 

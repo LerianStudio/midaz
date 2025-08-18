@@ -1,0 +1,101 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://*
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: "opentelemetry-collector"
+          scrape_interval: 1s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: "/ready"
+
+processors:
+  # Mask log body and trace payload for sensitive fields
+  transform/mask-log-body:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # JSON-style keys
+          - replace_pattern(
+            body,
+            "(?i)(\"legalDocument\"|\"accountAlias\"|\"password\"|\"newpassword\"|\"oldpassword\"|\"passwordsalt\"|\"token\"|\"secret\"|\"key\"|\"authorization\"|\"auth\"|\"credential\"|\"credentials\"|\"apikey\"|\"api_key\"|\"access_token\"|\"accesstoken\"|\"refresh_token\"|\"refreshtoken\"|\"private_key\"|\"privatekey\"|\"clientid\"|\"client_id\"|\"clientsecret\"|\"client_secret\")\\s*:\\s*\"[^\"]+\"",
+            "$1:\"********\""
+            )
+          # Go-struct–style keys (unquoted)
+          - replace_pattern(
+            body,
+            "(?i)\\b(legalDocument|accountAlias|password|newpassword|oldpassword|passwordsalt|token|secret|key|authorization|auth|credential|credentials|apikey|api_key|access_token|accesstoken|refresh_token|refreshtoken|private_key|privatekey|clientid|client_id|clientsecret|client_secret)\\s*:\\s*([^,}\\s]+)",
+            "$1:********"
+            )
+
+  transform/mask-trace-fields:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          # JSON-style keys within the JSON blob in the span attribute "app.request.payload"
+          - replace_pattern(
+            attributes["app.request.payload"],
+            "(?i)(\"legalDocument\"|\"accountAlias\"|\"password\"|\"newpassword\"|\"oldpassword\"|\"passwordsalt\"|\"token\"|\"secret\"|\"key\"|\"authorization\"|\"auth\"|\"credential\"|\"credentials\"|\"apikey\"|\"api_key\"|\"access_token\"|\"accesstoken\"|\"refresh_token\"|\"refreshtoken\"|\"private_key\"|\"privatekey\"|\"clientid\"|\"client_id\"|\"clientsecret\"|\"client_secret\")\\s*:\\s*\"[^\"]+\"",
+            "$1:\"********\""
+            )
+          # struct-style replacements inside that blob in the span attribute "app.request.payload"
+          - replace_pattern(
+            attributes["app.request.payload"],
+            "(?i)\\b(legalDocument|accountAlias|password|newpassword|oldpassword|passwordsalt|token|secret|key|authorization|auth|credential|credentials|apikey|api_key|access_token|accesstoken|refresh_token|refreshtoken|private_key|privatekey|clientid|client_id|clientsecret|client_secret)\\s*:\\s*([^,}\\s]+)",
+            "$1:********"
+            )
+
+  batch: {}
+
+exporters:
+  otlphttp/metrics:
+    endpoint: http://127.0.0.1:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlphttp/traces:
+    endpoint: http://127.0.0.1:4418
+    tls:
+      insecure: true
+  otlphttp/logs:
+    endpoint: http://127.0.0.1:3100/otlp
+    tls:
+      insecure: true
+  debug/metrics:
+    verbosity: detailed
+  debug/traces:
+    verbosity: detailed
+  debug/logs:
+    verbosity: detailed
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/mask-trace-fields, batch]
+      exporters: [debug/traces, otlphttp/traces]
+    metrics:
+      receivers: [otlp, prometheus/collector]
+      processors: [batch]
+      exporters: [debug/metrics, otlphttp/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [transform/mask-log-body, batch]
+      exporters: [debug/logs, otlphttp/logs]
+#profiles:
+#  receivers: [otlp]
+#  exporters: [otlp/profiles]

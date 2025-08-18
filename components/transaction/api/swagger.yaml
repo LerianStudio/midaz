@@ -271,7 +271,7 @@ definitions:
                   required: true
                 items:
                   properties:
-                    account:
+                    accountAlias:
                       description: |-
                         Account identifier or alias
                         example: {{accountAlias}}
@@ -380,7 +380,7 @@ definitions:
                   required: true
                 items:
                   properties:
-                    account:
+                    accountAlias:
                       description: |-
                         Account identifier or alias
                         example: {{accountAlias}}
@@ -1101,7 +1101,7 @@ definitions:
                   required: true
                 items:
                   properties:
-                    account:
+                    accountAlias:
                       description: |-
                         Account identifier or alias
                         example: {{accountAlias}}
@@ -1155,7 +1155,7 @@ definitions:
                   required: true
                 items:
                   properties:
-                    account:
+                    accountAlias:
                       description: |-
                         Account identifier or alias
                         example: @external/USD
@@ -1598,7 +1598,7 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-      summary: Get an Operation by account
+      summary: Get Operation
       tags:
       - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:

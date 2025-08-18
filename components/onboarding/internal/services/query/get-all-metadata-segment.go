@@ -27,9 +27,13 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
 	if err != nil || metadata == nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
+		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		return nil, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo by query params", err)
+
+		logger.Warn("No metadata found")
+
+		return nil, err
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -42,13 +46,19 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get segments on repo by query params", err)
-
 		logger.Errorf("Error getting segments on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
+
+			logger.Warn("No segments found")
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
 
 		return nil, err
 	}

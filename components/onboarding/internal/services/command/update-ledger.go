@@ -12,15 +12,27 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateLedgerByID update a ledger from the repository.
 func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid.UUID, uli *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_ledger_by_id")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", id.String()),
+	)
+
+	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", uli); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	logger.Infof("Trying to update ledger: %v", uli)
 
@@ -32,20 +44,28 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 
 	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, organizationID, id, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update ledger on repo", err)
-
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+
+			logger.Warnf("Ledger ID not found: %s", id.String())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger on repo by id", err)
+
+			return nil, err
 		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String(), uli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo", err)
+		logger.Errorf("Error updating metadata: %v", err)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo", err)
 
 		return nil, err
 	}

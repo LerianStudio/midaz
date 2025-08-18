@@ -20,7 +20,7 @@ import { MetadataField } from '@/components/form/metadata-field'
 import { useListSegments } from '@/client/segments'
 import { useCreateAccount, useUpdateAccount } from '@/client/accounts'
 import { useListPortfolios } from '@/client/portfolios'
-import { isNil, omitBy } from 'lodash'
+import { isNil, omit, omitBy } from 'lodash'
 import { useListAssets } from '@/client/assets'
 import { useGetBalanceByAccountId } from '@/client/balances'
 import { accounts } from '@/schema/account'
@@ -199,7 +199,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const { ...updateData } = cleanedData
+      const updateData = omit(cleanedData, ['assetCode', 'type'])
       updateAccount(updateData)
     }
   }
