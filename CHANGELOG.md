@@ -1,3 +1,45 @@
+## [v3.2.0] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.0.0...v3.2.0)
+Contributors: Brecci, Caio Alexandre Troti Caetano, Fred Amaral, Gabriel Ferreira, MartinezAvellan, Rui Chen, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **Monetary Values Representation**: Monetary values are now handled as decimal strings, enhancing precision in financial data processing. Update your integrations to accommodate this change.
+- **Postman Collection Workflow**: The process for generating Postman collections has been revamped. Update your automated testing scripts to align with the new workflow.
+- **Script Removal**: The `verify-api-docs.sh` script has been removed. Transition to alternative methods for API documentation verification.
+- **Metadata Handling**: Default metadata has been removed, requiring a review and update of your metadata configurations.
+- **E2E Testing Overhaul**: Updates to E2E test scripts necessitate adjustments in your testing environments for continued compatibility.
+- **Telemetry & Tracing Updates**: Changes in telemetry span attributes and error handling may impact your monitoring setups. Review and update your observability configurations.
+
+### ✨ Features
+- **Enhanced Telemetry**: With comprehensive OpenTelemetry integration, gain improved insights into system performance and debugging through detailed span attributes and request ID tracing.
+- **Business Error Handling**: New error handling mechanisms in telemetry spans facilitate better error tracking and resolution, improving service reliability.
+- **Sensitive Data Masking**: OpenTelemetry Collector now supports sensitive data masking, ensuring privacy compliance without compromising observability.
+- **Distributed Tracing**: Implemented across RabbitMQ and Redis, providing deeper insights into message processing and system performance.
+
+### 🐛 Bug Fixes
+- **Console Build Stability**: Resolved build issues to ensure reliable console deployment.
+- **E2E Test Reliability**: Fixed critical failures, enhancing the robustness of end-to-end testing.
+- **Workflow Test Accuracy**: Addressed issues in workflow tests, improving their stability and accuracy.
+- **Telemetry Log Security**: Sanitized sensitive data in logs to enhance security and privacy compliance.
+- **Span Tracing Accuracy**: Corrected attribute order and added nil checks, improving data accuracy and error handling.
+
+### ⚡ Performance
+- **Console Interface Update**: Redesigned for a more intuitive user experience, improving navigation and layout.
+- **Metrics Tracking**: Enhanced capabilities provide better insights into system performance and user interactions.
+
+### 🗑️ Removed
+- **`verify-api-docs.sh` Script**: This script has been discontinued. Users should adopt alternative methods for API documentation verification.
+
+### 📚 Documentation
+- **API Documentation**: Improved generation processes using OpenAPI specs, ensuring up-to-date and comprehensive documentation.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded key dependencies like `lib-auth` and `lib-commons` to their latest versions, ensuring compatibility and access to new features.
+- **Code Refactoring**: Improved code quality and standardized error handling, enhancing maintainability and reducing technical debt.
+- **Build Process Modernization**: Updated configurations for streamlined deployment, including modern module paths and environment variable injection.
+
+
 ## [v3.2.0-beta.1] - 2025-08-14
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.1.0-beta.3...v3.2.0-beta.1)

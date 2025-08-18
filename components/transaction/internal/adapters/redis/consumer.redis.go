@@ -13,16 +13,18 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 //go:embed scripts/add_sub.lua
 var addSubLua string
+
+const TransactionBackupQueue = "backup_queue:{transactions}"
 
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
@@ -32,7 +34,7 @@ type RedisRepository interface {
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
@@ -218,7 +220,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
-func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
+func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
@@ -228,21 +230,18 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.redis.key", key),
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", transactionID.String()),
 		attribute.String("app.request.redis.transactionStatus", transactionStatus),
 		attribute.Bool("app.request.redis.pending", pending),
 	}
 
 	span.SetAttributes(attributes...)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.amount", amount)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.balances_operation", balancesOperation)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert amount to JSON string", err)
-	}
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.balance", balance)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert balances operation to JSON string", err)
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -254,35 +253,55 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		return nil, err
 	}
 
-	allowSending := 0
-	if balance.AllowSending {
-		allowSending = 1
-	}
-
-	allowReceiving := 0
-	if balance.AllowReceiving {
-		allowReceiving = 1
-	}
-
 	isPending := 0
 	if pending {
 		isPending = 1
 	}
 
-	args := []any{
-		isPending,
-		transactionStatus,
-		amount.Operation,
-		amount.Value.String(),
-		balance.ID,
-		balance.Available.String(),
-		balance.OnHold.String(),
-		strconv.FormatInt(balance.Version, 10),
-		balance.AccountType,
-		allowSending,
-		allowReceiving,
-		balance.AssetCode,
-		balance.AccountID,
+	balances := make([]*mmodel.Balance, 0)
+	mapBalances := make(map[string]*mmodel.Balance)
+	args := []any{}
+
+	for _, blcs := range balancesOperation {
+		allowSending := 0
+		if blcs.Balance.AllowSending {
+			allowSending = 1
+		}
+
+		allowReceiving := 0
+		if blcs.Balance.AllowReceiving {
+			allowReceiving = 1
+		}
+
+		args = append(args,
+			blcs.InternalKey,
+			isPending,
+			transactionStatus,
+			blcs.Amount.Operation,
+			blcs.Amount.Value.String(),
+			blcs.Alias,
+			blcs.Balance.ID,
+			blcs.Balance.Available.String(),
+			blcs.Balance.OnHold.String(),
+			strconv.FormatInt(blcs.Balance.Version, 10),
+			blcs.Balance.AccountType,
+			allowSending,
+			allowReceiving,
+			blcs.Balance.AssetCode,
+			blcs.Balance.AccountID,
+		)
+
+		mapBalances[blcs.Alias] = blcs.Balance
+
+		if transactionStatus == constant.NOTED {
+			blcs.Balance.Alias = blcs.Alias
+
+			balances = append(balances, blcs.Balance)
+		}
+	}
+
+	if transactionStatus == constant.NOTED {
+		return balances, nil
 	}
 
 	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
@@ -291,18 +310,20 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	script := redis.NewScript(addSubLua)
 
-	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
 		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
 
 			return nil, err
 		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
+			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
 
@@ -316,17 +337,16 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 
 	spanScript.End()
 
-	logger.Infof("result type: %T", result)
 	logger.Infof("result value: %v", result)
 
-	b := mmodel.BalanceRedis{}
+	blcsRedis := make([]mmodel.BalanceRedis, 0)
 
-	var balanceJSON string
+	var balanceJSON []byte
 	switch v := result.(type) {
 	case string:
-		balanceJSON = v
+		balanceJSON = []byte(v)
 	case []byte:
-		balanceJSON = string(v)
+		balanceJSON = v
 	default:
 		err = fmt.Errorf("unexpected result type from Redis: %T", result)
 		logger.Warnf("Warning: %v", err)
@@ -334,7 +354,7 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		return nil, err
 	}
 
-	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
+	if err := json.Unmarshal(balanceJSON, &blcsRedis); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 
 		logger.Errorf("Error to Deserialization json: %v", err)
@@ -342,17 +362,33 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		return nil, err
 	}
 
-	balance.ID = b.ID
-	balance.AccountID = b.AccountID
-	balance.Available = b.Available
-	balance.OnHold = b.OnHold
-	balance.Version = b.Version
-	balance.AccountType = b.AccountType
-	balance.AllowSending = b.AllowSending == 1
-	balance.AllowReceiving = b.AllowReceiving == 1
-	balance.AssetCode = b.AssetCode
+	balances = make([]*mmodel.Balance, 0)
 
-	return &balance, nil
+	for _, b := range blcsRedis {
+		mapBalance, ok := mapBalances[b.Alias]
+		if !ok {
+			logger.Warnf("Failed to find balance for id: %v", b.ID)
+		}
+
+		balances = append(balances, &mmodel.Balance{
+			Alias:          b.Alias,
+			ID:             b.ID,
+			AccountID:      b.AccountID,
+			Available:      b.Available,
+			OnHold:         b.OnHold,
+			Version:        b.Version,
+			AccountType:    b.AccountType,
+			AllowSending:   b.AllowSending == 1,
+			AllowReceiving: b.AllowReceiving == 1,
+			AssetCode:      b.AssetCode,
+			OrganizationID: mapBalance.OrganizationID,
+			LedgerID:       mapBalance.LedgerID,
+			CreatedAt:      mapBalance.CreatedAt,
+			UpdatedAt:      mapBalance.UpdatedAt,
+		})
+	}
+
+	return balances, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
