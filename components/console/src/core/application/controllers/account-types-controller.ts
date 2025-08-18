@@ -47,7 +47,7 @@ export class AccountTypesController extends BaseController {
 
   async fetchAll(request: Request, { params }: { params: AccountTypesParams }) {
     const { searchParams } = new URL(request.url)
-    const { id: organizationId, ledgerId } = params
+    const { id: organizationId, ledgerId } = await params
     const name = searchParams.get('name') ?? undefined
     const keyValue = searchParams.get('keyValue') ?? undefined
     const limit = Number(searchParams.get('limit')) || 10
