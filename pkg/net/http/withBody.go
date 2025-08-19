@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -171,24 +172,30 @@ func ValidateStruct(s any) error {
 	return nil
 }
 
-// ParseUUIDPathParameters globally, considering all path parameters are UUIDs
-func ParseUUIDPathParameters(c *fiber.Ctx) error {
-	for param, value := range c.AllParams() {
-		if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
-			c.Locals(param, value)
-			continue
+// ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
+// entityName is a snake_case string used to identify id name, for example the "organization" entity name will result in "app.request.organization_id"
+// otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id"
+func ParseUUIDPathParameters(entityName string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		for param, value := range c.AllParams() {
+			if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
+				c.Locals(param, value)
+				continue
+			}
+
+			libOpentelemetry.SetSpanAttributeForParam(c, param, value, entityName)
+
+			parsedUUID, err := uuid.Parse(value)
+			if err != nil {
+				err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
+				return WithError(c, err)
+			}
+
+			c.Locals(param, parsedUUID)
 		}
 
-		parsedUUID, err := uuid.Parse(value)
-		if err != nil {
-			err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
-			return WithError(c, err)
-		}
-
-		c.Locals(param, parsedUUID)
+		return c.Next()
 	}
-
-	return c.Next()
 }
 
 //nolint:ireturn

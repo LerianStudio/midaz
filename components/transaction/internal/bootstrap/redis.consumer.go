@@ -56,8 +56,9 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
+//nolint:dogsled
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -173,7 +174,7 @@ Outer:
 			fromTo := append(m.ParserDSL.Send.Source.From, m.ParserDSL.Send.Distribute.To...)
 
 			operations, _, err := r.TransactionHandler.BuildOperations(
-				msgCtxWithSpan, logger, tracer, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+				msgCtxWithSpan, balances, fromTo, m.ParserDSL, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
 			)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", err)
