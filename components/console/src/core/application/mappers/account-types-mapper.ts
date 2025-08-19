@@ -16,7 +16,7 @@ export class AccountTypesMapper {
       name: accountType.name,
       description: accountType.description,
       keyValue: accountType.keyValue,
-      metadata: accountType.metadata ?? {},
+      metadata: accountType.metadata ?? null,
       createdAt: accountType.createdAt!,
       updatedAt: accountType.updatedAt!,
       deletedAt: accountType.deletedAt ?? null
@@ -30,7 +30,7 @@ export class AccountTypesMapper {
       name: dto.name!,
       description: dto.description,
       keyValue: (dto as CreateAccountTypesDto).keyValue,
-      metadata: dto.metadata ?? {}
+      metadata: dto.metadata ?? null
     }
   }
 

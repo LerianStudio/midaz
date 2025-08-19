@@ -113,11 +113,11 @@ export const useUpdateAccountType = ({
   })
 }
 
-type UseDeleteAccountTypeProps = {
+type UseDeleteAccountTypeProps = UseMutationOptions & {
   organizationId: string
   ledgerId: string
   accountTypeId: string
-} & UseMutationOptions<void, any, { id: string }>
+}
 
 export const useDeleteAccountType = ({
   organizationId,
@@ -125,10 +125,10 @@ export const useDeleteAccountType = ({
   accountTypeId,
   ...options
 }: UseDeleteAccountTypeProps) => {
-  return useMutation<void, any, { id: string }>({
-    mutationKey: ['delete-account-type', organizationId, ledgerId, accountTypeId],
+  return useMutation<any, any, any>({
+    mutationKey: [ organizationId, ledgerId, accountTypeId],
     mutationFn: deleteFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types/${accountTypeId}`
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types`
     ),
     ...options
   })

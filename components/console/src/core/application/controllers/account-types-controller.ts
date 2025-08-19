@@ -84,11 +84,16 @@ export class AccountTypesController extends BaseController {
     const body = await request.json()
     const { id: organizationId, ledgerId, accountTypeId } = await params
 
+    console.log('Body Update Teste', body)
+    // Remove metadata from body if it's null
+    const { metadata, ...restBody } = body
+    const updateData = metadata === null ? restBody : body
+
     const accountTypeUpdated = await this.updateAccountTypesUseCase.execute(
       organizationId,
       ledgerId,
       accountTypeId!,
-      body
+      updateData
     )
 
     return NextResponse.json(accountTypeUpdated)
@@ -103,6 +108,6 @@ export class AccountTypesController extends BaseController {
       accountTypeId!
     )
 
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json({}, { status: 200 })
   }
 }

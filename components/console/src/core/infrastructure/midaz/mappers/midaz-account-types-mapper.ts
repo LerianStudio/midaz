@@ -36,7 +36,7 @@ export class MidazAccountTypesMapper {
       name: dto.name,
       description: dto.description,
       keyValue: dto.keyValue,
-      metadata: dto.metadata ?? {},
+      metadata: dto.metadata ?? null,
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
       deletedAt: dto.deletedAt
