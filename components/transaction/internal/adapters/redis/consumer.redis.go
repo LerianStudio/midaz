@@ -384,8 +384,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 // AddMessageToQueue add message to redis queue
 func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
 	defer span.End()
@@ -410,8 +409,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 
 // ReadMessageFromQueue read an especific message from redis queue
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
 	defer span.End()
@@ -437,8 +435,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 
 // ReadAllMessagesFromQueue read all messages from redis queue
 func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
 	defer span.End()
@@ -464,8 +461,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 
 // RemoveMessageFromQueue remove message from redis queue
 func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	logger := libCommons.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
 	defer span.End()

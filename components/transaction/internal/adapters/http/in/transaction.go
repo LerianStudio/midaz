@@ -914,7 +914,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	handler.Command.SendTransactionToRedisQueue(ctx, logger, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	handler.Command.SendTransactionToRedisQueue(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
