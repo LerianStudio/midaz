@@ -46,14 +46,8 @@ type AccountHandler struct {
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "handler.create_account")
-	defer span.End()
-
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
@@ -61,21 +55,13 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	portfolioID := payload.PortfolioID
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	labels := map[string]string{
-		"organization_id": organizationID.String(),
-		"ledger_id":       ledgerID.String(),
-	}
-
 	if !libCommons.IsNilOrEmpty(portfolioID) {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *portfolioID)
-		span.SetAttributes(attribute.String("app.request.portfolio_id", *portfolioID))
+		c.SetUserContext(libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.portfolio_id", *portfolioID)))
 	}
+
+	ctx, span := tracer.Start(ctx, "handler.create_account")
+	defer span.End()
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -91,10 +77,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	metricFactory.Counter("account_created", libOpentelemetry.MetricOption{
-		Description: "New Account created",
-		Unit:        "1",
-	}).WithLabels(labels).Add(ctx, 1)
+	metricFactory.RecordAccountCreated(ctx, organizationID.String(), ledgerID.String())
 
 	logger.Infof("Successfully created Account")
 
@@ -127,21 +110,13 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	var portfolioID *uuid.UUID
 
@@ -171,6 +146,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		portfolioID = &parsedID
 
 		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
+
+		attrPortfolioID := attribute.String("app.request.portfolio_id", portfolioID.String())
+		c.SetUserContext(libCommons.ContextWithSpanAttributes(ctx, attrPortfolioID))
+		span.SetAttributes(attrPortfolioID)
 	}
 
 	if headerParams.Metadata != nil {
@@ -232,9 +211,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -242,13 +219,6 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_id", id.String()),
-	)
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
@@ -286,9 +256,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
@@ -296,13 +264,6 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	code := c.Params("code")
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_code", code),
-	)
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
 
@@ -342,9 +303,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
@@ -352,13 +311,6 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	alias := c.Params("alias")
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_alias", alias),
-	)
 
 	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
 
@@ -400,8 +352,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
@@ -463,9 +414,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -473,13 +422,6 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_id", id.String()),
-	)
 
 	logger.Infof("Initiating removal of Account with ID: %s", id.String())
 
@@ -514,21 +456,13 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	logger.Infof("Counting accounts for organization %s and ledger %s", organizationID, ledgerID)
 

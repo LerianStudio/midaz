@@ -124,31 +124,29 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 func validateDates(startDate, endDate *time.Time) error {
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
-	defaultStartDate := time.Now().AddDate(0, -maxDateRangeMonths, 0)
-	defaultEndDate := time.Now()
-
-	if !startDate.IsZero() && !endDate.IsZero() {
-		if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
-			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
-		}
-
-		if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
-			return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
-		}
-
-		if !libCommons.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
-			return pkg.ValidateBusinessError(constant.ErrDateRangeExceedsLimit, "", maxDateRangeMonths)
-		}
-	}
-
 	if startDate.IsZero() && endDate.IsZero() {
+		defaultStartDate := time.Unix(0, 0).UTC()
+		if maxDateRangeMonths != 0 {
+			defaultStartDate = time.Now().AddDate(0, -maxDateRangeMonths, 0)
+		}
+
 		*startDate = defaultStartDate
-		*endDate = defaultEndDate
+		*endDate = time.Now()
+
+		return nil
 	}
 
 	if (!startDate.IsZero() && endDate.IsZero()) ||
 		(startDate.IsZero() && !endDate.IsZero()) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
+	}
+
+	if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+	}
+
+	if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
+		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 	}
 
 	return nil

@@ -2,14 +2,15 @@ package http
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http/httptest"
-	"reflect"
-	"testing"
 )
 
 type SimpleStruct struct {
@@ -85,7 +86,7 @@ func TestFilterRequiredFieldWithNoFields(t *testing.T) {
 func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
 	app := fiber.New()
 
-	app.Get("/v1/organizations/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+	app.Get("/v1/organizations/:id", ParseUUIDPathParameters("organization"), func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK) // Se o middleware passar, responde com 200
 	})
 
@@ -99,7 +100,7 @@ func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
 func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
 	app := fiber.New()
 
-	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters("ledger"), func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -116,7 +117,7 @@ func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
 func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
 	app := fiber.New()
 
-	app.Get("/v1/organizations/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+	app.Get("/v1/organizations/:id", ParseUUIDPathParameters("organization"), func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -130,7 +131,7 @@ func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
 func TestParseUUIDPathParameters_ValidAndInvalidUUID(t *testing.T) {
 	app := fiber.New()
 
-	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters("ledger"), func(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusOK)
 	})
 

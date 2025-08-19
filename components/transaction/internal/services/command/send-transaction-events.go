@@ -19,8 +19,7 @@ const (
 )
 
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	if !isTransactionEventEnabled() {
 		logger.Infof("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED"))
