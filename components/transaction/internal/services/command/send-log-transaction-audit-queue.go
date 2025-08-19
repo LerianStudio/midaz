@@ -20,8 +20,7 @@ import (
 // ledgerID is the UUID of the ledger linked to the transaction.
 // transactionID is the UUID of the transaction being logged.
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	if !isAuditLogEnabled() {
 		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))

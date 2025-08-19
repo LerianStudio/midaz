@@ -12,8 +12,7 @@ import (
 
 // DeleteBalance delete balance in the repository.
 func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_balance")
 	defer span.End()

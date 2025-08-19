@@ -9,27 +9,14 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateSegment creates a new segment persists data in the repository.
 func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_segment")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", cpi); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Trying to create segment: %v", cpi)
 

@@ -17,7 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -45,19 +44,13 @@ type OrganizationHandler struct {
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
 	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -97,9 +90,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
@@ -109,11 +100,6 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logger.Infof("Request to update an organization with details: %#v", payload)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", id.String()),
-	)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -161,20 +147,13 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating retrieval of Organization with ID: %s", id.String())
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", id.String()),
-	)
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
@@ -213,16 +192,10 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_organizations")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -303,19 +276,12 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", id.String()),
-	)
 
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
@@ -358,16 +324,10 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_organizations")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-	)
 
 	logger.Infof("Initiating count of all organizations")
 
@@ -379,10 +339,6 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
-
-	span.SetAttributes(
-		attribute.Int64("app.response.count", count),
-	)
 
 	logger.Infof("Successfully counted organizations: %d", count)
 

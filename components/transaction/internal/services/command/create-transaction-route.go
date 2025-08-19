@@ -12,28 +12,15 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateTransactionRoute creates a new transaction route.
 // It returns the created transaction route and an error if the operation fails.
 func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	now := time.Now()
 
