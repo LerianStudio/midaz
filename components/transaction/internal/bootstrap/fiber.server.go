@@ -4,16 +4,16 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
 	"github.com/gofiber/fiber/v2"
-	"github.com/pkg/errors"
 )
 
 // Server represents the http server for Ledger services.
 type Server struct {
 	app           *fiber.App
 	serverAddress string
-	libLog.Logger
-	libOpentelemetry.Telemetry
+	logger        libLog.Logger
+	telemetry     libOpentelemetry.Telemetry
 }
 
 // ServerAddress returns is a convenience method to return the server address.
@@ -26,26 +26,16 @@ func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *lib
 	return &Server{
 		app:           app,
 		serverAddress: cfg.ServerAddress,
-		Logger:        logger,
-		Telemetry:     *telemetry,
+		logger:        logger,
+		telemetry:     *telemetry,
 	}
 }
 
 // Run runs the server.
 func (s *Server) Run(l *libCommons.Launcher) error {
-	s.InitializeTelemetry(s.Logger)
-	defer s.ShutdownTelemetry()
-
-	defer func() {
-		if err := s.Sync(); err != nil {
-			s.Fatalf("Failed to sync logger: %s", err)
-		}
-	}()
-
-	err := s.app.Listen(s.ServerAddress())
-	if err != nil {
-		return errors.Wrap(err, "failed to run the server")
-	}
+	libCommonsServer.NewServerManager(nil, &s.telemetry, s.logger).
+		WithHTTPServer(s.app, s.serverAddress).
+		StartWithGracefulShutdown()
 
 	return nil
 }

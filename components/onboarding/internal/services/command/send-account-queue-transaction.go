@@ -13,8 +13,7 @@ import (
 // SendAccountQueueTransaction sends an account-related transaction message to a RabbitMQ queue for further processing.
 // It utilizes context for logger and tracer management and handles data serialization and queue message construction.
 func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, account mmodel.Account) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.send_account_queue_transaction")
 	defer spanLogTransaction.End()
