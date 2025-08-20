@@ -41,6 +41,7 @@ import { useFormatNumber } from '@/lib/intl/use-format-number'
 import { Separator } from '@/components/ui/separator'
 import { useListAccountTypes } from '@/client/account-types'
 import Link from 'next/link'
+import { useAccountTypeValidation } from '@/hooks/use-account-type-validation'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -92,6 +93,7 @@ export const AccountSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
   const { formatNumber } = useFormatNumber()
+  const { isValidationEnabled } = useAccountTypeValidation()
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -326,53 +328,54 @@ export const AccountSheet = ({
                       })}
                       readOnly={isReadOnly || mode === 'edit'}
                     />
+
                     {accountTypesData?.items &&
                     accountTypesData?.items.length > 0 ? (
-                      <>
-                        <SelectField
-                          control={form.control}
-                          name="type"
-                          label={intl.formatMessage({
-                            id: 'common.type',
-                            defaultMessage: 'Type'
-                          })}
-                          tooltip={intl.formatMessage({
-                            id: 'accounts.field.type.tooltip',
-                            defaultMessage: 'The type of account'
-                          })}
-                          readOnly={isReadOnly || mode === 'edit'}
-                          required
-                        >
-                          {accountTypesData?.items.map((accountType) => (
-                            <SelectItem
-                              key={accountType.id}
-                              value={accountType.keyValue}
-                            >
-                              {accountType.name}
-                            </SelectItem>
-                          ))}
-                        </SelectField>
-                      </>
+                      <SelectField
+                        control={form.control}
+                        name="type"
+                        label={intl.formatMessage({
+                          id: 'common.type',
+                          defaultMessage: 'Type'
+                        })}
+                        tooltip={intl.formatMessage({
+                          id: 'accounts.field.type.tooltip',
+                          defaultMessage: 'The type of account'
+                        })}
+                        readOnly={isReadOnly || mode === 'edit'}
+                        required
+                      >
+                        {accountTypesData?.items.map((accountType) => (
+                          <SelectItem
+                            key={accountType.id}
+                            value={accountType.keyValue}
+                          >
+                            {accountType.name}
+                          </SelectItem>
+                        ))}
+                      </SelectField>
                     ) : (
-                      <>
-                        <InputField
-                          control={form.control}
-                          name="type"
-                          label={intl.formatMessage({
-                            id: 'common.type',
-                            defaultMessage: 'Type'
-                          })}
-                        />
-                        <Link
-                          href="/account-types"
-                          className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
-                        >
-                          {intl.formatMessage({
-                            id: 'accounts.sheet.noAccountType.title',
-                            defaultMessage: 'Manage Account Types'
-                          })}
-                        </Link>
-                      </>
+                      <InputField
+                        control={form.control}
+                        name="type"
+                        label={intl.formatMessage({
+                          id: 'common.type',
+                          defaultMessage: 'Type'
+                        })}
+                        readOnly={isReadOnly || mode === 'edit'}
+                      />
+                    )}
+
+                    {isValidationEnabled && (
+                      <Link
+                        href="/account-types"
+                        className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
+                      >
+                        {intl.formatMessage({
+                          id: 'accounts.sheet.noAccountType.title',
+                          defaultMessage: 'Manage Account Types'
+                        })}
+                      </Link>
                     )}
 
                     <InputField
