@@ -32,7 +32,12 @@ import {
   Row,
   useReactTable
 } from '@tanstack/react-table'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
 
 type AccountTypesDataTableProps = {
@@ -72,9 +77,7 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
           </div>
         </TableCell>
         <IdTableCell id={accountType.original.description} />
-        <TableCell>
-            {accountType.original.keyValue}
-        </TableCell>
+        <TableCell>{accountType.original.keyValue}</TableCell>
         <MetadataTableCell metadata={accountType.original.metadata!} />
         <TableCell className="w-0">
           <DropdownMenu>
@@ -173,12 +176,13 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                            <HelpCircle className="text-muted-foreground h-4 w-4" />
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
                               id: 'account-types.field.name.tooltip',
-                              defaultMessage: 'Enter the name of the account type'
+                              defaultMessage:
+                                'Enter the name of the account type'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -200,12 +204,13 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                            <HelpCircle className="text-muted-foreground h-4 w-4" />
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
                               id: 'account-types.field.keyValue.tooltip',
-                              defaultMessage: 'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
+                              defaultMessage:
+                                'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -241,15 +246,24 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
         )}
 
         <EntityDataTable.Footer>
-          <Pagination
-            page={pagination.page}
-            limit={pagination.limit}
-            total={total}
-            setPage={pagination.setPage}
-            setLimit={pagination.setLimit}
-            nextPage={pagination.nextPage}
-            previousPage={pagination.previousPage}
-          />
+          <EntityDataTable.FooterText>
+            {intl.formatMessage(
+              {
+                id: 'ledgers.accounts.showing',
+                defaultMessage:
+                  '{number, plural, =0 {No accounts found} one {Showing {count} account} other {Showing {count} accounts}}.'
+              },
+              {
+                number: accountTypes?.items.length,
+                count: (
+                  <span className="font-bold">
+                    {accountTypes?.items.length}
+                  </span>
+                )
+              }
+            )}
+          </EntityDataTable.FooterText>
+          <Pagination total={total} {...pagination} />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

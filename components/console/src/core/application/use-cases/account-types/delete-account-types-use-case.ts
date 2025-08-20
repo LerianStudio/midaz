@@ -23,6 +23,10 @@ export class DeleteAccountTypesUseCase implements DeleteAccountTypes {
     ledgerId: string,
     accountTypeId: string
   ): Promise<void> {
-    await this.accountTypesRepository.delete(organizationId, ledgerId, accountTypeId)
+    await this.accountTypesRepository.delete(
+      organizationId,
+      ledgerId,
+      accountTypeId
+    )
   }
 }

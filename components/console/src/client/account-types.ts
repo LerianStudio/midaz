@@ -24,7 +24,10 @@ type UseListAccountTypesProps = {
   ledgerId: string
   query?: AccountTypesSearchParamDto
   enabled?: boolean
-} & Omit<UseQueryOptions<PaginationDto<AccountTypesDto>>, 'queryKey' | 'queryFn'>
+} & Omit<
+  UseQueryOptions<PaginationDto<AccountTypesDto>>,
+  'queryKey' | 'queryFn'
+>
 
 export const useListAccountTypes = ({
   organizationId,
@@ -105,7 +108,12 @@ export const useUpdateAccountType = ({
   ...options
 }: UseUpdateAccountTypeProps) => {
   return useMutation<AccountTypesDto, any, UpdateAccountTypesDto>({
-    mutationKey: ['update-account-type', organizationId, ledgerId, accountTypeId],
+    mutationKey: [
+      'update-account-type',
+      organizationId,
+      ledgerId,
+      accountTypeId
+    ],
     mutationFn: patchFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types/${accountTypeId}`
     ),
@@ -126,7 +134,7 @@ export const useDeleteAccountType = ({
   ...options
 }: UseDeleteAccountTypeProps) => {
   return useMutation<any, any, any>({
-    mutationKey: [ organizationId, ledgerId, accountTypeId],
+    mutationKey: [organizationId, ledgerId, accountTypeId],
     mutationFn: deleteFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types`
     ),

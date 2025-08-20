@@ -39,12 +39,15 @@ import { Enforce } from '@lerianstudio/console-layout'
 import { AccountDto } from '@/core/application/dto/account-dto'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
 import { Separator } from '@/components/ui/separator'
+import { useListAccountTypes } from '@/client/account-types'
+import Link from 'next/link'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
   data?: AccountDto | null
   onSuccess?: () => void
+  searchValues?: any
 }
 
 const initialValues = {
@@ -80,6 +83,7 @@ export const AccountSheet = ({
   data,
   onSuccess,
   onOpenChange,
+  searchValues,
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
@@ -169,6 +173,18 @@ export const AccountSheet = ({
       form.reset()
     }
   })
+
+  const {
+    data: accountTypesData,
+    refetch: refetchAccountTypes,
+    isLoading: isAccountTypesLoading
+  } = useListAccountTypes({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    query: searchValues as any
+  })
+
+  console.log(accountTypesData)
 
   const { mutate: updateAccount, isPending: updatePending } = useUpdateAccount({
     organizationId: currentOrganization.id!,
@@ -310,56 +326,54 @@ export const AccountSheet = ({
                       })}
                       readOnly={isReadOnly || mode === 'edit'}
                     />
-
-                    <SelectField
-                      control={form.control}
-                      name="type"
-                      label={intl.formatMessage({
-                        id: 'common.type',
-                        defaultMessage: 'Type'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'accounts.field.type.tooltip',
-                        defaultMessage: 'The type of account'
-                      })}
-                      readOnly={isReadOnly || mode === 'edit'}
-                      required
-                    >
-                      <SelectItem value="deposit">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.deposit',
-                          defaultMessage: 'Deposit'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="savings">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.savings',
-                          defaultMessage: 'Savings'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="loans">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.loans',
-                          defaultMessage: 'Loans'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="marketplace">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.marketplace',
-                          defaultMessage: 'Marketplace'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="creditCard">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.creditCard',
-                          defaultMessage: 'CreditCard'
-                        })}
-                      </SelectItem>
-                    </SelectField>
+                    {accountTypesData?.items &&
+                    accountTypesData?.items.length > 0 ? (
+                      <>
+                        <SelectField
+                          control={form.control}
+                          name="type"
+                          label={intl.formatMessage({
+                            id: 'common.type',
+                            defaultMessage: 'Type'
+                          })}
+                          tooltip={intl.formatMessage({
+                            id: 'accounts.field.type.tooltip',
+                            defaultMessage: 'The type of account'
+                          })}
+                          readOnly={isReadOnly || mode === 'edit'}
+                          required
+                        >
+                          {accountTypesData?.items.map((accountType) => (
+                            <SelectItem
+                              key={accountType.id}
+                              value={accountType.keyValue}
+                            >
+                              {accountType.name}
+                            </SelectItem>
+                          ))}
+                        </SelectField>
+                      </>
+                    ) : (
+                      <>
+                        <InputField
+                          control={form.control}
+                          name="type"
+                          label={intl.formatMessage({
+                            id: 'common.type',
+                            defaultMessage: 'Type'
+                          })}
+                        />
+                        <Link
+                          href="/account-types"
+                          className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
+                        >
+                          {intl.formatMessage({
+                            id: 'accounts.sheet.noAccountType.title',
+                            defaultMessage: 'Manage Account Types'
+                          })}
+                        </Link>
+                      </>
+                    )}
 
                     <InputField
                       control={form.control}

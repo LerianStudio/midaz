@@ -33,7 +33,10 @@ export class AccountTypesController extends BaseController {
     super()
   }
 
-  async fetchById(request: Request, { params }: { params: AccountTypesParams }) {
+  async fetchById(
+    request: Request,
+    { params }: { params: AccountTypesParams }
+  ) {
     const { id: organizationId, ledgerId, accountTypeId } = await params
 
     const accountType = await this.fetchAccountTypesByIdUseCase.execute(

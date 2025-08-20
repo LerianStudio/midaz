@@ -1,4 +1,7 @@
-import { AccountTypesEntity, AccountTypesSearchEntity } from '../entities/account-types-entity'
+import {
+  AccountTypesEntity,
+  AccountTypesSearchEntity
+} from '../entities/account-types-entity'
 import { PaginationEntity } from '../entities/pagination-entity'
 
 export abstract class AccountTypesRepository {

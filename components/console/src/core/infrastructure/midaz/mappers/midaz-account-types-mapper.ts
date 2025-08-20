@@ -9,7 +9,9 @@ import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
 
 export class MidazAccountTypesMapper {
-  public static toCreateDto(accountType: AccountTypesEntity): MidazCreateAccountTypesDto {
+  public static toCreateDto(
+    accountType: AccountTypesEntity
+  ): MidazCreateAccountTypesDto {
     return {
       name: accountType.name,
       description: accountType.description,

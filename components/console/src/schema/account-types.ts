@@ -13,7 +13,8 @@ const keyValue = z
   .min(1)
   .max(50)
   .refine((value) => keyValueRegex.test(value), {
-    message: "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens."
+    message:
+      "The field 'keyValue' contains invalid characters. Use only letters, numbers, underscores and hyphens."
   })
 
 const id = z.string().uuid()

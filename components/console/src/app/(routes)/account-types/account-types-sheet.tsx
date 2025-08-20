@@ -17,7 +17,10 @@ import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { MetadataField } from '@/components/form/metadata-field'
-import { useCreateAccountType, useUpdateAccountType } from '@/client/account-types'
+import {
+  useCreateAccountType,
+  useUpdateAccountType
+} from '@/client/account-types'
 import { isNil, omit, omitBy } from 'lodash'
 import { accountTypes } from '@/schema/account-types'
 import { InputField } from '@/components/form'
@@ -71,50 +74,60 @@ export const AccountTypesSheet = ({
     defaultValues: initialValues
   })
 
-  const { mutate: createAccountType, isPending: createPending } = useCreateAccountType({
-    organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    onSuccess: (data) => {
-      onSuccess?.()
-      onOpenChange?.(false)
-      toast({
-        description: intl.formatMessage(
-          {
-            id: 'success.account-types.created',
-            defaultMessage: '{accountTypeName} account type successfully created'
-          },
-          { accountTypeName: (data as AccountTypesDto)?.name! }
-        ),
-        variant: 'success'
-      })
-      form.reset()
-    }
-  })
+  const { mutate: createAccountType, isPending: createPending } =
+    useCreateAccountType({
+      organizationId: currentOrganization.id!,
+      ledgerId: currentLedger.id,
+      onSuccess: (data) => {
+        onSuccess?.()
+        onOpenChange?.(false)
+        toast({
+          description: intl.formatMessage(
+            {
+              id: 'success.account-types.created',
+              defaultMessage:
+                '{accountTypeName} account type successfully created'
+            },
+            { accountTypeName: (data as AccountTypesDto)?.name! }
+          ),
+          variant: 'success'
+        })
+        form.reset()
+      }
+    })
 
-  const { mutate: updateAccountType, isPending: updatePending } = useUpdateAccountType({
-    organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    accountTypeId: data?.id!,
-    onSuccess: (data) => {
-      onSuccess?.()
-      onOpenChange?.(false)
-      toast({
-        description: intl.formatMessage(
-          {
-            id: 'success.account-types.updated',
-            defaultMessage: '{accountTypeName} account type successfully updated'
-          },
-          { accountTypeName: (data as AccountTypesDto)?.name! }
-        ),
-        variant: 'success'
-      })
-    }
-  })
+  const { mutate: updateAccountType, isPending: updatePending } =
+    useUpdateAccountType({
+      organizationId: currentOrganization.id!,
+      ledgerId: currentLedger.id,
+      accountTypeId: data?.id!,
+      onSuccess: (data) => {
+        onSuccess?.()
+        onOpenChange?.(false)
+        toast({
+          description: intl.formatMessage(
+            {
+              id: 'success.account-types.updated',
+              defaultMessage:
+                '{accountTypeName} account type successfully updated'
+            },
+            { accountTypeName: (data as AccountTypesDto)?.name! }
+          ),
+          variant: 'success'
+        })
+      }
+    })
 
   const handleSubmit = (data: FormData) => {
-    const cleanedData = omitBy(data, (value) => value === '' || isNil(value)) as FormData
+    const cleanedData = omitBy(
+      data,
+      (value) => value === '' || isNil(value)
+    ) as FormData
 
-    if (cleanedData.metadata && Object.keys(cleanedData.metadata).length === 0) {
+    if (
+      cleanedData.metadata &&
+      Object.keys(cleanedData.metadata).length === 0
+    ) {
       cleanedData.metadata = null
     }
 
@@ -165,7 +178,8 @@ export const AccountTypesSheet = ({
                 {isReadOnly
                   ? intl.formatMessage({
                       id: 'account-types.sheet.edit.description.readonly',
-                      defaultMessage: 'View account type fields in read-only mode.'
+                      defaultMessage:
+                        'View account type fields in read-only mode.'
                     })
                   : intl.formatMessage({
                       id: 'account-types.sheet.edit.description',
@@ -223,7 +237,8 @@ export const AccountTypesSheet = ({
                       textArea
                       placeholder={intl.formatMessage({
                         id: 'account-types.field.description.placeholder',
-                        defaultMessage: 'Enter a detailed description of this account type...'
+                        defaultMessage:
+                          'Enter a detailed description of this account type...'
                       })}
                     />
 
@@ -236,7 +251,8 @@ export const AccountTypesSheet = ({
                       })}
                       tooltip={intl.formatMessage({
                         id: 'account-types.field.keyValue.tooltip',
-                        defaultMessage: 'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
+                        defaultMessage:
+                          'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
                       })}
                       readOnly={isReadOnly || mode === 'edit'}
                       required

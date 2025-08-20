@@ -269,6 +269,7 @@ const Page = () => {
       <AccountSheet
         ledgerId={currentLedger.id}
         onSuccess={refetchAccounts}
+        searchValues={searchValues}
         {...sheetProps}
       />
 

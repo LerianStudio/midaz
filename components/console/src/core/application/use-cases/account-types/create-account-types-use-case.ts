@@ -3,7 +3,10 @@ import { AccountTypesEntity } from '@/core/domain/entities/account-types-entity'
 import { AccountTypesMapper } from '../../mappers/account-types-mapper'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
-import type { CreateAccountTypesDto, AccountTypesDto } from '../../dto/account-types-dto'
+import type {
+  CreateAccountTypesDto,
+  AccountTypesDto
+} from '../../dto/account-types-dto'
 
 export interface CreateAccountTypes {
   execute: (
@@ -26,7 +29,8 @@ export class CreateAccountTypesUseCase implements CreateAccountTypes {
     ledgerId: string,
     accountType: CreateAccountTypesDto
   ): Promise<AccountTypesDto> {
-    const accountTypeEntity: AccountTypesEntity = AccountTypesMapper.toDomain(accountType)
+    const accountTypeEntity: AccountTypesEntity =
+      AccountTypesMapper.toDomain(accountType)
     const accountTypeCreated = await this.accountTypesRepository.create(
       organizationId,
       ledgerId,

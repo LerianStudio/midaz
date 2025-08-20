@@ -7,7 +7,9 @@ export type MidazCreateAccountTypesDto = {
   metadata?: MidazMetadataDto
 }
 
-export type MidazUpdateAccountTypesDto = Partial<Omit<MidazCreateAccountTypesDto, 'keyValue'>>
+export type MidazUpdateAccountTypesDto = Partial<
+  Omit<MidazCreateAccountTypesDto, 'keyValue'>
+>
 
 export type MidazAccountTypesDto = MidazCreateAccountTypesDto & {
   id: string

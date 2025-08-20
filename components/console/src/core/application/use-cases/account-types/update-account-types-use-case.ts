@@ -34,12 +34,13 @@ export class UpdateAccountTypesUseCase implements UpdateAccountTypes {
     const accountTypeEntity: Partial<AccountTypesEntity> =
       AccountTypesMapper.toDomain(accountType)
 
-    const updatedAccountType: AccountTypesEntity = await this.accountTypesRepository.update(
-      organizationId,
-      ledgerId,
-      accountTypeId,
-      accountTypeEntity
-    )
+    const updatedAccountType: AccountTypesEntity =
+      await this.accountTypesRepository.update(
+        organizationId,
+        ledgerId,
+        accountTypeId,
+        accountTypeEntity
+      )
 
     return AccountTypesMapper.toDto(updatedAccountType)
   }

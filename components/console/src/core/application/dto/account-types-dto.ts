@@ -14,7 +14,9 @@ export type CreateAccountTypesDto = {
   metadata?: MetadataDto
 }
 
-export type UpdateAccountTypesDto = Partial<Omit<CreateAccountTypesDto, 'keyValue'>>
+export type UpdateAccountTypesDto = Partial<
+  Omit<CreateAccountTypesDto, 'keyValue'>
+>
 
 export interface AccountTypesDto {
   id: string
