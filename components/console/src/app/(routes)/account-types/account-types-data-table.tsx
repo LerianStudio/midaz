@@ -16,14 +16,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { isNil } from 'lodash'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
-import { IdTableCell } from '@/components/table/id-table-cell'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
 import {
@@ -63,8 +61,7 @@ type AccountTypesRowProps = {
 
 const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
   accountType,
-  handleEdit,
-  onDelete
+  handleEdit
 }) => {
   const intl = useIntl()
 
@@ -76,7 +73,13 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
             <span className="font-medium">{accountType.original.name}</span>
           </div>
         </TableCell>
-        <IdTableCell id={accountType.original.description} />
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">
+              {accountType.original.description || '-'}
+            </span>
+          </div>
+        </TableCell>
         <TableCell>{accountType.original.keyValue}</TableCell>
         <MetadataTableCell metadata={accountType.original.metadata!} />
         <TableCell className="w-0">
@@ -98,17 +101,6 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
                 {intl.formatMessage({
                   id: 'common.details',
                   defaultMessage: 'Details'
-                })}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  onDelete(accountType?.original?.id!, accountType?.original)
-                }}
-              >
-                {intl.formatMessage({
-                  id: 'common.delete',
-                  defaultMessage: 'Delete'
                 })}
               </DropdownMenuItem>
             </DropdownMenuContent>

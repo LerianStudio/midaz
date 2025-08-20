@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { metadata } from './metadata'
 
-// Key value validation - alphanumeric with underscores and hyphens only
 const keyValueRegex = /^[A-Za-z0-9_-]+$/
 
 const name = z.string().min(1).max(100)

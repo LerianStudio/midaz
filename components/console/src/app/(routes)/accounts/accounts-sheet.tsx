@@ -176,17 +176,11 @@ export const AccountSheet = ({
     }
   })
 
-  const {
-    data: accountTypesData,
-    refetch: refetchAccountTypes,
-    isLoading: isAccountTypesLoading
-  } = useListAccountTypes({
+  const { data: accountTypesData } = useListAccountTypes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     query: searchValues as any
   })
-
-  console.log(accountTypesData)
 
   const { mutate: updateAccount, isPending: updatePending } = useUpdateAccount({
     organizationId: currentOrganization.id!,
@@ -343,7 +337,7 @@ export const AccountSheet = ({
                           defaultMessage: 'The type of account'
                         })}
                         readOnly={isReadOnly || mode === 'edit'}
-                        required
+                        required={isValidationEnabled}
                       >
                         {accountTypesData?.items.map((accountType) => (
                           <SelectItem
@@ -362,6 +356,7 @@ export const AccountSheet = ({
                           id: 'common.type',
                           defaultMessage: 'Type'
                         })}
+                        required={isValidationEnabled}
                         readOnly={isReadOnly || mode === 'edit'}
                       />
                     )}
