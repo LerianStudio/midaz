@@ -39,9 +39,9 @@ import { Enforce } from '@lerianstudio/console-layout'
 import { AccountDto } from '@/core/application/dto/account-dto'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
 import { Separator } from '@/components/ui/separator'
-import { useListAccountTypes } from '@/client/account-types'
 import Link from 'next/link'
 import { useMidazConfig } from '@/hooks/use-midaz-config'
+import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -49,6 +49,7 @@ export type AccountSheetProps = DialogProps & {
   data?: AccountDto | null
   onSuccess?: () => void
   searchValues?: any
+  accountTypesData?: AccountTypesDto[]
 }
 
 const initialValues = {
@@ -85,6 +86,7 @@ export const AccountSheet = ({
   onSuccess,
   onOpenChange,
   searchValues,
+  accountTypesData,
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
@@ -93,10 +95,7 @@ export const AccountSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
   const { formatNumber } = useFormatNumber()
-  const { isAccountTypeValidationEnabled: isValidationEnabled } = useMidazConfig({
-    organization: currentOrganization.id!,
-    ledger: currentLedger.id
-  })
+  const { isAccountTypeValidationEnabled: isValidationEnabled } = useMidazConfig()
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -177,12 +176,6 @@ export const AccountSheet = ({
       })
       form.reset()
     }
-  })
-
-  const { data: accountTypesData } = useListAccountTypes({
-    organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    query: searchValues as any
   })
 
   const { mutate: updateAccount, isPending: updatePending } = useUpdateAccount({
@@ -326,8 +319,8 @@ export const AccountSheet = ({
                       readOnly={isReadOnly || mode === 'edit'}
                     />
 
-                    {accountTypesData?.items &&
-                    accountTypesData?.items.length > 0 ? (
+                    {accountTypesData &&
+                    accountTypesData?.length > 0 ? (
                       <SelectField
                         control={form.control}
                         name="type"
@@ -340,9 +333,9 @@ export const AccountSheet = ({
                           defaultMessage: 'The type of account'
                         })}
                         readOnly={isReadOnly || mode === 'edit'}
-                        required={isValidationEnabled}
+                        required={isValidationEnabled }
                       >
-                        {accountTypesData?.items.map((accountType) => (
+                        {accountTypesData?.map((accountType) => (
                           <SelectItem
                             key={accountType.id}
                             value={accountType.keyValue}
@@ -361,6 +354,7 @@ export const AccountSheet = ({
                         })}
                         required={isValidationEnabled}
                         readOnly={isReadOnly || mode === 'edit'}
+                        disabled={isValidationEnabled && accountTypesData?.length === 0}
                       />
                     )}
 
