@@ -56,7 +56,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		cursor        string
 		limit         = 10
 		page          = 1
-		sortOrder     = "desc"
+		sortOrder     = "asc"
 		useMetadata   = false
 	)
 
