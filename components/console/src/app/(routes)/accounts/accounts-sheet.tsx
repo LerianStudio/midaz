@@ -366,7 +366,7 @@ export const AccountSheet = ({
                         className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
                       >
                         {intl.formatMessage({
-                          id: 'accounts.sheet.noAccountType.title',
+                          id: 'accounts.alert.noAccountType.createLink',
                           defaultMessage: 'Manage Account Types'
                         })}
                       </Link>

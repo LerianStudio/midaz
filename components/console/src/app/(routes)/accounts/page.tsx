@@ -239,7 +239,10 @@ const Page = () => {
             <Button
               onClick={handleCreate}
               data-testid="new-account"
-              disabled={!hasAssets}
+              disabled={
+                !hasAssets ||
+                (isValidationEnabled && accountTypesData?.items.length === 0)
+              }
             >
               {intl.formatMessage({
                 id: 'accounts.sheet.create.title',
@@ -267,7 +270,7 @@ const Page = () => {
         />
 
         {isValidationEnabled && accountTypesData?.items.length === 0 && (
-          <div className="p-6">
+          <div className="pt-6">
             <Alert variant="warning" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>
@@ -294,8 +297,8 @@ const Page = () => {
                   }}
                 >
                   {intl.formatMessage({
-                    id: 'accounts.alert.noAssets.createLink',
-                    defaultMessage: 'Manage Assets'
+                    id: 'accounts.alert.AccountType.createLink',
+                    defaultMessage: 'Manage Account Types'
                   })}
                 </Button>
               </AlertDescription>
