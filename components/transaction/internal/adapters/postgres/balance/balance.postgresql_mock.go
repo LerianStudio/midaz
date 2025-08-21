@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	http "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	transaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
@@ -162,20 +161,6 @@ func (m *MockRepository) ListByAliases(ctx context.Context, organizationID, ledg
 func (mr *MockRepositoryMockRecorder) ListByAliases(ctx, organizationID, ledgerID, aliases any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), ctx, organizationID, ledgerID, aliases)
-}
-
-// SelectForUpdate mocks base method.
-func (m *MockRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]transaction.Amount) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectForUpdate", ctx, organizationID, ledgerID, aliases, fromTo)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SelectForUpdate indicates an expected call of SelectForUpdate.
-func (mr *MockRepositoryMockRecorder) SelectForUpdate(ctx, organizationID, ledgerID, aliases, fromTo any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdate", reflect.TypeOf((*MockRepository)(nil).SelectForUpdate), ctx, organizationID, ledgerID, aliases, fromTo)
 }
 
 // Update mocks base method.

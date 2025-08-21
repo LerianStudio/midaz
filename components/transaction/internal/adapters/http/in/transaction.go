@@ -789,9 +789,9 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	return http.OK(c, pagination)
 }
 
-// handleAccountFields processes account and accountAlias fields for transaction entries
+// HandleAccountFields processes account and accountAlias fields for transaction entries
 // accountAlias is deprecated but still needs to be handled for backward compatibility
-func (handler *TransactionHandler) handleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
+func (handler *TransactionHandler) HandleAccountFields(entries []libTransaction.FromTo, isConcat bool) []libTransaction.FromTo {
 	result := make([]libTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
@@ -835,7 +835,8 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, pa
 	return transactionDate, nil
 }
 
-func (handler *TransactionHandler) buildOperations(
+// BuildOperations builds the operations for the transaction
+func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	logger libLog.Logger,
 	tracer trace.Tracer,
@@ -866,7 +867,7 @@ func (handler *TransactionHandler) buildOperations(
 	for _, blc := range balances {
 		for i := range fromTo {
 			if blc.Alias == fromTo[i].AccountAlias {
-				logger.Infof("Creating operation for account id: %s", blc.ID)
+				logger.Infof("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias)
 
 				preBalances = append(preBalances, blc)
 
@@ -955,17 +956,17 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
+	transactionID := libCommons.GenerateUUIDv7()
+
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
 	transactionDate, err := handler.checkTransactionDate(logger, parserDSL, transactionStatus)
 	if err != nil {
 		return http.WithError(c, err)
 	}
-
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
-	transactionID := libCommons.GenerateUUIDv7()
 
 	attributes := []attribute.KeyValue{
 		attribute.String("app.request.request_id", reqId),
@@ -984,9 +985,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	var fromTo []libTransaction.FromTo
 
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)...)
 	}
 
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
@@ -1041,7 +1042,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 	spanGetBalances.SetAttributes(attributes...)
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, validate, transactionStatus)
+	handler.Command.SendTransactionToRedisQueue(ctx, logger, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 		spanGetBalances.End()
@@ -1050,30 +1053,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
+
 		return http.WithError(c, err)
 	}
 
 	spanGetBalances.End()
 
-	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
-
-	spanValidateBalances.SetAttributes(attributes...)
-
-	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, mmodel.ConvertBalancesToLibBalances(balances))
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "Failed to validate balances", err)
-		spanValidateBalances.End()
-
-		logger.Errorf("Failed to validate balances: %v", err.Error())
-
-		_ = handler.Command.RedisRepo.Del(ctx, key)
-
-		return http.WithError(c, err)
-	}
-
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
 	var parentTransactionID *string
@@ -1102,7 +1091,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 		},
 	}
 
-	operations, _, err := handler.buildOperations(ctx, logger, tracer, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
+	operations, _, err := handler.BuildOperations(ctx, logger, tracer, balances, fromTo, parserDSL, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -1159,9 +1148,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	var fromTo []libTransaction.FromTo
 
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, true)...)
+	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, true)...)
+		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)...)
 	}
 
 	if tran.Status.Code != constant.PENDING {
@@ -1189,7 +1178,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 
 	spanGetBalances.SetAttributes(attributes...)
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), validate, transactionStatus)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 		spanGetBalances.End()
@@ -1199,9 +1188,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		return http.WithError(c, err)
 	}
 
-	fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Source.From, false)...)
+	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.handleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)...)
 	}
 
 	tran.UpdatedAt = time.Now()
@@ -1210,7 +1199,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, logge
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.buildOperations(ctx, logger, tracer, balances, fromTo, parserDSL, *tran, validate, time.Now(), false)
+	operations, preBalances, err := handler.BuildOperations(ctx, logger, tracer, balances, fromTo, parserDSL, *tran, validate, time.Now(), false)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 

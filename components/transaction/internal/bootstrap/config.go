@@ -40,11 +40,13 @@ type Config struct {
 	PrimaryDBPassword            string `env:"DB_PASSWORD"`
 	PrimaryDBName                string `env:"DB_NAME"`
 	PrimaryDBPort                string `env:"DB_PORT"`
+	PrimaryDBSSLMode             string `env:"DB_SSLMODE"`
 	ReplicaDBHost                string `env:"DB_REPLICA_HOST"`
 	ReplicaDBUser                string `env:"DB_REPLICA_USER"`
 	ReplicaDBPassword            string `env:"DB_REPLICA_PASSWORD"`
 	ReplicaDBName                string `env:"DB_REPLICA_NAME"`
 	ReplicaDBPort                string `env:"DB_REPLICA_PORT"`
+	ReplicaDBSSLMode             string `env:"DB_REPLICA_SSLMODE"`
 	MaxOpenConnections           int    `env:"DB_MAX_OPEN_CONNS"`
 	MaxIdleConnections           int    `env:"DB_MAX_IDLE_CONNS"`
 	MongoURI                     string `env:"MONGO_URI"`
@@ -123,11 +125,11 @@ func InitServers() *Service {
 		EnableTelemetry:           cfg.EnableTelemetry,
 	}
 
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort)
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort, cfg.PrimaryDBSSLMode)
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort)
+	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
 
 	postgresConnection := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
@@ -284,9 +286,12 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
+
 	return &Service{
 		Server:             server,
 		MultiQueueConsumer: multiQueueConsumer,
+		RedisQueueConsumer: redisConsumer,
 		Logger:             logger,
 	}
 }

@@ -180,6 +180,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -400,6 +406,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
@@ -581,6 +593,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		mockRabbitMQRepo.EXPECT().
 			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, nil).
+			AnyTimes()
+
+		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
 			AnyTimes()
 
 		// Call the method
@@ -910,6 +928,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+		mockRedisRepo.EXPECT().
+			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -1205,6 +1229,12 @@ func TestCreateBTOAsync(t *testing.T) {
 	mockRabbitMQRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).
+		AnyTimes()
+
+	// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
 		AnyTimes()
 
 	// Call the method - this should not panic
