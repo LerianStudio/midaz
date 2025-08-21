@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -57,7 +56,6 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	if !libCommons.IsNilOrEmpty(portfolioID) {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *portfolioID)
-		c.SetUserContext(libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.portfolio_id", *portfolioID)))
 	}
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
@@ -146,10 +144,6 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		portfolioID = &parsedID
 
 		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
-
-		attrPortfolioID := attribute.String("app.request.portfolio_id", portfolioID.String())
-		c.SetUserContext(libCommons.ContextWithSpanAttributes(ctx, attrPortfolioID))
-		span.SetAttributes(attrPortfolioID)
 	}
 
 	if headerParams.Metadata != nil {

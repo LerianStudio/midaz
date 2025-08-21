@@ -178,9 +178,9 @@ type BalanceRedis struct {
 func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
 	out := make([]*libTransaction.Balance, 0, len(balances))
 
-	for i, b := range balances {
+	for _, b := range balances {
 		if b != nil {
-			out[i] = b.ConvertToLibBalance()
+			out = append(out, b.ConvertToLibBalance())
 		}
 	}
 

@@ -884,9 +884,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		t := transaction.Transaction{}
 		if err = json.Unmarshal([]byte(*value), &t); err != nil {
 			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
-			spanIdempotency.End()
 
 			logger.Errorf("Error to deserialization idempotency transaction json on redis: %v", err)
+			spanIdempotency.End()
 
 			return http.WithError(c, err)
 		}
@@ -899,7 +899,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	spanIdempotency.End()
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
+	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -919,13 +919,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &parserDSL, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
-		spanGetBalances.End()
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
+		spanGetBalances.End()
 
 		return http.WithError(c, err)
 	}
@@ -1024,7 +1024,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL, transactionStatus)
+	validate, err := libTransaction.ValidateSendSourceAndDistribute(ctx, parserDSL, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
 
@@ -1040,9 +1040,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
-		spanGetBalances.End()
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
+		spanGetBalances.End()
 
 		return http.WithError(c, err)
 	}
