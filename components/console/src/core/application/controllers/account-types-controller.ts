@@ -87,8 +87,6 @@ export class AccountTypesController extends BaseController {
     const body = await request.json()
     const { id: organizationId, ledgerId, accountTypeId } = await params
 
-    console.log('Body Update Teste', body)
-    // Remove metadata from body if it's null
     const { metadata, ...restBody } = body
     const updateData = metadata === null ? restBody : body
 
