@@ -28,7 +28,7 @@ export class MidazConfigController extends BaseController {
       )
     }
 
-    const validation = await this.getMidazConfigValidationUseCase.execute(organization, ledger)
-    return NextResponse.json(validation)
+    const config = await this.getMidazConfigValidationUseCase.execute(organization, ledger)
+    return NextResponse.json(config)
   }
 }

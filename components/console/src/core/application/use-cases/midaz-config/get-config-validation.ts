@@ -1,9 +1,9 @@
 import { inject, injectable } from 'inversify'
-import { MidazConfigValidationDto } from '../../dto/midaz-config-dto'
+import { MidazConfigDto } from '../../dto/midaz-config-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators'
 
 export interface GetMidazConfigValidation {
-  execute: (organization: string, ledger: string) => Promise<MidazConfigValidationDto>
+  execute: (organization: string, ledger: string) => Promise<MidazConfigDto>
 }
 
 @injectable()
@@ -11,13 +11,13 @@ export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation
   constructor() {}
 
   @LogOperation({ layer: 'application' })
-  async execute(organization: string, ledger: string): Promise<MidazConfigValidationDto> {
+  async execute(): Promise<MidazConfigDto> {
     const isConfigEnabled = process.env.MIDAZ_ACCOUNT_TYPE_VALIDATION_ENABLED === 'true'
 
     if (!isConfigEnabled) {
       return {
         isConfigEnabled: false,
-        isLedgerAllowed: false
+        config: []
       }
     }
 
@@ -26,7 +26,7 @@ export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation
     if (!accountTypeValidation) {
       return {
         isConfigEnabled: true,
-        isLedgerAllowed: false
+        config: []
       }
     }
 
@@ -34,12 +34,26 @@ export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation
       .split(',')
       .map((pair) => pair.trim())
 
-    const currentPair = `${organization}:${ledger}`
-    const isLedgerAllowed = validationPairs.includes(currentPair)
+    const configMap = new Map<string, string[]>()
+    
+    validationPairs.forEach((pair) => {
+      const [org, ledger] = pair.split(':')
+      if (org && ledger) {
+        if (!configMap.has(org)) {
+          configMap.set(org, [])
+        }
+        configMap.get(org)?.push(ledger)
+      }
+    })
+    
+    const config = Array.from(configMap.entries()).map(([organization, ledgers]) => ({
+      organization,
+      ledgers
+    }))
 
     return {
       isConfigEnabled: true,
-      isLedgerAllowed
+      config
     }
   }
 }

@@ -1,4 +1,4 @@
-import { MidazConfigValidationDto } from '@/core/application/dto/midaz-config-dto'
+import { MidazConfigDto } from '@/core/application/dto/midaz-config-dto'
 import { getFetcher } from '@/lib/fetcher'
 import { useQuery } from '@tanstack/react-query'
 
@@ -8,9 +8,11 @@ interface UseMidazConfigParams {
 }
 
 export function useMidazConfig({ organization, ledger }: UseMidazConfigParams) {
-  return useQuery<MidazConfigValidationDto>({
-    queryKey: ['midaz-config', organization, ledger],
+  return useQuery<MidazConfigDto>({
+    queryKey: ['midaz-config', organization],
     queryFn: getFetcher(`/api/midaz/config?organization=${encodeURIComponent(organization)}&ledger=${encodeURIComponent(ledger)}`),
-    enabled: Boolean(organization && ledger)
+    enabled: Boolean(organization && ledger),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000, 
   })
 }
