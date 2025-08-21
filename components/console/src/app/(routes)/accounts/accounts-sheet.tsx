@@ -95,7 +95,8 @@ export const AccountSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
   const { formatNumber } = useFormatNumber()
-  const { isAccountTypeValidationEnabled: isValidationEnabled } = useMidazConfig()
+  const { isAccountTypeValidationEnabled: isValidationEnabled } =
+    useMidazConfig()
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -319,8 +320,7 @@ export const AccountSheet = ({
                       readOnly={isReadOnly || mode === 'edit'}
                     />
 
-                    {accountTypesData &&
-                    accountTypesData?.length > 0 ? (
+                    {accountTypesData && accountTypesData?.length > 0 ? (
                       <SelectField
                         control={form.control}
                         name="type"
@@ -333,7 +333,7 @@ export const AccountSheet = ({
                           defaultMessage: 'The type of account'
                         })}
                         readOnly={isReadOnly || mode === 'edit'}
-                        required={isValidationEnabled }
+                        required={isValidationEnabled}
                       >
                         {accountTypesData?.map((accountType) => (
                           <SelectItem
@@ -354,7 +354,9 @@ export const AccountSheet = ({
                         })}
                         required={isValidationEnabled}
                         readOnly={isReadOnly || mode === 'edit'}
-                        disabled={isValidationEnabled && accountTypesData?.length === 0}
+                        disabled={
+                          isValidationEnabled && accountTypesData?.length === 0
+                        }
                       />
                     )}
 

@@ -1,4 +1,4 @@
-import { inject, injectable } from 'inversify'
+import { injectable } from 'inversify'
 import { MidazConfigDto } from '../../dto/midaz-config-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators'
 
@@ -7,12 +7,15 @@ export interface GetMidazConfigValidation {
 }
 
 @injectable()
-export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation {
+export class GetMidazConfigValidationUseCase
+  implements GetMidazConfigValidation
+{
   constructor() {}
 
   @LogOperation({ layer: 'application' })
-  async execute(): Promise<MidazConfigDto> {
-    const isConfigEnabled = process.env.MIDAZ_ACCOUNT_TYPE_VALIDATION_ENABLED === 'true'
+  async execute(organization: string, ledger: string): Promise<MidazConfigDto> {
+    const isConfigEnabled =
+      process.env.MIDAZ_ACCOUNT_TYPE_VALIDATION_ENABLED === 'true'
 
     if (!isConfigEnabled) {
       return {
@@ -35,7 +38,7 @@ export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation
       .map((pair) => pair.trim())
 
     const configMap = new Map<string, string[]>()
-    
+
     validationPairs.forEach((pair) => {
       const [org, ledger] = pair.split(':')
       if (org && ledger) {
@@ -45,11 +48,13 @@ export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation
         configMap.get(org)?.push(ledger)
       }
     })
-    
-    const config = Array.from(configMap.entries()).map(([organization, ledgers]) => ({
-      organization,
-      ledgers
-    }))
+
+    const config = Array.from(configMap.entries()).map(
+      ([organization, ledgers]) => ({
+        organization,
+        ledgers
+      })
+    )
 
     return {
       isConfigEnabled: true,

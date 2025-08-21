@@ -5,17 +5,23 @@ import { useMidazConfig as useClientMidazConfig } from '@/client/midaz-config'
 export const useMidazConfig = () => {
   const { currentOrganization, currentLedger } = useOrganization()
 
-  const { data: config, isLoading, error, refetch } = useClientMidazConfig({
+  const {
+    data: config,
+    isLoading,
+    error,
+    refetch
+  } = useClientMidazConfig({
     organization: currentOrganization?.id || '',
     ledger: currentLedger?.id || ''
   })
 
   const isAccountTypeValidationEnabled = useMemo(() => {
     if (!config?.isConfigEnabled) return false
-    
-    const isLedgerAllowed = config.config.some((org: any) => 
-      org.organization === currentOrganization?.id && 
-      org.ledgers.includes(currentLedger?.id || '')
+
+    const isLedgerAllowed = config.config.some(
+      (org: any) =>
+        org.organization === currentOrganization?.id &&
+        org.ledgers.includes(currentLedger?.id || '')
     )
 
     return config.isConfigEnabled && isLedgerAllowed

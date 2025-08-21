@@ -6,6 +6,8 @@ import {
 
 export const MidazConfigUseCaseModule = new ContainerModule(
   (container: Container) => {
-    container.bind<GetMidazConfigValidation>(GetMidazConfigValidationUseCase).toSelf()
+    container
+      .bind<GetMidazConfigValidation>(GetMidazConfigValidationUseCase)
+      .toSelf()
   }
 )

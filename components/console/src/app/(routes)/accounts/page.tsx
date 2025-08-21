@@ -44,7 +44,7 @@ const Page = () => {
   const { form, searchValues, pagination } = useQueryParams({
     total,
     initialValues: {
-      alias: '' 
+      alias: ''
     }
   })
 
@@ -209,7 +209,8 @@ const Page = () => {
     query: searchValues as any
   })
 
-  const { isAccountTypeValidationEnabled: isValidationEnabled } = useMidazConfig()
+  const { isAccountTypeValidationEnabled: isValidationEnabled } =
+    useMidazConfig()
 
   return (
     <React.Fragment>
@@ -266,41 +267,41 @@ const Page = () => {
         />
 
         {isValidationEnabled && accountTypesData?.items.length === 0 && (
-            <div className="p-6">
-              <Alert variant="warning" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>
+          <div className="p-6">
+            <Alert variant="warning" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>
+                {intl.formatMessage({
+                  id: 'accounts.alert.noAccountType.title',
+                  defaultMessage: 'Account Type Validation is Disabled'
+                })}
+              </AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                <span className="opacity-70">
                   {intl.formatMessage({
-                    id: 'accounts.alert.noAccountType.title',
-                    defaultMessage: 'Account Type Validation is Disabled'
+                    id: 'accounts.alert.noAccountType.description',
+                    defaultMessage:
+                      'Account Type Validation is disabled for this organization and ledger. You cannot create accounts.'
                   })}
-                </AlertTitle>
-                <AlertDescription className="flex flex-col gap-2">
-                  <span className="opacity-70">
-                    {intl.formatMessage({
-                      id: 'accounts.alert.noAccountType.description',
-                      defaultMessage:
-                        'Account Type Validation is disabled for this organization and ledger. You cannot create accounts.'
-                    })}
-                  </span>
+                </span>
 
-                  <Button
-                    variant="link"
-                    className="w-fit p-0 text-yellow-800"
-                    size="sm"
-                    onClick={() => {
-                      router.push('/account-types')
-                    }}
-                  >
-                    {intl.formatMessage({
-                      id: 'accounts.alert.noAssets.createLink',
-                      defaultMessage: 'Manage Assets'
-                    })}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
+                <Button
+                  variant="link"
+                  className="w-fit p-0 text-yellow-800"
+                  size="sm"
+                  onClick={() => {
+                    router.push('/account-types')
+                  }}
+                >
+                  {intl.formatMessage({
+                    id: 'accounts.alert.noAssets.createLink',
+                    defaultMessage: 'Manage Assets'
+                  })}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
       </PageHeader.Root>
 
       <ConfirmationDialog
