@@ -41,7 +41,7 @@ import { useFormatNumber } from '@/lib/intl/use-format-number'
 import { Separator } from '@/components/ui/separator'
 import { useListAccountTypes } from '@/client/account-types'
 import Link from 'next/link'
-import { useAccountTypeValidation } from '@/hooks/use-account-type-validation'
+import { useMidazConfig } from '@/hooks/use-midaz-config'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -93,7 +93,10 @@ export const AccountSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
   const { formatNumber } = useFormatNumber()
-  const { isValidationEnabled } = useAccountTypeValidation()
+  const { isAccountTypeValidationEnabled: isValidationEnabled } = useMidazConfig({
+    organization: currentOrganization.id!,
+    ledger: currentLedger.id
+  })
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
