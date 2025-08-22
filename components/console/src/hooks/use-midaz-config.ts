@@ -5,12 +5,7 @@ import { useMidazConfig as useClientMidazConfig } from '@/client/midaz-config'
 export const useMidazConfig = () => {
   const { currentOrganization, currentLedger } = useOrganization()
 
-  const {
-    data: config,
-    isLoading,
-    error,
-    refetch
-  } = useClientMidazConfig()
+  const { data: config, isLoading, error, refetch } = useClientMidazConfig()
 
   const isAccountTypeValidationEnabled = useMemo(() => {
     if (!config?.isConfigEnabled) return false

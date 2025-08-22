@@ -136,6 +136,7 @@ export default function Page() {
       })
     }
   ])
+
   return (
     <React.Fragment>
       <Breadcrumb paths={breadcrumbPaths} />
