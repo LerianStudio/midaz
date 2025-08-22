@@ -65,19 +65,38 @@ export default function Page() {
   const accountTypesColumns = [
     {
       accessorKey: 'name',
-      header: 'Name'
+      header: intl.formatMessage({
+        id: 'account-types.field.name',
+        defaultMessage: 'Name'
+      })
     },
     {
       accessorKey: 'description',
-      header: 'Description'
+      header: intl.formatMessage({
+        id: 'account-types.field.description',
+        defaultMessage: 'Description'
+      })
     },
     {
       accessorKey: 'keyValue',
-      header: 'Key Value'
+      header: intl.formatMessage({
+        id: 'account-types.field.keyValue',
+        defaultMessage: 'Key Value'
+      })
     },
     {
       accessorKey: 'metadata',
-      header: 'Metadata'
+      header: intl.formatMessage({
+        id: 'account-types.field.metadata',
+        defaultMessage: 'Metadata'
+      })
+    },
+    {
+      accessorKey: 'actions',
+      header: intl.formatMessage({
+        id: 'common.actions',
+        defaultMessage: 'Actions'
+      })
     }
   ]
 
@@ -209,19 +228,9 @@ export default function Page() {
 
       <Form {...form}>
         <EntityBox.Root>
-          <div>
-            <InputField
-              name="name"
-              placeholder={intl.formatMessage({
-                id: 'accounts.search.placeholder',
-                defaultMessage: 'Search by ID or Alias...'
-              })}
-              control={form.control}
-            />
-          </div>
-          <EntityBox.Actions>
+          <div className="flex justify-end w-full">
             <PaginationLimitField control={form.control} />
-          </EntityBox.Actions>
+          </div>
         </EntityBox.Root>
 
         {isAccountTypesLoading && <AccountTypesSkeleton />}
