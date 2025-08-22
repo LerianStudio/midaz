@@ -10,10 +10,7 @@ export const useMidazConfig = () => {
     isLoading,
     error,
     refetch
-  } = useClientMidazConfig({
-    organization: currentOrganization?.id || '',
-    ledger: currentLedger?.id || ''
-  })
+  } = useClientMidazConfig()
 
   const isAccountTypeValidationEnabled = useMemo(() => {
     if (!config?.isConfigEnabled) return false

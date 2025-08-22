@@ -7,13 +7,13 @@ interface UseMidazConfigParams {
   ledger: string
 }
 
-export function useMidazConfig({ organization, ledger }: UseMidazConfigParams) {
+export function useMidazConfig() {
   return useQuery<MidazConfigDto>({
-    queryKey: ['midaz-config', organization],
+    queryKey: ['midaz-config'],
     queryFn: getFetcher(
-      `/api/midaz/config?organization=${encodeURIComponent(organization)}&ledger=${encodeURIComponent(ledger)}`
+      `/api/midaz/config`
     ),
-    enabled: Boolean(organization && ledger),
+    enabled: true,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000
   })

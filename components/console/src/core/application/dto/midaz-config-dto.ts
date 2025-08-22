@@ -5,8 +5,3 @@ export type MidazConfigDto = {
     ledgers: string[]
   }>
 }
-
-export type MidazConfigValidationDto = {
-  isConfigEnabled: boolean
-  isLedgerAllowed: boolean
-}
