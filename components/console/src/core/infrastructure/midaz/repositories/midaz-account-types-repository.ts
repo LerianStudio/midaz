@@ -73,9 +73,12 @@ export class MidazAccountTypesRepository implements AccountTypesRepository {
 
       return MidazAccountTypesMapper.toEntity(response)
     } catch (error) {
-      throw new MidazApiException(
-        `Account type with ID ${accountTypeId} not found`
-      )
+      if (error instanceof MidazApiException) {
+        if (error.code === '0085') {
+          return {} as AccountTypesEntity
+        }
+      }
+      throw error
     }
   }
 

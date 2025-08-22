@@ -14,7 +14,6 @@ import {
   useDeleteAccountType,
   useListAccountTypes
 } from '@/client/account-types'
-import { InputField } from '@/components/form'
 import { EntityBox } from '@/components/entity-box'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Form } from '@/components/ui/form'
@@ -228,7 +227,7 @@ export default function Page() {
 
       <Form {...form}>
         <EntityBox.Root>
-          <div className="flex justify-end w-full">
+          <div className="flex w-full justify-end">
             <PaginationLimitField control={form.control} />
           </div>
         </EntityBox.Root>

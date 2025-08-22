@@ -11,7 +11,6 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Form } from '@/components/ui/form'
-import { useRouter } from 'next/navigation'
 import { useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
@@ -63,7 +62,6 @@ export const AccountTypesSheet = ({
   ...others
 }: AccountTypesSheetProps) => {
   const intl = useIntl()
-  const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('account-types')

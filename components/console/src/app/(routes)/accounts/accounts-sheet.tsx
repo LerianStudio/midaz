@@ -48,7 +48,6 @@ export type AccountSheetProps = DialogProps & {
   mode: 'create' | 'edit'
   data?: AccountDto | null
   onSuccess?: () => void
-  searchValues?: any
   accountTypesData?: AccountTypesDto[]
 }
 
@@ -85,7 +84,6 @@ export const AccountSheet = ({
   data,
   onSuccess,
   onOpenChange,
-  searchValues,
   accountTypesData,
   ...others
 }: AccountSheetProps) => {
