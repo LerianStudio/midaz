@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.
@@ -46,21 +45,13 @@ type AssetHandler struct {
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
@@ -113,9 +104,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
@@ -123,11 +112,6 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
@@ -212,9 +196,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
@@ -222,13 +204,6 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.asset_id", id.String()),
-	)
 
 	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -270,9 +245,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
@@ -280,13 +253,6 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.asset_id", id.String()),
-	)
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -341,9 +307,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()
@@ -351,13 +315,6 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.asset_id", id.String()),
-	)
 
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -392,21 +349,13 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_assets")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	logger.Infof("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID)
 

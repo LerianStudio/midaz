@@ -15,27 +15,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateAccount creates a new account persists data in the repository.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput) (*mmodel.Account, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", cai); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Trying to create account: %v", cai)
 
@@ -186,8 +173,7 @@ func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status
 
 // applyAccountingValidations applies the accounting validations to the account.
 func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.apply_accounting_validations")
 	defer span.End()
