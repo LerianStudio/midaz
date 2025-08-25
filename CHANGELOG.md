@@ -1,3 +1,18 @@
+## [v3.3.0-beta.4] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.3...v3.3.0-beta.4)
+Contributors: Adryan Alencar
+
+### ✨ Features
+- **Enhanced Database Security**: Introduced the `DB_SSLMODE` option in the environment configuration. This feature allows users to specify the SSL mode for database connections, significantly enhancing data protection and compliance with security standards. Users can now configure their database connections to meet specific security requirements, ensuring greater control and peace of mind.
+
+### 📚 Documentation
+- **Updated Configuration Guide**: The documentation has been updated to include detailed information on the new `DB_SSLMODE` configuration option. This ensures users have clear and comprehensive guidance on how to implement and benefit from the enhanced security features.
+
+### 🔧 Maintenance
+- General updates to improve the overall stability and maintainability of the project, ensuring a smoother user experience.
+
+
 ## [v3.3.0-beta.2] - 2025-08-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.1...v3.3.0-beta.2)
