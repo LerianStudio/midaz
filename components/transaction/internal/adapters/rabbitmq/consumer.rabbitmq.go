@@ -107,14 +107,13 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 						log,
 					)
 
+					ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
 					ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
-					tracer := libCommons.NewTracerFromContext(ctx)
+					logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 					ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-					spanConsumer.SetAttributes(
-						attribute.String("app.request.rabbitmq.consumer.request_id", midazID.(string)),
-					)
+					ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
 					err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
 					if err != nil {
@@ -127,7 +126,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 						spanConsumer.End()
 
-						cr.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+						logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
 						_ = msg.Nack(false, true)
 

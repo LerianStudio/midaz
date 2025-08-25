@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for asset_rate template entities.
@@ -55,28 +54,16 @@ func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Asset
 
 // Create a new AssetRate entity into Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset_rate")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", assetRate.OrganizationID),
-		attribute.String("app.request.ledger_id", assetRate.LedgerID),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", assetRate)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert asset_rate from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -85,13 +72,6 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	record.FromEntity(assetRate)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
-
-	spanExec.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset_rate record from entity to JSON string", err)
-	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO asset_rate VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
 		&record.ID,
@@ -110,6 +90,8 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
+		logger.Errorf("Failed to execute insert query: %v", err)
+
 		return nil, err
 	}
 
@@ -119,6 +101,8 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
+		logger.Errorf("Failed to get rows affected: %v", err)
+
 		return nil, err
 	}
 
@@ -126,6 +110,8 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create asset rate. Rows affected is 0", err)
+
+		logger.Errorf("Failed to create asset rate. Rows affected is 0: %v", err)
 
 		return nil, err
 	}
@@ -135,24 +121,16 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 // FindByExternalID an AssetRate entity by its external ID in Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*AssetRate, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_external_id")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.external_id", externalID.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -160,8 +138,6 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 	record := &AssetRatePostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
-	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND external_id = $3 ORDER BY created_at DESC`, organizationID, ledgerID, externalID)
 
@@ -181,11 +157,19 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset rate. Row not found", err)
+
+			logger.Errorf("Failed to find asset rate. Row not found: %v", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan asset rate record", err)
 
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
-		}
+		logger.Errorf("Failed to scan asset rate record: %v", err)
 
 		return nil, err
 	}
@@ -195,25 +179,16 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 // FindByCurrencyPair an AssetRate entity by its currency pair in Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_currency_pair")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.from", from),
-		attribute.String("app.request.to", to),
-	}
-
-	span.SetAttributes(attributes...)
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -221,8 +196,6 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 	record := &AssetRatePostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
-	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND "from" = $3 AND "to" = $4 ORDER BY created_at DESC`, organizationID, ledgerID, from, to)
 
@@ -242,11 +215,15 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan asset rate record", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
+			logger.Errorf("Asset rate not found: %v", err)
+
 			return nil, nil
 		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan asset rate record", err)
+
+		logger.Errorf("Failed to scan asset rate record: %v", err)
 
 		return nil, err
 	}
@@ -256,29 +233,16 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 // FindAllByAssetCodes returns all asset rates by asset codes.
 func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, libHTTP.CursorPagination, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.from_asset_code", fromAssetCode),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert pagination filter from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -293,6 +257,8 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		decodedCursor, err = libHTTP.DecodeCursor(filter.Cursor)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			logger.Errorf("Failed to decode cursor: %v", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -317,21 +283,18 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
+		logger.Errorf("Failed to build query: %v", err)
+
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
-	spanQuery.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert pagination filter from entity to JSON string", err)
-	}
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		logger.Errorf("Failed to execute query: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 	}
@@ -357,6 +320,8 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
+			logger.Errorf("Failed to scan row: %v", err)
+
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
@@ -365,6 +330,8 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
+		logger.Errorf("Failed to get rows: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -379,6 +346,8 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
+			logger.Errorf("Failed to calculate cursor: %v", err)
+
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}
@@ -388,29 +357,16 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 // Update an AssetRate entity into Postgresql and returns the AssetRate updated.
 func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset_rate")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.asset_rate_id", id.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", assetRate)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -446,16 +402,11 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	spanExec.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert asset rate record from entity to JSON string", err)
-	}
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
+		logger.Errorf("Failed to execute query: %v", err)
 
 		return nil, err
 	}
@@ -466,6 +417,8 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
+		logger.Errorf("Failed to get rows affected: %v", err)
+
 		return nil, err
 	}
 
@@ -473,6 +426,8 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset rate. Rows affected is 0", err)
+
+		logger.Warnf("Failed to update asset rate. Rows affected is 0: %v", err)
 
 		return nil, err
 	}

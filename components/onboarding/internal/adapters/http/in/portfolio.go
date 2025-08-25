@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // PortfolioHandler struct contains a portfolio use case for managing portfolio related operations.
@@ -46,21 +45,13 @@ type PortfolioHandler struct {
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
 
@@ -111,9 +102,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
 	defer span.End()
@@ -121,11 +110,6 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams, err := http.ValidateParameters(c.Queries())
@@ -209,9 +193,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
 	defer span.End()
@@ -219,13 +201,6 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", id.String()),
-	)
 
 	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -267,9 +242,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
 	defer span.End()
@@ -277,13 +250,6 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", id.String()),
-	)
 
 	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -338,9 +304,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
 	defer span.End()
@@ -348,13 +312,6 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.portfolio_id", id.String()),
-	)
 
 	logger.Infof("Initiating removal of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -390,21 +347,13 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.count_portfolios")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	count, err := handler.Query.CountPortfolios(ctx, organizationID, ledgerID)
 	if err != nil {

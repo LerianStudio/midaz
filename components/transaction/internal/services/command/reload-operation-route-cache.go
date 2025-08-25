@@ -11,8 +11,7 @@ import (
 // ReloadOperationRouteCache reloads the cache for all transaction routes associated with the given operation route.
 // It retrieves all transaction routes linked to the operation route and recreates their cache entries.
 func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.reload_operation_route_cache")
 	defer span.End()

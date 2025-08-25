@@ -12,7 +12,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
-	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -59,29 +58,14 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 }
 
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
-		attribute.String("app.request.rabbitmq.producer.key", key),
-	}
-
 	var err error
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanProducer, "app.request.rabbitmq.producer.message", message)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
-	}
-
-	spanProducer.SetAttributes(attributes...)
 
 	backoff := initialBackoff
 

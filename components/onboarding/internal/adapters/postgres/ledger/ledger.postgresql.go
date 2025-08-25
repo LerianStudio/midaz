@@ -22,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related to ledger entities.
@@ -61,28 +60,16 @@ func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPo
 
 // Create a new Ledger entity into Postgresql and returns it.
 func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_ledger")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", ledger.OrganizationID),
-		attribute.String("app.request.ledger_id", ledger.ID),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", ledger)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert ledger record from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -91,13 +78,6 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	record.FromEntity(ledger)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
-
-	spanExec.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert ledger record from entity to JSON string", err)
-	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO ledger VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
 		record.ID,
@@ -116,10 +96,14 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
 
+			logger.Warnf("Failed to execute update query: %v", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+
+		logger.Errorf("Failed to execute update query: %v", err)
 
 		return nil, err
 	}
@@ -129,6 +113,8 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
 
 		return nil, err
 	}
@@ -146,23 +132,16 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 // Find retrieves a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -170,8 +149,6 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	ledger := &LedgerPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
-	spanQuery.SetAttributes(attributes...)
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL", organizationID, id)
 
@@ -189,6 +166,8 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
+		logger.Errorf("Failed to scan row: %v", err)
+
 		return nil, err
 	}
 
@@ -197,27 +176,16 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 // FindAll retrieves Ledgers entities from the database.
 func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -239,17 +207,12 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
+		logger.Errorf("Failed to build query: %v", err)
+
 		return nil, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
-	spanQuery.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanQuery, "app.request.repository_filter", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to convert filter from entity to JSON string", err)
-	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -266,6 +229,8 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
@@ -284,30 +249,21 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 // FindByName returns error and a boolean indicating if Ledger entities exists by name
 func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger_by_name")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.name", name),
-	}
-
-	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
+		logger.Errorf("Failed to get database connection: %v", err)
+
 		return false, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_name.query")
-
-	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx,
 		"SELECT * FROM ledger WHERE organization_id = $1 AND LOWER(name) LIKE LOWER($2) AND deleted_at IS NULL",
@@ -335,22 +291,16 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 // ListByIDs retrieves Ledgers entities from the database using the provided IDs.
 func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_ledgers_by_ids")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -358,8 +308,6 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	var ledgers []*mmodel.Ledger
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_ledgers_by_ids.query")
-
-	spanQuery.SetAttributes(attributes...)
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = ANY($2) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, pq.Array(ids))
 	if err != nil {
@@ -376,6 +324,8 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
@@ -394,28 +344,16 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 // Update a Ledger entity into Postgresql and returns the Ledger updated.
 func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", ledger)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert ledger record from entity to JSON string", err)
-	}
-
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -458,13 +396,6 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	spanExec.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "app.request.repository_input", record)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert ledger record from entity to JSON string", err)
-	}
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -473,10 +404,14 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
 
+			logger.Warnf("Failed to execute update query: %v", err)
+
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+
+		logger.Errorf("Failed to execute update query: %v", err)
 
 		return nil, err
 	}
@@ -486,6 +421,8 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
 
 		return nil, err
 	}
@@ -503,30 +440,21 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 // Delete removes a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_ledger")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", id.String()),
-	}
-
-	span.SetAttributes(attributes...)
 
 	db, err := r.connection.GetDB()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
+		logger.Errorf("Failed to get database connection: %v", err)
+
 		return err
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-
-	spanExec.SetAttributes(attributes...)
 
 	result, err := db.ExecContext(ctx, `UPDATE ledger SET deleted_at = now() WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`, organizationID, id)
 	if err != nil {
@@ -540,6 +468,8 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		logger.Errorf("Failed to get rows affected: %v", err)
 
 		return err
 	}
@@ -557,18 +487,10 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 // Count retrieves the number of Ledger entities in the database for the given organization ID.
 func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID uuid.UUID) (int64, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_ledgers")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	}
-
-	span.SetAttributes(attributes...)
 
 	var count = int64(0)
 
@@ -576,13 +498,13 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
+		logger.Errorf("Failed to get database connection: %v", err)
+
 		return count, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
 	defer spanQuery.End()
-
-	spanQuery.SetAttributes(attributes...)
 
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL", organizationID).Scan(&count)
 	if err != nil {
@@ -590,10 +512,6 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 		return count, err
 	}
-
-	attributes = append(attributes, attribute.Int64("app.response.count", count))
-
-	span.SetAttributes(attributes...)
 
 	return count, nil
 }

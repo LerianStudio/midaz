@@ -40,8 +40,7 @@ func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
 func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, body []byte) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_create_queue")
 	defer span.End()
@@ -75,8 +74,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 // handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
 func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
