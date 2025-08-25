@@ -313,7 +313,11 @@ export const LedgersDataTable: React.FC<LedgersTableProps> = (props) => {
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination
+            total={total}
+            hasNextPage={items?.length < pagination.limit}
+            {...pagination}
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

@@ -300,7 +300,11 @@ export const AccountsDataTable: React.FC<AccountsTableProps> = ({
             }
           )}
         </EntityDataTable.FooterText>
-        <Pagination total={total} {...pagination} />
+        <Pagination
+          total={total}
+          hasNextPage={accounts?.items.length < pagination.limit}
+          {...pagination}
+        />
       </EntityDataTable.Footer>
     </EntityDataTable.Root>
   )
