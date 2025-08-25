@@ -1,8 +1,10 @@
 import { AccountRepository } from '@/core/domain/repositories/account-repository'
+import { AccountTypesRepository } from '@/core/domain/repositories/account-types-repository'
 import { Container, ContainerModule } from '../../utils/di/container'
 import { BalanceRepository } from '@/core/domain/repositories/balance-repository'
 import { MidazBalanceRepository } from '@/core/infrastructure/midaz/repositories/midaz-balance-repository'
 import { MidazAccountRepository } from '@/core/infrastructure/midaz/repositories/midaz-account-repository'
+import { MidazAccountTypesRepository } from '@/core/infrastructure/midaz/repositories/midaz-account-types-repository'
 import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
 import { MidazOrganizationRepository } from '@/core/infrastructure/midaz/repositories/midaz-organization-repository'
 import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
@@ -30,6 +32,9 @@ export const MidazModule = new ContainerModule((container: Container) => {
   container
     .bind<AccountRepository>(AccountRepository)
     .to(MidazAccountRepository)
+  container
+    .bind<AccountTypesRepository>(AccountTypesRepository)
+    .to(MidazAccountTypesRepository)
   container.bind<AssetRepository>(AssetRepository).to(MidazAssetRepository)
   container
     .bind<SegmentRepository>(SegmentRepository)
