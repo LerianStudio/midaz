@@ -66,6 +66,9 @@ export class OperationRoutesController extends BaseController {
     )
 
 
+    console.log('operationRoutes dentro do controller', operationRoutes)
+
+
 
     return NextResponse.json(operationRoutes)
   }

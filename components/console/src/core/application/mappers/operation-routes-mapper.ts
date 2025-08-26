@@ -17,11 +17,12 @@ export class OperationRoutesMapper {
       ledgerId: entity.ledgerId!,
       title: entity.title,
       description: entity.description,
+      operationType: entity.operationType!,
       account: entity.account,
       metadata: entity.metadata ?? null,
-      createdAt: entity.createdAt!,
-      updatedAt: entity.updatedAt!,
-      deletedAt: entity.deletedAt
+      createdAt: entity.createdAt!.toISOString(),
+      updatedAt: entity.updatedAt!.toISOString(),
+      deletedAt: entity.deletedAt?.toISOString()
     }
   }
 
@@ -31,18 +32,13 @@ export class OperationRoutesMapper {
       description: dto.description!,
       account: dto.account!,
       metadata: dto.metadata! ?? null,
-      operationType: dto.operationType!,
+      operationType: dto.operationType as 'source' | 'destination',
     }
   }
 
   static toSearchDomain(dto: OperationRoutesSearchParamDto): OperationRoutesSearchEntity {
     return {
       limit: dto.limit,
-      start_date: dto.start_date,
-      end_date: dto.end_date,
-      sort_order: dto.sort_order,
-      cursor: dto.cursor,
-      metadata: dto.metadata
     }
   }
 

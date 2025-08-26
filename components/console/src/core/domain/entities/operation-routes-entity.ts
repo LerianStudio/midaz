@@ -14,7 +14,7 @@ export type OperationRoutesEntity = {
   operationType?: 'source' | 'destination'
   account?: {
     ruleType: string
-    validIf: string | string[] | number | boolean | object | null
+    validIf: string | string[] | number | boolean | object | null | any
   }
   metadata?: MetadataEntity
   createdAt?: Date

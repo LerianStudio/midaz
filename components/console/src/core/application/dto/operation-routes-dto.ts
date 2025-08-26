@@ -4,10 +4,10 @@ import { SearchParamDto } from './request-dto'
 export type CreateOperationRoutesDto = {
   title: string
   description: string
-  operationType: 'source' | 'destination' 
+  operationType: 'source' | 'destination'
   account?: {
     ruleType: string
-    validIf: string | string[] | number | boolean | object | null
+    validIf: string | string[] | number | boolean | object | null | any
   }
   metadata?: MetadataDto
 }
@@ -20,9 +20,10 @@ export type OperationRoutesDto = {
   ledgerId: string
   title: string
   description: string
+  operationType: 'source' | 'destination'
   account?: {
     ruleType: string
-    validIf: string | string[] | number | boolean | object | null
+    validIf: string | string[] | number | boolean | object | null | any
   }
   metadata?: MetadataDto
   createdAt: string
