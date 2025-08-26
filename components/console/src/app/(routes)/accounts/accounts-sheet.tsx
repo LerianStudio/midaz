@@ -206,7 +206,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const updateData = omit(cleanedData, ['assetCode', 'type'])
+      const updateData = omit(cleanedData, ['assetCode', 'type', 'alias'])
       updateAccount(updateData)
     }
   }
