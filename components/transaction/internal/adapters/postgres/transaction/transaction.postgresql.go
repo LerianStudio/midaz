@@ -807,7 +807,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		Select("*").
 		FromSelect(subQuery, "t").
 		LeftJoin("operation o ON t.id = o.transaction_id").
-		PlaceholderFormat(squirrel.Dollar)
+		PlaceholderFormat(squirrel.Dollar).
+		OrderBy("t.id " + orderDirection)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
