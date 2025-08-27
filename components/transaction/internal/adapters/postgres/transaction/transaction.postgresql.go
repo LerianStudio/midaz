@@ -833,6 +833,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	transactions := make([]*Transaction, 0)
 	transactionsMap := make(map[uuid.UUID]*Transaction)
+	transactionOrder := make([]uuid.UUID, 0)
 
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}
@@ -899,15 +900,17 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			}
 		}
 
-		t, exists := transactionsMap[uuid.MustParse(tran.ID)]
+		transactionUUID := uuid.MustParse(tran.ID)
+
+		t, exists := transactionsMap[transactionUUID]
 		if !exists {
 			t = tran.ToEntity()
+			transactionsMap[transactionUUID] = t
 
-			t.Operations = append(t.Operations, op.ToEntity())
-			transactionsMap[t.IDtoUUID()] = t
-		} else {
-			t.Operations = append(t.Operations, op.ToEntity())
+			transactionOrder = append(transactionOrder, transactionUUID)
 		}
+
+		t.Operations = append(t.Operations, op.ToEntity())
 	}
 
 	if err = rows.Err(); err != nil {
@@ -918,8 +921,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	for _, t := range transactionsMap {
-		transactions = append(transactions, t)
+	for _, transactionUUID := range transactionOrder {
+		transactions = append(transactions, transactionsMap[transactionUUID])
 	}
 
 	hasPagination := len(transactions) > filter.Limit
