@@ -8,6 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -64,10 +65,12 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 		for i := range trans {
 			source := make([]string, 0)
-
 			destination := make([]string, 0)
 
+			operationIDs := make([]string, 0, len(trans[i].Operations))
 			for _, op := range trans[i].Operations {
+				operationIDs = append(operationIDs, op.ID)
+
 				switch op.Type {
 				case constant.DEBIT:
 					source = append(source, op.AccountAlias)
@@ -82,10 +85,46 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 			if data, ok := metadataMap[trans[i].ID]; ok {
 				trans[i].Metadata = data
 			}
+
+			if len(operationIDs) > 0 {
+				if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
+					return nil, libHTTP.CursorPagination{}, err
+				}
+			}
 		}
 	}
 
 	return trans, cur, nil
+}
+
+// enrichOperationsWithMetadata retrieves and assigns metadata to operations
+func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
+	defer span.End()
+
+	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+
+		logger.Warnf("Error getting operation metadata: %v", err)
+
+		return err
+	}
+
+	operationMetadataMap := make(map[string]map[string]any, len(operationMetadata))
+	for _, meta := range operationMetadata {
+		operationMetadataMap[meta.EntityID] = meta.Data
+	}
+
+	for j := range operations {
+		if opData, ok := operationMetadataMap[operations[j].ID]; ok {
+			operations[j].Metadata = opData
+		}
+	}
+
+	return nil
 }
 
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
