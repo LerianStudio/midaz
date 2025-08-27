@@ -88,6 +88,21 @@ func TestGetAllTransactions(t *testing.T) {
 			},
 		}
 
+		operationMetadata := []*mongodb.Metadata{
+			{
+				EntityID:   operations[0].ID,
+				EntityName: "Operation",
+				Data:       map[string]any{"op_key1": "op_value1"},
+			},
+			{
+				EntityID:   operations[1].ID,
+				EntityName: "Operation",
+				Data:       map[string]any{"op_key2": "op_value2"},
+			},
+		}
+
+		operationIDs := []string{operations[0].ID, operations[1].ID}
+
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
@@ -100,6 +115,12 @@ func TestGetAllTransactions(t *testing.T) {
 			Return(metadata, nil).
 			Times(1)
 
+		mockMetadataRepo.
+			EXPECT().
+			FindByEntityIDs(gomock.Any(), "Operation", operationIDs).
+			Return(operationMetadata, nil).
+			Times(1)
+
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.NoError(t, err)
@@ -109,6 +130,9 @@ func TestGetAllTransactions(t *testing.T) {
 		assert.Len(t, result[0].Operations, 2)
 		assert.Contains(t, result[0].Source, "source")
 		assert.Contains(t, result[0].Destination, "destination")
+
+		assert.Equal(t, map[string]any{"op_key1": "op_value1"}, result[0].Operations[0].Metadata)
+		assert.Equal(t, map[string]any{"op_key2": "op_value2"}, result[0].Operations[1].Metadata)
 	})
 
 	t.Run("Error_FindAll", func(t *testing.T) {
