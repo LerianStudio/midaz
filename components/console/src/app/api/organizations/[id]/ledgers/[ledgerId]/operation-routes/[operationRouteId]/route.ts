@@ -11,6 +11,11 @@ export const PUT = getController(
   (c) => c.update
 )
 
+export const PATCH = getController(
+  OperationRoutesController,
+  (c) => c.update
+)
+
 export const DELETE = getController(
   OperationRoutesController,
   (c) => c.delete

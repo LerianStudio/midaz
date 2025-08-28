@@ -159,7 +159,7 @@ export const MultipleSelectValue = React.forwardRef<
   return (
     <>
       {options &&
-        value?.map((value) => (
+        value?.map?.((value) => (
           <Badge
             key={value}
             variant="secondary"

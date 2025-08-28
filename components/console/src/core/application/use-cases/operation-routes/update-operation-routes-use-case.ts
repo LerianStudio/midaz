@@ -34,6 +34,7 @@ export class UpdateOperationRoutesUseCase implements UpdateOperationRoutes {
     const operationRouteEntity: Partial<OperationRoutesEntity> =
       OperationRoutesMapper.toDomain(operationRoute)
 
+    console.log('operationRouteEntity', operationRouteEntity)
     const updatedOperationRoute: OperationRoutesEntity =
       await this.operationRoutesRepository.update(
         organizationId,

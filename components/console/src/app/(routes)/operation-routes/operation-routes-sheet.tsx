@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -16,55 +16,78 @@ import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { MetadataField } from '@/components/form/metadata-field'
-import {
-  useCreateAccountType,
-  useUpdateAccountType
-} from '@/client/account-types'
+
 import { isNil, omit, omitBy } from 'lodash'
-import { accountTypes } from '@/schema/account-types'
-import { InputField } from '@/components/form'
+import { InputField, SelectField } from '@/components/form'
+import { operationRoutes } from '@/schema/operation-routes'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@lerianstudio/console-layout'
-import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
+import { useCreateOperationRoute, useUpdateOperationRoute } from '@/client/operation-routes'
+import { useListAccounts } from '@/client/accounts'
+import { useListAccountTypes } from '@/client/account-types'
+import { CreateOperationRoutesDto, OperationRoutesDto, UpdateOperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
+import { SelectItem } from '@/components/ui/select'
+import { MultipleSelectItem } from '@/components/ui/multiple-select'
 
-export type AccountTypesSheetProps = DialogProps & {
+export type OperationRoutesSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: AccountTypesDto | null
+  data?: OperationRoutesDto | null
   onSuccess?: () => void
 }
 
 const initialValues = {
-  name: '',
+  title: '',
   description: '',
-  keyValue: '',
+  operationType: 'source' as const,
+  account: {
+    ruleType: 'alias' as const,
+    validIf: [] as string[] | string
+  },
   metadata: {}
 }
 
 const FormSchema = z.object({
-  name: accountTypes.name,
-  description: accountTypes.description,
-  keyValue: accountTypes.keyValue,
-  metadata: accountTypes.metadata
+  title: operationRoutes.title,
+  description: operationRoutes.description,
+  operationType: operationRoutes.operationType,
+  account: operationRoutes.account.refine((account) => {
+    if (!account) return true
+    if (!account.ruleType) return false
+
+    if (account.ruleType === 'alias') {
+      return typeof account.validIf === 'string' && account.validIf.trim() !== ''
+    }
+
+    if (account.ruleType === 'account_type') {
+      return Array.isArray(account.validIf) && account.validIf.length > 0
+    }
+
+    return false
+  }, {
+    message: "validIf is required and must match the selected ruleType format",
+    path: ["account", "validIf"]
+  }),
+  metadata: operationRoutes.metadata
 })
 
 type FormData = z.infer<typeof FormSchema>
 
-export const AccountTypesSheet = ({
+export const OperationRoutesSheet = ({
   mode,
   data,
   onSuccess,
   onOpenChange,
   ...others
-}: AccountTypesSheetProps) => {
+}: OperationRoutesSheetProps) => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
-  const { isReadOnly } = useFormPermissions('account-types')
+  const { isReadOnly } = useFormPermissions('operation-routes')
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -72,8 +95,38 @@ export const AccountTypesSheet = ({
     defaultValues: initialValues
   })
 
-  const { mutate: createAccountType, isPending: createPending } =
-    useCreateAccountType({
+  const ruleTypeValue = form.watch('account.ruleType')
+
+  const { data: accountsData } = useListAccounts({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    enabled: ruleTypeValue === 'alias'
+  })
+
+  const { data: accountTypesData, isLoading: accountTypesLoading, error: accountTypesError } = useListAccountTypes({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    enabled: !!currentOrganization.id && !!currentLedger.id
+  })
+
+  useEffect(() => {
+    if (!ruleTypeValue) return
+
+    const currentValue = form.getValues('account.validIf')
+    
+    if (ruleTypeValue === 'alias') {
+      if (typeof currentValue !== 'string') {
+        form.setValue('account.validIf', '')
+      }
+    } else if (ruleTypeValue === 'account_type') {
+      if (!Array.isArray(currentValue)) {
+        form.setValue('account.validIf', [])
+      }
+    }
+  }, [ruleTypeValue, form])
+
+  const { mutate: createOperationRoute, isPending: createPending } =
+    useCreateOperationRoute({
       organizationId: currentOrganization.id!,
       ledgerId: currentLedger.id,
       onSuccess: (data) => {
@@ -82,11 +135,11 @@ export const AccountTypesSheet = ({
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.account-types.created',
+              id: 'success.operation-routes.created',
               defaultMessage:
-                '{accountTypeName} account type successfully created'
+                '{operationRouteTitle} operation route successfully created'
             },
-            { accountTypeName: (data as AccountTypesDto)?.name! }
+            { operationRouteTitle: (data as OperationRoutesDto)?.title! }
           ),
           variant: 'success'
         })
@@ -94,27 +147,27 @@ export const AccountTypesSheet = ({
       }
     })
 
-  const { mutate: updateAccountType, isPending: updatePending } =
-    useUpdateAccountType({
+  const { mutate: updateOperationRoute, isPending: updatePending } =
+    useUpdateOperationRoute({
       organizationId: currentOrganization.id!,
       ledgerId: currentLedger.id,
-      accountTypeId: data?.id!,
+      operationRouteId: data?.id!,
       onSuccess: (data) => {
         onSuccess?.()
         onOpenChange?.(false)
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.account-types.updated',
-              defaultMessage:
-                '{accountTypeName} account type successfully updated'
+              id: 'success.operation-routes.updated',
+              defaultMessage: '{operationRouteTitle} operation route successfully updated'
             },
-            { accountTypeName: (data as AccountTypesDto)?.name! }
+            { operationRouteTitle: (data as OperationRoutesDto)?.title! }
           ),
           variant: 'success'
         })
       }
     })
+
 
   const handleSubmit = (data: FormData) => {
     const cleanedData = omitBy(
@@ -122,20 +175,18 @@ export const AccountTypesSheet = ({
       (value) => value === '' || isNil(value)
     ) as FormData
 
-    if (
-      cleanedData.metadata &&
-      Object.keys(cleanedData.metadata).length === 0
-    ) {
+    if (cleanedData.metadata && Object.keys(cleanedData.metadata).length === 0) {
       cleanedData.metadata = null
     }
 
     if (mode === 'create') {
-      createAccountType(cleanedData)
+      createOperationRoute(cleanedData as CreateOperationRoutesDto)
     } else if (mode === 'edit') {
-      const updateData = omit(cleanedData, ['keyValue'])
-      updateAccountType(updateData)
+      const updateData = omit(cleanedData, ['operationType'])
+      updateOperationRoute(updateData as UpdateOperationRoutesDto)
     }
   }
+
 
   return (
     <React.Fragment>
@@ -145,15 +196,15 @@ export const AccountTypesSheet = ({
             <SheetHeader>
               <SheetTitle>
                 {intl.formatMessage({
-                  id: 'account-types.sheet.create.title',
-                  defaultMessage: 'New Account Type'
+                  id: 'operation-routes.sheet.create.title',
+                  defaultMessage: 'New Operation Route'
                 })}
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'account-types.sheet.create.description',
+                  id: 'operation-routes.sheet.create.description',
                   defaultMessage:
-                    'Fill in the details of the Account Type you want to create.'
+                    'Fill in the details of the Operation Route you want to create.'
                 })}
               </SheetDescription>
             </SheetHeader>
@@ -164,24 +215,24 @@ export const AccountTypesSheet = ({
               <SheetTitle>
                 {intl.formatMessage(
                   {
-                    id: 'account-types.sheet.edit.title',
-                    defaultMessage: 'Edit {accountTypeName}'
+                    id: 'operation-routes.sheet.edit.title',
+                    defaultMessage: 'Edit {operationRouteTitle}'
                   },
                   {
-                    accountTypeName: data?.name
+                    operationRouteTitle: data?.title
                   }
                 )}
               </SheetTitle>
               <SheetDescription>
                 {isReadOnly
                   ? intl.formatMessage({
-                      id: 'account-types.sheet.edit.description.readonly',
+                      id: 'operation-routes.sheet.edit.description.readonly',
                       defaultMessage:
-                        'View account type fields in read-only mode.'
+                        'View operation route fields in read-only mode.'
                     })
                   : intl.formatMessage({
-                      id: 'account-types.sheet.edit.description',
-                      defaultMessage: 'View and edit account type fields.'
+                      id: 'operation-routes.sheet.edit.description',
+                      defaultMessage: 'View and edit operation route fields.'
                     })}
               </SheetDescription>
             </SheetHeader>
@@ -196,8 +247,8 @@ export const AccountTypesSheet = ({
                 <TabsList className="mb-8 px-0">
                   <TabsTrigger value="details">
                     {intl.formatMessage({
-                      id: 'account-types.sheet.tabs.details',
-                      defaultMessage: 'Account Type Details'
+                      id: 'operation-routes.sheet.tabs.details',
+                      defaultMessage: 'Operation Route Details'
                     })}
                   </TabsTrigger>
                   <TabsTrigger value="metadata">
@@ -211,7 +262,7 @@ export const AccountTypesSheet = ({
                   <div className="flex grow flex-col gap-4">
                     <InputField
                       control={form.control}
-                      name="name"
+                      name="title"
                       label={intl.formatMessage({
                         id: 'account-types.field.name',
                         defaultMessage: 'Account Type Name'
@@ -220,8 +271,7 @@ export const AccountTypesSheet = ({
                         id: 'account-types.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account type'
                       })}
-                      readOnly={isReadOnly}
-                      required
+                      required={mode === 'create'}
                     />
 
                     <InputField
@@ -231,7 +281,6 @@ export const AccountTypesSheet = ({
                         id: 'account-types.field.description',
                         defaultMessage: 'Description'
                       })}
-                      readOnly={isReadOnly}
                       textArea
                       placeholder={intl.formatMessage({
                         id: 'account-types.field.description.placeholder',
@@ -240,25 +289,119 @@ export const AccountTypesSheet = ({
                       })}
                     />
 
-                    <InputField
+                    <SelectField
                       control={form.control}
-                      name="keyValue"
+                      name="operationType"
                       label={intl.formatMessage({
-                        id: 'account-types.field.keyValue',
-                        defaultMessage: 'Key Value'
+                        id: 'account-types.field.operationType',
+                        defaultMessage: 'Operation Type'
+                      })}
+                      required={mode === 'create'}
+                      placeholder={intl.formatMessage({
+                        id: 'account-types.field.operationType.placeholder',
+                        defaultMessage: 'Select the operation type'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.keyValue.tooltip',
+                        id: 'account-types.field.operationType.tooltip',
                         defaultMessage:
-                          'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
+                          'Select the operation type for the account type'
                       })}
-                      readOnly={isReadOnly || mode === 'edit'}
+                      disabled={isReadOnly || mode === 'edit'}
+                    >
+                      <SelectItem value="source">
+                        {intl.formatMessage({
+                          id: 'account-types.field.operationType.source',
+                          defaultMessage: 'Source'
+                        })}
+                      </SelectItem>
+                      <SelectItem value="destination">Destination</SelectItem>
+                    </SelectField>
+
+                  <SelectField
+                    control={form.control}
+                    name="account.ruleType"
+                    onChange={() => {
+                      form.setValue('account.validIf', [])
+                    }}
+                    label={intl.formatMessage({
+                      id: 'account-types.field.ruleType',
+                      defaultMessage: 'Rule Type'
+                    })}
+                    tooltip={intl.formatMessage({
+                      id: 'account-types.field.ruleType.tooltip',
+                      defaultMessage: 'Select the rule type for the account type'
+                    })}
+                    required={mode === 'create'}
+                  >
+                    <SelectItem value="alias" defaultChecked>Alias</SelectItem>
+                    <SelectItem value="account_type">Account Type</SelectItem>
+                  </SelectField>
+
+                  {accountsData && ruleTypeValue === 'alias' && (
+                    <SelectField
+                      control={form.control}
+                      name="account.validIf"
+                      label={intl.formatMessage({
+                        id: 'operation-routes.field.validIf.alias',
+                        defaultMessage: 'Account Alias'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'operation-routes.field.validIf.alias.tooltip',
+                        defaultMessage: 'Select the account alias to validate against'
+                      })}
                       required
                       placeholder={intl.formatMessage({
-                        id: 'account-types.field.keyValue.placeholder',
-                        defaultMessage: 'e.g., current_assets, fixed_assets'
+                        id: 'operation-routes.field.validIf.alias.placeholder',
+                        defaultMessage: 'Select an account alias'
                       })}
-                    />
+                    >
+                      {accountsData?.items?.map((account) => (
+                        <SelectItem key={account.id} value={account.alias}>
+                          {account.alias} - {account.name}
+                        </SelectItem>
+                      ))}
+                    </SelectField>
+                  )}
+
+                  {accountTypesData && ruleTypeValue === 'account_type' && (
+                    <SelectField
+                      control={form.control}
+                      name="account.validIf"
+                      label={intl.formatMessage({
+                        id: 'operation-routes.field.validIf.accountType',
+                        defaultMessage: 'Account Types'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'operation-routes.field.validIf.accountType.tooltip',
+                        defaultMessage: 'Select one or more account types to validate against'
+                      })}
+                      required
+                      multi
+                      placeholder={
+                        accountTypesLoading
+                          ? intl.formatMessage({
+                              id: 'common.loading',
+                              defaultMessage: 'Loading account types...'
+                            })
+                          : accountTypesError
+                          ? intl.formatMessage({
+                              id: 'common.error',
+                              defaultMessage: 'Error loading account types'
+                            })
+                          : intl.formatMessage({
+                              id: 'operation-routes.field.validIf.accountType.placeholder',
+                              defaultMessage: 'Select account types'
+                            })
+                      }
+                      disabled={accountTypesLoading || !!accountTypesError}
+                    >
+                      {accountTypesData && accountTypesData?.items?.map((accountType) => (
+                        <MultipleSelectItem key={accountType.id} value={accountType.name}>
+                          {accountType.name}
+                        </MultipleSelectItem>
+                      ))}
+                    </SelectField>
+                  )}
 
                     <p className="text-shadcn-400 text-xs font-normal italic">
                       {intl.formatMessage({

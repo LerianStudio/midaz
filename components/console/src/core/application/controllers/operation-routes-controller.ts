@@ -100,6 +100,8 @@ export class OperationRoutesController extends BaseController {
       updateData
     )
 
+    console.log('operationRouteUpdateddddddddddddd', operationRouteUpdated)
+
     return NextResponse.json(operationRouteUpdated)
   }
 

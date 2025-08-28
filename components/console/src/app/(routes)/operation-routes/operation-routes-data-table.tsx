@@ -23,7 +23,6 @@ import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
-import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -38,7 +37,6 @@ import {
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
 import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
-import { IdTableCell } from '@/components/table/id-table-cell'
 
 type OperationRoutesDataTableProps = {
   operationRoutes: PaginationDto<OperationRoutesDto> | undefined
@@ -63,10 +61,10 @@ type OperationRoutesRowProps = {
 
 const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
   operationRoute,
-  handleEdit
+  handleEdit,
+  onDelete
 }) => {
   const intl = useIntl()
-  console.log('operationRoute', operationRoute.original)
   return (
     <React.Fragment>
       <TableRow key={operationRoute.id}>
@@ -78,20 +76,16 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
         <TableCell>
           <div className="flex flex-col gap-1">
             <span className="font-medium">
-              {truncate(operationRoute.original.description, { length: 15 })}
+              {truncate(operationRoute.original.description, { length: 30 })}
             </span>
           </div>
         </TableCell>
         <TableCell>
           <TooltipProvider>
           <Tooltip delayDuration={300}>
-            <TooltipTrigger>{truncate(operationRoute.original.account?.ruleType, { length: 16 })}</TooltipTrigger>
+            <TooltipTrigger>{truncate(operationRoute.original.operationType, { length: 30 })}</TooltipTrigger>
             <TooltipContent>
-              {operationRoute.original.account?.ruleType === 'account_type' ? (
-                <span>{operationRoute.original.account?.validIf.map((validIf: any) => validIf).join(', ')}</span>
-              ) : (
-                <span>{operationRoute.original.account?.validIf}</span>
-              )}
+              {operationRoute.original.operationType}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -105,7 +99,7 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {/* <DropdownMenuItem
+              <DropdownMenuItem
                 onClick={() =>
                   handleEdit({
                     ...operationRoute.original,
@@ -117,7 +111,17 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
                   id: 'common.details',
                   defaultMessage: 'Details'
                 })}
-              </DropdownMenuItem> */}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  onDelete(operationRoute.original.id, operationRoute.original)
+                }
+              >
+                {intl.formatMessage({
+                  id: 'common.delete',
+                  defaultMessage: 'Delete'
+                })}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </TableCell>
@@ -142,8 +146,8 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
     columns: [
       { accessorKey: 'title' },
       { accessorKey: 'description' },
-      { accessorKey: 'keyValue' },
-      { accessorKey: 'createdAt' },
+      { accessorKey: 'operationType' },
+      { accessorKey: 'metadata' },
       { accessorKey: 'actions' }
     ],
     getCoreRowModel: getCoreRowModel(),
@@ -152,22 +156,20 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
     state: { columnFilters }
   })
 
-  console.log('table', table)
-
   return (
     <>
       <EntityDataTable.Root>
         {isNil(operationRoutes?.items) || operationRoutes.items.length === 0 ? (
           <EmptyResource
             message={intl.formatMessage({
-              id: 'account-types.emptyResource',
-              defaultMessage: "You haven't created any Account Types yet."
+              id: 'operation-routes.emptyResource',
+              defaultMessage: "You haven't created any Operation Routes yet."
             })}
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'account-types.sheet.create.title',
-                defaultMessage: 'New Account Type'
+                id: 'operation-routes.sheet.create.title',
+                defaultMessage: 'New Operation Route'
               })}
             </Button>
           </EmptyResource>
@@ -179,8 +181,8 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'account-types.field.name',
-                        defaultMessage: 'Account Type Name'
+                        id: 'operation-routes.field.title',
+                        defaultMessage: 'Title'
                       })}
                       <TooltipProvider>
                         <Tooltip>
@@ -189,9 +191,9 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'account-types.field.name.tooltip',
+                              id: 'operation-routes.field.title.tooltip',
                               defaultMessage:
-                                'Enter the name of the account type'
+                                'The title of the operation route'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -200,15 +202,15 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'account-types.field.description',
+                      id: 'operation-routes.field.description',
                       defaultMessage: 'Description'
                     })}
                   </TableHead>
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'account-types.field.keyValue',
-                        defaultMessage: 'Key Value'
+                        id: 'operation-routes.field.operationType',
+                        defaultMessage: 'Operation Type'
                       })}
                       <TooltipProvider>
                         <Tooltip>
@@ -217,9 +219,9 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'account-types.field.keyValue.tooltip',
+                              id: 'operation-routes.field.operationType.tooltip',
                               defaultMessage:
-                                'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
+                                'The type of operation (source or destination)'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -258,9 +260,9 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
           <EntityDataTable.FooterText>
             {intl.formatMessage(
               {
-                id: 'ledgers.accounts.showing',
+                id: 'operation-routes.showing',
                 defaultMessage:
-                  '{number, plural, =0 {No accounts found} one {Showing {count} account} other {Showing {count} accounts}}.'
+                  '{number, plural, =0 {No operation routes found} one {Showing {count} operation route} other {Showing {count} operation routes}}.'
               },
               {
                 number: operationRoutes?.items.length,
