@@ -9,16 +9,11 @@ import React, { useState } from 'react'
 import { useIntl } from 'react-intl'
 import { OperationRoutesSheet } from './operation-routes-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
-import {
-  useDeleteAccountType,
-  useListAccountTypes
-} from '@/client/account-types'
 import { EntityBox } from '@/components/entity-box'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Form } from '@/components/ui/form'
 import { useQueryParams } from '@/hooks/use-query-params'
-import { AccountTypesSkeleton } from './operation-routes-skeleton'
+import { OperationRoutesSkeleton } from './operation-routes-skeleton'
 import { OperationRoutesDataTable } from './operation-routes-data-table'
 import {
   getCoreRowModel,
@@ -251,7 +246,7 @@ export default function Page() {
           </div>
         </EntityBox.Root>
 
-        {isOperationRoutesLoading && <AccountTypesSkeleton />}
+        {isOperationRoutesLoading && <OperationRoutesSkeleton />}
 
         {!isOperationRoutesLoading && operationRoutesData && (
           <OperationRoutesDataTable

@@ -27,11 +27,11 @@ export class OperationRoutesMapper {
   }
 
   public static toDomain(dto: CreateOperationRoutesDto | UpdateOperationRoutesDto): OperationRoutesEntity {
-    return {  
+    return {
       title: dto.title!,
       description: dto.description!,
       account: dto.account!,
-      metadata: dto.metadata! ?? null,
+      metadata: dto.metadata ?? null,
       operationType: dto.operationType as 'source' | 'destination',
     }
   }

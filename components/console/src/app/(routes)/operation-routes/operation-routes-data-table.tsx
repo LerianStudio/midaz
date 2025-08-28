@@ -23,6 +23,26 @@ import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
+
+const formatValidIf = (validIf: string | string[] | null | undefined): string => {
+  if (!validIf) return 'N/A'
+
+  if (typeof validIf === 'string') {
+    return validIf.trim() || 'N/A'
+  }
+
+  if (Array.isArray(validIf) && validIf.length > 0) {
+    const cleanedItems = validIf.filter(item => item?.trim()).map(item => item.trim())
+
+    if (cleanedItems.length === 0) return 'N/A'
+    if (cleanedItems.length === 1) return cleanedItems[0]
+
+    return cleanedItems.join(', ')
+  }
+
+  return 'N/A'
+}
+
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -90,6 +110,16 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
           </Tooltip>
         </TooltipProvider>
         </TableCell>
+        <TableCell>
+          <TooltipProvider>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger>{operationRoute?.original?.account?.ruleType}</TooltipTrigger>
+              <TooltipContent>
+                {formatValidIf(operationRoute?.original?.account?.validIf)}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
         <MetadataTableCell metadata={operationRoute.original.metadata!} />
         <TableCell className="w-0">
           <DropdownMenu>
@@ -147,6 +177,7 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
       { accessorKey: 'title' },
       { accessorKey: 'description' },
       { accessorKey: 'operationType' },
+      { accessorKey: 'ruleType' },
       { accessorKey: 'metadata' },
       { accessorKey: 'actions' }
     ],
@@ -230,6 +261,12 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
+                      id: 'operation-routes.field.ruleType',
+                      defaultMessage: 'Rule Type'
+                    })}
+                  </TableHead>
+                  <TableHead>
+                    {intl.formatMessage({
                       id: 'common.metadata',
                       defaultMessage: 'Metadata'
                     })}
@@ -274,7 +311,11 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination 
+            total={total} 
+            hasNextPage={operationRoutes && operationRoutes?.items?.length < pagination.limit}
+            {...pagination} 
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>
