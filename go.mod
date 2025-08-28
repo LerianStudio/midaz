@@ -25,7 +25,7 @@ require (
 	github.com/redis/go-redis/v9 v9.12.1
 	github.com/rodaine/table v1.3.0
 	github.com/shopspring/decimal v1.4.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.6
 	github.com/vmihailenco/msgpack/v5 v5.4.1
