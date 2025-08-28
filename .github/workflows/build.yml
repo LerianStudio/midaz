@@ -3,12 +3,12 @@ name: "Build midaz images"
 on:
   push:
     tags:
-      - '**'
+      - '**'  # Trigger on any tag push (e.g., v1.2.3, v2.0.0-beta.7, etc.)
 
 permissions:
-  id-token: write       # Needed for authentication
-  contents: read        # Needed to check out the repository
-  pull-requests: write  # Needed to comment on PRs
+  id-token: write       # Required for OIDC auth (if needed by actions)
+  contents: read        # Required to checkout repository
+  pull-requests: write  # Allows commenting on PRs if you add such steps later
 
 jobs:
   detect_changes:
@@ -25,25 +25,25 @@ jobs:
             components/onboarding
             components/transaction
             components/console
-          get_app_name: true
-          path_level: 2
-          app_name_prefix: midaz
+          get_app_name: true         # Derive an app name from changed path
+          path_level: 2              # Consider path depth to extract name
+          app_name_prefix: midaz     # Prefix app names with "midaz-"
 
   build_and_publish:
     needs: detect_changes
-    if: needs.detect_changes.outputs.matrix != '[]'
+    if: needs.detect_changes.outputs.matrix != '[]'  # Skip if nothing changed
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
+        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}  # Build each changed app
     env:
       DOCKERHUB_ORG: lerianstudio
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # Checkout repository
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3  # Enable multi-arch builds
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -57,22 +57,71 @@ jobs:
         with:
           images: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}
           tags: |
+            # SemVer tags like v1.2.3 -> 1.2.3
             type=semver,pattern={{version}}
+            # Branch tag with SHA suffix (useful for non-tag builds)
             type=ref,event=branch,suffix=-${{ github.sha }}
+
+      # ----------------- PRE-CHECKS (must pass before any push) -----------------
+
+      # Trivy Secret Scan on the repository filesystem — fail fast if any secret is detected
+      - name: Trivy Secret Scan (repo)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'                # Filesystem scan
+          scan-ref: '.'                  # Scan the whole repo (monorepo-friendly)
+          format: 'table'
+          exit-code: '1'                 # Block the pipeline if secrets are found
+          hide-progress: true
+          security-checks: 'secret'
+          # Skip heavy/noisy folders to keep the scan fast and relevant
+          skip-dirs: '.git,node_modules,dist,build,.next,coverage,vendor'
+
+      # Build a single-arch image locally so Trivy can scan it before pushing (image is loaded to the local Docker daemon)
+      - name: Build (scan candidate) - single arch, load:true
+        uses: docker/build-push-action@v5
+        with:
+          context: .                                     # Build context (repo root)
+          file: ${{ matrix.app.working_dir }}/Dockerfile # Dockerfile per app
+          platforms: linux/amd64                         # Single-arch only; required for "load: true"
+          load: true                                     # Load into local Docker rather than pushing
+          push: false
+          tags: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}
+          # If your Dockerfile needs private module access, pass a secret token here:
+          # secrets: |
+          #   github_token=${{ secrets.MANAGE_TOKEN }}
+
+      # Trivy vulnerability gate — fail the job on HIGH/CRITICAL findings (applies to both release and beta)
+      - name: Run Trivy vulnerability scanner (pre-push gate)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}'
+          format: 'table'
+          ignore-unfixed: true           # Ignore issues without an official fix; set to false to be stricter
+          vuln-type: 'os,library'        # Scan both OS packages and app libraries
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'                 # Block the pipeline on findings
+
+      # ----------------- PUSH (runs only if all gates above passed) -----------------
 
       - name: Build and Push Docker image (Multi-Arch)
         uses: docker/build-push-action@v5
         with:
+          context: .
           file: ${{ matrix.app.working_dir }}/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64  # Final multi-arch publish
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }} # Publish semver/ref tags
+          # secrets: |
+          #   github_token=${{ secrets.MANAGE_TOKEN }}
 
+      # Extract the semver tag (without the "v" prefix) for downstream GitOps usage
       - name: Extract tag name
         id: extract_tag
         shell: bash
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      # For beta tags, write an artifact that will later update the GitOps repo
       - name: Write tag to file for GitOps
         if: contains(github.ref, '-beta')
         run: |
@@ -86,34 +135,12 @@ jobs:
           name: gitops-tags-${{ matrix.app.name }}
           path: gitops-tags/
 
-      - name: Run Trivy vulnerability scanner (fail on release)
-        if: "!contains(github.ref, '-beta')"
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
-          format: 'table'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
-      - name: Run Trivy vulnerability scanner (non-blocking on pre-release)
-        if: contains(github.ref, '-beta')
-        uses: aquasecurity/trivy-action@master
-        continue-on-error: true
-        with:
-          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
-          format: 'table'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
   update_gitops:
     needs: [build_and_publish]
-    if: contains(github.ref, '-beta')
+    if: contains(github.ref, '-beta')  # Only update GitOps for beta releases
     runs-on: ubuntu-latest
     steps:
+      # Checkout the GitOps repository (target environment repo)
       - uses: actions/checkout@v4
         with:
           repository: LerianStudio/midaz-firmino-gitops
@@ -121,23 +148,26 @@ jobs:
           path: gitops
           fetch-depth: 0
 
+      # Download the tags generated by each built app
       - name: Download tags from artifacts
         uses: actions/download-artifact@v4
         with:
           path: .gitops-tags
 
+      # Apply the image tags to the Helm values.yaml (per service)
       - name: Apply image tags to values.yaml
         run: |
           find .gitops-tags -type f | while read tagfile; do
             filename=$(basename "$tagfile")
             full_app="${filename%%=*}"
             tag="${filename#*=}"
-            app_name="${full_app#midaz-}"
+            app_name="${full_app#midaz-}"  # Strip "midaz-" prefix to match values keys
 
             echo "🔧 Updating tag for $app_name to $tag"
             yq e ".${app_name}.image.tag = \"${tag}\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
           done
 
+      # Commit and push the GitOps change to the main branch (ArgoCD will sync)
       - name: Commit and push GitOps update
         run: |
           cd gitops
