@@ -1,3 +1,15 @@
+## [v3.3.0-beta.7] - 2025-08-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.6...v3.3.0-beta.7)
+Contributors: LF Barrile, lerian-studio
+
+### ✨ Features
+- **Enhanced Security Gateway**: We've introduced a new security gateway for the build, push, and publish operations. This enhancement ensures that all processes are conducted securely, safeguarding sensitive data and maintaining the integrity of your deployment pipeline. Users can continue their workflows with added peace of mind, knowing their operations are protected.
+
+### 🔧 Maintenance
+- **Changelog Update**: We've updated our CHANGELOG to provide you with the most current information on recent changes and improvements. This ensures transparency and helps you track the evolution of our software effectively.
+
+
 ## [v3.3.0-beta.6] - 2025-08-27
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.5...v3.3.0-beta.6)
