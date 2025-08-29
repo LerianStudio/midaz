@@ -105,7 +105,6 @@ export class MidazOperationRoutesRepository
     ledgerId: string,
     operationRouteId: string
   ): Promise<void> {
-    
     await this.httpService.delete(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes/${operationRouteId}`
     )

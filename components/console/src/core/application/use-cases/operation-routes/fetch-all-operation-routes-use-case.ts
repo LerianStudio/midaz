@@ -31,7 +31,6 @@ export class FetchAllOperationRoutesUseCase implements FetchAllOperationRoutes {
     ledgerId: string,
     query?: OperationRoutesSearchParamDto
   ): Promise<PaginationDto<OperationRoutesDto>> {
-
     const operationRoutesResult: PaginationEntity<OperationRoutesEntity> =
       await this.operationRoutesRepository.fetchAll(
         organizationId,

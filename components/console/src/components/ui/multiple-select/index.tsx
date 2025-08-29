@@ -161,7 +161,13 @@ export const MultipleSelectValue = React.forwardRef<
       {options &&
         Array.isArray(value) &&
         value
-          ?.filter?.((val) => val && typeof val === 'string' && val.trim() !== '' && val.trim().length > 0)
+          ?.filter?.(
+            (val) =>
+              val &&
+              typeof val === 'string' &&
+              val.trim() !== '' &&
+              val.trim().length > 0
+          )
           ?.map?.((val) => (
             <Badge
               key={val}
@@ -182,9 +188,7 @@ export const MultipleSelectValue = React.forwardRef<
                   handleChange(val)
                 }}
               >
-                <X
-                  className="text-muted-foreground hover:text-foreground h-3 w-3"
-                />
+                <X className="text-muted-foreground hover:text-foreground h-3 w-3" />
               </button>
             </Badge>
           ))}
@@ -309,11 +313,17 @@ export const MultipleSelectItem = React.forwardRef<
 >(({ className, value, onClick: _onClick, onSelect, ...props }, ref) => {
   const { handleChange, value: selectedValues } = useMultipleSelect()
 
-  const isSelected = selectedValues ? selectedValues.includes(value || '') : false
+  const isSelected = selectedValues
+    ? selectedValues.includes(value || '')
+    : false
 
   const handleSelect = React.useCallback(
     (selectedValue: string) => {
-      if (selectedValue && selectedValue.trim() !== '' && selectedValue === value) {
+      if (
+        selectedValue &&
+        selectedValue.trim() !== '' &&
+        selectedValue === value
+      ) {
         handleChange(value)
         onSelect?.(value)
       }
@@ -339,12 +349,14 @@ export const MultipleSelectItem = React.forwardRef<
       ref={ref}
       value={value}
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
         {
-          "bg-accent text-accent-foreground dark:bg-accent dark:text-slate-50": isSelected,
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent dark:hover:text-slate-50": !isSelected,
+          'bg-accent text-accent-foreground dark:bg-accent dark:text-slate-50':
+            isSelected,
+          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent dark:hover:text-slate-50':
+            !isSelected
         },
-        "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+        'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
         className
       )}
       {...props}

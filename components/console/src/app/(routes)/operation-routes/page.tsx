@@ -23,7 +23,10 @@ import {
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { toast } from '@/hooks/use-toast'
-import { useDeleteOperationRoute, useListOperationRoutes } from '@/client/operation-routes'
+import {
+  useDeleteOperationRoute,
+  useListOperationRoutes
+} from '@/client/operation-routes'
 import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
 export default function Page() {
@@ -131,26 +134,29 @@ export default function Page() {
     onConfirm: () => deleteOperationRoute(selectedOperationRoute)
   })
 
-  const { mutate: deleteOperationRoute, isPending: deleteOperationRoutePending } =
-    useDeleteOperationRoute({
-      organizationId: currentOrganization.id!,
-      ledgerId: currentLedger.id,
-      operationRouteId: selectedOperationRoute?.id || '',
-      onSuccess: () => {
-        handleDialogClose()
-        refetchOperationRoutes()
-        toast({
-          description: intl.formatMessage(
-            {
-              id: 'success.operation-routes.delete',
-              defaultMessage: '{operationRouteTitle} operation route successfully deleted'
-            },
-            { operationRouteTitle: selectedOperationRoute?.title! }
-          ),
-          variant: 'success'
-        })
-      }
-    })
+  const {
+    mutate: deleteOperationRoute,
+    isPending: deleteOperationRoutePending
+  } = useDeleteOperationRoute({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    operationRouteId: selectedOperationRoute?.id || '',
+    onSuccess: () => {
+      handleDialogClose()
+      refetchOperationRoutes()
+      toast({
+        description: intl.formatMessage(
+          {
+            id: 'success.operation-routes.delete',
+            defaultMessage:
+              '{operationRouteTitle} operation route successfully deleted'
+          },
+          { operationRouteTitle: selectedOperationRoute?.title! }
+        ),
+        variant: 'success'
+      })
+    }
+  })
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
