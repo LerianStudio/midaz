@@ -58,8 +58,6 @@ export default function Page() {
     query: searchValues as any
   })
 
-  console.log('operationRoutesData', operationRoutesData)
-
   const operationRoutesColumns = [
     {
       accessorKey: 'title',
