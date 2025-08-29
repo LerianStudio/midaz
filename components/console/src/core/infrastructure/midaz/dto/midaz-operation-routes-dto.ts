@@ -1,5 +1,5 @@
-import { MetadataEntity } from "@/core/domain/entities/metadata-entity"
-import { MidazMetadataDto } from "./midaz-metadata-dto"
+import { MetadataEntity } from '@/core/domain/entities/metadata-entity'
+import { MidazMetadataDto } from './midaz-metadata-dto'
 
 export type MidazCreateOperationRoutesDto = {
   title: string
@@ -12,7 +12,8 @@ export type MidazCreateOperationRoutesDto = {
   metadata?: MidazMetadataDto
 }
 
-export type MidazUpdateOperationRoutesDto = Partial<MidazCreateOperationRoutesDto>
+export type MidazUpdateOperationRoutesDto =
+  Partial<MidazCreateOperationRoutesDto>
 
 export type MidazOperationRoutesDto = {
   id: string

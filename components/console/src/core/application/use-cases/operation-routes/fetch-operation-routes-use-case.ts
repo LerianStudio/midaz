@@ -13,7 +13,9 @@ export interface FetchOperationRoutesById {
 }
 
 @injectable()
-export class FetchOperationRoutesByIdUseCase implements FetchOperationRoutesById {
+export class FetchOperationRoutesByIdUseCase
+  implements FetchOperationRoutesById
+{
   constructor(
     @inject(OperationRoutesRepository)
     private readonly operationRoutesRepository: OperationRoutesRepository

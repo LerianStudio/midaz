@@ -66,7 +66,7 @@ export default function Page() {
       accessorKey: 'name',
       header: intl.formatMessage({
         id: 'account-types.field.name',
-        defaultMessage: 'Name'
+        defaultMessage: 'Account Type Name'
       })
     },
     {

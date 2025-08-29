@@ -1,15 +1,17 @@
-import { OperationRoutesEntity, OperationRoutesSearchEntity } from '@/core/domain/entities/operation-routes-entity'
+import {
+  OperationRoutesEntity,
+  OperationRoutesSearchEntity
+} from '@/core/domain/entities/operation-routes-entity'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import {
   CreateOperationRoutesDto,
   UpdateOperationRoutesDto,
   OperationRoutesDto,
-  OperationRoutesSearchParamDto,
+  OperationRoutesSearchParamDto
 } from '../dto/operation-routes-dto'
 import { PaginationMapper } from './pagination-mapper'
 
 export class OperationRoutesMapper {
-
   public static toDto(entity: OperationRoutesEntity): OperationRoutesDto {
     return {
       id: entity.id!,
@@ -26,19 +28,23 @@ export class OperationRoutesMapper {
     }
   }
 
-  public static toDomain(dto: CreateOperationRoutesDto | UpdateOperationRoutesDto): OperationRoutesEntity {
+  public static toDomain(
+    dto: CreateOperationRoutesDto | UpdateOperationRoutesDto
+  ): OperationRoutesEntity {
     return {
       title: dto.title!,
       description: dto.description!,
       account: dto.account!,
       metadata: dto.metadata ?? null,
-      operationType: dto.operationType as 'source' | 'destination',
+      operationType: dto.operationType as 'source' | 'destination'
     }
   }
 
-  static toSearchDomain(dto: OperationRoutesSearchParamDto): OperationRoutesSearchEntity {
+  static toSearchDomain(
+    dto: OperationRoutesSearchParamDto
+  ): OperationRoutesSearchEntity {
     return {
-      limit: dto.limit,
+      limit: dto.limit
     }
   }
 

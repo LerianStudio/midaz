@@ -48,32 +48,31 @@ export class OperationRoutesController extends BaseController {
     return NextResponse.json(operationRoute)
   }
 
-  async fetchAll(request: Request, { params }: { params: OperationRoutesParams }) {
+  async fetchAll(
+    request: Request,
+    { params }: { params: OperationRoutesParams }
+  ) {
     const { searchParams } = new URL(request.url)
     const { id: organizationId, ledgerId } = await params
     const limit = Number(searchParams.get('limit')) || 10
     const page = Number(searchParams.get('page')) || 1
-
-
 
     const operationRoutes = await this.fetchAllOperationRoutesUseCase.execute(
       organizationId,
       ledgerId,
       {
         limit,
-        page,
+        page
       }
     )
-
-
-    console.log('operationRoutes dentro do controller', operationRoutes)
-
-
 
     return NextResponse.json(operationRoutes)
   }
 
-  async create(request: Request, { params }: { params: OperationRoutesParams }) {
+  async create(
+    request: Request,
+    { params }: { params: OperationRoutesParams }
+  ) {
     const body = await request.json()
     const { id: organizationId, ledgerId } = await params
 
@@ -86,26 +85,31 @@ export class OperationRoutesController extends BaseController {
     return NextResponse.json(operationRoute)
   }
 
-  async update(request: Request, { params }: { params: OperationRoutesParams }) {
+  async update(
+    request: Request,
+    { params }: { params: OperationRoutesParams }
+  ) {
     const body = await request.json()
     const { id: organizationId, ledgerId, operationRouteId } = await params
 
     const { metadata, ...restBody } = body
     const updateData = metadata === null ? restBody : body
 
-    const operationRouteUpdated = await this.updateOperationRoutesUseCase.execute(
-      organizationId,
-      ledgerId,
-      operationRouteId!,
-      updateData
-    )
-
-    console.log('operationRouteUpdateddddddddddddd', operationRouteUpdated)
+    const operationRouteUpdated =
+      await this.updateOperationRoutesUseCase.execute(
+        organizationId,
+        ledgerId,
+        operationRouteId!,
+        updateData
+      )
 
     return NextResponse.json(operationRouteUpdated)
   }
 
-  async delete(request: Request, { params }: { params: OperationRoutesParams }) {
+  async delete(
+    request: Request,
+    { params }: { params: OperationRoutesParams }
+  ) {
     const { id: organizationId, ledgerId, operationRouteId } = await params
 
     await this.deleteOperationRoutesUseCase.execute(
@@ -113,8 +117,6 @@ export class OperationRoutesController extends BaseController {
       ledgerId,
       operationRouteId!
     )
-
-    console.log('ddddddddddddddddddddddoperationRouteId', operationRouteId) 
 
     return NextResponse.json({}, { status: 200 })
   }

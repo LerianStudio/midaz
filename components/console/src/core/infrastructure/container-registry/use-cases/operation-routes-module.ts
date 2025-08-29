@@ -24,8 +24,12 @@ import {
 export const OperationRoutesUseCaseModule = new ContainerModule(
   (container: Container) => {
     container.bind<CreateOperationRoutes>(CreateOperationRoutesUseCase).toSelf()
-    container.bind<FetchAllOperationRoutes>(FetchAllOperationRoutesUseCase).toSelf()
-    container.bind<FetchOperationRoutesById>(FetchOperationRoutesByIdUseCase).toSelf()
+    container
+      .bind<FetchAllOperationRoutes>(FetchAllOperationRoutesUseCase)
+      .toSelf()
+    container
+      .bind<FetchOperationRoutesById>(FetchOperationRoutesByIdUseCase)
+      .toSelf()
     container.bind<UpdateOperationRoutes>(UpdateOperationRoutesUseCase).toSelf()
     container.bind<DeleteOperationRoutes>(DeleteOperationRoutesUseCase).toSelf()
   }

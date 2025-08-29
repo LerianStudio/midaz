@@ -7,7 +7,9 @@ export interface GetMidazConfigValidation {
 }
 
 @injectable()
-export class GetMidazConfigValidationUseCase implements GetMidazConfigValidation {
+export class GetMidazConfigValidationUseCase
+  implements GetMidazConfigValidation
+{
   constructor() {}
 
   @LogOperation({ layer: 'application' })

@@ -9,15 +9,19 @@ const operationType = z.enum(['source', 'destination'])
 
 const ruleType = z.enum(['alias', 'account_type'])
 
-const validIf = z.union([
-  z.string(),
-  z.array(z.string()).min(1, "At least one account type must be selected")
-]).optional()
+const validIf = z
+  .union([
+    z.string(),
+    z.array(z.string()).min(1, 'At least one account type must be selected')
+  ])
+  .optional()
 
-const account = z.object({
-  ruleType,
-  validIf
-}).nullable()
+const account = z
+  .object({
+    ruleType,
+    validIf
+  })
+  .nullable()
 
 const id = z.string().uuid()
 

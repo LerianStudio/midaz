@@ -1,5 +1,5 @@
-import { MetadataEntity } from "./metadata-entity"
-import { PaginationSearchEntity } from "./pagination-entity"
+import { MetadataEntity } from './metadata-entity'
+import { PaginationSearchEntity } from './pagination-entity'
 
 export type OperationRoutesSearchEntity = PaginationSearchEntity & {
   id?: string
@@ -21,4 +21,3 @@ export type OperationRoutesEntity = {
   updatedAt?: Date
   deletedAt?: Date
 }
-

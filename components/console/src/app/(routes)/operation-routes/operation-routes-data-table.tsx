@@ -24,7 +24,9 @@ import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 
-const formatValidIf = (validIf: string | string[] | null | undefined): string => {
+const formatValidIf = (
+  validIf: string | string[] | null | undefined
+): string => {
   if (!validIf) return 'N/A'
 
   if (typeof validIf === 'string') {
@@ -32,7 +34,9 @@ const formatValidIf = (validIf: string | string[] | null | undefined): string =>
   }
 
   if (Array.isArray(validIf) && validIf.length > 0) {
-    const cleanedItems = validIf.filter(item => item?.trim()).map(item => item.trim())
+    const cleanedItems = validIf
+      .filter((item) => item?.trim())
+      .map((item) => item.trim())
 
     if (cleanedItems.length === 0) return 'N/A'
     if (cleanedItems.length === 1) return cleanedItems[0]
@@ -75,7 +79,7 @@ type OperationRoutesDataTableProps = {
 
 type OperationRoutesRowProps = {
   operationRoute: Row<OperationRoutesDto>
-    handleEdit: (operationRoute: OperationRoutesDto) => void
+  handleEdit: (operationRoute: OperationRoutesDto) => void
   onDelete: (id: string, operationRoute: OperationRoutesDto) => void
 }
 
@@ -102,18 +106,24 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
         </TableCell>
         <TableCell>
           <TooltipProvider>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger>{truncate(operationRoute.original.operationType, { length: 30 })}</TooltipTrigger>
-            <TooltipContent>
-              {operationRoute.original.operationType}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger>
+                {truncate(operationRoute.original.operationType, {
+                  length: 30
+                })}
+              </TooltipTrigger>
+              <TooltipContent>
+                {operationRoute.original.operationType}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </TableCell>
         <TableCell>
           <TooltipProvider>
             <Tooltip delayDuration={300}>
-              <TooltipTrigger>{operationRoute?.original?.account?.ruleType}</TooltipTrigger>
+              <TooltipTrigger>
+                {operationRoute?.original?.account?.ruleType}
+              </TooltipTrigger>
               <TooltipContent>
                 {formatValidIf(operationRoute?.original?.account?.validIf)}
               </TooltipContent>
@@ -160,13 +170,15 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
   )
 }
 
-export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> = ({
+export const OperationRoutesDataTable: React.FC<
+  OperationRoutesDataTableProps
+> = ({
   operationRoutes,
-  total,  
+  total,
   pagination,
   onDelete,
-  handleCreate,   
-  handleEdit,
+  handleCreate,
+  handleEdit
 }) => {
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
@@ -223,8 +235,7 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
                           <TooltipContent>
                             {intl.formatMessage({
                               id: 'operation-routes.field.title.tooltip',
-                              defaultMessage:
-                                'The title of the operation route'
+                              defaultMessage: 'The title of the operation route'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -311,10 +322,13 @@ export const OperationRoutesDataTable: React.FC<OperationRoutesDataTableProps> =
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination 
-            total={total} 
-            hasNextPage={operationRoutes && operationRoutes?.items?.length < pagination.limit}
-            {...pagination} 
+          <Pagination
+            total={total}
+            hasNextPage={
+              operationRoutes &&
+              operationRoutes?.items?.length < pagination.limit
+            }
+            {...pagination}
           />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>

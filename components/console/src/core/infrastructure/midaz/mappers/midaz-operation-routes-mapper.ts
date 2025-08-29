@@ -3,7 +3,7 @@ import {
   MidazOperationRoutesDto,
   MidazCreateOperationRoutesDto,
   MidazUpdateOperationRoutesDto
-} from '../dto/midaz-operation-routes.dto'
+} from '../dto/midaz-operation-routes-dto'
 import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'

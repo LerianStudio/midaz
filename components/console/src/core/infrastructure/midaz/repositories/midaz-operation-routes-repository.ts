@@ -6,14 +6,16 @@ import { OperationRoutesRepository } from '@/core/domain/repositories/operation-
 import { injectable, inject } from 'inversify'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
-import { MidazOperationRoutesDto } from '../dto/midaz-operation-routes.dto'
+import { MidazOperationRoutesDto } from '../dto/midaz-operation-routes-dto'
 import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
 import { MidazOperationRoutesMapper } from '../mappers/midaz-operation-routes-mapper'
 import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
 
 @injectable()
-export class MidazOperationRoutesRepository implements OperationRoutesRepository {
+export class MidazOperationRoutesRepository
+  implements OperationRoutesRepository
+{
   private baseUrl: string = process.env.MIDAZ_TRANSACTION_BASE_PATH as string
 
   constructor(
@@ -49,8 +51,6 @@ export class MidazOperationRoutesRepository implements OperationRoutesRepository
       page: page.toString(),
       limit: limit.toString()
     })
-
-    console.log('queryParams', queryParams)
 
     const response = await this.httpService.get<
       MidazPaginationDto<MidazOperationRoutesDto>
@@ -105,8 +105,7 @@ export class MidazOperationRoutesRepository implements OperationRoutesRepository
     ledgerId: string,
     operationRouteId: string
   ): Promise<void> {
-    console.log('delete operation route', operationRouteId)
-
+    
     await this.httpService.delete(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes/${operationRouteId}`
     )
