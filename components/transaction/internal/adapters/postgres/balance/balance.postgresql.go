@@ -25,9 +25,12 @@ import (
 
 // Repository provides an interface for operations related to balance template entities.
 // It defines methods for creating, finding, listing, updating, and deleting balance templates.
+//
+//go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) error
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
+	FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error)
 	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
@@ -78,7 +81,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
 		record.ID,
 		record.OrganizationID,
 		record.LedgerID,
@@ -94,6 +97,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
+		record.Key,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
@@ -181,6 +185,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 			&balance.CreatedAt,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
+			&balance.Key,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -287,6 +292,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			&balance.CreatedAt,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
+			&balance.Key,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -411,6 +417,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			&balance.CreatedAt,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
+			&balance.Key,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -506,6 +513,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 			&balance.CreatedAt,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
+			&balance.Key,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -654,6 +662,93 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.LedgerID,
 		&balance.AccountID,
 		&balance.Alias,
+		&balance.AssetCode,
+		&balance.Available,
+		&balance.OnHold,
+		&balance.Version,
+		&balance.AccountType,
+		&balance.AllowSending,
+		&balance.AllowReceiving,
+		&balance.CreatedAt,
+		&balance.UpdatedAt,
+		&balance.DeletedAt,
+		&balance.Key,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+
+			logger.Warnf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		logger.Errorf("Failed to scan row: %v", err)
+
+		return nil, err
+	}
+
+	return balance.ToEntity(), nil
+}
+
+// FindByAccountIDAndKey retrieves a balance record based on accountID and key within the specified organization and ledger.
+func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, key string) (*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_balance_by_account_id_and_key")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	balance := &BalancePostgreSQLModel{}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	query := `SELECT 
+			   id,
+			   organization_id,
+			   ledger_id,
+			   account_id,
+			   alias,
+			   key,
+			   asset_code,
+			   available,
+			   on_hold,
+			   version,
+			   account_type,
+			   allow_sending,
+			   allow_receiving,
+			   created_at,
+			   updated_at,
+			   deleted_at
+			FROM balance 
+			WHERE organization_id = $1 
+			   AND ledger_id = $2 
+			   AND account_id = $3 
+			   AND key = $4 
+			   AND deleted_at IS NULL`
+
+	row := db.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
+
+	spanQuery.End()
+
+	if err = row.Scan(
+		&balance.ID,
+		&balance.OrganizationID,
+		&balance.LedgerID,
+		&balance.AccountID,
+		&balance.Alias,
+		&balance.Key,
 		&balance.AssetCode,
 		&balance.Available,
 		&balance.OnHold,
