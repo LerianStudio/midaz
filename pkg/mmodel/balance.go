@@ -41,6 +41,11 @@ type Balance struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance (max length 256 characters)
+	// example: asset-freeze
+	// maxLength: 256
+	Key string `json:"key" example:"asset-freeze"`
+
 	// Asset code identifying the currency or asset type of this balance
 	// example: USD
 	// minLength: 2
@@ -94,6 +99,26 @@ type Balance struct {
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
+
+// CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
+//
+// swagger:model CreateAdditionalBalance
+// @Description Request payload for creating a new balance with specified permissions and custom key.
+type CreateAdditionalBalance struct {
+	// Unique key for the balance (required, max length 256 characters)
+	// required: true
+	// example: asset-freeze
+	Key string `json:"key" validate:"required,nowhitespaces" example:"asset-freeze"`
+	// Whether the account should be allowed to send funds from this balance
+	// required: false
+	// example: true
+	AllowSending *bool `json:"allowSending" example:"true"`
+
+	// Whether the account should be allowed to receive funds to this balance
+	// required: false
+	// example: true
+	AllowReceiving *bool `json:"allowReceiving" example:"true"`
+} // @name CreateAdditionalBalance
 
 // UpdateBalance is a struct designed to encapsulate balance update request payload data.
 //
