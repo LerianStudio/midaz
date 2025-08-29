@@ -68,6 +68,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetAllBalancesByAccountID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetBalancesByAlias)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetBalancesExternalByCode)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", auth.Authorize(midazName, "balances", "post"), http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.CreateAdditionalBalance), bh.CreateAdditionalBalance))
 
 	// Operation-route
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", auth.Authorize(routingName, "operation-routes", "post"), http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))
