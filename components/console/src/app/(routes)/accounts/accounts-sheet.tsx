@@ -350,7 +350,7 @@ export const AccountSheet = ({
                           id: 'common.type',
                           defaultMessage: 'Type'
                         })}
-                        required={isValidationEnabled}
+                        required
                         readOnly={isReadOnly || mode === 'edit'}
                         disabled={
                           isValidationEnabled && accountTypesData?.length === 0

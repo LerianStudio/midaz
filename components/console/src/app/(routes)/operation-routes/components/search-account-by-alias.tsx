@@ -1,9 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Controller, Control } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { useDebounce } from '@/hooks/use-debounce-value'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Loader2 } from 'lucide-react'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useListAccounts } from '@/client/accounts'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { FormTooltip } from '@/components/ui/form'
@@ -62,12 +64,20 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const [searchTerm, setSearchTerm] = useState('')
-  const debouncedSearchTerm = useDebounce(searchTerm, debounceDelay)
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+
+  // Debounced callback that updates the search term for API calls
+  const debouncedSearchCallback = useCallback(() => {
+    setDebouncedSearchTerm(searchTerm)
+  }, [searchTerm])
+
+  // Use the callback-based debounce hook
+  useDebounce(debouncedSearchCallback, debounceDelay, [searchTerm])
 
   const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useListAccounts({
     organizationId: currentOrganization?.id || '',
     ledgerId: currentLedger?.id || '',
-    query: debouncedSearchTerm ? { alias: debouncedSearchTerm, limit: maxSuggestions + 10 } : undefined,
+    query: debouncedSearchTerm ? { alias: debouncedSearchTerm } : undefined,
     enabled: !!currentOrganization?.id && !!currentLedger?.id && !!debouncedSearchTerm
   })
 
@@ -80,6 +90,7 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
   const handleAccountSelect = (account: AccountDto, onChange: (value: string) => void) => {
     onChange(account.alias)
     setSearchTerm('')
+    setDebouncedSearchTerm('')
     onAccountSelect?.(account)
   }
 
@@ -115,70 +126,102 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
         rules={{ required, ...rules }}
         render={({ field, fieldState }) => (
           <div className="space-y-1">
-            <div className="space-y-2">
-              <Input
-                {...field}
-                value={field.value || ''}
-                onChange={(e) => handleInputChange(e.target.value, field.onChange)}
-                placeholder={placeholder || defaultPlaceholder}
-                disabled={disabled}
-                className={`w-full ${fieldState.error ? 'border-red-500' : ''}`}
-              />
-              {debouncedSearchTerm && accountsData?.items && accountsData.items.length > 0 && (
-                <div className="w-full max-h-32 overflow-y-auto border rounded-md p-2 space-y-1 bg-muted/50">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {intl.formatMessage({
-                      id: 'search-account-by-alias.available-aliases',
-                      defaultMessage: 'Available aliases:'
-                    })}
-                  </p>
-                  {accountsData.items.slice(0, maxSuggestions).map((account) => (
-                    <div
-                      key={account.id}
-                      className="text-sm p-1 hover:bg-muted cursor-pointer rounded transition-colors"
-                      onClick={() => handleAccountSelect(account, field.onChange)}
-                    >
-                      <span className="font-medium">{account.alias}</span>
-                      <span className="text-muted-foreground ml-2">- {account.name}</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="relative">
+                  <Input
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => handleInputChange(e.target.value, field.onChange)}
+                    placeholder={placeholder || defaultPlaceholder}
+                    disabled={disabled}
+                    className={`w-full pr-10 ${fieldState.error ? 'border-red-500' : ''}`}
+                  />
+                  {/* Loading Indicator */}
+                  {accountsLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     </div>
-                  ))}
-                  {accountsData.items.length > maxSuggestions && (
-                    <p className="text-xs text-muted-foreground">
-                      {intl.formatMessage({
-                        id: 'search-account-by-alias.more-results',
-                        defaultMessage: '... and {count} more'
-                      }, { count: accountsData.items.length - maxSuggestions })}
-                    </p>
                   )}
                 </div>
+              </PopoverTrigger>
+
+              {/* Show dropdown only when searching or has results */}
+              {(debouncedSearchTerm || accountsLoading) && (
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <div className="max-h-64 overflow-y-auto">
+                    {/* Loading State */}
+                    {accountsLoading && (
+                      <div className="p-4 flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">
+                          {intl.formatMessage({
+                            id: 'search-account-by-alias.searching',
+                            defaultMessage: 'Searching...'
+                          })}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    {!accountsLoading && accountsData?.items && accountsData.items.length > 0 && (
+                      <div className="p-2">
+                        <div className="space-y-1">
+                          {accountsData.items.slice(0, maxSuggestions).map((account) => (
+                            <div
+                              key={account.id}
+                              className="flex items-center p-2 hover:bg-muted cursor-pointer rounded-md transition-colors"
+                              onClick={() => handleAccountSelect(account, field.onChange)}
+                            >
+                              <div className="flex-1">
+                                <span className="font-medium text-sm">{account.alias}</span>
+                                <span className="text-muted-foreground text-xs ml-2">- {account.name}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {accountsData.items.length > maxSuggestions && (
+                          <p className="text-xs text-muted-foreground text-center mt-2 px-2">
+                            {intl.formatMessage({
+                              id: 'search-account-by-alias.more-results',
+                              defaultMessage: '... and {count} more'
+                            }, { count: accountsData.items.length - maxSuggestions })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* No Results */}
+                    {!accountsLoading && debouncedSearchTerm && (!accountsData?.items || accountsData.items.length === 0) && (
+                      <div className="p-4 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          {intl.formatMessage({
+                            id: 'search-account-by-alias.no-aliases-found',
+                            defaultMessage: 'No aliases found'
+                          })}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Error State */}
+                    {accountsError && (
+                      <div className="p-4 text-center">
+                        <p className="text-sm text-red-500">
+                          {intl.formatMessage({
+                            id: 'search-account-by-alias.error-loading',
+                            defaultMessage: 'Error loading accounts'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
               )}
-              {debouncedSearchTerm && accountsLoading && (
-                <p className="text-xs text-muted-foreground">
-                  {intl.formatMessage({
-                    id: 'search-account-by-alias.searching',
-                    defaultMessage: 'Searching...'
-                  })}
-                </p>
-              )}
-              {debouncedSearchTerm && !accountsLoading && (!accountsData?.items || accountsData.items.length === 0) && (
-                <p className="text-xs text-muted-foreground">
-                  {intl.formatMessage({
-                    id: 'search-account-by-alias.no-aliases-found',
-                    defaultMessage: 'No aliases found'
-                  })}
-                </p>
-              )}
-              {accountsError && (
-                <p className="text-xs text-red-500">
-                  {intl.formatMessage({
-                    id: 'search-account-by-alias.error-loading',
-                    defaultMessage: 'Error loading accounts'
-                  })}
-                </p>
-              )}
-            </div>
+            </Popover>
+
             {fieldState.error && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-red-500 mt-1">
                 {fieldState.error.message}
               </p>
             )}
@@ -188,37 +231,3 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
     </div>
   )
 }
-
-// Example usage:
-//
-// Basic usage with default settings:
-// <SearchAccountByAlias
-//   control={form.control}
-//   name="accountAlias"
-//   required
-// />
-//
-// Advanced usage with customizations:
-// <SearchAccountByAlias
-//   control={form.control}
-//   name="selectedAccount"
-//   label="Select Account"
-//   tooltip="Choose an account to associate with this transaction"
-//   placeholder="Start typing to find accounts..."
-//   required
-//   maxSuggestions={10}
-//   debounceDelay={500}
-//   onAccountSelect={(account) => console.log('Selected account:', account)}
-//   onSearchChange={(term) => console.log('Search term changed:', term)}
-// />
-//
-// Usage in a form with custom validation:
-// <SearchAccountByAlias
-//   control={form.control}
-//   name="accountAlias"
-//   required
-//   rules={{
-//     validate: (value) => value?.startsWith('@') || 'Alias must start with @'
-//   }}
-//   className="custom-styling"
-// />
