@@ -100,7 +100,7 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
         <TableCell>
           <div className="flex flex-col gap-1">
             <span className="font-medium">
-              {truncate(operationRoute.original.description, { length: 30 })}
+              {truncate(operationRoute.original.description, { length: 30 }) || '-'} 
             </span>
           </div>
         </TableCell>

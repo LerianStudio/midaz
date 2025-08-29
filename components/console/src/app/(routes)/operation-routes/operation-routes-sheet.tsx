@@ -103,7 +103,8 @@ export const OperationRoutesSheet = ({
   const { data: accountTypesData, isLoading: accountTypesLoading, error: accountTypesError } = useListAccountTypes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    enabled: !!currentOrganization.id && !!currentLedger.id
+    enabled: !!currentOrganization.id && !!currentLedger.id,
+    limit: 100
   })
 
   useEffect(() => {
