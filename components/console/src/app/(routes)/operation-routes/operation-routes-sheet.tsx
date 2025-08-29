@@ -32,6 +32,7 @@ import { useListAccountTypes } from '@/client/account-types'
 import { CreateOperationRoutesDto, OperationRoutesDto, UpdateOperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 import { SelectItem } from '@/components/ui/select'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
+import { SearchAccountByAlias } from './components/search-account-by-alias'
 
 export type OperationRoutesSheetProps = DialogProps & {
   ledgerId: string
@@ -338,7 +339,7 @@ export const OperationRoutesSheet = ({
                   </SelectField>
 
                   {accountsData && ruleTypeValue === 'alias' && (
-                    <SelectField
+                    <SearchAccountByAlias
                       control={form.control}
                       name="account.validIf"
                       label={intl.formatMessage({
@@ -354,13 +355,7 @@ export const OperationRoutesSheet = ({
                         id: 'operation-routes.field.validIf.alias.placeholder',
                         defaultMessage: 'Select an account alias'
                       })}
-                    >
-                      {accountsData?.items?.map((account) => (
-                        <SelectItem key={account.id} value={account.alias}>
-                          {account.alias} - {account.name}
-                        </SelectItem>
-                      ))}
-                    </SelectField>
+                    />
                   )}
 
                   {accountTypesData && ruleTypeValue === 'account_type' && (
