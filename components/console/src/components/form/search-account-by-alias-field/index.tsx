@@ -9,8 +9,9 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useListAccounts } from '@/client/accounts'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { FormTooltip } from '@/components/ui/form'
+import { AccountDto } from './types'
 
-export interface SearchAccountByAliasProps {
+export interface SearchAccountByAliasFieldProps {
   control: Control<any>
   name: string
   label?: string
@@ -26,27 +27,7 @@ export interface SearchAccountByAliasProps {
   onSearchChange?: (searchTerm: string) => void
 }
 
-export interface AccountDto {
-  id: string
-  ledgerId: string
-  assetCode: string
-  organizationId: string
-  name: string
-  alias: string
-  type: string
-  entityId: string
-  parentAccountId: string
-  portfolioId?: string | null
-  segmentId: string
-  allowSending?: boolean
-  allowReceiving?: boolean
-  metadata: any
-  createdAt: Date
-  updatedAt: Date
-  deletedAt: Date | null
-}
-
-export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
+export const SearchAccountByAliasField: React.FC<SearchAccountByAliasFieldProps> = ({
   control,
   name,
   label,
@@ -56,7 +37,7 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
   disabled = false,
   rules,
   maxSuggestions = 5,
-  debounceDelay = 300,
+  debounceDelay = 600,
   className = '',
   onAccountSelect,
   onSearchChange
@@ -66,12 +47,10 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
 
-  // Debounced callback that updates the search term for API calls
   const debouncedSearchCallback = useCallback(() => {
     setDebouncedSearchTerm(searchTerm)
   }, [searchTerm])
 
-  // Use the callback-based debounce hook
   useDebounce(debouncedSearchCallback, debounceDelay, [searchTerm])
 
   const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useListAccounts({
@@ -95,17 +74,17 @@ export const SearchAccountByAlias: React.FC<SearchAccountByAliasProps> = ({
   }
 
   const defaultLabel = intl.formatMessage({
-    id: 'operation-routes.field.validIf.alias',
+    id: 'search-account-by-alias.label',
     defaultMessage: 'Account Alias'
   })
 
   const defaultTooltip = intl.formatMessage({
-    id: 'operation-routes.field.validIf.alias.tooltip',
-    defaultMessage: 'Enter the account alias to validate against'
+    id: 'search-account-by-alias.tooltip',
+    defaultMessage: 'Search and select an account by its alias'
   })
 
   const defaultPlaceholder = intl.formatMessage({
-    id: 'operation-routes.field.validIf.alias.placeholder',
+    id: 'search-account-by-alias.placeholder',
     defaultMessage: 'Type to search account alias (e.g., @account123)'
   })
 

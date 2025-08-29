@@ -27,12 +27,12 @@ import { getInitialValues } from '@/lib/form'
 import { useFormPermissions } from '@/hooks/use-form-permissions'
 import { Enforce } from '@lerianstudio/console-layout'
 import { useCreateOperationRoute, useUpdateOperationRoute } from '@/client/operation-routes'
-import { useListAccounts } from '@/client/accounts'
 import { useListAccountTypes } from '@/client/account-types'
 import { CreateOperationRoutesDto, OperationRoutesDto, UpdateOperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 import { SelectItem } from '@/components/ui/select'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
-import { SearchAccountByAlias } from './components/search-account-by-alias'
+import { SearchAccountByAliasField } from '@/components/form/search-account-by-alias-field'
+
 
 export type OperationRoutesSheetProps = DialogProps & {
   ledgerId: string
@@ -98,11 +98,7 @@ export const OperationRoutesSheet = ({
 
   const ruleTypeValue = form.watch('account.ruleType')
 
-  const { data: accountsData } = useListAccounts({
-    organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    enabled: ruleTypeValue === 'alias'
-  })
+
 
   const { data: accountTypesData, isLoading: accountTypesLoading, error: accountTypesError } = useListAccountTypes({
     organizationId: currentOrganization.id!,
@@ -338,23 +334,11 @@ export const OperationRoutesSheet = ({
                     <SelectItem value="account_type">Account Type</SelectItem>
                   </SelectField>
 
-                  {accountsData && ruleTypeValue === 'alias' && (
-                    <SearchAccountByAlias
+                  {ruleTypeValue === 'alias' && (
+                    <SearchAccountByAliasField
                       control={form.control}
                       name="account.validIf"
-                      label={intl.formatMessage({
-                        id: 'operation-routes.field.validIf.alias',
-                        defaultMessage: 'Account Alias'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'operation-routes.field.validIf.alias.tooltip',
-                        defaultMessage: 'Select the account alias to validate against'
-                      })}
                       required
-                      placeholder={intl.formatMessage({
-                        id: 'operation-routes.field.validIf.alias.placeholder',
-                        defaultMessage: 'Select an account alias'
-                      })}
                     />
                   )}
 
