@@ -1014,6 +1014,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Field for Pending Transaction Error",
 			Message:    "Pending transactions do not support the 'transactionDate' field. To proceed, please remove it from your request.",
 		},
+		constant.ErrDuplicatedAliasKeyValue: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicatedAliasKeyValue.Error(),
+			Title:      "Duplicated Alias Key Value Error",
+			Message:    "An account alias with the specified key value already exists for this organization and ledger. Please use a different key value.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
