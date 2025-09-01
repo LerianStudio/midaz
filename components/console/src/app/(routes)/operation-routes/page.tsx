@@ -65,28 +65,28 @@ export default function Page() {
     {
       accessorKey: 'title',
       header: intl.formatMessage({
-        id: 'operation-routes.field.title',
+        id: 'operationRoutes.field.title',
         defaultMessage: 'Title'
       })
     },
     {
       accessorKey: 'description',
       header: intl.formatMessage({
-        id: 'operation-routes.field.description',
+        id: 'operationRoutes.field.description',
         defaultMessage: 'Description'
       })
     },
     {
       accessorKey: 'operationType',
       header: intl.formatMessage({
-        id: 'operation-routes.field.operationType',
+        id: 'operationRoutes.field.operationType',
         defaultMessage: 'Operation Type'
       })
     },
     {
       accessorKey: 'account',
       header: intl.formatMessage({
-        id: 'operation-routes.field.account',
+        id: 'operationRoutes.field.account',
         defaultMessage: 'Account Rule'
       }),
       cell: ({ getValue }: any) => {
@@ -147,7 +147,7 @@ export default function Page() {
       toast({
         description: intl.formatMessage(
           {
-            id: 'success.operation-routes.delete',
+            id: 'success.operationRoutes.delete',
             defaultMessage:
               '{operationRouteTitle} operation route successfully deleted'
           },
@@ -167,7 +167,7 @@ export default function Page() {
     },
     {
       name: intl.formatMessage({
-        id: `common.operation-routes`,
+        id: `common.operationRoutes`,
         defaultMessage: 'Operation Routes'
       })
     }
@@ -181,25 +181,25 @@ export default function Page() {
         <PageHeader.Wrapper>
           <PageHeader.InfoTitle
             title={intl.formatMessage({
-              id: 'common.operation-routes',
+              id: 'common.operationRoutes',
               defaultMessage: 'Operation Routes'
             })}
             subtitle={intl.formatMessage({
-              id: 'operation-routes.subtitle',
+              id: 'operationRoutes.subtitle',
               defaultMessage: 'Manage the operation routes of this ledger.'
             })}
           />
           <PageHeader.ActionButtons>
             <PageHeader.CollapsibleInfoTrigger
               question={intl.formatMessage({
-                id: 'operation-routes.helperTrigger.question',
+                id: 'operationRoutes.helperTrigger.question',
                 defaultMessage: 'What is an Operation Route?'
               })}
             />
 
             <Button onClick={handleCreate} data-testid="new-operation-route">
               {intl.formatMessage({
-                id: 'common.new.operation-route',
+                id: 'common.new.operationRoute',
                 defaultMessage: 'New Operation Route'
               })}
             </Button>
@@ -208,11 +208,11 @@ export default function Page() {
 
         <PageHeader.CollapsibleInfo
           question={intl.formatMessage({
-            id: 'operation-routes.helperTrigger.question',
+            id: 'operationRoutes.helperTrigger.question',
             defaultMessage: 'What is an Operation Route?'
           })}
           answer={intl.formatMessage({
-            id: 'operation-routes.helperTrigger.answer',
+            id: 'operationRoutes.helperTrigger.answer',
             defaultMessage:
               'Operation routes define rules for validating accounts during financial operations. They specify criteria that accounts must meet to participate in transactions.'
           })}

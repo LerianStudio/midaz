@@ -147,7 +147,7 @@ export const OperationRoutesSheet = ({
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.operation-routes.created',
+              id: 'success.operationRoutes.created',
               defaultMessage:
                 '{operationRouteTitle} operation route successfully created'
             },
@@ -170,7 +170,7 @@ export const OperationRoutesSheet = ({
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.operation-routes.updated',
+              id: 'success.operationRoutes.updated',
               defaultMessage:
                 '{operationRouteTitle} operation route successfully updated'
             },
@@ -210,13 +210,13 @@ export const OperationRoutesSheet = ({
             <SheetHeader>
               <SheetTitle>
                 {intl.formatMessage({
-                  id: 'operation-routes.sheet.create.title',
+                  id: 'operationRoutes.sheet.create.title',
                   defaultMessage: 'New Operation Route'
                 })}
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'operation-routes.sheet.create.description',
+                  id: 'operationRoutes.sheet.create.description',
                   defaultMessage:
                     'Fill in the details of the Operation Route you want to create.'
                 })}
@@ -229,7 +229,7 @@ export const OperationRoutesSheet = ({
               <SheetTitle>
                 {intl.formatMessage(
                   {
-                    id: 'operation-routes.sheet.edit.title',
+                    id: 'operationRoutes.sheet.edit.title',
                     defaultMessage: 'Edit {operationRouteTitle}'
                   },
                   {
@@ -240,12 +240,12 @@ export const OperationRoutesSheet = ({
               <SheetDescription>
                 {isReadOnly
                   ? intl.formatMessage({
-                      id: 'operation-routes.sheet.edit.description.readonly',
+                      id: 'operationRoutes.sheet.edit.description.readonly',
                       defaultMessage:
                         'View operation route fields in read-only mode.'
                     })
                   : intl.formatMessage({
-                      id: 'operation-routes.sheet.edit.description',
+                      id: 'operationRoutes.sheet.edit.description',
                       defaultMessage: 'View and edit operation route fields.'
                     })}
               </SheetDescription>
@@ -261,7 +261,7 @@ export const OperationRoutesSheet = ({
                 <TabsList className="mb-8 px-0">
                   <TabsTrigger value="details">
                     {intl.formatMessage({
-                      id: 'operation-routes.sheet.tabs.details',
+                      id: 'operationRoutes.sheet.tabs.details',
                       defaultMessage: 'Operation Route Details'
                     })}
                   </TabsTrigger>
@@ -278,11 +278,11 @@ export const OperationRoutesSheet = ({
                       control={form.control}
                       name="title"
                       label={intl.formatMessage({
-                        id: 'account-types.field.name',
+                        id: 'accountTypes.field.name',
                         defaultMessage: 'Account Type Name'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.name.tooltip',
+                        id: 'accountTypes.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account type'
                       })}
                       required={mode === 'create'}
@@ -292,12 +292,12 @@ export const OperationRoutesSheet = ({
                       control={form.control}
                       name="description"
                       label={intl.formatMessage({
-                        id: 'account-types.field.description',
+                        id: 'accountTypes.field.description',
                         defaultMessage: 'Description'
                       })}
                       textArea
                       placeholder={intl.formatMessage({
-                        id: 'account-types.field.description.placeholder',
+                        id: 'accountTypes.field.description.placeholder',
                         defaultMessage:
                           'Enter a detailed description of this account type...'
                       })}
@@ -307,16 +307,16 @@ export const OperationRoutesSheet = ({
                       control={form.control}
                       name="operationType"
                       label={intl.formatMessage({
-                        id: 'account-types.field.operationType',
+                        id: 'accountTypes.field.operationType',
                         defaultMessage: 'Operation Type'
                       })}
                       required={mode === 'create'}
                       placeholder={intl.formatMessage({
-                        id: 'account-types.field.operationType.placeholder',
+                        id: 'accountTypes.field.operationType.placeholder',
                         defaultMessage: 'Select the operation type'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.operationType.tooltip',
+                        id: 'accountTypes.field.operationType.tooltip',
                         defaultMessage:
                           'Select the operation type for the account type'
                       })}
@@ -324,11 +324,16 @@ export const OperationRoutesSheet = ({
                     >
                       <SelectItem value="source">
                         {intl.formatMessage({
-                          id: 'account-types.field.operationType.source',
+                          id: 'accountTypes.field.operationType.source',
                           defaultMessage: 'Source'
                         })}
                       </SelectItem>
-                      <SelectItem value="destination">Destination</SelectItem>
+                      <SelectItem value="destination">
+                        {intl.formatMessage({
+                          id: 'accountTypes.field.operationType.destination',
+                          defaultMessage: 'Destination'
+                        })}
+                      </SelectItem>
                     </SelectField>
 
                     <SelectField
@@ -338,20 +343,28 @@ export const OperationRoutesSheet = ({
                         form.setValue('account.validIf', [])
                       }}
                       label={intl.formatMessage({
-                        id: 'account-types.field.ruleType',
+                        id: 'accountTypes.field.ruleType',
                         defaultMessage: 'Rule Type'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.ruleType.tooltip',
+                        id: 'accountTypes.field.ruleType.tooltip',
                         defaultMessage:
                           'Select the rule type for the account type'
                       })}
                       required={mode === 'create'}
                     >
                       <SelectItem value="alias" defaultChecked>
-                        Alias
+                        {intl.formatMessage({
+                          id: 'accountTypes.field.ruleType.alias',
+                          defaultMessage: 'Alias'
+                        })}
                       </SelectItem>
-                      <SelectItem value="account_type">Account Type</SelectItem>
+                      <SelectItem value="account_type">
+                        {intl.formatMessage({
+                          id: 'accountTypes.field.ruleType.accountType',
+                          defaultMessage: 'Account Type'
+                        })}
+                      </SelectItem>
                     </SelectField>
 
                     {ruleTypeValue === 'alias' && (
@@ -367,11 +380,11 @@ export const OperationRoutesSheet = ({
                         control={form.control}
                         name="account.validIf"
                         label={intl.formatMessage({
-                          id: 'operation-routes.field.validIf.accountType',
+                          id: 'operationRoutes.field.validIf.accountType',
                           defaultMessage: 'Account Types'
                         })}
                         tooltip={intl.formatMessage({
-                          id: 'operation-routes.field.validIf.accountType.tooltip',
+                          id: 'operationRoutes.field.validIf.accountType.tooltip',
                           defaultMessage:
                             'Select one or more account types to validate against'
                         })}
@@ -389,7 +402,7 @@ export const OperationRoutesSheet = ({
                                   defaultMessage: 'Error loading account types'
                                 })
                               : intl.formatMessage({
-                                  id: 'operation-routes.field.validIf.accountType.placeholder',
+                                  id: 'operationRoutes.field.validIf.accountType.placeholder',
                                   defaultMessage: 'Select account types'
                                 })
                         }
@@ -399,7 +412,7 @@ export const OperationRoutesSheet = ({
                           accountTypesData?.items?.map((accountType) => (
                             <MultipleSelectItem
                               key={accountType.id}
-                              value={accountType.name}
+                              value={accountType.keyValue}
                             >
                               {accountType.name}
                             </MultipleSelectItem>

@@ -26,11 +26,11 @@ import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 
 const formatValidIf = (
   validIf: string | string[] | null | undefined
-): string => {
-  if (!validIf) return 'N/A'
+): string | undefined => {
+  if (!validIf) return undefined
 
   if (typeof validIf === 'string') {
-    return validIf.trim() || 'N/A'
+    return validIf.trim() || undefined
   }
 
   if (Array.isArray(validIf) && validIf.length > 0) {
@@ -38,13 +38,13 @@ const formatValidIf = (
       .filter((item) => item?.trim())
       .map((item) => item.trim())
 
-    if (cleanedItems.length === 0) return 'N/A'
+    if (cleanedItems.length === 0) return undefined
     if (cleanedItems.length === 1) return cleanedItems[0]
 
     return cleanedItems.join(', ')
   }
 
-  return 'N/A'
+  return undefined
 }
 
 import {
@@ -126,7 +126,11 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
                 {operationRoute?.original?.account?.ruleType}
               </TooltipTrigger>
               <TooltipContent>
-                {formatValidIf(operationRoute?.original?.account?.validIf)}
+                {formatValidIf(operationRoute?.original?.account?.validIf) ??
+                  intl.formatMessage({
+                    id: 'common.notApplicable',
+                    defaultMessage: 'Not applicable'
+                  })}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -206,13 +210,13 @@ export const OperationRoutesDataTable: React.FC<
         {isNil(operationRoutes?.items) || operationRoutes.items.length === 0 ? (
           <EmptyResource
             message={intl.formatMessage({
-              id: 'operation-routes.emptyResource',
+              id: 'operationRoutes.emptyResource',
               defaultMessage: "You haven't created any Operation Routes yet."
             })}
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'operation-routes.sheet.create.title',
+                id: 'operationRoutes.sheet.create.title',
                 defaultMessage: 'New Operation Route'
               })}
             </Button>
@@ -225,7 +229,7 @@ export const OperationRoutesDataTable: React.FC<
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'operation-routes.field.title',
+                        id: 'operationRoutes.field.title',
                         defaultMessage: 'Title'
                       })}
                       <TooltipProvider>
@@ -235,7 +239,7 @@ export const OperationRoutesDataTable: React.FC<
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'operation-routes.field.title.tooltip',
+                              id: 'operationRoutes.field.title.tooltip',
                               defaultMessage: 'The title of the operation route'
                             })}
                           </TooltipContent>
@@ -245,14 +249,14 @@ export const OperationRoutesDataTable: React.FC<
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'operation-routes.field.description',
+                      id: 'operationRoutes.field.description',
                       defaultMessage: 'Description'
                     })}
                   </TableHead>
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'operation-routes.field.operationType',
+                        id: 'operationRoutes.field.operationType',
                         defaultMessage: 'Operation Type'
                       })}
                       <TooltipProvider>
@@ -262,7 +266,7 @@ export const OperationRoutesDataTable: React.FC<
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'operation-routes.field.operationType.tooltip',
+                              id: 'operationRoutes.field.operationType.tooltip',
                               defaultMessage:
                                 'The type of operation (source or destination)'
                             })}
@@ -273,7 +277,7 @@ export const OperationRoutesDataTable: React.FC<
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'operation-routes.field.ruleType',
+                      id: 'operationRoutes.field.ruleType',
                       defaultMessage: 'Rule Type'
                     })}
                   </TableHead>
@@ -309,7 +313,7 @@ export const OperationRoutesDataTable: React.FC<
           <EntityDataTable.FooterText>
             {intl.formatMessage(
               {
-                id: 'operation-routes.showing',
+                id: 'operationRoutes.showing',
                 defaultMessage:
                   '{number, plural, =0 {No operation routes found} one {Showing {count} operation route} other {Showing {count} operation routes}}.'
               },

@@ -91,17 +91,17 @@ export const SearchAccountByAliasField: React.FC<
   }
 
   const defaultLabel = intl.formatMessage({
-    id: 'search-account-by-alias.label',
+    id: 'searchAccountByAlias.label',
     defaultMessage: 'Account Alias'
   })
 
   const defaultTooltip = intl.formatMessage({
-    id: 'search-account-by-alias.tooltip',
+    id: 'searchAccountByAlias.tooltip',
     defaultMessage: 'Search and select an account by its alias'
   })
 
   const defaultPlaceholder = intl.formatMessage({
-    id: 'search-account-by-alias.placeholder',
+    id: 'searchAccountByAlias.placeholder',
     defaultMessage: 'Type to search account alias (e.g., @account123)'
   })
 
@@ -155,7 +155,7 @@ export const SearchAccountByAliasField: React.FC<
                         <Loader2 className="text-primary h-4 w-4 animate-spin" />
                         <p className="text-muted-foreground text-sm">
                           {intl.formatMessage({
-                            id: 'search-account-by-alias.searching',
+                            id: 'searchAccountByAlias.searching',
                             defaultMessage: 'Searching...'
                           })}
                         </p>
@@ -194,7 +194,7 @@ export const SearchAccountByAliasField: React.FC<
                             <p className="text-muted-foreground mt-2 px-2 text-center text-xs">
                               {intl.formatMessage(
                                 {
-                                  id: 'search-account-by-alias.more-results',
+                                  id: 'searchAccountByAlias.moreResults',
                                   defaultMessage: '... and {count} more'
                                 },
                                 {
@@ -215,7 +215,7 @@ export const SearchAccountByAliasField: React.FC<
                         <div className="p-4 text-center">
                           <p className="text-muted-foreground text-sm">
                             {intl.formatMessage({
-                              id: 'search-account-by-alias.no-aliases-found',
+                              id: 'searchAccountByAlias.noAliasesFound',
                               defaultMessage: 'No aliases found'
                             })}
                           </p>
@@ -227,7 +227,7 @@ export const SearchAccountByAliasField: React.FC<
                       <div className="p-4 text-center">
                         <p className="text-sm text-red-500">
                           {intl.formatMessage({
-                            id: 'search-account-by-alias.error-loading',
+                            id: 'searchAccountByAlias.errorLoading',
                             defaultMessage: 'Error loading accounts'
                           })}
                         </p>

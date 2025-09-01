@@ -65,28 +65,28 @@ export default function Page() {
     {
       accessorKey: 'name',
       header: intl.formatMessage({
-        id: 'account-types.field.name',
+        id: 'accountTypes.field.name',
         defaultMessage: 'Account Type Name'
       })
     },
     {
       accessorKey: 'description',
       header: intl.formatMessage({
-        id: 'account-types.field.description',
+        id: 'accountTypes.field.description',
         defaultMessage: 'Description'
       })
     },
     {
       accessorKey: 'keyValue',
       header: intl.formatMessage({
-        id: 'account-types.field.keyValue',
+        id: 'accountTypes.field.keyValue',
         defaultMessage: 'Key Value'
       })
     },
     {
       accessorKey: 'metadata',
       header: intl.formatMessage({
-        id: 'account-types.field.metadata',
+        id: 'accountTypes.field.metadata',
         defaultMessage: 'Metadata'
       })
     },
@@ -149,7 +149,7 @@ export default function Page() {
     },
     {
       name: intl.formatMessage({
-        id: `common.account-types`,
+        id: `common.accountTypes`,
         defaultMessage: 'Account Types'
       })
     }
@@ -163,7 +163,7 @@ export default function Page() {
         <PageHeader.Wrapper>
           <PageHeader.InfoTitle
             title={intl.formatMessage({
-              id: 'common.account-types',
+              id: 'common.accountTypes',
               defaultMessage: 'Account Types'
             })}
             subtitle={intl.formatMessage({
@@ -181,7 +181,7 @@ export default function Page() {
 
             <Button onClick={handleCreate} data-testid="new-account-type">
               {intl.formatMessage({
-                id: 'common.new.account-type',
+                id: 'common.new.accountType',
                 defaultMessage: 'New Account Type'
               })}
             </Button>

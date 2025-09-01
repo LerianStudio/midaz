@@ -143,13 +143,13 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
         {isNil(accountTypes?.items) || accountTypes.items.length === 0 ? (
           <EmptyResource
             message={intl.formatMessage({
-              id: 'account-types.emptyResource',
+              id: 'accountTypes.emptyResource',
               defaultMessage: "You haven't created any Account Types yet."
             })}
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'account-types.sheet.create.title',
+                id: 'accountTypes.sheet.create.title',
                 defaultMessage: 'New Account Type'
               })}
             </Button>
@@ -162,7 +162,7 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'account-types.field.name',
+                        id: 'accountTypes.field.name',
                         defaultMessage: 'Account Type Name'
                       })}
                       <TooltipProvider>
@@ -172,7 +172,7 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'account-types.field.name.tooltip',
+                              id: 'accountTypes.field.name.tooltip',
                               defaultMessage:
                                 'Enter the name of the account type'
                             })}
@@ -183,14 +183,14 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'account-types.field.description',
+                      id: 'accountTypes.field.description',
                       defaultMessage: 'Description'
                     })}
                   </TableHead>
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'account-types.field.keyValue',
+                        id: 'accountTypes.field.keyValue',
                         defaultMessage: 'Key Value'
                       })}
                       <TooltipProvider>
@@ -200,7 +200,7 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'account-types.field.keyValue.tooltip',
+                              id: 'accountTypes.field.keyValue.tooltip',
                               defaultMessage:
                                 'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
                             })}
