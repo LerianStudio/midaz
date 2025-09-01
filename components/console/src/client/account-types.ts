@@ -24,7 +24,6 @@ type UseListAccountTypesProps = {
   ledgerId: string
   query?: AccountTypesSearchParamDto
   enabled?: boolean
-  limit?: number
 } & Omit<
   UseQueryOptions<PaginationDto<AccountTypesDto>>,
   'queryKey' | 'queryFn'
@@ -35,28 +34,18 @@ export const useListAccountTypes = ({
   ledgerId,
   query,
   enabled = true,
-  limit,
   ...options
 }: UseListAccountTypesProps) => {
-  const defaultLimit = 100
-  const actualLimit = limit ?? defaultLimit
-
-  const queryParams = { ...query }
-  if (limit !== undefined) {
-    queryParams.limit = limit
-  }
-
   return useQuery<PaginationDto<AccountTypesDto>>({
     queryKey: [
       organizationId,
       ledgerId,
       'account-types',
-      actualLimit,
       ...Object.values(query ?? {})
     ],
     queryFn: getPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types`,
-      queryParams
+      query
     ),
     enabled: !!organizationId && !!ledgerId && enabled,
     ...options

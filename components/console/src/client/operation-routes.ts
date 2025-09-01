@@ -59,11 +59,10 @@ type UseOperationRouteProps = {
   enabled?: boolean
 } & Omit<UseQueryOptions<OperationRoutesDto>, 'queryKey' | 'queryFn'>
 
-export const useOperationRoute = ({
+export const useGetOperationRoute = ({
   organizationId,
   ledgerId,
   operationRouteId,
-  enabled = true,
   ...options
 }: UseOperationRouteProps) => {
   return useQuery<OperationRoutesDto>({
@@ -71,7 +70,6 @@ export const useOperationRoute = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes/${operationRouteId}`
     ),
-    enabled: !!organizationId && !!ledgerId && !!operationRouteId && enabled,
     ...options
   })
 }

@@ -13,7 +13,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useListAccounts } from '@/client/accounts'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { FormTooltip } from '@/components/ui/form'
-import { AccountDto } from './types'
+import { AccountDto } from '@/core/application/dto/account-dto'
 
 export interface SearchAccountByAliasFieldProps {
   control: Control<any>

@@ -23,30 +23,6 @@ import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
-
-const formatValidIf = (
-  validIf: string | string[] | null | undefined
-): string | undefined => {
-  if (!validIf) return undefined
-
-  if (typeof validIf === 'string') {
-    return validIf.trim() || undefined
-  }
-
-  if (Array.isArray(validIf) && validIf.length > 0) {
-    const cleanedItems = validIf
-      .filter((item) => item?.trim())
-      .map((item) => item.trim())
-
-    if (cleanedItems.length === 0) return undefined
-    if (cleanedItems.length === 1) return cleanedItems[0]
-
-    return cleanedItems.join(', ')
-  }
-
-  return undefined
-}
-
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -81,6 +57,29 @@ type OperationRoutesRowProps = {
   operationRoute: Row<OperationRoutesDto>
   handleEdit: (operationRoute: OperationRoutesDto) => void
   onDelete: (id: string, operationRoute: OperationRoutesDto) => void
+}
+
+const formatValidIf = (
+  validIf: string | string[] | null | undefined
+): string | undefined => {
+  if (!validIf) return undefined
+
+  if (typeof validIf === 'string') {
+    return validIf.trim() || undefined
+  }
+
+  if (Array.isArray(validIf) && validIf.length > 0) {
+    const cleanedItems = validIf
+      .filter((item) => item?.trim())
+      .map((item) => item.trim())
+
+    if (cleanedItems.length === 0) return undefined
+    if (cleanedItems.length === 1) return cleanedItems[0]
+
+    return cleanedItems.join(', ')
+  }
+
+  return undefined
 }
 
 const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({

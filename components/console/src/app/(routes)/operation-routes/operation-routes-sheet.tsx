@@ -118,7 +118,9 @@ export const OperationRoutesSheet = ({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     enabled: !!currentOrganization.id && !!currentLedger.id,
-    limit: 100
+    query: {
+      limit: 100
+    }
   })
 
   useEffect(() => {
@@ -253,207 +255,202 @@ export const OperationRoutesSheet = ({
           )}
 
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmit)}
-              className="flex grow flex-col"
-            >
-              <Tabs defaultValue="details" className="mt-0">
-                <TabsList className="mb-8 px-0">
-                  <TabsTrigger value="details">
-                    {intl.formatMessage({
-                      id: 'operationRoutes.sheet.tabs.details',
-                      defaultMessage: 'Operation Route Details'
-                    })}
-                  </TabsTrigger>
-                  <TabsTrigger value="metadata">
-                    {intl.formatMessage({
-                      id: 'common.metadata',
-                      defaultMessage: 'Metadata'
-                    })}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="details">
-                  <div className="flex grow flex-col gap-4">
-                    <InputField
-                      control={form.control}
-                      name="title"
-                      label={intl.formatMessage({
-                        id: 'accountTypes.field.name',
-                        defaultMessage: 'Account Type Name'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'accountTypes.field.name.tooltip',
-                        defaultMessage: 'Enter the name of the account type'
-                      })}
-                      required={mode === 'create'}
-                    />
-
-                    <InputField
-                      control={form.control}
-                      name="description"
-                      label={intl.formatMessage({
-                        id: 'accountTypes.field.description',
-                        defaultMessage: 'Description'
-                      })}
-                      textArea
-                      placeholder={intl.formatMessage({
-                        id: 'accountTypes.field.description.placeholder',
-                        defaultMessage:
-                          'Enter a detailed description of this account type...'
-                      })}
-                    />
-
-                    <SelectField
-                      control={form.control}
-                      name="operationType"
-                      label={intl.formatMessage({
-                        id: 'accountTypes.field.operationType',
-                        defaultMessage: 'Operation Type'
-                      })}
-                      required={mode === 'create'}
-                      placeholder={intl.formatMessage({
-                        id: 'accountTypes.field.operationType.placeholder',
-                        defaultMessage: 'Select the operation type'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'accountTypes.field.operationType.tooltip',
-                        defaultMessage:
-                          'Select the operation type for the account type'
-                      })}
-                      disabled={isReadOnly || mode === 'edit'}
-                    >
-                      <SelectItem value="source">
-                        {intl.formatMessage({
-                          id: 'accountTypes.field.operationType.source',
-                          defaultMessage: 'Source'
-                        })}
-                      </SelectItem>
-                      <SelectItem value="destination">
-                        {intl.formatMessage({
-                          id: 'accountTypes.field.operationType.destination',
-                          defaultMessage: 'Destination'
-                        })}
-                      </SelectItem>
-                    </SelectField>
-
-                    <SelectField
-                      control={form.control}
-                      name="account.ruleType"
-                      onChange={() => {
-                        form.setValue('account.validIf', [])
-                      }}
-                      label={intl.formatMessage({
-                        id: 'accountTypes.field.ruleType',
-                        defaultMessage: 'Rule Type'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'accountTypes.field.ruleType.tooltip',
-                        defaultMessage:
-                          'Select the rule type for the account type'
-                      })}
-                      required={mode === 'create'}
-                    >
-                      <SelectItem value="alias" defaultChecked>
-                        {intl.formatMessage({
-                          id: 'accountTypes.field.ruleType.alias',
-                          defaultMessage: 'Alias'
-                        })}
-                      </SelectItem>
-                      <SelectItem value="account_type">
-                        {intl.formatMessage({
-                          id: 'accountTypes.field.ruleType.accountType',
-                          defaultMessage: 'Account Type'
-                        })}
-                      </SelectItem>
-                    </SelectField>
-
-                    {ruleTypeValue === 'alias' && (
-                      <SearchAccountByAliasField
-                        control={form.control}
-                        name="account.validIf"
-                        required
-                      />
-                    )}
-
-                    {accountTypesData && ruleTypeValue === 'account_type' && (
-                      <SelectField
-                        control={form.control}
-                        name="account.validIf"
-                        label={intl.formatMessage({
-                          id: 'operationRoutes.field.validIf.accountType',
-                          defaultMessage: 'Account Types'
-                        })}
-                        tooltip={intl.formatMessage({
-                          id: 'operationRoutes.field.validIf.accountType.tooltip',
-                          defaultMessage:
-                            'Select one or more account types to validate against'
-                        })}
-                        required
-                        multi
-                        placeholder={
-                          accountTypesLoading
-                            ? intl.formatMessage({
-                                id: 'common.loading',
-                                defaultMessage: 'Loading account types...'
-                              })
-                            : accountTypesError
-                              ? intl.formatMessage({
-                                  id: 'common.error',
-                                  defaultMessage: 'Error loading account types'
-                                })
-                              : intl.formatMessage({
-                                  id: 'operationRoutes.field.validIf.accountType.placeholder',
-                                  defaultMessage: 'Select account types'
-                                })
-                        }
-                        disabled={accountTypesLoading || !!accountTypesError}
-                      >
-                        {accountTypesData &&
-                          accountTypesData?.items?.map((accountType) => (
-                            <MultipleSelectItem
-                              key={accountType.id}
-                              value={accountType.keyValue}
-                            >
-                              {accountType.name}
-                            </MultipleSelectItem>
-                          ))}
-                      </SelectField>
-                    )}
-
-                    <p className="text-shadcn-400 text-xs font-normal italic">
-                      {intl.formatMessage({
-                        id: 'common.requiredFields',
-                        defaultMessage: '(*) required fields.'
-                      })}
-                    </p>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="metadata">
-                  <MetadataField
-                    name="metadata"
+            <Tabs defaultValue="details" className="mt-0">
+              <TabsList className="mb-8 px-0">
+                <TabsTrigger value="details">
+                  {intl.formatMessage({
+                    id: 'operationRoutes.sheet.tabs.details',
+                    defaultMessage: 'Operation Route Details'
+                  })}
+                </TabsTrigger>
+                <TabsTrigger value="metadata">
+                  {intl.formatMessage({
+                    id: 'common.metadata',
+                    defaultMessage: 'Metadata'
+                  })}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="details">
+                <div className="flex grow flex-col gap-4">
+                  <InputField
                     control={form.control}
-                    readOnly={isReadOnly}
-                  />
-                </TabsContent>
-              </Tabs>
-
-              <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
-                <Enforce resource="account-types" action="post, patch">
-                  <LoadingButton
-                    size="lg"
-                    type="submit"
-                    fullWidth
-                    loading={createPending || updatePending}
-                  >
-                    {intl.formatMessage({
-                      id: 'common.save',
-                      defaultMessage: 'Save'
+                    name="title"
+                    label={intl.formatMessage({
+                      id: 'accountTypes.field.name',
+                      defaultMessage: 'Account Type Name'
                     })}
-                  </LoadingButton>
-                </Enforce>
-              </SheetFooter>
-            </form>
+                    tooltip={intl.formatMessage({
+                      id: 'accountTypes.field.name.tooltip',
+                      defaultMessage: 'Enter the name of the account type'
+                    })}
+                    required={mode === 'create'}
+                  />
+
+                  <InputField
+                    control={form.control}
+                    name="description"
+                    label={intl.formatMessage({
+                      id: 'accountTypes.field.description',
+                      defaultMessage: 'Description'
+                    })}
+                    textArea
+                    placeholder={intl.formatMessage({
+                      id: 'accountTypes.field.description.placeholder',
+                      defaultMessage:
+                        'Enter a detailed description of this account type...'
+                    })}
+                  />
+
+                  <SelectField
+                    control={form.control}
+                    name="operationType"
+                    label={intl.formatMessage({
+                      id: 'accountTypes.field.operationType',
+                      defaultMessage: 'Operation Type'
+                    })}
+                    required={mode === 'create'}
+                    placeholder={intl.formatMessage({
+                      id: 'accountTypes.field.operationType.placeholder',
+                      defaultMessage: 'Select the operation type'
+                    })}
+                    tooltip={intl.formatMessage({
+                      id: 'accountTypes.field.operationType.tooltip',
+                      defaultMessage:
+                        'Select the operation type for the account type'
+                    })}
+                    disabled={isReadOnly || mode === 'edit'}
+                  >
+                    <SelectItem value="source">
+                      {intl.formatMessage({
+                        id: 'accountTypes.field.operationType.source',
+                        defaultMessage: 'Source'
+                      })}
+                    </SelectItem>
+                    <SelectItem value="destination">
+                      {intl.formatMessage({
+                        id: 'accountTypes.field.operationType.destination',
+                        defaultMessage: 'Destination'
+                      })}
+                    </SelectItem>
+                  </SelectField>
+
+                  <SelectField
+                    control={form.control}
+                    name="account.ruleType"
+                    onChange={() => {
+                      form.setValue('account.validIf', [])
+                    }}
+                    label={intl.formatMessage({
+                      id: 'accountTypes.field.ruleType',
+                      defaultMessage: 'Rule Type'
+                    })}
+                    tooltip={intl.formatMessage({
+                      id: 'accountTypes.field.ruleType.tooltip',
+                      defaultMessage:
+                        'Select the rule type for the account type'
+                    })}
+                    required={mode === 'create'}
+                  >
+                    <SelectItem value="alias" defaultChecked>
+                      {intl.formatMessage({
+                        id: 'accountTypes.field.ruleType.alias',
+                        defaultMessage: 'Alias'
+                      })}
+                    </SelectItem>
+                    <SelectItem value="account_type">
+                      {intl.formatMessage({
+                        id: 'accountTypes.field.ruleType.accountType',
+                        defaultMessage: 'Account Type'
+                      })}
+                    </SelectItem>
+                  </SelectField>
+
+                  {ruleTypeValue === 'alias' && (
+                    <SearchAccountByAliasField
+                      control={form.control}
+                      name="account.validIf"
+                      required
+                    />
+                  )}
+
+                  {accountTypesData && ruleTypeValue === 'account_type' && (
+                    <SelectField
+                      control={form.control}
+                      name="account.validIf"
+                      label={intl.formatMessage({
+                        id: 'operationRoutes.field.validIf.accountType',
+                        defaultMessage: 'Account Types'
+                      })}
+                      tooltip={intl.formatMessage({
+                        id: 'operationRoutes.field.validIf.accountType.tooltip',
+                        defaultMessage:
+                          'Select one or more account types to validate against'
+                      })}
+                      required
+                      multi
+                      placeholder={
+                        accountTypesLoading
+                          ? intl.formatMessage({
+                              id: 'common.loading',
+                              defaultMessage: 'Loading account types...'
+                            })
+                          : accountTypesError
+                            ? intl.formatMessage({
+                                id: 'common.error',
+                                defaultMessage: 'Error loading account types'
+                              })
+                            : intl.formatMessage({
+                                id: 'operationRoutes.field.validIf.accountType.placeholder',
+                                defaultMessage: 'Select account types'
+                              })
+                      }
+                      disabled={accountTypesLoading || !!accountTypesError}
+                    >
+                      {accountTypesData &&
+                        accountTypesData?.items?.map((accountType) => (
+                          <MultipleSelectItem
+                            key={accountType.id}
+                            value={accountType.keyValue}
+                          >
+                            {accountType.name}
+                          </MultipleSelectItem>
+                        ))}
+                    </SelectField>
+                  )}
+
+                  <p className="text-shadcn-400 text-xs font-normal italic">
+                    {intl.formatMessage({
+                      id: 'common.requiredFields',
+                      defaultMessage: '(*) required fields.'
+                    })}
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="metadata">
+                <MetadataField
+                  name="metadata"
+                  control={form.control}
+                  readOnly={isReadOnly}
+                />
+              </TabsContent>
+            </Tabs>
+
+            <SheetFooter className="sticky bottom-0 mt-auto bg-white py-4">
+              <Enforce resource="account-types" action="post, patch">
+                <LoadingButton
+                  size="lg"
+                  onClick={form.handleSubmit(handleSubmit)}
+                  fullWidth
+                  loading={createPending || updatePending}
+                >
+                  {intl.formatMessage({
+                    id: 'common.save',
+                    defaultMessage: 'Save'
+                  })}
+                </LoadingButton>
+              </Enforce>
+            </SheetFooter>
           </Form>
         </SheetContent>
       </Sheet>
