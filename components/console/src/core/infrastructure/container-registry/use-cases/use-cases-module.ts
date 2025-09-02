@@ -12,6 +12,7 @@ import { MidazConfigUseCaseModule } from './midaz-config-module'
 import { MidazInfoUseCaseModule } from './midaz-info-module'
 import { OnboardingUseCaseModule } from './onboarding-module'
 import { OperationRoutesUseCaseModule } from './operation-routes-module'
+import { TransactionRoutesUseCaseModule } from './transaction-routes-module'
 import { OrganizationUseCaseModule } from './organization-module'
 import { PluginManifestModule } from './plugin-manifest-module'
 import { PluginMenuModule } from './plugin-menu-module'
@@ -41,4 +42,5 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(MidazInfoUseCaseModule)
   container.load(MidazConfigUseCaseModule)
   container.load(OperationRoutesUseCaseModule)
+  container.load(TransactionRoutesUseCaseModule)
 })
