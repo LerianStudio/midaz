@@ -1,3 +1,24 @@
+## [v3.3.0-beta.8] - 2025-09-02
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.7...v3.3.0-beta.8)
+Contributors: lerian-studio, paulo
+
+### ✨ Features
+- **Search by Alias**: Users can now search by alias, making it easier to find items using alternative names. This feature enhances search flexibility and efficiency.
+- **Alias Support on Tables**: Tables now support aliases, allowing users to manage data with familiar or custom labels, improving data accessibility and organization.
+
+### 🐛 Bug Fixes
+- **Frontend Language Consistency**: Resolved language inconsistencies and function errors, ensuring a smoother user experience and improved application reliability.
+- **Key-Value Handling**: Fixed issues with key-value handling and validation logic, enhancing data integrity and stability.
+
+### ⚡ Performance
+- **HTTP Method Expansion**: Expanded HTTP method support across components, increasing system flexibility and integration capabilities for faster and more reliable operations.
+
+### 🔧 Maintenance
+- **Turbo Pack Integration**: Added a turbo pack for dependencies, optimizing build processes and significantly reducing setup times.
+- **Code Quality Improvements**: Conducted comprehensive linting across all components, ensuring consistent code quality and maintainability.
+
+
 ## [v3.3.0-beta.7] - 2025-08-28
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.6...v3.3.0-beta.7)
