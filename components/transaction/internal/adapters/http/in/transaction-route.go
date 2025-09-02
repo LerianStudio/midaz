@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type TransactionRouteHandler struct {
@@ -40,22 +39,13 @@ type TransactionRouteHandler struct {
 func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	metricFactory := libCommons.NewMetricFactoryFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	payload := i.(*mmodel.CreateTransactionRouteInput)
 
@@ -81,15 +71,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 		logger.Errorf("Failed to create transaction route cache: %v", err)
 	}
 
-	labels := map[string]string{
-		"organization_id": organizationID.String(),
-		"ledger_id":       ledgerID.String(),
-	}
-
-	metricFactory.Counter("transaction_route_created", libOpentelemetry.MetricOption{
-		Description: "New Transaction Route created",
-		Unit:        "1",
-	}).WithLabels(labels).Add(ctx, 1)
+	metricFactory.RecordTransactionRouteCreated(ctx, organizationID.String(), ledgerID.String())
 
 	return http.Created(c, transactionRoute)
 }
@@ -116,9 +98,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
@@ -126,13 +106,6 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_route_id", id.String()),
-	)
 
 	logger.Infof("Request to get transaction route with ID: %s", id.String())
 
@@ -170,9 +143,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
@@ -180,13 +151,6 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_route_id", id.String()),
-	)
 
 	logger.Infof("Request to update transaction route with ID: %s", id.String())
 
@@ -250,9 +214,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
@@ -260,13 +222,6 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("transaction_route_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_route_id", id.String()),
-	)
 
 	logger.Infof("Request to delete transaction route with ID: %s", id.String())
 
@@ -313,21 +268,13 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -344,11 +291,10 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	}
 
 	pagination := libPostgres.Pagination{
-		Limit:      headerParams.Limit,
-		NextCursor: headerParams.Cursor,
-		SortOrder:  headerParams.SortOrder,
-		StartDate:  headerParams.StartDate,
-		EndDate:    headerParams.EndDate,
+		Limit:     headerParams.Limit,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {

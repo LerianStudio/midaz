@@ -1,3 +1,37 @@
+## [v3.3.0-beta.7] - 2025-08-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.6...v3.3.0-beta.7)
+Contributors: LF Barrile, lerian-studio
+
+### ✨ Features
+- **Enhanced Security Gateway**: We've introduced a new security gateway for the build, push, and publish operations. This enhancement ensures that all processes are conducted securely, safeguarding sensitive data and maintaining the integrity of your deployment pipeline. Users can continue their workflows with added peace of mind, knowing their operations are protected.
+
+### 🔧 Maintenance
+- **Changelog Update**: We've updated our CHANGELOG to provide you with the most current information on recent changes and improvements. This ensures transparency and helps you track the evolution of our software effectively.
+
+
+## [v3.3.0-beta.6] - 2025-08-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.5...v3.3.0-beta.6)
+Contributors: Brecci, Clara Tersi, MartinezAvellan
+
+### ✨ Features
+- **Enhanced Transaction Insights**: Gain deeper insights into each transaction with enriched metadata, making tracking and auditing more efficient.
+- **Efficient Data Retrieval**: Quickly access detailed entity information with the new method for finding metadata by entity IDs, streamlining data analysis.
+
+### 🐛 Bug Fixes
+- **Consistent Data Validation**: Ensures reliable data serialization by fixing model validation issues, preventing data loss.
+- **Predictable Transaction Ordering**: Resolves transaction ordering problems, providing users with consistent and reliable transaction lists.
+- **Reliable Financial Computations**: Fixes in balance management improve the accuracy and reliability of financial operations.
+
+### ⚡ Performance
+- **Streamlined Data Navigation**: Improved pagination handling enhances performance when browsing large datasets, making navigation smoother and faster.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated `lib-commons` to the latest version, ensuring compatibility with new features and security enhancements.
+- **Simplified Telemetry Management**: Removed redundant OpenTelemetry attributes, reducing system overhead and simplifying context tracking.
+
+
 ## [v3.3.0-beta.4] - 2025-08-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.3...v3.3.0-beta.4)
