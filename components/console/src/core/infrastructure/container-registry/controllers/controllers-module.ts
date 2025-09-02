@@ -12,6 +12,7 @@ import { TransactionController } from '@/core/application/controllers/transactio
 import { OrganizationController } from '@/core/application/controllers/organization-controller'
 import { PermissionController } from '@/core/application/controllers/permission-controller'
 import { MidazConfigController } from '@/core/application/controllers/midaz-config-controller'
+import { OperationRoutesController } from '@/core/application/controllers/operation-routes-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<OrganizationController>(OrganizationController).toSelf()
@@ -27,4 +28,5 @@ export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<MidazInfoController>(MidazInfoController).toSelf()
   container.bind<PermissionController>(PermissionController).toSelf()
   container.bind<MidazConfigController>(MidazConfigController).toSelf()
+  container.bind<OperationRoutesController>(OperationRoutesController).toSelf()
 })

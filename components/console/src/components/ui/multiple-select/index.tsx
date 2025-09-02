@@ -11,7 +11,7 @@ import { useClickAway } from '@/hooks/use-click-away'
 
 type MultipleSelectContextType = React.HtmlHTMLAttributes<HTMLInputElement> & {
   /** Fields expected on simple Input */
-  value: string[] | []
+  value: string[]
   onValueChange: (values: string[]) => void
   disabled?: boolean
 
@@ -159,32 +159,39 @@ export const MultipleSelectValue = React.forwardRef<
   return (
     <>
       {options &&
-        value?.map((value) => (
-          <Badge
-            key={value}
-            variant="secondary"
-            className={cn(
-              'data-disabled:bg-muted-foreground data-fixed:bg-muted-foreground data-disabled:text-muted data-fixed:text-muted data-disabled:hover:bg-muted-foreground data-fixed:hover:bg-muted-foreground'
-            )}
-          >
-            {showValue ? value : options[value]}
-            <button
-              type="button"
+        Array.isArray(value) &&
+        value
+          ?.filter?.(
+            (val) =>
+              val &&
+              typeof val === 'string' &&
+              val.trim() !== '' &&
+              val.trim().length > 0
+          )
+          ?.map?.((val) => (
+            <Badge
+              key={val}
+              variant="secondary"
               className={cn(
-                'ring-offset-background focus:ring-ring ml-1 rounded-full outline-hidden focus:ring-2 focus:ring-offset-2',
-                disabled && 'hidden'
+                'data-disabled:bg-muted-foreground data-fixed:bg-muted-foreground data-disabled:text-muted data-fixed:text-muted data-disabled:hover:bg-muted-foreground data-fixed:hover:bg-muted-foreground'
               )}
             >
-              <X
-                className="text-muted-foreground hover:text-foreground h-3 w-3"
+              {showValue ? val : options[val]}
+              <button
+                type="button"
+                className={cn(
+                  'ring-offset-background focus:ring-ring ml-1 rounded-full outline-hidden focus:ring-2 focus:ring-offset-2',
+                  disabled && 'hidden'
+                )}
                 onClick={(event) => {
                   event.stopPropagation()
-                  handleChange(value)
+                  handleChange(val)
                 }}
-              />
-            </button>
-          </Badge>
-        ))}
+              >
+                <X className="text-muted-foreground hover:text-foreground h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
       <CommandPrimitive.Input
         {...props}
         ref={inputRef}
@@ -242,7 +249,6 @@ export const MultipleSelectContent = React.forwardRef<
   ) => {
     const { open, addOption, setOnScrollbar } = useMultipleSelect()
 
-    // we need to register the options when the component mounts
     React.useEffect(() => {
       React.Children.forEach(React.Children.toArray(children), (child) => {
         if (
@@ -305,25 +311,57 @@ export const MultipleSelectItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
 >(({ className, value, onClick: _onClick, onSelect, ...props }, ref) => {
-  const { handleChange } = useMultipleSelect()
+  const { handleChange, value: selectedValues } = useMultipleSelect()
+
+  const isSelected = selectedValues
+    ? selectedValues.includes(value || '')
+    : false
+
+  const handleSelect = React.useCallback(
+    (selectedValue: string) => {
+      if (
+        selectedValue &&
+        selectedValue.trim() !== '' &&
+        selectedValue === value
+      ) {
+        handleChange(value)
+        onSelect?.(value)
+      }
+    },
+    [handleChange, onSelect, value]
+  )
+
+  const handleClick = React.useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      if (value && value.trim() !== '') {
+        handleChange(value)
+        onSelect?.(value)
+      }
+    },
+    [handleChange, onSelect, value]
+  )
 
   return (
     <CommandPrimitive.Item
       ref={ref}
       value={value}
       className={cn(
-        "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground dark:data-[selected='true']:bg-accent relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:data-[selected=true]:text-slate-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+        {
+          'bg-accent text-accent-foreground dark:bg-accent dark:text-slate-50':
+            isSelected,
+          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent dark:hover:text-slate-50':
+            !isSelected
+        },
+        'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
         className
       )}
       {...props}
-      onMouseDown={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-      }}
-      onSelect={(value) => {
-        handleChange(value)
-        onSelect?.(value)
-      }}
+      onSelect={handleSelect}
+      onClick={handleClick}
     />
   )
 })
@@ -332,8 +370,8 @@ MultipleSelectItem.displayName = 'MultipleSelectItem'
 export type MultipleSelectProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive
 > & {
-  value?: string[] | []
-  defaultValue?: string[] | []
+  value?: string[]
+  defaultValue?: string[]
   onValueChange?: (values: string[]) => void
   showValue?: boolean
   disabled?: boolean
@@ -361,9 +399,10 @@ export const MultipleSelect = React.forwardRef<
     const [open, setOpen] = React.useState(false)
     const inputRef = React.useRef<HTMLInputElement>(null)
     const [onScrollbar, setOnScrollbar] = React.useState(false)
-    const [selected, setSelected] = React.useState<string[]>(
-      defaultValue ?? value ?? []
-    )
+    const [selected, setSelected] = React.useState<string[]>(() => {
+      const initialValue = defaultValue || value || []
+      return Array.isArray(initialValue) ? initialValue : []
+    })
     const [options, addOption] = React.useReducer(
       (prev: Record<string, string>, state: Record<string, string>) => ({
         ...prev,
@@ -381,13 +420,20 @@ export const MultipleSelect = React.forwardRef<
 
     const handleChange = React.useCallback(
       (value?: string) => {
-        if (!value) {
+        if (!value || value.trim() === '') {
           return
         }
 
-        const newSelected = selected.includes(value)
-          ? selected.filter((item) => item !== value)
-          : [...selected, value]
+        const trimmedValue = value.trim()
+
+        if (selected.includes(trimmedValue)) {
+          const newSelected = selected.filter((item) => item !== trimmedValue)
+          setSelected(newSelected)
+          onValueChange?.(newSelected)
+          return
+        }
+
+        const newSelected = [...selected, trimmedValue]
         setSelected(newSelected)
         onValueChange?.(newSelected)
       },
@@ -413,7 +459,7 @@ export const MultipleSelect = React.forwardRef<
     )
 
     React.useEffect(() => {
-      if (value) {
+      if (value && Array.isArray(value)) {
         setSelected(value)
       }
     }, [value])

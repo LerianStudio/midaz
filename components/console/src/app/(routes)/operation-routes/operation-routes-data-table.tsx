@@ -18,12 +18,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { isNil } from 'lodash'
+import { isNil, truncate } from 'lodash'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
-import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -37,51 +36,105 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
+import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
-type AccountTypesDataTableProps = {
-  accountTypes: PaginationDto<AccountTypesDto> | undefined
+type OperationRoutesDataTableProps = {
+  operationRoutes: PaginationDto<OperationRoutesDto> | undefined
   total: number
   pagination: PaginationProps
   handleCreate: () => void
-  handleEdit: (accountType: AccountTypesDto) => void
+  handleEdit: (operationRoute: OperationRoutesDto) => void
   isLoading: boolean
   table: {
     getRowModel: () => {
-      rows: { id: string; original: AccountTypesDto }[]
+      rows: { id: string; original: OperationRoutesDto }[]
     }
   }
-  onDelete: (id: string, accountType: AccountTypesDto) => void
+  onDelete: (id: string, operationRoute: OperationRoutesDto) => void
 }
 
-type AccountTypesRowProps = {
-  accountType: Row<AccountTypesDto>
-  handleEdit: (accountType: AccountTypesDto) => void
-  onDelete: (id: string, accountType: AccountTypesDto) => void
+type OperationRoutesRowProps = {
+  operationRoute: Row<OperationRoutesDto>
+  handleEdit: (operationRoute: OperationRoutesDto) => void
+  onDelete: (id: string, operationRoute: OperationRoutesDto) => void
 }
 
-const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
-  accountType,
-  handleEdit
+const formatValidIf = (
+  validIf: string | string[] | null | undefined
+): string | undefined => {
+  if (!validIf) return undefined
+
+  if (typeof validIf === 'string') {
+    return validIf.trim() || undefined
+  }
+
+  if (Array.isArray(validIf) && validIf.length > 0) {
+    const cleanedItems = validIf
+      .filter((item) => item?.trim())
+      .map((item) => item.trim())
+
+    if (cleanedItems.length === 0) return undefined
+    if (cleanedItems.length === 1) return cleanedItems[0]
+
+    return cleanedItems.join(', ')
+  }
+
+  return undefined
+}
+
+const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
+  operationRoute,
+  handleEdit,
+  onDelete
 }) => {
   const intl = useIntl()
-
   return (
     <React.Fragment>
-      <TableRow key={accountType.id}>
+      <TableRow key={operationRoute.id}>
         <TableCell>
           <div className="flex flex-col gap-1">
-            <span className="font-medium">{accountType.original.name}</span>
+            <span className="font-medium">{operationRoute.original.title}</span>
           </div>
         </TableCell>
         <TableCell>
           <div className="flex flex-col gap-1">
             <span className="font-medium">
-              {accountType.original.description || '-'}
+              {truncate(operationRoute.original.description, { length: 30 }) ||
+                '-'}
             </span>
           </div>
         </TableCell>
-        <TableCell>{accountType.original.keyValue}</TableCell>
-        <MetadataTableCell metadata={accountType.original.metadata!} />
+        <TableCell>
+          <TooltipProvider>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger>
+                {truncate(operationRoute.original.operationType, {
+                  length: 30
+                })}
+              </TooltipTrigger>
+              <TooltipContent>
+                {operationRoute.original.operationType}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
+        <TableCell>
+          <TooltipProvider>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger>
+                {operationRoute?.original?.account?.ruleType}
+              </TooltipTrigger>
+              <TooltipContent>
+                {formatValidIf(operationRoute?.original?.account?.validIf) ??
+                  intl.formatMessage({
+                    id: 'common.notApplicable',
+                    defaultMessage: 'Not applicable'
+                  })}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
+        <MetadataTableCell metadata={operationRoute.original.metadata!} />
         <TableCell className="w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -93,14 +146,24 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
               <DropdownMenuItem
                 onClick={() =>
                   handleEdit({
-                    ...accountType.original,
-                    entityId: accountType.original.id
-                  } as AccountTypesDto)
+                    ...operationRoute.original,
+                    entityId: operationRoute.original.id
+                  } as OperationRoutesDto)
                 }
               >
                 {intl.formatMessage({
                   id: 'common.details',
                   defaultMessage: 'Details'
+                })}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  onDelete(operationRoute.original.id, operationRoute.original)
+                }
+              >
+                {intl.formatMessage({
+                  id: 'common.delete',
+                  defaultMessage: 'Delete'
                 })}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -111,8 +174,10 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
   )
 }
 
-export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
-  accountTypes,
+export const OperationRoutesDataTable: React.FC<
+  OperationRoutesDataTableProps
+> = ({
+  operationRoutes,
   total,
   pagination,
   onDelete,
@@ -123,12 +188,13 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
   const [columnFilters, setColumnFilters] = React.useState<any>([])
 
   const table = useReactTable({
-    data: accountTypes?.items || [],
+    data: operationRoutes?.items || [],
     columns: [
-      { accessorKey: 'name' },
+      { accessorKey: 'title' },
       { accessorKey: 'description' },
-      { accessorKey: 'keyValue' },
-      { accessorKey: 'createdAt' },
+      { accessorKey: 'operationType' },
+      { accessorKey: 'ruleType' },
+      { accessorKey: 'metadata' },
       { accessorKey: 'actions' }
     ],
     getCoreRowModel: getCoreRowModel(),
@@ -140,17 +206,17 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
   return (
     <>
       <EntityDataTable.Root>
-        {isNil(accountTypes?.items) || accountTypes.items.length === 0 ? (
+        {isNil(operationRoutes?.items) || operationRoutes.items.length === 0 ? (
           <EmptyResource
             message={intl.formatMessage({
-              id: 'accountTypes.emptyResource',
-              defaultMessage: "You haven't created any Account Types yet."
+              id: 'operationRoutes.emptyResource',
+              defaultMessage: "You haven't created any Operation Routes yet."
             })}
           >
             <Button onClick={handleCreate}>
               {intl.formatMessage({
-                id: 'accountTypes.sheet.create.title',
-                defaultMessage: 'New Account Type'
+                id: 'operationRoutes.sheet.create.title',
+                defaultMessage: 'New Operation Route'
               })}
             </Button>
           </EmptyResource>
@@ -162,8 +228,8 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'accountTypes.field.name',
-                        defaultMessage: 'Account Type Name'
+                        id: 'operationRoutes.field.title',
+                        defaultMessage: 'Title'
                       })}
                       <TooltipProvider>
                         <Tooltip>
@@ -172,9 +238,8 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'accountTypes.field.name.tooltip',
-                              defaultMessage:
-                                'Enter the name of the account type'
+                              id: 'operationRoutes.field.title.tooltip',
+                              defaultMessage: 'The title of the operation route'
                             })}
                           </TooltipContent>
                         </Tooltip>
@@ -183,15 +248,15 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
-                      id: 'accountTypes.field.description',
+                      id: 'operationRoutes.field.description',
                       defaultMessage: 'Description'
                     })}
                   </TableHead>
                   <TableHead>
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
-                        id: 'accountTypes.field.keyValue',
-                        defaultMessage: 'Key Value'
+                        id: 'operationRoutes.field.operationType',
+                        defaultMessage: 'Operation Type'
                       })}
                       <TooltipProvider>
                         <Tooltip>
@@ -200,14 +265,20 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                           </TooltipTrigger>
                           <TooltipContent>
                             {intl.formatMessage({
-                              id: 'accountTypes.field.keyValue.tooltip',
+                              id: 'operationRoutes.field.operationType.tooltip',
                               defaultMessage:
-                                'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
+                                'The type of operation (source or destination)'
                             })}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
+                  </TableHead>
+                  <TableHead>
+                    {intl.formatMessage({
+                      id: 'operationRoutes.field.ruleType',
+                      defaultMessage: 'Rule Type'
+                    })}
                   </TableHead>
                   <TableHead>
                     {intl.formatMessage({
@@ -224,10 +295,10 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows.map((accountType) => (
-                  <AccountTypeRow
-                    key={accountType.id}
-                    accountType={accountType}
+                {table.getRowModel().rows.map((operationRoute) => (
+                  <OperationRoutesRow
+                    key={operationRoute.id}
+                    operationRoute={operationRoute}
                     handleEdit={handleEdit}
                     onDelete={onDelete}
                   />
@@ -241,21 +312,28 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
           <EntityDataTable.FooterText>
             {intl.formatMessage(
               {
-                id: 'ledgers.accounts.showing',
+                id: 'operationRoutes.showing',
                 defaultMessage:
-                  '{number, plural, =0 {No accounts found} one {Showing {count} account} other {Showing {count} accounts}}.'
+                  '{number, plural, =0 {No operation routes found} one {Showing {count} operation route} other {Showing {count} operation routes}}.'
               },
               {
-                number: accountTypes?.items.length,
+                number: operationRoutes?.items.length,
                 count: (
                   <span className="font-bold">
-                    {accountTypes?.items.length}
+                    {operationRoutes?.items.length}
                   </span>
                 )
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination
+            total={total}
+            hasNextPage={
+              operationRoutes &&
+              operationRoutes?.items?.length < pagination.limit
+            }
+            {...pagination}
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

@@ -37,6 +37,7 @@ export type SelectFieldProps = PropsWithChildren & {
   control: Control<any>
   multi?: boolean
   required?: boolean
+  onChange?: (value: any) => void
 }
 
 export const SelectField = ({
@@ -52,6 +53,7 @@ export const SelectField = ({
   multi,
   control,
   children,
+  onChange,
   ...others
 }: SelectFieldProps) => {
   const intl = useIntl()
@@ -76,7 +78,10 @@ export const SelectField = ({
 
             {multi ? (
               <MultipleSelect
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onChange?.(value)
+                }}
                 disabled={disabled}
                 {...field}
               >
@@ -87,7 +92,10 @@ export const SelectField = ({
               </MultipleSelect>
             ) : (
               <Select
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onChange?.(value)
+                }}
                 value={field.value}
                 disabled={disabled}
                 open={readOnly ? false : undefined}
