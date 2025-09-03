@@ -64,7 +64,6 @@ const TransactionRoutesRow: React.FC<TransactionRoutesRowProps> = ({
   onDelete
 }) => {
   const intl = useIntl()
-  // console.log('transactionRoute', transactionRoute)
   return (
     <React.Fragment>
       <TableRow key={transactionRoute.id}>

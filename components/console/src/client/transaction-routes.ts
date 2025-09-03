@@ -139,7 +139,7 @@ export const useDeleteTransactionRoute = ({
   return useMutation<any, any, any>({
     mutationKey: [organizationId, ledgerId, transactionRouteId],
     mutationFn: deleteFetcher(
-      `/api/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes/${transactionRouteId}`
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes`
     ),
     ...options
   })
