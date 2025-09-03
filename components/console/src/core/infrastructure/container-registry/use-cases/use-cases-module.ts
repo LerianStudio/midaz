@@ -18,6 +18,7 @@ import { TransactionUseCaseModule } from './transactions-module'
 import { UserUseCaseModule } from './user-module'
 import { MidazInfoUseCaseModule } from './midaz-info-module'
 import { MidazConfigUseCaseModule } from './midaz-config-module'
+import { MidazMenuUseCaseModule } from './midaz-menu-module'
 
 export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(AuthUseCaseModule)
@@ -39,4 +40,5 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(HomeUseCaseModule)
   container.load(MidazInfoUseCaseModule)
   container.load(MidazConfigUseCaseModule)
+  container.load(MidazMenuUseCaseModule)
 })

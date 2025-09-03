@@ -1,7 +1,7 @@
 import { VersionRepository } from '@/core/domain/repositories/version-repository'
 import { inject, injectable } from 'inversify'
 import { MidazInfoDto } from '../../dto/midaz-info-dto'
-import { LogOperation } from '@/core/infrastructure/logger/decorators'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface GetMidazInfo {
   execute: () => Promise<MidazInfoDto>

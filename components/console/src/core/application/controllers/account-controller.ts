@@ -1,4 +1,4 @@
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 import { Controller } from '@/lib/http/server/decorators/controller-decorator'
 import { inject } from 'inversify'
 import { FetchAccountsWithPortfoliosUseCase } from '../use-cases/accounts-with-portfolios/fetch-accounts-with-portfolios-use-case'

@@ -1,0 +1,83 @@
+{
+  "groups": [
+    {
+      "id": "main",
+      "title": null,
+      "titleKey": null,
+      "showSeparatorAfter": true,
+      "items": [
+        {
+          "name": "home",
+          "title": "Home",
+          "titleKey": "sidebar.main.home.title",
+          "route": "/",
+          "icon": "Home",
+          "hasLedgerDependencies": false,
+          "order": 1
+        },
+        {
+          "name": "ledgers",
+          "title": "Ledgers",
+          "titleKey": "sidebar.main.ledgers.title",
+          "route": "/ledgers",
+          "icon": "LibraryBig",
+          "hasLedgerDependencies": false,
+          "order": 2
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "title": "Ledger",
+      "titleKey": "sidebar.group.ledger.title",
+      "showSeparatorAfter": false,
+      "items": [
+        {
+          "name": "assets",
+          "title": "Assets",
+          "titleKey": "sidebar.ledger.assets.title",
+          "route": "/assets",
+          "icon": "DollarSign",
+          "hasLedgerDependencies": true,
+          "order": 1
+        },
+        {
+          "name": "accounts",
+          "title": "Accounts",
+          "titleKey": "sidebar.ledger.accounts.title",
+          "route": "/accounts",
+          "icon": "Coins",
+          "hasLedgerDependencies": true,
+          "order": 2
+        },
+        {
+          "name": "segments",
+          "title": "Segments",
+          "titleKey": "sidebar.ledger.segments.title",
+          "route": "/segments",
+          "icon": "Group",
+          "hasLedgerDependencies": true,
+          "order": 3
+        },
+        {
+          "name": "portfolios",
+          "title": "Portfolios",
+          "titleKey": "sidebar.ledger.portfolios.title",
+          "route": "/portfolios",
+          "icon": "Briefcase",
+          "hasLedgerDependencies": true,
+          "order": 4
+        },
+        {
+          "name": "transactions",
+          "title": "Transactions",
+          "titleKey": "sidebar.ledger.transactions.title",
+          "route": "/transactions",
+          "icon": "ArrowLeftRight",
+          "hasLedgerDependencies": true,
+          "order": 5
+        }
+      ]
+    }
+  ]
+}
