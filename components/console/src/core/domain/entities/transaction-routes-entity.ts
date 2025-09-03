@@ -1,9 +1,10 @@
 import { MetadataEntity } from './metadata-entity'
-import { PaginationSearchEntity } from './pagination-entity'
+import { SortableSearchEntity } from './pagination-entity'
 import { OperationRoutesEntity } from './operation-routes-entity'
 
-export type TransactionRoutesSearchEntity = PaginationSearchEntity & {
+export type TransactionRoutesSearchEntity = SortableSearchEntity & {
   id?: string
+  sortBy?: 'id' | 'title' | 'createdAt' | 'updatedAt'
 }
 
 export type TransactionRoutesEntity = {

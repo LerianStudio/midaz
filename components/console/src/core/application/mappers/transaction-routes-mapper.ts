@@ -15,6 +15,7 @@ import { OperationRoutesEntity } from '@/core/domain/entities/operation-routes-e
 
 export class TransactionRoutesMapper {
   public static toDto(entity: TransactionRoutesEntity): TransactionRoutesDto {
+    // console.log('==========> teste leigo', entity)
     return {
       id: entity.id!,
       organizationId: entity.organizationId!,
@@ -23,8 +24,7 @@ export class TransactionRoutesMapper {
       description: entity.description,
       operationRoutes:
         Array.isArray(entity.operationRoutes) &&
-        entity.operationRoutes.length > 0 &&
-        typeof entity.operationRoutes[0] === 'object'
+        entity.operationRoutes.length > 0
           ? (entity.operationRoutes as OperationRoutesEntity[]).map((op) =>
               OperationRoutesMapper.toDto(op)
             )

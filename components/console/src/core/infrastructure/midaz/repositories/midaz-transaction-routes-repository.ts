@@ -45,12 +45,20 @@ export class MidazTransactionRoutesRepository
     ledgerId: string,
     query?: TransactionRoutesSearchEntity
   ): Promise<PaginationEntity<TransactionRoutesEntity>> {
-    const { id, page = 1, limit = 10 } = query ?? {}
+    const {
+      id,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = query ?? {}
 
     const queryParams = createQueryString({
       id,
       page: page.toString(),
-      limit: limit.toString()
+      limit: limit.toString(),
+      sort_by: sortBy,
+      sort_order: sortOrder
     })
 
     const response = await this.httpService.get<

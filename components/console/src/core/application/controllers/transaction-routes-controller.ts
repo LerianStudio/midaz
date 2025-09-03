@@ -66,6 +66,7 @@ export class TransactionRoutesController extends BaseController {
           page
         }
       )
+    // console.log('====================> teste leigo', transactionRoutes)
 
     return NextResponse.json(transactionRoutes)
   }
@@ -82,6 +83,8 @@ export class TransactionRoutesController extends BaseController {
       ledgerId,
       body
     )
+
+    // console.log('====================> teste leigo controller', transactionRoute)
 
     return NextResponse.json(transactionRoute)
   }
