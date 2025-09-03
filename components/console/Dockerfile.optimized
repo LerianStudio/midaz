@@ -1,0 +1,76 @@
+# Multi-stage build to optimize image size
+# Stage 1: Build dependencies and application
+FROM node:22-alpine AS builder
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Add packages needed for builds
+RUN apk update && apk add --no-cache \
+    bash \
+    git \
+    python3 \
+    make \
+    g++
+
+# Copy package files
+COPY components/console/package*.json ./
+
+# Set up npm authentication and install all dependencies
+RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
+    npm ci --only=production --no-audit --no-fund && \
+    cp -R node_modules/ prod_node_modules/ && \
+    npm ci --no-audit --no-fund && \
+    rm -f ~/.npmrc
+
+# Copy application files
+COPY components/console/.env.example .env.example
+COPY components/console/scripts/ scripts/
+COPY components/console/ .
+
+# Build the application
+RUN npm run set-env && \
+    npm run build && \
+    npm prune --production
+
+# Stage 2: Production runtime
+FROM node:22-alpine AS runtime
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Install only runtime dependencies
+RUN apk update && apk add --no-cache \
+    bash \
+    tini \
+    && rm -rf /var/cache/apk/*
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/prod_node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/.env ./.env
+
+# Copy scripts
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/scripts/entrypoint.sh /scripts/entrypoint.sh
+RUN chmod +x /scripts/entrypoint.sh
+
+# Create public directory if it doesn't exist
+RUN mkdir -p public && chown nextjs:nodejs public
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 8081
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--", "/scripts/entrypoint.sh"]
+
+# Start the application
+CMD ["npm", "run", "start"]

@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: false,
   trailingSlash: process.env.NODE_ENV === 'production' ? true : false,
+  output: 'standalone', // Enable standalone output for Docker optimization
   logging: {
     fetches: {
       fullUrl: true

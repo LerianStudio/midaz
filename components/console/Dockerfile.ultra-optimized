@@ -1,0 +1,79 @@
+# Ultra-optimized multi-stage build for minimal image size
+# Stage 1: Dependencies
+FROM node:22-alpine AS deps
+WORKDIR /usr/src/app
+
+# Install build dependencies
+RUN apk add --no-cache libc6-compat python3 make g++ git
+
+# Copy package files
+COPY components/console/package*.json ./
+
+# Install dependencies with optimized settings
+ARG GITHUB_TOKEN
+RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
+    npm ci --only=production --no-audit --no-fund --ignore-scripts && \
+    rm -f ~/.npmrc
+
+# Stage 2: Builder
+FROM node:22-alpine AS builder
+WORKDIR /usr/src/app
+
+# Copy dependencies from deps stage
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copy source code
+COPY components/console/ .
+
+# Build the application
+ARG GITHUB_TOKEN
+RUN echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" > ~/.npmrc && \
+    npm run set-env && \
+    npm run build && \
+    rm -f ~/.npmrc
+
+# Stage 3: Production runner with distroless-like approach
+FROM node:22-alpine AS runner
+WORKDIR /usr/src/app
+
+# Install only essential runtime packages
+RUN apk add --no-cache \
+    bash \
+    tini \
+    && rm -rf /var/cache/apk/* \
+    && rm -rf /usr/share/man/* \
+    && rm -rf /tmp/*
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy only necessary files from builder
+COPY --from=deps --chown=nextjs:nodejs /usr/src/app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/public ./public
+
+# Copy entrypoint script
+COPY --from=builder --chown=nextjs:nodejs /usr/src/app/scripts/entrypoint.sh /scripts/entrypoint.sh
+RUN chmod +x /scripts/entrypoint.sh
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/ || exit 1
+
+# Use tini for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--", "/scripts/entrypoint.sh"]
+
+# Start the application
+CMD ["node", "server.js"]

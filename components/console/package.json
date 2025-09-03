@@ -19,7 +19,7 @@
     "test": "jest",
     "test:e2e": "playwright test --ui",
     "set-local-env": "shx cp .env.local.example .env",
-    "set-env": "shx cp .env.example .env",
+    "set-env": "shx cp .env.example .env && node scripts/expand-env.js",
     "docker-up": "npm run set-env && docker compose up -d",
     "prepare": "husky",
     "format": "prettier --write .",
