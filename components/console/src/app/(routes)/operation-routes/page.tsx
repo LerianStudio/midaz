@@ -7,19 +7,14 @@ import { Button } from '@/components/ui/button'
 import { useOrganization } from '@lerianstudio/console-layout'
 import React, { useState } from 'react'
 import { useIntl } from 'react-intl'
-import { AccountTypesSheet } from './account-types-sheet'
+import { OperationRoutesSheet } from './operation-routes-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
-import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
-import {
-  useDeleteAccountType,
-  useListAccountTypes
-} from '@/client/account-types'
 import { EntityBox } from '@/components/entity-box'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Form } from '@/components/ui/form'
 import { useQueryParams } from '@/hooks/use-query-params'
-import { AccountTypesSkeleton } from './account-types-skeleton'
-import { AccountTypesDataTable } from './account-types-data-table'
+import { OperationRoutesSkeleton } from './operation-routes-skeleton'
+import { OperationRoutesDataTable } from './operation-routes-data-table'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -28,6 +23,11 @@ import {
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { toast } from '@/hooks/use-toast'
+import {
+  useDeleteOperationRoute,
+  useListOperationRoutes
+} from '@/client/operation-routes'
+import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
 export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
@@ -38,7 +38,7 @@ export default function Page() {
     handleCreate,
     handleEdit: handleEditOriginal,
     sheetProps
-  } = useCreateUpdateSheet<AccountTypesDto>({
+  } = useCreateUpdateSheet<OperationRoutesDto>({
     enableRouting: true
   })
 
@@ -52,41 +52,56 @@ export default function Page() {
   })
 
   const {
-    data: accountTypesData,
-    refetch: refetchAccountTypes,
-    isLoading: isAccountTypesLoading
-  } = useListAccountTypes({
+    data: operationRoutesData,
+    refetch: refetchOperationRoutes,
+    isLoading: isOperationRoutesLoading
+  } = useListOperationRoutes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     query: searchValues as any
   })
 
-  const accountTypesColumns = [
+  const operationRoutesColumns = [
     {
-      accessorKey: 'name',
+      accessorKey: 'title',
       header: intl.formatMessage({
-        id: 'accountTypes.field.name',
-        defaultMessage: 'Account Type Name'
+        id: 'operationRoutes.field.title',
+        defaultMessage: 'Title'
       })
     },
     {
       accessorKey: 'description',
       header: intl.formatMessage({
-        id: 'accountTypes.field.description',
+        id: 'operationRoutes.field.description',
         defaultMessage: 'Description'
       })
     },
     {
-      accessorKey: 'keyValue',
+      accessorKey: 'operationType',
       header: intl.formatMessage({
-        id: 'accountTypes.field.keyValue',
-        defaultMessage: 'Key Value'
+        id: 'operationRoutes.field.operationType',
+        defaultMessage: 'Operation Type'
       })
+    },
+    {
+      accessorKey: 'account',
+      header: intl.formatMessage({
+        id: 'operationRoutes.field.account',
+        defaultMessage: 'Account Rule'
+      }),
+      cell: ({ getValue }: any) => {
+        const account = getValue()
+        if (!account) return '-'
+        const validIfDisplay = Array.isArray(account.validIf)
+          ? account.validIf.join(', ')
+          : account.validIf
+        return `${account.ruleType}: ${validIfDisplay}`
+      }
     },
     {
       accessorKey: 'metadata',
       header: intl.formatMessage({
-        id: 'accountTypes.field.metadata',
+        id: 'common.metadata',
         defaultMessage: 'Metadata'
       })
     },
@@ -100,8 +115,8 @@ export default function Page() {
   ]
 
   const table = useReactTable({
-    data: accountTypesData?.items ?? [],
-    columns: accountTypesColumns,
+    data: operationRoutesData?.items ?? [],
+    columns: operationRoutesColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnFiltersChange: setColumnFilters,
@@ -114,31 +129,34 @@ export default function Page() {
     handleDialogOpen,
     dialogProps,
     handleDialogClose,
-    data: selectedAccountType
-  } = useConfirmDialog<AccountTypesDto>({
-    onConfirm: () => deleteAccountType(selectedAccountType)
+    data: selectedOperationRoute
+  } = useConfirmDialog<OperationRoutesDto>({
+    onConfirm: () => deleteOperationRoute(selectedOperationRoute)
   })
 
-  const { mutate: deleteAccountType, isPending: deleteAccountTypePending } =
-    useDeleteAccountType({
-      organizationId: currentOrganization.id!,
-      ledgerId: currentLedger.id,
-      accountTypeId: selectedAccountType?.id || '',
-      onSuccess: () => {
-        handleDialogClose()
-        refetchAccountTypes()
-        toast({
-          description: intl.formatMessage(
-            {
-              id: 'success.accounts.delete',
-              defaultMessage: '{accountName} account successfully deleted'
-            },
-            { accountName: selectedAccountType?.name! }
-          ),
-          variant: 'success'
-        })
-      }
-    })
+  const {
+    mutate: deleteOperationRoute,
+    isPending: deleteOperationRoutePending
+  } = useDeleteOperationRoute({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    operationRouteId: selectedOperationRoute?.id || '',
+    onSuccess: () => {
+      handleDialogClose()
+      refetchOperationRoutes()
+      toast({
+        description: intl.formatMessage(
+          {
+            id: 'success.operationRoutes.delete',
+            defaultMessage:
+              '{operationRouteTitle} operation route successfully deleted'
+          },
+          { operationRouteTitle: selectedOperationRoute?.title! }
+        ),
+        variant: 'success'
+      })
+    }
+  })
 
   const breadcrumbPaths = getBreadcrumbPaths([
     {
@@ -149,8 +167,8 @@ export default function Page() {
     },
     {
       name: intl.formatMessage({
-        id: `common.accountTypes`,
-        defaultMessage: 'Account Types'
+        id: `common.operationRoutes`,
+        defaultMessage: 'Operation Routes'
       })
     }
   ])
@@ -163,26 +181,26 @@ export default function Page() {
         <PageHeader.Wrapper>
           <PageHeader.InfoTitle
             title={intl.formatMessage({
-              id: 'common.accountTypes',
-              defaultMessage: 'Account Types'
+              id: 'common.operationRoutes',
+              defaultMessage: 'Operation Routes'
             })}
             subtitle={intl.formatMessage({
-              id: 'account-type.subtitle',
-              defaultMessage: 'Manage the account types of this ledger.'
+              id: 'operationRoutes.subtitle',
+              defaultMessage: 'Manage the operation routes of this ledger.'
             })}
           />
           <PageHeader.ActionButtons>
             <PageHeader.CollapsibleInfoTrigger
               question={intl.formatMessage({
-                id: 'account-type.helperTrigger.question',
-                defaultMessage: 'What is an Account Type?'
+                id: 'operationRoutes.helperTrigger.question',
+                defaultMessage: 'What is an Operation Route?'
               })}
             />
 
-            <Button onClick={handleCreate} data-testid="new-account-type">
+            <Button onClick={handleCreate} data-testid="new-operation-route">
               {intl.formatMessage({
-                id: 'common.new.accountType',
-                defaultMessage: 'New Account Type'
+                id: 'common.new.operationRoute',
+                defaultMessage: 'New Operation Route'
               })}
             </Button>
           </PageHeader.ActionButtons>
@@ -190,19 +208,19 @@ export default function Page() {
 
         <PageHeader.CollapsibleInfo
           question={intl.formatMessage({
-            id: 'account-type.helperTrigger.question',
-            defaultMessage: 'What is an Account Type?'
+            id: 'operationRoutes.helperTrigger.question',
+            defaultMessage: 'What is an Operation Route?'
           })}
           answer={intl.formatMessage({
-            id: 'account-type.helperTrigger.answer',
+            id: 'operationRoutes.helperTrigger.answer',
             defaultMessage:
-              'Account types are used to categorize accounts. They are used to group accounts with similar characteristics.'
+              'Operation routes define rules for validating accounts during financial operations. They specify criteria that accounts must meet to participate in transactions.'
           })}
           seeMore={intl.formatMessage({
             id: 'common.read.docs',
             defaultMessage: 'Read the docs'
           })}
-          href="https://docs.lerian.studio/reference/create-an-account-type"
+          href="https://docs.lerian.studio/reference/create-an-operation-route"
         />
       </PageHeader.Root>
 
@@ -215,13 +233,13 @@ export default function Page() {
           id: 'accounts.delete.description',
           defaultMessage: 'You will delete an account'
         })}
-        loading={deleteAccountTypePending}
+        loading={deleteOperationRoutePending}
         {...dialogProps}
       />
 
-      <AccountTypesSheet
+      <OperationRoutesSheet
         ledgerId={currentLedger.id}
-        onSuccess={() => refetchAccountTypes()}
+        onSuccess={() => refetchOperationRoutes()}
         {...sheetProps}
       />
 
@@ -232,12 +250,12 @@ export default function Page() {
           </div>
         </EntityBox.Root>
 
-        {isAccountTypesLoading && <AccountTypesSkeleton />}
+        {isOperationRoutesLoading && <OperationRoutesSkeleton />}
 
-        {!isAccountTypesLoading && accountTypesData && (
-          <AccountTypesDataTable
-            accountTypes={accountTypesData}
-            isLoading={isAccountTypesLoading}
+        {!isOperationRoutesLoading && operationRoutesData && (
+          <OperationRoutesDataTable
+            operationRoutes={operationRoutesData}
+            isLoading={isOperationRoutesLoading}
             handleCreate={handleCreate}
             handleEdit={handleEditOriginal}
             onDelete={handleDialogOpen}

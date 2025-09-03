@@ -60,6 +60,10 @@ export class MidazBalanceRepository implements BalanceRepository {
       accountId
     )
 
+    if (!balanceResponse?.items?.[0]?.id) {
+      return {} as BalanceEntity
+    }
+
     const url = `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/balances/${balanceResponse?.items[0]?.id}`
 
     const response = await this.httpService.patch<BalanceEntity>(url, {
