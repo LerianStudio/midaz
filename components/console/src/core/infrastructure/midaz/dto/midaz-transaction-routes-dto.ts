@@ -18,7 +18,7 @@ export type MidazTransactionRoutesDto = {
   ledgerId: string
   title: string
   description?: string
-  operationRoutes: MidazOperationRoutesDto[]
+  operationRoutes?: MidazOperationRoutesDto[]
   metadata?: MetadataEntity
   createdAt: Date
   updatedAt: Date

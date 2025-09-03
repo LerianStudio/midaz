@@ -13,7 +13,7 @@ export type TransactionRoutesEntity = {
   ledgerId?: string
   title: string
   description?: string
-  operationRoutes: string[] | OperationRoutesEntity[]
+  operationRoutes: OperationRoutesEntity[]
   metadata?: MetadataEntity
   createdAt?: Date
   updatedAt?: Date

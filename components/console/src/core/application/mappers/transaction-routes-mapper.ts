@@ -15,20 +15,15 @@ import { OperationRoutesEntity } from '@/core/domain/entities/operation-routes-e
 
 export class TransactionRoutesMapper {
   public static toDto(entity: TransactionRoutesEntity): TransactionRoutesDto {
-    // console.log('==========> teste leigo', entity)
     return {
       id: entity.id!,
       organizationId: entity.organizationId!,
       ledgerId: entity.ledgerId!,
       title: entity.title,
       description: entity.description,
-      operationRoutes:
-        Array.isArray(entity.operationRoutes) &&
-        entity.operationRoutes.length > 0
-          ? (entity.operationRoutes as OperationRoutesEntity[]).map((op) =>
-              OperationRoutesMapper.toDto(op)
-            )
-          : [],
+      operationRoutes: entity.operationRoutes.map((op) => 
+        OperationRoutesMapper.toDto(op)
+      ),
       metadata: entity.metadata ?? null,
       createdAt: entity.createdAt!.toISOString(),
       updatedAt: entity.updatedAt!.toISOString(),
@@ -42,7 +37,11 @@ export class TransactionRoutesMapper {
     return {
       title: dto.title!,
       description: dto.description,
-      operationRoutes: dto.operationRoutes || [],
+      operationRoutes: (dto.operationRoutes || []).map(id => ({
+        id: typeof id === 'string' ? id : id,
+        title: '',
+        description: ''
+      } as OperationRoutesEntity)),
       metadata: dto.metadata ?? null
     }
   }

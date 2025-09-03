@@ -52,7 +52,12 @@ const initialValues = {
 }
 
 const getFormValues = (
-  initialValues: typeof initialValues,
+  initialValues: {
+    title: string
+    description: string
+    operationRoutes: string[]
+    metadata: object
+  },
   data?: TransactionRoutesDto | null
 ) => {
   if (!data) {

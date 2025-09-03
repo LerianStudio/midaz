@@ -40,10 +40,10 @@ export class FetchAllTransactionRoutesUseCase
         query
       )
 
-    // console.log('====================> teste leigo use case', transactionRoutesResult)
-
-    return TransactionRoutesMapper.toPaginationResponseDto(
+    const result = TransactionRoutesMapper.toPaginationResponseDto(
       transactionRoutesResult
     )
+
+    return result
   }
 }

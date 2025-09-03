@@ -66,7 +66,6 @@ export class TransactionRoutesController extends BaseController {
           page
         }
       )
-    // console.log('====================> teste leigo', transactionRoutes)
 
     return NextResponse.json(transactionRoutes)
   }
