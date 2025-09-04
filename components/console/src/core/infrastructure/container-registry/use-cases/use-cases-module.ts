@@ -9,6 +9,7 @@ import { GroupUseCaseModule } from './group-module'
 import { HomeUseCaseModule } from './home-module'
 import { LedgerUseCaseModule } from './ledger-module'
 import { OnboardingUseCaseModule } from './onboarding-module'
+import { OperationRoutesUseCaseModule } from './operation-routes-module'
 import { OrganizationUseCaseModule } from './organization-module'
 import { PluginManifestModule } from './plugin-manifest-module'
 import { PluginMenuModule } from './plugin-menu-module'
@@ -18,6 +19,7 @@ import { TransactionUseCaseModule } from './transactions-module'
 import { UserUseCaseModule } from './user-module'
 import { MidazInfoUseCaseModule } from './midaz-info-module'
 import { MidazConfigUseCaseModule } from './midaz-config-module'
+import { MidazMenuUseCaseModule } from './midaz-menu-module'
 
 export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(AuthUseCaseModule)
@@ -39,4 +41,6 @@ export const UseCasesModule = new ContainerModule((container: Container) => {
   container.load(HomeUseCaseModule)
   container.load(MidazInfoUseCaseModule)
   container.load(MidazConfigUseCaseModule)
+  container.load(MidazMenuUseCaseModule)
+  container.load(OperationRoutesUseCaseModule)
 })

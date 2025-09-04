@@ -6,7 +6,7 @@ import { FetchSegmentByIdUseCase } from '../use-cases/segment/fetch-segment-by-i
 import { CreateSegmentUseCase } from '../use-cases/segment/create-segment-use-case'
 import { DeleteSegmentUseCase } from '../use-cases/segment/delete-segment-use-case'
 import { segment } from '@/schema/segment'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 import {
   Controller,
   Body,

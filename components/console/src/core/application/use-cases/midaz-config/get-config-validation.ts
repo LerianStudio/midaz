@@ -1,13 +1,15 @@
 import { injectable } from 'inversify'
 import { MidazConfigDto } from '../../dto/midaz-config-dto'
-import { LogOperation } from '@/core/infrastructure/logger/decorators'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface GetMidazConfigValidation {
   execute: () => Promise<MidazConfigDto>
 }
 
 @injectable()
-export class GetMidazConfigValidationUseCase {
+export class GetMidazConfigValidationUseCase
+  implements GetMidazConfigValidation
+{
   constructor() {}
 
   @LogOperation({ layer: 'application' })

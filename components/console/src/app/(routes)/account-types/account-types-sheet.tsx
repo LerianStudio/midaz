@@ -82,7 +82,7 @@ export const AccountTypesSheet = ({
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.account-types.created',
+              id: 'success.accountTypes.created',
               defaultMessage:
                 '{accountTypeName} account type successfully created'
             },
@@ -105,7 +105,7 @@ export const AccountTypesSheet = ({
         toast({
           description: intl.formatMessage(
             {
-              id: 'success.account-types.updated',
+              id: 'success.accountTypes.updated',
               defaultMessage:
                 '{accountTypeName} account type successfully updated'
             },
@@ -145,13 +145,13 @@ export const AccountTypesSheet = ({
             <SheetHeader>
               <SheetTitle>
                 {intl.formatMessage({
-                  id: 'account-types.sheet.create.title',
+                  id: 'accountTypes.sheet.create.title',
                   defaultMessage: 'New Account Type'
                 })}
               </SheetTitle>
               <SheetDescription>
                 {intl.formatMessage({
-                  id: 'account-types.sheet.create.description',
+                  id: 'accountTypes.sheet.create.description',
                   defaultMessage:
                     'Fill in the details of the Account Type you want to create.'
                 })}
@@ -164,7 +164,7 @@ export const AccountTypesSheet = ({
               <SheetTitle>
                 {intl.formatMessage(
                   {
-                    id: 'account-types.sheet.edit.title',
+                    id: 'accountTypes.sheet.edit.title',
                     defaultMessage: 'Edit {accountTypeName}'
                   },
                   {
@@ -175,12 +175,12 @@ export const AccountTypesSheet = ({
               <SheetDescription>
                 {isReadOnly
                   ? intl.formatMessage({
-                      id: 'account-types.sheet.edit.description.readonly',
+                      id: 'accountTypes.sheet.edit.description.readonly',
                       defaultMessage:
                         'View account type fields in read-only mode.'
                     })
                   : intl.formatMessage({
-                      id: 'account-types.sheet.edit.description',
+                      id: 'accountTypes.sheet.edit.description',
                       defaultMessage: 'View and edit account type fields.'
                     })}
               </SheetDescription>
@@ -196,7 +196,7 @@ export const AccountTypesSheet = ({
                 <TabsList className="mb-8 px-0">
                   <TabsTrigger value="details">
                     {intl.formatMessage({
-                      id: 'account-types.sheet.tabs.details',
+                      id: 'accountTypes.sheet.tabs.details',
                       defaultMessage: 'Account Type Details'
                     })}
                   </TabsTrigger>
@@ -213,11 +213,11 @@ export const AccountTypesSheet = ({
                       control={form.control}
                       name="name"
                       label={intl.formatMessage({
-                        id: 'account-types.field.name',
+                        id: 'accountTypes.field.name',
                         defaultMessage: 'Account Type Name'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.name.tooltip',
+                        id: 'accountTypes.field.name.tooltip',
                         defaultMessage: 'Enter the name of the account type'
                       })}
                       readOnly={isReadOnly}
@@ -228,13 +228,13 @@ export const AccountTypesSheet = ({
                       control={form.control}
                       name="description"
                       label={intl.formatMessage({
-                        id: 'account-types.field.description',
+                        id: 'accountTypes.field.description',
                         defaultMessage: 'Description'
                       })}
                       readOnly={isReadOnly}
                       textArea
                       placeholder={intl.formatMessage({
-                        id: 'account-types.field.description.placeholder',
+                        id: 'accountTypes.field.description.placeholder',
                         defaultMessage:
                           'Enter a detailed description of this account type...'
                       })}
@@ -244,18 +244,18 @@ export const AccountTypesSheet = ({
                       control={form.control}
                       name="keyValue"
                       label={intl.formatMessage({
-                        id: 'account-types.field.keyValue',
+                        id: 'accountTypes.field.keyValue',
                         defaultMessage: 'Key Value'
                       })}
                       tooltip={intl.formatMessage({
-                        id: 'account-types.field.keyValue.tooltip',
+                        id: 'accountTypes.field.keyValue.tooltip',
                         defaultMessage:
                           'A unique key value identifier for the account type. Use only letters, numbers, underscores and hyphens.'
                       })}
                       readOnly={isReadOnly || mode === 'edit'}
                       required
                       placeholder={intl.formatMessage({
-                        id: 'account-types.field.keyValue.placeholder',
+                        id: 'accountTypes.field.keyValue.placeholder',
                         defaultMessage: 'e.g., current_assets, fixed_assets'
                       })}
                     />

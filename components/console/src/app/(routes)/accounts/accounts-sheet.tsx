@@ -206,7 +206,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const updateData = omit(cleanedData, ['assetCode', 'type'])
+      const updateData = omit(cleanedData, ['assetCode', 'type', 'alias'])
       updateAccount(updateData)
     }
   }
@@ -350,7 +350,7 @@ export const AccountSheet = ({
                           id: 'common.type',
                           defaultMessage: 'Type'
                         })}
-                        required={isValidationEnabled}
+                        required
                         readOnly={isReadOnly || mode === 'edit'}
                         disabled={
                           isValidationEnabled && accountTypesData?.length === 0

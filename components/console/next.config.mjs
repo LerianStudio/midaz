@@ -30,20 +30,7 @@ const nextConfig = {
   images: {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-    contentDispositionType: 'attachment',
-
-    remotePatterns: [
-      {
-        protocol: 'http',
-        hostname: '**',
-        pathname: '**'
-      },
-      {
-        protocol: 'https',
-        hostname: '**',
-        pathname: '**'
-      }
-    ]
+    contentDispositionType: 'attachment'
   },
   compiler: {
     reactRemoveProperties:

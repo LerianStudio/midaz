@@ -3,7 +3,7 @@ import { BaseController } from '@/lib/http/server/base-controller'
 import { inject } from 'inversify'
 import { AuthPermissionUseCase } from '../use-cases/auth/auth-permission-use-case'
 import { NextResponse } from 'next/server'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 
 @LoggerInterceptor()
 @Controller()
