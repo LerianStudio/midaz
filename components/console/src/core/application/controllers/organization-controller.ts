@@ -3,7 +3,7 @@ import { Controller, Get, Query } from '@/lib/http/server'
 import { BaseController } from '@/lib/http/server/base-controller'
 import { type OrganizationSearchParamDto } from '../dto/organization-dto'
 import { NextResponse } from 'next/server'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 import { FetchAllOrganizationsUseCase } from '../use-cases/organizations/fetch-all-organizations-use-case'
 
 @LoggerInterceptor()

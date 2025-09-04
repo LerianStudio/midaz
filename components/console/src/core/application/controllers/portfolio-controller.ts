@@ -6,7 +6,7 @@ import { FetchAllPortfoliosUseCase } from '../use-cases/portfolios/fetch-all-por
 import { NextResponse } from 'next/server'
 import { type PortfolioSearchParamDto } from '../dto/portfolio-dto'
 import { FetchPortfoliosWithAccountsUseCase } from '../use-cases/portfolios-with-accounts/fetch-portfolios-with-account-use-case'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 
 @LoggerInterceptor()
 @Controller()

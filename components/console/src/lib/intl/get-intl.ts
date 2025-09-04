@@ -1,12 +1,12 @@
 'server-only'
 
 import { getCookie, hasCookie } from 'cookies-next/server'
-import { createIntl, createIntlCache } from 'react-intl'
+import { createIntl, createIntlCache, IntlShape } from 'react-intl'
 import { getIntlConfig } from './get-intl-config'
 import { getLocale } from './get-locale'
 import { cookies } from 'next/headers'
 
-export async function getIntl() {
+export async function getIntl(): Promise<IntlShape> {
   const config = getIntlConfig()
 
   let locale = ''

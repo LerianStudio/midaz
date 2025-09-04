@@ -4,7 +4,7 @@ import { Controller, Get, Param, Query } from '@/lib/http/server'
 import { type TransactionSearchDto } from '../dto/transaction-dto'
 import { NextResponse } from 'next/server'
 import { BaseController } from '@/lib/http/server/base-controller'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 
 @LoggerInterceptor()
 @Controller()
