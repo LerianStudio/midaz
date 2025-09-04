@@ -795,5 +795,6 @@
   "transactionRoutes.delete.description": "You will delete a transaction route",
   "success.transactionRoutes.created": "{transactionRouteTitle} transaction route successfully created",
   "success.transactionRoutes.updated": "{transactionRouteTitle} transaction route successfully updated",
-  "success.transactionRoutes.delete": "{transactionRouteTitle} transaction route successfully deleted"
+  "success.transactionRoutes.delete": "{transactionRouteTitle} transaction route successfully deleted",
+  "transactionRoutes.validation.operationRoutes.min": "At least one source and one destination operation route must be selected with different operation types (source and destination)"
 }

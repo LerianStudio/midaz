@@ -16,7 +16,7 @@ export class MidazTransactionRoutesMapper {
     return {
       title: transactionRoute.title,
       description: transactionRoute.description,
-      operationRoutes: transactionRoute.operationRoutes.map(op => op.id!),
+      operationRoutes: transactionRoute.operationRoutes.map((op) => op.id!),
       metadata: transactionRoute.metadata ?? null
     }
   }
@@ -27,7 +27,7 @@ export class MidazTransactionRoutesMapper {
     return {
       title: transactionRoute.title,
       description: transactionRoute.description,
-      operationRoutes: transactionRoute.operationRoutes?.map(op => op.id!),
+      operationRoutes: transactionRoute.operationRoutes?.map((op) => op.id!),
       metadata: transactionRoute.metadata ?? null
     }
   }
@@ -41,8 +41,10 @@ export class MidazTransactionRoutesMapper {
       organizationId: dto.organizationId,
       title: dto.title,
       description: dto.description,
-      operationRoutes: dto.operationRoutes 
-        ? dto.operationRoutes.map((op) => MidazOperationRoutesMapper.toEntity(op))
+      operationRoutes: dto.operationRoutes
+        ? dto.operationRoutes.map((op) =>
+            MidazOperationRoutesMapper.toEntity(op)
+          )
         : [],
       metadata: dto.metadata ?? null,
       createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,

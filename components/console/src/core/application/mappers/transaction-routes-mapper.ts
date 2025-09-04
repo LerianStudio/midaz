@@ -21,7 +21,7 @@ export class TransactionRoutesMapper {
       ledgerId: entity.ledgerId!,
       title: entity.title,
       description: entity.description,
-      operationRoutes: entity.operationRoutes.map((op) => 
+      operationRoutes: entity.operationRoutes.map((op) =>
         OperationRoutesMapper.toDto(op)
       ),
       metadata: entity.metadata ?? null,
@@ -37,11 +37,14 @@ export class TransactionRoutesMapper {
     return {
       title: dto.title!,
       description: dto.description,
-      operationRoutes: (dto.operationRoutes || []).map(id => ({
-        id: typeof id === 'string' ? id : id,
-        title: '',
-        description: ''
-      } as OperationRoutesEntity)),
+      operationRoutes: (dto.operationRoutes || []).map(
+        (id) =>
+          ({
+            id: typeof id === 'string' ? id : id,
+            title: '',
+            description: ''
+          }) as OperationRoutesEntity
+      ),
       metadata: dto.metadata ?? null
     }
   }

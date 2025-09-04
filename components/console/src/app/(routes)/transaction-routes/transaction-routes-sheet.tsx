@@ -73,14 +73,20 @@ const getFormValues = (
   }
 }
 
-const FormSchema = z.object({
-  title: transactionRoutes.title,
-  description: transactionRoutes.description,
-  operationRoutes: transactionRoutes.operationRoutes,
-  metadata: transactionRoutes.metadata
-})
-
-type FormData = z.infer<typeof FormSchema>
+const createFormSchema = (intl: any) =>
+  z.object({
+    title: transactionRoutes.title,
+    description: transactionRoutes.description,
+    operationRoutes: z.array(z.string().uuid()).min(
+      2,
+      intl.formatMessage({
+        id: 'transactionRoutes.validation.operationRoutes.min',
+        defaultMessage:
+          'At least one source and one destination operation route must be selected with different operation types (source and destination)'
+      })
+    ),
+    metadata: transactionRoutes.metadata
+  })
 
 export const TransactionRoutesSheet = ({
   mode,
@@ -93,6 +99,9 @@ export const TransactionRoutesSheet = ({
   const { currentOrganization, currentLedger } = useOrganization()
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('transaction-routes')
+
+  const FormSchema = createFormSchema(intl)
+  type FormData = z.infer<typeof FormSchema>
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -132,6 +141,17 @@ export const TransactionRoutesSheet = ({
           variant: 'success'
         })
         form.reset()
+      },
+      onError: (error) => {
+        console.log(error)
+        toast({
+          description: intl.formatMessage({
+            id: 'transactionRoutes.validation.operationRoutes.min',
+            defaultMessage:
+              'At least one source and one destination operation route must be selected with different operation types (source and destination)'
+          }),
+          variant: 'destructive'
+        })
       }
     })
 
@@ -176,6 +196,8 @@ export const TransactionRoutesSheet = ({
       updateTransactionRoute(cleanedData as UpdateTransactionRoutesDto)
     }
   }
+
+  console.log('operationRoutesData', operationRoutesData)
 
   return (
     <React.Fragment>
@@ -315,7 +337,17 @@ export const TransactionRoutesSheet = ({
                             key={operationRoute.id}
                             value={operationRoute.id}
                           >
-                            {operationRoute.title}
+                            {operationRoute.title} (
+                            {operationRoute.operationType === 'source'
+                              ? intl.formatMessage({
+                                  id: 'accountTypes.field.operationType.source',
+                                  defaultMessage: 'Source'
+                                })
+                              : intl.formatMessage({
+                                  id: 'accountTypes.field.operationType.destination',
+                                  defaultMessage: 'Destination'
+                                })}
+                            )
                           </MultipleSelectItem>
                         ))}
                     </SelectField>
