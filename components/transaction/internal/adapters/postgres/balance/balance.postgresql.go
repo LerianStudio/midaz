@@ -35,6 +35,7 @@ type Repository interface {
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
+	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
@@ -484,6 +485,122 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 		ledgerID,
 		pq.Array(aliases),
 	)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+		if err := rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+			&balance.Key,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			logger.Errorf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		logger.Errorf("Failed to iterate rows: %v", err)
+
+		return nil, err
+	}
+
+	return balances, nil
+}
+
+// ListByAliasesWithKeys list Balances entity from the database using the provided alias#key pairs.
+func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases_with_keys")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	if len(aliasesWithKeys) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
+	orConditions := squirrel.Or{}
+
+	for _, aliasWithKey := range aliasesWithKeys {
+		parts := strings.Split(aliasWithKey, "#")
+		if len(parts) != 2 {
+			libOpentelemetry.HandleSpanError(&span, "Invalid alias#key format", errors.New("expected format: alias#key"))
+
+			logger.Errorf("Invalid alias#key format: %s", aliasWithKey)
+
+			return nil, errors.New("invalid alias#key format")
+		}
+
+		alias := parts[0]
+		key := parts[1]
+
+		orConditions = append(orConditions, squirrel.And{
+			squirrel.Eq{"alias": alias},
+			squirrel.Eq{"key": key},
+		})
+	}
+
+	findQuery := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(orConditions).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	var balances []*mmodel.Balance
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases_with_keys.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 

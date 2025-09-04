@@ -177,6 +177,21 @@ func (mr *MockRepositoryMockRecorder) ListByAliases(arg0, arg1, arg2, arg3 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), arg0, arg1, arg2, arg3)
 }
 
+// ListByAliasesWithKeys mocks base method.
+func (m *MockRepository) ListByAliasesWithKeys(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []string) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAliasesWithKeys", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAliasesWithKeys indicates an expected call of ListByAliasesWithKeys.
+func (mr *MockRepositoryMockRecorder) ListByAliasesWithKeys(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliasesWithKeys", reflect.TypeOf((*MockRepository)(nil).ListByAliasesWithKeys), arg0, arg1, arg2, arg3)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 mmodel.UpdateBalance) error {
 	m.ctrl.T.Helper()
