@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -27,7 +28,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
-		balancesByAliases, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, aliases)
+		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 
@@ -79,12 +80,14 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 				continue
 			}
 
+			aliasAndKey := strings.Split(alias, "#")
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,
 				AccountID:      b.AccountID,
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
-				Alias:          alias,
+				Alias:          aliasAndKey[0],
+				Key:            aliasAndKey[1],
 				Available:      b.Available,
 				OnHold:         b.OnHold,
 				Version:        b.Version,
@@ -111,10 +114,11 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	balanceOperations := make([]mmodel.BalanceOperation, 0)
 
 	for _, balance := range balances {
-		internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), balance.Alias)
+		aliasKey := balance.Alias + "#" + balance.Key
+		internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), aliasKey)
 
 		for k, v := range validate.From {
-			if libTransaction.SplitAlias(k) == balance.Alias {
+			if libTransaction.SplitAliasWithKey(k) == aliasKey {
 				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 					Balance:     balance,
 					Alias:       k,
@@ -125,7 +129,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		}
 
 		for k, v := range validate.To {
-			if libTransaction.SplitAlias(k) == balance.Alias {
+			if libTransaction.SplitAliasWithKey(k) == aliasKey {
 				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 					Balance:     balance,
 					Alias:       k,

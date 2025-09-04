@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -810,6 +811,7 @@ func (handler *TransactionHandler) BuildOperations(
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+					BalanceKey:      blc.Key,
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       transactionDate,
@@ -857,6 +859,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 		logger.Errorf("Failed to convert transaction to JSON string, Error: %s", err.Error())
 	}
+
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
 
 	var fromTo []libTransaction.FromTo
 
@@ -971,8 +976,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		return http.WithError(c, err)
 	}
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
+	tran.Source = getAliasWithoutKey(validate.Sources)
+	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
@@ -1005,6 +1010,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	ledgerID := uuid.MustParse(tran.LedgerID)
 
 	parserDSL := tran.Body
+
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
 
 	var fromTo []libTransaction.FromTo
 
@@ -1066,8 +1074,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
+	tran.Source = getAliasWithoutKey(validate.Sources)
+	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
@@ -1084,4 +1092,25 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
+}
+
+// ApplyDefaultBalanceKeys sets the BalanceKey to "default" for any entries where the BalanceKey is empty.
+func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []libTransaction.FromTo) {
+	for i := range entries {
+		if entries[i].BalanceKey == "" {
+			entries[i].BalanceKey = "default"
+		}
+	}
+}
+
+// getAliasWithoutKey takes a slice of strings and returns a new slice containing the first part of each string split by '#'.
+func getAliasWithoutKey(array []string) []string {
+	result := make([]string, len(array))
+
+	for i, str := range array {
+		parts := strings.Split(str, "#")
+		result[i] = parts[0]
+	}
+
+	return result
 }
