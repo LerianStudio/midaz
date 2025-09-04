@@ -230,6 +230,7 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 		LedgerID:       b.LedgerID,
 		AccountID:      b.AccountID,
 		Alias:          b.Alias,
+		Key:            b.Key,
 		AssetCode:      b.AssetCode,
 		Available:      b.Available,
 		OnHold:         b.OnHold,
