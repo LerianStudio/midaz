@@ -15,11 +15,8 @@ github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/LerianStudio/lib-auth/v2 v2.2.0 h1:IDbpYgbjpVBJFShhhuRl75c6FRSD2x3p0lAC0HBrVVY=
 github.com/LerianStudio/lib-auth/v2 v2.2.0/go.mod h1:SBu9aj37eB1ogARnUY7PRKZppHt/YpMwrfcwsm6EoWU=
-github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6 h1:DfNPlXXK8SDXyMJHOyusdqJsVfekT2ZAWznUBHPkZTM=
-github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6/go.mod h1:UrwIvJLbLIvYLAVo3Cktmj+5QV+kIqgidns+X1c4sX4=
-github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250902154150-56709e328304/go.mod h1:UrwIvJLbLIvYLAVo3Cktmj+5QV+kIqgidns+X1c4sX4=
-github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904191635-ae11ad5e05ac h1:LN/A9lJk9LjE1zm44cHmiw7mlCL4Wx5pIIoZyzDfrIk=
-github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904191635-ae11ad5e05ac/go.mod h1:UrwIvJLbLIvYLAVo3Cktmj+5QV+kIqgidns+X1c4sX4=
+github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904202557-0cf20b14fec2 h1:GUbmBepHsXX6NovCxDDqozEcN2O+ZGh9Z1uGQvtFC60=
+github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904202557-0cf20b14fec2/go.mod h1:UrwIvJLbLIvYLAVo3Cktmj+5QV+kIqgidns+X1c4sX4=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

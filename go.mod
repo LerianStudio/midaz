@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth/v2 v2.2.0
-	github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904191635-ae11ad5e05ac
+	github.com/LerianStudio/lib-commons/v2 v2.3.0-beta.6.0.20250904202557-0cf20b14fec2
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
