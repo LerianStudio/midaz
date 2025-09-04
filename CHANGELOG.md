@@ -1,3 +1,19 @@
+## [v3.3.0-beta.10] - 2025-09-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.9...v3.3.0-beta.10)
+Contributors: Augusto Alvarenga
+
+### 🐛 Bug Fixes
+- Resolved an issue with middleware affecting remote image optimization. This fix ensures images are processed correctly, enhancing the visual experience by preventing errors or delays.
+
+### ⚡ Performance
+- Improved the performance of image handling, resulting in faster load times and a smoother user experience. Users will notice quicker access to image-heavy content, enhancing overall application responsiveness.
+
+### 🔧 Maintenance
+- Updated Next.js dependencies to the latest versions, ensuring compatibility with the newest features and security enhancements. This update contributes to the application's stability and security.
+- Refined build and configuration settings to align with updated dependencies. These adjustments streamline the development process, reducing potential errors and improving efficiency.
+
+
 ## [v3.3.0-beta.8] - 2025-09-02
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.7...v3.3.0-beta.8)
