@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -194,5 +195,41 @@ func TestCreateAdditionalBalance(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "upper-case-key", result.Key)
+	})
+
+	t.Run("external account type not allowed", func(t *testing.T) {
+		allowSending := true
+		allowReceiving := true
+		key := "test-key"
+
+		externalBalance := &mmodel.Balance{
+			ID:             uuid.New().String(),
+			Alias:          alias,
+			Key:            constant.DefaultBalanceKey,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      accountID.String(),
+			AssetCode:      "USD",
+			AccountType:    constant.ExternalAccountType,
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		cbi := &mmodel.CreateAdditionalBalance{
+			Key:            key,
+			AllowSending:   &allowSending,
+			AllowReceiving: &allowReceiving,
+		}
+
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
+			Return(externalBalance, nil).
+			Times(1)
+
+		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "Additional balances are not allowed for external account type")
 	})
 }
