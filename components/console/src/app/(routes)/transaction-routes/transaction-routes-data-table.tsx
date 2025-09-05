@@ -87,11 +87,16 @@ const TransactionRoutesRow: React.FC<TransactionRoutesRowProps> = ({
           <TooltipProvider>
             <Tooltip delayDuration={300}>
               <TooltipTrigger>
-                {transactionRoute.original.operationRoutes?.length || 0}{' '}
-                {intl.formatMessage({
-                  id: 'transactionRoutes.field.operationRoutes.count',
-                  defaultMessage: 'operation routes'
-                })}
+                {intl.formatMessage(
+                  {
+                    id: 'transactionRoutes.field.operationRoutes.count',
+                    defaultMessage: '{value} operation routes'
+                  },
+                  {
+                    value:
+                      transactionRoute.original.operationRoutes?.length || 0
+                  }
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {transactionRoute.original.operationRoutes?.length > 0

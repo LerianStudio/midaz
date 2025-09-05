@@ -792,7 +792,7 @@
   "transactionRoutes.field.operationRoutes": "Rotas de Operação",
   "transactionRoutes.field.operationRoutes.tooltip": "Selecione uma ou mais rotas de operação para esta rota de transação",
   "transactionRoutes.field.operationRoutes.placeholder": "Selecione rotas de operação",
-  "transactionRoutes.field.operationRoutes.count": "rotas de operação",
+  "transactionRoutes.field.operationRoutes.count": "{value} rotas de operação",
   "transactionRoutes.sheet.create.title": "Nova Rota de Transação",
   "transactionRoutes.sheet.create.description": "Preencha os detalhes da Rota de Transação que deseja criar.",
   "transactionRoutes.sheet.edit.title": "Editar {transactionRouteTitle}",

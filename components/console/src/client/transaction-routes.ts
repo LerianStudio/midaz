@@ -33,7 +33,6 @@ export const useListTransactionRoutes = ({
   organizationId,
   ledgerId,
   query,
-  enabled = true,
   ...options
 }: UseListTransactionRoutesProps) => {
   return useQuery<PaginationDto<TransactionRoutesDto>>({
@@ -47,7 +46,6 @@ export const useListTransactionRoutes = ({
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes`,
       query
     ),
-    enabled: !!organizationId && !!ledgerId && enabled,
     ...options
   })
 }

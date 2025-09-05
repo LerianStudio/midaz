@@ -1,3 +1,7 @@
+import {
+  FetchAllTransactionRoutesWithOperationRoutes,
+  FetchAllTransactionRoutesWithOperationRoutesUseCase
+} from '@/core/application/use-cases/transaction-operation-routes/fetch-all-transaction-routes-with-operation-routes-use-case'
 import { Container, ContainerModule } from '../../utils/di/container'
 
 import {
@@ -37,6 +41,11 @@ export const TransactionRoutesUseCaseModule = new ContainerModule(
       .toSelf()
     container
       .bind<DeleteTransactionRoutes>(DeleteTransactionRoutesUseCase)
+      .toSelf()
+    container
+      .bind<FetchAllTransactionRoutesWithOperationRoutes>(
+        FetchAllTransactionRoutesWithOperationRoutesUseCase
+      )
       .toSelf()
   }
 )

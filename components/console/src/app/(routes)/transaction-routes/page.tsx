@@ -28,6 +28,7 @@ import {
   useListTransactionRoutes
 } from '@/client/transaction-routes'
 import { TransactionRoutesDto } from '@/core/application/dto/transaction-routes-dto'
+import { useListTransactionRoutesWithOperationRoutes } from '@/client/transaction-operation-routes'
 
 export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
@@ -55,7 +56,7 @@ export default function Page() {
     data: transactionRoutesData,
     refetch: refetchTransactionRoutes,
     isLoading: isTransactionRoutesLoading
-  } = useListTransactionRoutes({
+  } = useListTransactionRoutesWithOperationRoutes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     query: searchValues as any

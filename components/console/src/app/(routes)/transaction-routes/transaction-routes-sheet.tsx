@@ -73,20 +73,14 @@ const getFormValues = (
   }
 }
 
-const createFormSchema = (intl: any) =>
-  z.object({
-    title: transactionRoutes.title,
-    description: transactionRoutes.description,
-    operationRoutes: z.array(z.string().uuid()).min(
-      2,
-      intl.formatMessage({
-        id: 'transactionRoutes.validation.operationRoutes.min',
-        defaultMessage:
-          'At least one source and one destination operation route must be selected with different operation types (source and destination)'
-      })
-    ),
-    metadata: transactionRoutes.metadata
-  })
+const createFormSchema = z.object({
+  title: transactionRoutes.title,
+  description: transactionRoutes.description,
+  operationRoutes: z.array(z.string().uuid()).min(2, {
+    message: 'custom_transaction_route_different_operation_types'
+  }),
+  metadata: transactionRoutes.metadata
+})
 
 export const TransactionRoutesSheet = ({
   mode,
@@ -100,11 +94,10 @@ export const TransactionRoutesSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('transaction-routes')
 
-  const FormSchema = createFormSchema(intl)
-  type FormData = z.infer<typeof FormSchema>
+  type FormData = z.infer<typeof createFormSchema>
 
   const form = useForm<FormData>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(createFormSchema),
     values: getFormValues(initialValues, data),
     defaultValues: initialValues
   })
@@ -176,11 +169,14 @@ export const TransactionRoutesSheet = ({
       }
     })
 
+  // ajustar para conseguir remover dados que são opcionais
+
   const handleSubmit = (data: FormData) => {
-    const cleanedData = omitBy(
-      data,
-      (value) => value === '' || isNil(value)
-    ) as FormData
+    // Para campos obrigatórios, remove valores vazios
+    const cleanedData = omitBy(data, (value, key) => {
+      if (key === 'description') return isNil(value)
+      return value === '' || isNil(value)
+    }) as FormData
 
     if (
       cleanedData.metadata &&

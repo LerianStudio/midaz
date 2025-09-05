@@ -8,6 +8,7 @@ import { CreateTransactionRoutesUseCase } from '../use-cases/transaction-routes/
 import { DeleteTransactionRoutesUseCase } from '../use-cases/transaction-routes/delete-transaction-routes-use-case'
 import { UpdateTransactionRoutesUseCase } from '../use-cases/transaction-routes/update-transaction-routes-use-case'
 import { BaseController } from '@/lib/http/server/base-controller'
+import { FetchAllTransactionRoutesWithOperationRoutesUseCase } from '../use-cases/transaction-operation-routes/fetch-all-transaction-routes-with-operation-routes-use-case'
 
 type TransactionRoutesParams = {
   id: string
@@ -28,7 +29,9 @@ export class TransactionRoutesController extends BaseController {
     @inject(UpdateTransactionRoutesUseCase)
     private readonly updateTransactionRoutesUseCase: UpdateTransactionRoutesUseCase,
     @inject(DeleteTransactionRoutesUseCase)
-    private readonly deleteTransactionRoutesUseCase: DeleteTransactionRoutesUseCase
+    private readonly deleteTransactionRoutesUseCase: DeleteTransactionRoutesUseCase,
+    @inject(FetchAllTransactionRoutesWithOperationRoutesUseCase)
+    private readonly fetchAllTransactionRoutesWithOperationRoutesUseCase: FetchAllTransactionRoutesWithOperationRoutesUseCase,
   ) {
     super()
   }
@@ -58,7 +61,7 @@ export class TransactionRoutesController extends BaseController {
     const page = Number(searchParams.get('page')) || 1
 
     const transactionRoutes =
-      await this.fetchAllTransactionRoutesUseCase.execute(
+      await this.fetchAllTransactionRoutesWithOperationRoutesUseCase.execute(
         organizationId,
         ledgerId,
         {
