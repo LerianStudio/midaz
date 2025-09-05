@@ -478,6 +478,8 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create additional balance on command", err)
 
+		logger.Errorf("Failed to create additional balance, Error: %s", err.Error())
+
 		return http.WithError(c, err)
 	}
 
