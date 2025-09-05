@@ -1098,7 +1098,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []libTransaction.FromTo) {
 	for i := range entries {
 		if entries[i].BalanceKey == "" {
-			entries[i].BalanceKey = "default"
+			entries[i].BalanceKey = constant.DefaultBalanceKey
 		}
 	}
 }
