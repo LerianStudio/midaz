@@ -67,28 +67,9 @@ export class MidazTransactionRoutesRepository
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes${queryParams}`
     )
 
-    const itemsWithOperationRoutes: MidazTransactionRoutesDto[] =
-      await Promise.all(
-        response.items.map(async (item) => {
-          try {
-            const detailedItem =
-              await this.httpService.get<MidazTransactionRoutesDto>(
-                `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes/${item.id}`
-              )
-            return detailedItem
-          } catch (error) {
-            console.warn(
-              `Failed to fetch details for transaction route ${item.id}:`,
-              error
-            )
-            return item
-          }
-        })
-      )
-
     return MidazTransactionRoutesMapper.toPaginationEntity({
       ...response,
-      items: itemsWithOperationRoutes
+      items: response.items
     })
   }
 
