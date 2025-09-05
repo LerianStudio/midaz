@@ -155,9 +155,10 @@ type Operation struct {
 	// maxLength: 256
 	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
 
-	// Unique key for the balance (required, max length 256 characters)
+	// Unique key for the balance
 	// example: asset-freeze
-	BalanceKey string `json:"balanceKey" example:"asset-freeze"`
+	// maxLength: 100
+	BalanceKey string `json:"balanceKey" example:"asset-freeze" maxLength:"100"`
 
 	// Balance identifier affected by this operation
 	// example: 00000000-0000-0000-0000-000000000000

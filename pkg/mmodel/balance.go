@@ -41,10 +41,10 @@ type Balance struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
-	// Unique key for the balance (max length 256 characters)
+	// Unique key for the balance
 	// example: asset-freeze
-	// maxLength: 256
-	Key string `json:"key" example:"asset-freeze"`
+	// maxLength: 100
+	Key string `json:"key" example:"asset-freeze" maxLength:"100"`
 
 	// Asset code identifying the currency or asset type of this balance
 	// example: USD
@@ -105,10 +105,11 @@ type Balance struct {
 // swagger:model CreateAdditionalBalance
 // @Description Request payload for creating a new balance with specified permissions and custom key.
 type CreateAdditionalBalance struct {
-	// Unique key for the balance (required, max length 256 characters)
+	// Unique key for the balance
 	// required: true
+	// maxLength: 100
 	// example: asset-freeze
-	Key string `json:"key" validate:"required,nowhitespaces" example:"asset-freeze"`
+	Key string `json:"key" validate:"required,nowhitespaces,max=100" example:"asset-freeze"`
 	// Whether the account should be allowed to send funds from this balance
 	// required: false
 	// example: true
