@@ -84,7 +84,6 @@ export default function Page() {
       }),
       cell: ({ getValue }: any) => {
         const operationRoutes = getValue()
-        console.log('getValue', operationRoutes)
         if (!operationRoutes || operationRoutes.length === 0) return '-'
         return `${operationRoutes.length} operation routes`
       }

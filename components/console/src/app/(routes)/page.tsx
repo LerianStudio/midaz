@@ -92,7 +92,7 @@ const Page = () => {
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
 
-  const disabled = !!currentOrganization || !!currentLedger
+  const disabled = !currentOrganization || !currentLedger
 
   return (
     <PageRoot>

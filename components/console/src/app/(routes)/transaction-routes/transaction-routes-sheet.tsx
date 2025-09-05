@@ -142,8 +142,7 @@ export const TransactionRoutesSheet = ({
         })
         form.reset()
       },
-      onError: (error) => {
-        console.log(error)
+      onError: () => {
         toast({
           description: intl.formatMessage({
             id: 'transactionRoutes.validation.operationRoutes.min',
@@ -196,8 +195,6 @@ export const TransactionRoutesSheet = ({
       updateTransactionRoute(cleanedData as UpdateTransactionRoutesDto)
     }
   }
-
-  console.log('operationRoutesData', operationRoutesData)
 
   return (
     <React.Fragment>
