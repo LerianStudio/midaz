@@ -23,13 +23,17 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
 
-	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, "default")
+	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get existing balance", err)
 
 		logger.Errorf("Failed to get default balance: %v", err)
 
 		return nil, err
+	}
+
+	if defaultBalance.AccountType == constant.ExternalAccountType {
+		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias)
 	}
 
 	additionalBalance := &mmodel.Balance{
