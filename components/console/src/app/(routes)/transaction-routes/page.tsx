@@ -23,10 +23,7 @@ import {
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { toast } from '@/hooks/use-toast'
-import {
-  useDeleteTransactionRoute,
-  useListTransactionRoutes
-} from '@/client/transaction-routes'
+import { useDeleteTransactionRoute } from '@/client/transaction-routes'
 import { TransactionRoutesDto } from '@/core/application/dto/transaction-routes-dto'
 import { useListTransactionRoutesWithOperationRoutes } from '@/client/transaction-operation-routes'
 

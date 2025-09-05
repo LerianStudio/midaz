@@ -31,7 +31,7 @@ export class TransactionRoutesController extends BaseController {
     @inject(DeleteTransactionRoutesUseCase)
     private readonly deleteTransactionRoutesUseCase: DeleteTransactionRoutesUseCase,
     @inject(FetchAllTransactionRoutesWithOperationRoutesUseCase)
-    private readonly fetchAllTransactionRoutesWithOperationRoutesUseCase: FetchAllTransactionRoutesWithOperationRoutesUseCase,
+    private readonly fetchAllTransactionRoutesWithOperationRoutesUseCase: FetchAllTransactionRoutesWithOperationRoutesUseCase
   ) {
     super()
   }

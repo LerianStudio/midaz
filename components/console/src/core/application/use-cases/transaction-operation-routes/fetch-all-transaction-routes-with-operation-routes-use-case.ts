@@ -50,10 +50,7 @@ export class FetchAllTransactionRoutesWithOperationRoutesUseCase
                 ledgerId,
                 transactionRoute.id!
               )
-            console.log(`Transaction Route ${transactionRoute.id}:`, {
-              operationRoutesCount: detailedTransactionRoute?.operationRoutes?.length || 0,
-              operationRoutes: detailedTransactionRoute?.operationRoutes
-            })
+
             return detailedTransactionRoute
           } catch (error) {
             console.warn(
@@ -64,8 +61,6 @@ export class FetchAllTransactionRoutesWithOperationRoutesUseCase
           }
         })
       )
-
-    console.log('Final result:', transactionRoutesWithDetailedOperationRoutes) 
 
     const enhancedResult: PaginationEntity<TransactionRoutesEntity> = {
       ...transactionRoutesResult,
