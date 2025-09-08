@@ -38,8 +38,6 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-// replace removed to allow testcontainers to manage docker module version
-
 require (
 	cloud.google.com/go/auth v0.16.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect

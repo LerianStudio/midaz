@@ -450,3 +450,174 @@ func asUnprocessableWithCode(err error, target *midazpkg.UnprocessableOperationE
     }
     return target.Code == code
 }
+
+func TestBatchApply_ReleaseCanceled_InsufficientOnHold_Valkey(t *testing.T) {
+    addr, cleanup := startValkey(t)
+    defer cleanup()
+    repo := newRedisRepoForAddr(t, addr)
+    ctx := context.Background()
+    orgID := uuid.New()
+    ledgerID := uuid.New()
+    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+
+    // Seed with onHold=10
+    b := map[string]any{
+        "id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
+        "available": 100, "onHold": 10, "version": 1, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
+    }
+    raw, _ := json.Marshal(b)
+    if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+        t.Fatalf("seed set failed: %v", err)
+    }
+
+    seed := mmodel.Balance{ID: b["id"].(string), AccountID: b["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.RELEASE}
+    // pending=true, status=CANCELED
+    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CANCELED, true, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
+    var uoe midazpkg.UnprocessableOperationError
+    if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
+        t.Fatalf("expected 0018 on insufficient onHold, got: %v", err)
+    }
+    // ensure onHold unchanged
+    val, _ := repo.Get(ctx, key)
+    var br mmodel.BalanceRedis
+    _ = json.Unmarshal([]byte(val), &br)
+    if br.OnHold.String() != "10" {
+        t.Fatalf("expected onHold remain 10, got %s", br.OnHold)
+    }
+}
+
+func TestBatchApply_ExternalNonPendingDebit_AllowNegative_Valkey(t *testing.T) {
+    addr, cleanup := startValkey(t)
+    defer cleanup()
+    repo := newRedisRepoForAddr(t, addr)
+    ctx := context.Background()
+    orgID := uuid.New()
+    ledgerID := uuid.New()
+    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+
+    seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "external", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
+    // Non-pending debit on external should succeed; available can go negative
+    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
+    if err != nil {
+        t.Fatalf("external non-pending debit failed: %v", err)
+    }
+    val, _ := repo.Get(ctx, key)
+    var br mmodel.BalanceRedis
+    _ = json.Unmarshal([]byte(val), &br)
+    if br.Available.String() != "-10" {
+        t.Fatalf("expected available -10 for external, got %s", br.Available)
+    }
+}
+
+func TestBatchApply_InvalidAmountFormat_0017_Valkey(t *testing.T) {
+    addr, cleanup := startValkey(t)
+    defer cleanup()
+    repo := newRedisRepoForAddr(t, addr)
+    ctx := context.Background()
+    orgID := uuid.New()
+    ledgerID := uuid.New()
+    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+
+    // No preexisting key; we'll provide seeds but amount malformed ("1.")
+    seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+
+    client, err := repo.conn.GetClient(ctx)
+    if err != nil {
+        t.Fatalf("get client failed: %v", err)
+    }
+    keys := []string{key}
+    args := []any{0, constant.CREATED, 0,
+        constant.DEBIT,
+        "1.", // invalid format
+        seed.ID,
+        seed.Available.String(),
+        seed.OnHold.String(),
+        fmt.Sprintf("%d", seed.Version),
+        seed.AccountType,
+        1, 1,
+        seed.AssetCode,
+        seed.AccountID,
+    }
+    script := rds.NewScript(batchApplyLua)
+    _, err = script.Run(ctx, client, keys, args...).Result()
+    if err == nil || !strings.Contains(err.Error(), constant.ErrInvalidScriptFormat.Error()) {
+        t.Fatalf("expected 0017 invalid format, got: %v", err)
+    }
+}
+
+func TestBatchApply_OccSuccess_Valkey(t *testing.T) {
+    addr, cleanup := startValkey(t)
+    defer cleanup()
+    repo := newRedisRepoForAddr(t, addr)
+    ctx := context.Background()
+    orgID := uuid.New()
+    ledgerID := uuid.New()
+    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+
+    // Seed with version 5
+    b := map[string]any{
+        "id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
+        "available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
+    }
+    raw, _ := json.Marshal(b)
+    if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+        t.Fatalf("seed set failed: %v", err)
+    }
+
+    client, err := repo.conn.GetClient(ctx)
+    if err != nil {
+        t.Fatalf("get client failed: %v", err)
+    }
+    keys := []string{key}
+    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+    args := []any{0, constant.CREATED, 1,
+        amt.Operation,
+        amt.Value.String(),
+        b["id"],
+        "100",
+        "0",
+        "5", // match version
+        "deposit",
+        1, 1,
+        "USD",
+        b["accountId"],
+    }
+    script := rds.NewScript(batchApplyLua)
+    _, err = script.Run(ctx, client, keys, args...).Result()
+    if err != nil {
+        t.Fatalf("expected OCC success, got: %v", err)
+    }
+}
+
+func TestBatchApply_BatchAtomicity_ThreeKeys_OneFails_Valkey(t *testing.T) {
+    addr, cleanup := startValkey(t)
+    defer cleanup()
+    repo := newRedisRepoForAddr(t, addr)
+    ctx := context.Background()
+    orgID := uuid.New()
+    ledgerID := uuid.New()
+    k1 := libCommons.TransactionInternalKey(orgID, ledgerID, "a1")
+    k2 := libCommons.TransactionInternalKey(orgID, ledgerID, "a2")
+    k3 := libCommons.TransactionInternalKey(orgID, ledgerID, "a3")
+
+    b1 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+    b2 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+    b3 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+
+    a1 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+    a2 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.CREDIT}
+    a3 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1000), Operation: constant.DEBIT} // will fail
+
+    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{k1, k2, k3}, constant.CREATED, false, []libTransaction.Amount{a1, a2, a3}, []mmodel.Balance{b1, b2, b3})
+    var uoe midazpkg.UnprocessableOperationError
+    if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
+        t.Fatalf("expected 0018 batch failure, got: %v", err)
+    }
+
+    // Ensure no writes for any key
+    if v, _ := repo.Get(ctx, k1); v != "" { t.Fatalf("expected no write for k1, got %s", v) }
+    if v, _ := repo.Get(ctx, k2); v != "" { t.Fatalf("expected no write for k2, got %s", v) }
+    if v, _ := repo.Get(ctx, k3); v != "" { t.Fatalf("expected no write for k3, got %s", v) }
+}
