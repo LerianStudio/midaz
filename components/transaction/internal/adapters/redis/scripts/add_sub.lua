@@ -204,7 +204,8 @@ local function main()
     local ttl = 3600
     local groupSize = 15
     local returnBalances = {}
-    local pendingUpdates = {}
+    local operations = {}
+    local balances = {}
 
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
@@ -214,9 +215,7 @@ local function main()
         local isPending = tonumber(ARGV[i + 1])
         local transactionStatus = ARGV[i + 2]
         local operation = ARGV[i + 3]
-
         local amount = ARGV[i + 4]
-
         local alias = ARGV[i + 5]
 
         local balance = {
@@ -231,46 +230,54 @@ local function main()
             AccountID = ARGV[i + 14],
         }
 
-        local redisBalance = cjson.encode(balance)
-        local ok = redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl, "NX")
-        if not ok then
-            local currentBalance = redis.call("GET", redisBalanceKey)
-            if not currentBalance then
-                return redis.error_reply("0061")
-            end
-            balance = cjson.decode(currentBalance)
+        table.insert(operations, {
+            redisBalanceKey = redisBalanceKey,
+            isPending = isPending,
+            transactionStatus = transactionStatus,
+            operation = operation,
+            amount = amount,
+            alias = alias,
+            balance = balance
+        })
+
+        if not balances[redisBalanceKey] then
+            balances[redisBalanceKey] = balance
         end
+    end
+
+    for _, op in ipairs(operations) do
+        local balance = balances[op.redisBalanceKey]
 
         local result = balance.Available
         local resultOnHold = balance.OnHold
         local isFrom = false
 
-        if isPending == 1 then
-            if operation == "ON_HOLD" and transactionStatus == "PENDING" then
-                result = sub_decimal(balance.Available, amount)
-                resultOnHold = add_decimal(balance.OnHold, amount)
+        if op.isPending == 1 then
+            if op.operation == "ON_HOLD" and op.transactionStatus == "PENDING" then
+                result = sub_decimal(balance.Available, op.amount)
+                resultOnHold = add_decimal(balance.OnHold, op.amount)
                 isFrom = true
-            elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
-                resultOnHold = sub_decimal(balance.OnHold, amount)
-                result = add_decimal(balance.Available, amount)
+            elseif op.operation == "RELEASE" and op.transactionStatus == "CANCELED" then
+                resultOnHold = sub_decimal(balance.OnHold, op.amount)
+                result = add_decimal(balance.Available, op.amount)
                 isFrom = true
-            elseif transactionStatus == "APPROVED" then
-                if operation == "DEBIT" then
-                    resultOnHold = sub_decimal(balance.OnHold, amount)
+            elseif op.transactionStatus == "APPROVED" then
+                if op.operation == "DEBIT" then
+                    resultOnHold = sub_decimal(balance.OnHold, op.amount)
                     isFrom = true
                 else
-                    result = add_decimal(balance.Available, amount)
+                    result = add_decimal(balance.Available, op.amount)
                 end
             end
         else
-            if operation == "DEBIT" then
-                result = sub_decimal(balance.Available, amount)
+            if op.operation == "DEBIT" then
+                result = sub_decimal(balance.Available, op.amount)
             else
-                result = add_decimal(balance.Available, amount)
+                result = add_decimal(balance.Available, op.amount)
             end
         end
 
-        if isPending == 1 and isFrom and balance.AccountType == "external" then
+        if op.isPending == 1 and isFrom and balance.AccountType == "external" then
             return redis.error_reply("0098")
         end
 
@@ -278,15 +285,19 @@ local function main()
             return redis.error_reply("0018")
         end
 
-        balance.Alias = alias
-        table.insert(returnBalances, cloneBalance(balance))
+        local returnBalance = cloneBalance(balance)
+        returnBalance.Alias = op.alias
+        table.insert(returnBalances, returnBalance)
 
         balance.Available = result
         balance.OnHold = resultOnHold
         balance.Version = balance.Version + 1
+    end
 
-        redisBalance = cjson.encode(balance)
-        table.insert(pendingUpdates, redisBalanceKey)
+    local pendingUpdates = {}
+    for balanceKey, balance in pairs(balances) do
+        local redisBalance = cjson.encode(balance)
+        table.insert(pendingUpdates, balanceKey)
         table.insert(pendingUpdates, redisBalance)
     end
 
