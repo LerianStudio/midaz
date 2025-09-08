@@ -204,6 +204,7 @@ local function main()
     local ttl = 3600
     local groupSize = 15
     local returnBalances = {}
+    local pendingUpdates = {}
 
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
@@ -285,7 +286,17 @@ local function main()
         balance.Version = balance.Version + 1
 
         redisBalance = cjson.encode(balance)
-        redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+        table.insert(pendingUpdates, redisBalanceKey)
+        table.insert(pendingUpdates, redisBalance)
+    end
+
+    if #pendingUpdates > 0 then
+        redis.call("MSET", unpack(pendingUpdates))
+
+        for j = 1, #pendingUpdates, 2 do
+            local balanceKey = pendingUpdates[j]
+            redis.call("EXPIRE", balanceKey, ttl)
+        end
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
