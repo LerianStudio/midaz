@@ -201,14 +201,18 @@ local function updateTransactionHash(transactionBackupQueue, transactionKey, bal
 end
 
 local function rollback(rollbackBalances, ttl)
-    if #rollbackBalances > 0 then
-        redis.call("MSET", unpack(rollbackBalances))
+  if next(rollbackBalances) then
+      local msetArgs = {}
+      for key, value in pairs(rollbackBalances) do
+          table.insert(msetArgs, key)
+          table.insert(msetArgs, value)
+      end
+      redis.call("MSET", unpack(msetArgs))
 
-        for j = 1, #rollbackBalances, 2 do
-            local balanceKey = rollbackBalances[j]
-            redis.call("EXPIRE", balanceKey, ttl)
-        end
-    end
+      for key, _ in pairs(rollbackBalances) do
+          redis.call("EXPIRE", key, ttl)
+      end
+  end
 end
 
 local function main()
@@ -253,8 +257,7 @@ local function main()
         end
 
         if not rollbackBalances[redisBalanceKey] then
-            table.insert(rollbackBalances, redisBalanceKey)
-            table.insert(rollbackBalances, cjson.encode(balance))
+            rollbackBalances[redisBalanceKey] = cjson.encode(balance)
         end
 
         local result = balance.Available
