@@ -91,6 +91,7 @@ help:
 	@echo "  make build                       - Build all components"
 	@echo "  make clean                       - Clean all build artifacts"
 	@echo "  make cover                       - Run test coverage"
+	@echo "  make integration-tests           - Run all integration tests (requires Docker)"
 	@echo ""
 	@echo ""
 	@echo "Code Quality Commands:"
@@ -181,6 +182,15 @@ cover:
 	@echo "----------------------------------------"
 	@echo "Open coverage.html in your browser to view detailed coverage report"
 	@echo "[ok] Coverage report generated successfully ✔️"
+
+.PHONY: integration-tests
+integration-tests:
+	$(call print_title,Running all integration tests - Docker required)
+	$(call check_command,go,Install Go from https://golang.org/doc/install)
+	$(call check_command,docker,Install Docker from https://docs.docker.com/get-docker/)
+	@echo "Running: go test -tags=integration ./... -v -count=1"
+	@go test -tags=integration ./... -v -count=1
+	@echo "[ok] Integration test suite completed ✔️"
 
 #-------------------------------------------------------
 # Backend Commands
