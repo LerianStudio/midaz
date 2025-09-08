@@ -21,8 +21,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-//go:embed scripts/add_sub.lua
-var addSubLua string
+//go:embed scripts/batch_apply.lua
+var batchApplyLua string
 
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
@@ -33,6 +33,7 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error)
+	AddSumBalancesAtomicRedis(ctx context.Context, keys []string, transactionStatus string, pending bool, amounts []libTransaction.Amount, balances []mmodel.Balance) ([]*mmodel.Balance, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
@@ -218,12 +219,14 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// AddSumBalanceRedis is a wrapper that calls the batch operation with a single item
+// This maintains backward compatibility while using the atomic batch implementation
 func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, transactionStatus string, pending bool, amount libTransaction.Amount, balance mmodel.Balance) (*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 	reqId := libCommons.NewHeaderIDFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.add_sum_balance")
+	ctx, span := tracer.Start(ctx, "redis.add_sum_balance_wrapper")
 	defer span.End()
 
 	attributes := []attribute.KeyValue{
@@ -232,7 +235,6 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		attribute.String("app.request.redis.transactionStatus", transactionStatus),
 		attribute.Bool("app.request.redis.pending", pending),
 	}
-
 	span.SetAttributes(attributes...)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.redis.amount", amount)
@@ -245,23 +247,56 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert balance to JSON string", err)
 	}
 
-	rds, err := rr.conn.GetClient(ctx)
+	// Call batch operation with single item
+	results, err := rr.AddSumBalancesAtomicRedis(
+		ctx,
+		[]string{key},
+		transactionStatus,
+		pending,
+		[]libTransaction.Amount{amount},
+		[]mmodel.Balance{balance},
+	)
+
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
-
-		logger.Errorf("Failed to get redis: %v", err)
-
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute single balance operation via batch", err)
+		logger.Errorf("Failed to execute single balance operation via batch: %v", err)
 		return nil, err
 	}
 
-	allowSending := 0
-	if balance.AllowSending {
-		allowSending = 1
+	if len(results) == 0 {
+		err := fmt.Errorf("unexpected empty result from batch operation")
+		libOpentelemetry.HandleSpanError(&span, "Empty result from batch operation", err)
+		return nil, err
 	}
 
-	allowReceiving := 0
-	if balance.AllowReceiving {
-		allowReceiving = 1
+	// Return the single result
+	return results[0], nil
+}
+
+func (rr *RedisConsumerRepository) AddSumBalancesAtomicRedis(ctx context.Context, keys []string, transactionStatus string, pending bool, amounts []libTransaction.Amount, balances []mmodel.Balance) ([]*mmodel.Balance, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	reqId := libCommons.NewHeaderIDFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.add_sum_balances_atomic")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.Int("app.request.redis.keys_count", len(keys)),
+		attribute.String("app.request.redis.transactionStatus", transactionStatus),
+		attribute.Bool("app.request.redis.pending", pending),
+	}
+	span.SetAttributes(attributes...)
+
+	if len(keys) == 0 || len(keys) != len(amounts) || len(keys) != len(balances) {
+		return nil, fmt.Errorf("invalid batch input sizes")
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		return nil, err
 	}
 
 	isPending := 0
@@ -269,90 +304,124 @@ func (rr *RedisConsumerRepository) AddSumBalanceRedis(ctx context.Context, key, 
 		isPending = 1
 	}
 
-	args := []any{
-		isPending,
-		transactionStatus,
-		amount.Operation,
-		amount.Value.String(),
-		balance.ID,
-		balance.Available.String(),
-		balance.OnHold.String(),
-		strconv.FormatInt(balance.Version, 10),
-		balance.AccountType,
-		allowSending,
-		allowReceiving,
-		balance.AssetCode,
-		balance.AccountID,
+	// ARGV layout:
+	// [1]=isPending, [2]=transactionStatus, [3]=enforceOCC, then per-key stride of 11 values
+	args := make([]any, 0, 3+len(keys)*11)
+	// TODO: Make enforceOCC configurable via environment variable or config
+	// For now, default to 0 for backward compatibility
+	enforceOCC := 0
+	args = append(args, isPending, transactionStatus, enforceOCC)
+
+	for i := range keys {
+		bal := balances[i]
+		amt := amounts[i]
+
+		allowSending := 0
+		if bal.AllowSending {
+			allowSending = 1
+		}
+		allowReceiving := 0
+		if bal.AllowReceiving {
+			allowReceiving = 1
+		}
+
+		args = append(args,
+			amt.Operation,                      // 1 operation
+			amt.Value.String(),                 // 2 amount
+			bal.ID,                             // 3 id
+			bal.Available.String(),             // 4 available seed
+			bal.OnHold.String(),                // 5 onHold seed
+			strconv.FormatInt(bal.Version, 10), // 6 version seed
+			bal.AccountType,                    // 7 accountType
+			allowSending,                       // 8 allowSending
+			allowReceiving,                     // 9 allowReceiving
+			bal.AssetCode,                      // 10 assetCode
+			bal.AccountID,                      // 11 accountId
+		)
 	}
 
-	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balance_script")
-
+	ctx, spanScript := tracer.Start(ctx, "redis.add_sum_balances_atomic_script")
+	defer spanScript.End()
 	spanScript.SetAttributes(attributes...)
 
-	script := redis.NewScript(addSubLua)
-
-	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	script := redis.NewScript(batchApplyLua)
+	result, err := script.Run(ctx, rds, keys, args...).Result()
 	if err != nil {
-		logger.Errorf("Failed run lua script on redis: %v", err)
+		logger.Errorf("Failed run batch lua script on redis: %v", err)
 
-		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		// map known business errors
+		switch {
+		case strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()):
+			berr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run batch lua script on redis", berr)
+			return nil, berr
+		case strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()):
+			berr := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run batch lua script on redis", berr)
+			return nil, berr
+		case strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()):
+			berr := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run batch lua script on redis", berr)
+			return nil, berr
+		case strings.Contains(err.Error(), constant.ErrLockVersionAccountBalance.Error()):
+			berr := pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, "validateBalance")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run batch lua script on redis", berr)
+			return nil, berr
+		case strings.Contains(err.Error(), constant.ErrInvalidScriptFormat.Error()):
+			berr := pkg.ValidateBusinessError(constant.ErrInvalidScriptFormat, "validateBalance")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run batch lua script on redis", berr)
+			return nil, berr
+		}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+		libOpentelemetry.HandleSpanError(&spanScript, "Failed run batch lua script on redis", err)
+		return nil, err
+	}
 
-			return nil, err
-		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance", balance.Alias)
+	// Parse array of JSON strings
+	arr, ok := result.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected result type from Redis batch: %T", result)
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+	if len(arr) != len(keys) {
+		return nil, fmt.Errorf("unexpected result length from Redis batch: %d != %d", len(arr), len(keys))
+	}
 
+	out := make([]*mmodel.Balance, 0, len(keys))
+	for i := range arr {
+		var balanceJSON string
+		switch vv := arr[i].(type) {
+		case string:
+			balanceJSON = vv
+		case []byte:
+			balanceJSON = string(vv)
+		default:
+			return nil, fmt.Errorf("unexpected element type from Redis batch: %T", vv)
+		}
+
+		b := mmodel.BalanceRedis{}
+		if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+			logger.Errorf("Error to Deserialization json: %v", err)
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
-
-		return nil, err
+		// Map back
+		mb := mmodel.Balance{
+			ID:             b.ID,
+			AccountID:      b.AccountID,
+			Available:      b.Available,
+			OnHold:         b.OnHold,
+			Version:        b.Version,
+			AccountType:    b.AccountType,
+			AllowSending:   b.AllowSending == 1,
+			AllowReceiving: b.AllowReceiving == 1,
+			AssetCode:      b.AssetCode,
+		}
+		out = append(out, &mb)
 	}
 
-	spanScript.End()
-
-	logger.Infof("result type: %T", result)
-	logger.Infof("result value: %v", result)
-
-	b := mmodel.BalanceRedis{}
-
-	var balanceJSON string
-	switch v := result.(type) {
-	case string:
-		balanceJSON = v
-	case []byte:
-		balanceJSON = string(v)
-	default:
-		err = fmt.Errorf("unexpected result type from Redis: %T", result)
-		logger.Warnf("Warning: %v", err)
-
-		return nil, err
-	}
-
-	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
-
-		logger.Errorf("Error to Deserialization json: %v", err)
-
-		return nil, err
-	}
-
-	balance.ID = b.ID
-	balance.AccountID = b.AccountID
-	balance.Available = b.Available
-	balance.OnHold = b.OnHold
-	balance.Version = b.Version
-	balance.AccountType = b.AccountType
-	balance.AllowSending = b.AllowSending == 1
-	balance.AllowReceiving = b.AllowReceiving == 1
-	balance.AssetCode = b.AssetCode
-
-	return &balance, nil
+	return out, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {

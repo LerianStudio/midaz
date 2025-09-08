@@ -19,6 +19,7 @@ type lockOperation struct {
 	alias       string
 	amount      libTransaction.Amount
 	internalKey string
+	isFrom      bool
 }
 
 // GetBalances methods responsible to get balances from a database.
@@ -152,6 +153,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 					alias:       k,
 					amount:      v,
 					internalKey: internalKey,
+					isFrom:      true,
 				})
 			}
 		}
@@ -163,6 +165,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 					alias:       k,
 					amount:      v,
 					internalKey: internalKey,
+					isFrom:      false,
 				})
 			}
 		}
@@ -181,18 +184,38 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	for _, op := range operations {
-		b, err := uc.RedisRepo.AddSumBalanceRedis(ctx, op.internalKey, transactionStatus, validate.Pending, op.amount, *op.balance)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to lock balance", err)
+	// Prepare batch operation parameters for atomic execution
+	if len(operations) == 0 {
+		return newBalances, nil
+	}
 
-			logger.Error("Failed to lock balance", err)
+	// Collect all keys, amounts, and balances for batch operation
+	keys := make([]string, 0, len(operations))
+	amounts := make([]libTransaction.Amount, 0, len(operations))
+	balanceList := make([]mmodel.Balance, 0, len(operations))
+	aliasMap := make(map[int]string) // Map index to alias for result processing
 
-			return nil, err
+	for i, op := range operations {
+		keys = append(keys, op.internalKey)
+		amounts = append(amounts, op.amount)
+		balanceList = append(balanceList, *op.balance)
+		aliasMap[i] = op.alias
+	}
+
+	// Execute atomic batch operation - all succeed or all fail
+	results, err := uc.RedisRepo.AddSumBalancesAtomicRedis(ctx, keys, transactionStatus, validate.Pending, amounts, balanceList)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to execute atomic balance operations", err)
+		logger.Error("Failed to execute atomic balance operations", err)
+		return nil, err
+	}
+
+	// Process results and restore aliases
+	for i, result := range results {
+		if result != nil {
+			result.Alias = aliasMap[i]
+			newBalances = append(newBalances, result)
 		}
-
-		b.Alias = op.alias
-		newBalances = append(newBalances, b)
 	}
 
 	return newBalances, nil
