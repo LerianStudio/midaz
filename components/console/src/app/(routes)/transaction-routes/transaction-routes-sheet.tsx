@@ -134,16 +134,6 @@ export const TransactionRoutesSheet = ({
           variant: 'success'
         })
         form.reset()
-      },
-      onError: () => {
-        toast({
-          description: intl.formatMessage({
-            id: 'transactionRoutes.validation.operationRoutes.min',
-            defaultMessage:
-              'At least one source and one destination operation route must be selected with different operation types (source and destination)'
-          }),
-          variant: 'destructive'
-        })
       }
     })
 
