@@ -313,6 +313,16 @@ local function main()
     local balance_states = {}   -- per key: { key, balance, ttl }
     local balance_updates = {}  -- per key: { available, onHold }
 
+    -- Reject duplicate keys in KEYS to avoid ambiguous semantics in a single batch
+    local seen_keys = {}
+    for i = 1, number_of_operations do
+        local k = KEYS[i]
+        if seen_keys[k] then
+            return redis.error_reply("0017") -- invalid: duplicate keys in batch
+        end
+        seen_keys[k] = true
+    end
+
     -- Validation phase: read, compute, and validate all operations
     for operation_index = 1, number_of_operations do
         local argument_offset = 3 + (operation_index - 1) * arguments_per_balance -- compute ARGV offset for entry

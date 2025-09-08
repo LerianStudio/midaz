@@ -1,10 +1,12 @@
 //go:build integration
+// +build integration
 
 package redis
 
 import (
     "context"
     "encoding/json"
+    "errors"
     "fmt"
     "strings"
     "testing"
@@ -14,610 +16,868 @@ import (
     libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
     libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
     libTransaction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
-    "errors"
     midazpkg "github.com/LerianStudio/midaz/v3/pkg"
     "github.com/LerianStudio/midaz/v3/pkg/constant"
     "github.com/LerianStudio/midaz/v3/pkg/mmodel"
     "github.com/google/uuid"
     "github.com/shopspring/decimal"
+    rds "github.com/redis/go-redis/v9"
     tc "github.com/testcontainers/testcontainers-go"
     "github.com/testcontainers/testcontainers-go/wait"
-    rds "github.com/redis/go-redis/v9"
 )
 
 // startValkey spins up a Valkey container for tests and returns host:port and a cleanup func.
 func startValkey(t *testing.T) (addr string, cleanup func()) {
-    t.Helper()
+	t.Helper()
 
-    ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-    t.Cleanup(cancel)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	t.Cleanup(cancel)
 
-    req := tc.ContainerRequest{
-        Image:        "valkey/valkey:latest",
-        ExposedPorts: []string{"6379/tcp"},
-        WaitingFor:   wait.ForListeningPort("6379/tcp").WithStartupTimeout(30 * time.Second),
-    }
+	req := tc.ContainerRequest{
+		Image:        "valkey/valkey:latest",
+		ExposedPorts: []string{"6379/tcp"},
+		WaitingFor:   wait.ForListeningPort("6379/tcp").WithStartupTimeout(30 * time.Second),
+	}
 
-    c, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{ContainerRequest: req, Started: true})
-    if err != nil {
-        t.Fatalf("failed to start valkey: %v", err)
-    }
+	c, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{ContainerRequest: req, Started: true})
+	if err != nil {
+		t.Fatalf("failed to start valkey: %v", err)
+	}
 
-    host, err := c.Host(ctx)
-    if err != nil {
-        _ = c.Terminate(ctx)
-        t.Fatalf("failed to get container host: %v", err)
-    }
-    port, err := c.MappedPort(ctx, "6379/tcp")
-    if err != nil {
-        _ = c.Terminate(ctx)
-        t.Fatalf("failed to get container port: %v", err)
-    }
+	host, err := c.Host(ctx)
+	if err != nil {
+		_ = c.Terminate(ctx)
+		t.Fatalf("failed to get container host: %v", err)
+	}
+	port, err := c.MappedPort(ctx, "6379/tcp")
+	if err != nil {
+		_ = c.Terminate(ctx)
+		t.Fatalf("failed to get container port: %v", err)
+	}
 
-    addr = fmt.Sprintf("%s:%s", host, port.Port())
+	addr = fmt.Sprintf("%s:%s", host, port.Port())
 
-    cleanup = func() {
-        _ = c.Terminate(context.Background())
-    }
-    return addr, cleanup
+	cleanup = func() {
+		_ = c.Terminate(context.Background())
+	}
+	return addr, cleanup
 }
 
 func newRedisRepoForAddr(t *testing.T, addr string) *RedisConsumerRepository {
-    t.Helper()
-    rc := &libRedis.RedisConnection{
-        Mode:    libRedis.ModeStandalone,
-        Address: []string{addr},
-        Logger:  &libLog.GoLogger{Level: libLog.ErrorLevel},
-    }
-    return NewConsumerRedis(rc)
+	t.Helper()
+	rc := &libRedis.RedisConnection{
+		Mode:    libRedis.ModeStandalone,
+		Address: []string{addr},
+		Logger:  &libLog.GoLogger{Level: libLog.ErrorLevel},
+	}
+	return NewConsumerRedis(rc)
 }
 
 func TestBatchApply_AllSucceed_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
+	addr, cleanup := startValkey(t)
+	defer cleanup()
 
-    repo := newRedisRepoForAddr(t, addr)
+	repo := newRedisRepoForAddr(t, addr)
 
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
 
-    // Prepare operations: one DEBIT (from), one CREDIT (to)
-    keyFrom := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_from")
-    keyTo := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_to")
+	// Prepare operations: one DEBIT (from), one CREDIT (to)
+	keyFrom := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_from")
+	keyTo := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_to")
 
-    fromAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(50), Operation: constant.DEBIT}
-    toAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(50), Operation: constant.CREDIT}
+	fromAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(50), Operation: constant.DEBIT}
+	toAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(50), Operation: constant.CREDIT}
 
-    fromBalance := mmodel.Balance{ // seed values for first-time creation
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.NewFromInt(100),
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "deposit",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
-    toBalance := mmodel.Balance{
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.NewFromInt(0),
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "deposit",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
+	fromBalance := mmodel.Balance{ // seed values for first-time creation
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
+	toBalance := mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(0),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
 
-    keys := []string{keyFrom, keyTo}
-    amounts := []libTransaction.Amount{fromAmount, toAmount}
-    balances := []mmodel.Balance{fromBalance, toBalance}
+	keys := []string{keyFrom, keyTo}
+	amounts := []libTransaction.Amount{fromAmount, toAmount}
+	balances := []mmodel.Balance{fromBalance, toBalance}
 
-    results, err := repo.AddSumBalancesAtomicRedis(ctx, keys, constant.CREATED, false, amounts, balances)
-    if err != nil {
-        t.Fatalf("batch apply failed: %v", err)
-    }
-    if len(results) != 2 {
-        t.Fatalf("unexpected results length: got %d", len(results))
-    }
+	results, err := repo.AddSumBalancesAtomicRedis(ctx, keys, constant.CREATED, false, amounts, balances)
+	if err != nil {
+		t.Fatalf("batch apply failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("unexpected results length: got %d", len(results))
+	}
 
-    // Validate on-disk values by direct Get
-    valFrom, err := repo.Get(ctx, keyFrom)
-    if err != nil {
-        t.Fatalf("get from failed: %v", err)
-    }
-    valTo, err := repo.Get(ctx, keyTo)
-    if err != nil {
-        t.Fatalf("get to failed: %v", err)
-    }
+	// Validate on-disk values by direct Get
+	valFrom, err := repo.Get(ctx, keyFrom)
+	if err != nil {
+		t.Fatalf("get from failed: %v", err)
+	}
+	valTo, err := repo.Get(ctx, keyTo)
+	if err != nil {
+		t.Fatalf("get to failed: %v", err)
+	}
 
-    var bFrom, bTo mmodel.BalanceRedis
-    if err := json.Unmarshal([]byte(valFrom), &bFrom); err != nil {
-        t.Fatalf("unmarshal from failed: %v", err)
-    }
-    if err := json.Unmarshal([]byte(valTo), &bTo); err != nil {
-        t.Fatalf("unmarshal to failed: %v", err)
-    }
+	var bFrom, bTo mmodel.BalanceRedis
+	if err := json.Unmarshal([]byte(valFrom), &bFrom); err != nil {
+		t.Fatalf("unmarshal from failed: %v", err)
+	}
+	if err := json.Unmarshal([]byte(valTo), &bTo); err != nil {
+		t.Fatalf("unmarshal to failed: %v", err)
+	}
 
-    if bFrom.Available.String() != "50" { // 100 - 50
-        t.Fatalf("from available mismatch: got %s", bFrom.Available.String())
-    }
-    if bTo.Available.String() != "50" { // 0 + 50
-        t.Fatalf("to available mismatch: got %s", bTo.Available.String())
-    }
+	if bFrom.Available.String() != "50" { // 100 - 50
+		t.Fatalf("from available mismatch: got %s", bFrom.Available.String())
+	}
+	if bTo.Available.String() != "50" { // 0 + 50
+		t.Fatalf("to available mismatch: got %s", bTo.Available.String())
+	}
 }
 
 func TestBatchApply_InsufficientFunds_AbortsNoWrites_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
+	addr, cleanup := startValkey(t)
+	defer cleanup()
 
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
 
-    keyFrom := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_from")
-    keyTo := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_to")
+	keyFrom := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_from")
+	keyTo := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_to")
 
-    fromAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(500), Operation: constant.DEBIT}
-    toAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(500), Operation: constant.CREDIT}
+	fromAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(500), Operation: constant.DEBIT}
+	toAmount := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(500), Operation: constant.CREDIT}
 
-    // from has only 100 available, non-external
-    fromBalance := mmodel.Balance{
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.NewFromInt(100),
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "deposit",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
-    toBalance := mmodel.Balance{
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.NewFromInt(0),
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "deposit",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
+	// from has only 100 available, non-external
+	fromBalance := mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
+	toBalance := mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(0),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
 
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{keyFrom, keyTo}, constant.CREATED, false, []libTransaction.Amount{fromAmount, toAmount}, []mmodel.Balance{fromBalance, toBalance})
-    if err == nil {
-        t.Fatalf("expected error, got nil")
-    }
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{keyFrom, keyTo}, constant.CREATED, false, []libTransaction.Amount{fromAmount, toAmount}, []mmodel.Balance{fromBalance, toBalance})
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
 
-    // Ensure no keys were written
-    valFrom, err := repo.Get(ctx, keyFrom)
-    if err != nil {
-        t.Fatalf("get from failed: %v", err)
-    }
-    if valFrom != "" {
-        t.Fatalf("expected no key for from, got: %s", valFrom)
-    }
-    valTo, err := repo.Get(ctx, keyTo)
-    if err != nil {
-        t.Fatalf("get to failed: %v", err)
-    }
-    if valTo != "" {
-        t.Fatalf("expected no key for to, got: %s", valTo)
-    }
+	// Ensure no keys were written
+	valFrom, err := repo.Get(ctx, keyFrom)
+	if err != nil {
+		t.Fatalf("get from failed: %v", err)
+	}
+	if valFrom != "" {
+		t.Fatalf("expected no key for from, got: %s", valFrom)
+	}
+	valTo, err := repo.Get(ctx, keyTo)
+	if err != nil {
+		t.Fatalf("get to failed: %v", err)
+	}
+	if valTo != "" {
+		t.Fatalf("expected no key for to, got: %s", valTo)
+	}
 }
 
 func TestBatchApply_Pending_OnHold_Then_Approved_Debit_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
+	addr, cleanup := startValkey(t)
+	defer cleanup()
 
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    seed := mmodel.Balance{
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.NewFromInt(100),
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "deposit",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
+	seed := mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
 
-    // Step 1: ON_HOLD with PENDING (pending=true, status=PENDING)
-    amtHold := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.ONHOLD}
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.PENDING, true, []libTransaction.Amount{amtHold}, []mmodel.Balance{seed})
-    if err != nil {
-        t.Fatalf("on_hold failed: %v", err)
-    }
+	// Step 1: ON_HOLD with PENDING (pending=true, status=PENDING)
+	amtHold := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.ONHOLD}
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.PENDING, true, []libTransaction.Amount{amtHold}, []mmodel.Balance{seed})
+	if err != nil {
+		t.Fatalf("on_hold failed: %v", err)
+	}
 
-    v1, _ := repo.Get(ctx, key)
-    var b1 mmodel.BalanceRedis
-    _ = json.Unmarshal([]byte(v1), &b1)
-    if b1.Available.String() != "70" || b1.OnHold.String() != "30" {
-        t.Fatalf("after on_hold expected avail=70,onHold=30, got avail=%s,onHold=%s", b1.Available, b1.OnHold)
-    }
+	v1, _ := repo.Get(ctx, key)
+	var b1 mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(v1), &b1)
+	if b1.Available.String() != "70" || b1.OnHold.String() != "30" {
+		t.Fatalf("after on_hold expected avail=70,onHold=30, got avail=%s,onHold=%s", b1.Available, b1.OnHold)
+	}
 
-    // Step 2: APPROVED with DEBIT (consume onHold)
-    amtApprove := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.DEBIT}
-    _, err = repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.APPROVED, true, []libTransaction.Amount{amtApprove}, []mmodel.Balance{seed})
-    if err != nil {
-        t.Fatalf("approved debit failed: %v", err)
-    }
+	// Step 2: APPROVED with DEBIT (consume onHold)
+	amtApprove := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(30), Operation: constant.DEBIT}
+	_, err = repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.APPROVED, true, []libTransaction.Amount{amtApprove}, []mmodel.Balance{seed})
+	if err != nil {
+		t.Fatalf("approved debit failed: %v", err)
+	}
 
-    v2, _ := repo.Get(ctx, key)
-    var b2 mmodel.BalanceRedis
-    _ = json.Unmarshal([]byte(v2), &b2)
-    if b2.Available.String() != "70" || b2.OnHold.String() != "0" {
-        t.Fatalf("after approved debit expected avail=70,onHold=0, got avail=%s,onHold=%s", b2.Available, b2.OnHold)
-    }
+	v2, _ := repo.Get(ctx, key)
+	var b2 mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(v2), &b2)
+	if b2.Available.String() != "70" || b2.OnHold.String() != "0" {
+		t.Fatalf("after approved debit expected avail=70,onHold=0, got avail=%s,onHold=%s", b2.Available, b2.OnHold)
+	}
 }
 
 func TestBatchApply_ExternalPendingFrom_Blocked0098_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    seed := mmodel.Balance{
-        ID:             uuid.New().String(),
-        AccountID:      uuid.New().String(),
-        Available:      decimal.Zero,
-        OnHold:         decimal.Zero,
-        Version:        1,
-        AccountType:    "external",
-        AllowSending:   true,
-        AllowReceiving: true,
-        AssetCode:      "USD",
-    }
+	seed := mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.Zero,
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "external",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
 
-    amtHold := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.ONHOLD}
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.PENDING, true, []libTransaction.Amount{amtHold}, []mmodel.Balance{seed})
-    var uoe midazpkg.UnprocessableOperationError
-    if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrOnHoldExternalAccount.Error()) {
-        t.Fatalf("expected code %s, got: %v", constant.ErrOnHoldExternalAccount.Error(), err)
-    }
+	amtHold := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.ONHOLD}
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.PENDING, true, []libTransaction.Amount{amtHold}, []mmodel.Balance{seed})
+	var uoe midazpkg.UnprocessableOperationError
+	if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrOnHoldExternalAccount.Error()) {
+		t.Fatalf("expected code %s, got: %v", constant.ErrOnHoldExternalAccount.Error(), err)
+	}
 
-    // assert no write
-    if val, _ := repo.Get(ctx, key); val != "" {
-        t.Fatalf("expected no write for external pending from, got: %s", val)
-    }
+	// assert no write
+	if val, _ := repo.Get(ctx, key); val != "" {
+		t.Fatalf("expected no write for external pending from, got: %s", val)
+	}
 }
 
 func TestBatchApply_PermissionChecks_0019_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
 
-    // Debit requires allowSending
-    keyDebit := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_debit")
-    seedDebit := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: false, AllowReceiving: true, AssetCode: "USD"}
-    amtDebit := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{keyDebit}, constant.CREATED, false, []libTransaction.Amount{amtDebit}, []mmodel.Balance{seedDebit})
-    var uoeD midazpkg.UnprocessableOperationError
-    if err == nil || !asUnprocessableWithCode(err, &uoeD, constant.ErrAccountIneligibility.Error()) {
-        t.Fatalf("expected code %s for debit, got: %v", constant.ErrAccountIneligibility.Error(), err)
-    }
-    if val, _ := repo.Get(ctx, keyDebit); val != "" {
-        t.Fatalf("expected no write for permission fail, got: %s", val)
-    }
+	// Debit requires allowSending
+	keyDebit := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_debit")
+	seedDebit := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: false, AllowReceiving: true, AssetCode: "USD"}
+	amtDebit := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{keyDebit}, constant.CREATED, false, []libTransaction.Amount{amtDebit}, []mmodel.Balance{seedDebit})
+	var uoeD midazpkg.UnprocessableOperationError
+	if err == nil || !asUnprocessableWithCode(err, &uoeD, constant.ErrAccountIneligibility.Error()) {
+		t.Fatalf("expected code %s for debit, got: %v", constant.ErrAccountIneligibility.Error(), err)
+	}
+	if val, _ := repo.Get(ctx, keyDebit); val != "" {
+		t.Fatalf("expected no write for permission fail, got: %s", val)
+	}
 
-    // Credit requires allowReceiving
-    keyCredit := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_credit")
-    seedCredit := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(0), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: false, AssetCode: "USD"}
-    amtCredit := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
-    _, err = repo.AddSumBalancesAtomicRedis(ctx, []string{keyCredit}, constant.CREATED, false, []libTransaction.Amount{amtCredit}, []mmodel.Balance{seedCredit})
-    var uoeC midazpkg.UnprocessableOperationError
-    if err == nil || !asUnprocessableWithCode(err, &uoeC, constant.ErrAccountIneligibility.Error()) {
-        t.Fatalf("expected code %s for credit, got: %v", constant.ErrAccountIneligibility.Error(), err)
-    }
-    if val, _ := repo.Get(ctx, keyCredit); val != "" {
-        t.Fatalf("expected no write for permission fail, got: %s", val)
-    }
+	// Credit requires allowReceiving
+	keyCredit := libCommons.TransactionInternalKey(orgID, ledgerID, "alias_credit")
+	seedCredit := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(0), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: false, AssetCode: "USD"}
+	amtCredit := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	_, err = repo.AddSumBalancesAtomicRedis(ctx, []string{keyCredit}, constant.CREATED, false, []libTransaction.Amount{amtCredit}, []mmodel.Balance{seedCredit})
+	var uoeC midazpkg.UnprocessableOperationError
+	if err == nil || !asUnprocessableWithCode(err, &uoeC, constant.ErrAccountIneligibility.Error()) {
+		t.Fatalf("expected code %s for credit, got: %v", constant.ErrAccountIneligibility.Error(), err)
+	}
+	if val, _ := repo.Get(ctx, keyCredit); val != "" {
+		t.Fatalf("expected no write for permission fail, got: %s", val)
+	}
 }
 
 func TestBatchApply_TTL_Preservation_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    // Seed key manually with TTL=120s
-    seedRedis := map[string]any{
-        "id":         uuid.New().String(),
-        "accountId":  uuid.New().String(),
-        "assetCode":  "USD",
-        "available":  100,
-        "onHold":     0,
-        "version":    1,
-        "accountType": "deposit",
-        "allowSending": 1,
-        "allowReceiving": 1,
-    }
-    raw, _ := json.Marshal(seedRedis)
-    // Note: Set expects TTL in seconds, not duration; pass 120 directly
-    if err := repo.Set(ctx, key, string(raw), time.Duration(120)); err != nil {
-        t.Fatalf("seed set with ttl failed: %v", err)
-    }
+	// Seed key manually with TTL=120s
+	seedRedis := map[string]any{
+		"id":             uuid.New().String(),
+		"accountId":      uuid.New().String(),
+		"assetCode":      "USD",
+		"available":      100,
+		"onHold":         0,
+		"version":        1,
+		"accountType":    "deposit",
+		"allowSending":   1,
+		"allowReceiving": 1,
+	}
+	raw, _ := json.Marshal(seedRedis)
+	// Note: Set expects TTL in seconds, not duration; pass 120 directly
+	if err := repo.Set(ctx, key, string(raw), time.Duration(120)); err != nil {
+		t.Fatalf("seed set with ttl failed: %v", err)
+	}
 
-    // Fetch TTL before update
-    client, err := repo.conn.GetClient(ctx)
-    if err != nil {
-        t.Fatalf("get client failed: %v", err)
-    }
-    ttlBefore, err := client.TTL(ctx, key).Result()
-    if err != nil {
-        t.Fatalf("ttl before failed: %v", err)
-    }
-    if ttlBefore <= 0 {
-        t.Fatalf("expected positive ttl before, got %v", ttlBefore)
-    }
+	// Fetch TTL before update
+	client, err := repo.conn.GetClient(ctx)
+	if err != nil {
+		t.Fatalf("get client failed: %v", err)
+	}
+	ttlBefore, err := client.TTL(ctx, key).Result()
+	if err != nil {
+		t.Fatalf("ttl before failed: %v", err)
+	}
+	if ttlBefore <= 0 {
+		t.Fatalf("expected positive ttl before, got %v", ttlBefore)
+	}
 
-    // Apply a credit update via batch
-    seed := mmodel.Balance{ID: seedRedis["id"].(string), AccountID: seedRedis["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
-    if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
-        t.Fatalf("batch credit failed: %v", err)
-    }
+	// Apply a credit update via batch
+	seed := mmodel.Balance{ID: seedRedis["id"].(string), AccountID: seedRedis["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("batch credit failed: %v", err)
+	}
 
-    ttlAfter, err := client.TTL(ctx, key).Result()
-    if err != nil {
-        t.Fatalf("ttl after failed: %v", err)
-    }
-    if ttlAfter <= 0 || ttlAfter > ttlBefore {
-        t.Fatalf("ttl not preserved/reasonable: before=%v after=%v", ttlBefore, ttlAfter)
-    }
+	ttlAfter, err := client.TTL(ctx, key).Result()
+	if err != nil {
+		t.Fatalf("ttl after failed: %v", err)
+	}
+	if ttlAfter <= 0 || ttlAfter > ttlBefore {
+		t.Fatalf("ttl not preserved/reasonable: before=%v after=%v", ttlBefore, ttlAfter)
+	}
 }
 
 func TestBatchApply_OccVersionMismatch_0086_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    // Seed key with specific version 5
-    seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 5, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    // Write canonical JSON directly
-    b := map[string]any{
-        "id": seed.ID, "accountId": seed.AccountID, "assetCode": seed.AssetCode,
-        "available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
-    }
-    raw, _ := json.Marshal(b)
-    if err := repo.Set(ctx, key, string(raw), 0); err != nil {
-        t.Fatalf("seed set failed: %v", err)
-    }
+	// Seed key with specific version 5
+	seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 5, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	// Write canonical JSON directly
+	b := map[string]any{
+		"id": seed.ID, "accountId": seed.AccountID, "assetCode": seed.AssetCode,
+		"available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
+	}
+	raw, _ := json.Marshal(b)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
 
-    // Directly invoke the Lua with enforceOCC=1 and mismatching provided version (e.g., 3)
-    client, err := repo.conn.GetClient(ctx)
-    if err != nil {
-        t.Fatalf("get client failed: %v", err)
-    }
+	// Directly invoke the Lua with enforceOCC=1 and mismatching provided version (e.g., 3)
+	client, err := repo.conn.GetClient(ctx)
+	if err != nil {
+		t.Fatalf("get client failed: %v", err)
+	}
 
-    // Build keys and args per script contract
-    keys := []string{key}
-    isPending := 0
-    transactionStatus := constant.CREATED
-    enforceOCC := 1
-    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
-    args := []any{isPending, transactionStatus, enforceOCC,
-        amt.Operation,
-        amt.Value.String(),
-        seed.ID,
-        seed.Available.String(),
-        seed.OnHold.String(),
-        "3", // provided wrong version (mismatch with stored 5)
-        seed.AccountType,
-        1, 1,
-        seed.AssetCode,
-        seed.AccountID,
-    }
+	// Build keys and args per script contract
+	keys := []string{key}
+	isPending := 0
+	transactionStatus := constant.CREATED
+	enforceOCC := 1
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	args := []any{isPending, transactionStatus, enforceOCC,
+		amt.Operation,
+		amt.Value.String(),
+		seed.ID,
+		seed.Available.String(),
+		seed.OnHold.String(),
+		"3", // provided wrong version (mismatch with stored 5)
+		seed.AccountType,
+		1, 1,
+		seed.AssetCode,
+		seed.AccountID,
+	}
 
-    script := rds.NewScript(batchApplyLua)
-    _, err = script.Run(ctx, client, keys, args...).Result()
-    if err == nil || !strings.Contains(err.Error(), constant.ErrLockVersionAccountBalance.Error()) {
-        t.Fatalf("expected 0086 error on OCC mismatch, got: %v", err)
-    }
+	script := rds.NewScript(batchApplyLua)
+	_, err = script.Run(ctx, client, keys, args...).Result()
+	if err == nil || !strings.Contains(err.Error(), constant.ErrLockVersionAccountBalance.Error()) {
+		t.Fatalf("expected 0086 error on OCC mismatch, got: %v", err)
+	}
 }
 
 // asUnprocessableWithCode helper checks if error is UnprocessableOperationError with a specific business code
 func asUnprocessableWithCode(err error, target *midazpkg.UnprocessableOperationError, code string) bool {
-    if err == nil {
-        return false
-    }
-    if !errors.As(err, target) {
-        return false
-    }
-    return target.Code == code
+	if err == nil {
+		return false
+	}
+	if !errors.As(err, target) {
+		return false
+	}
+	return target.Code == code
 }
 
 func TestBatchApply_ReleaseCanceled_InsufficientOnHold_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    // Seed with onHold=10
-    b := map[string]any{
-        "id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
-        "available": 100, "onHold": 10, "version": 1, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
-    }
-    raw, _ := json.Marshal(b)
-    if err := repo.Set(ctx, key, string(raw), 0); err != nil {
-        t.Fatalf("seed set failed: %v", err)
-    }
+	// Seed with onHold=10
+	b := map[string]any{
+		"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
+		"available": 100, "onHold": 10, "version": 1, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
+	}
+	raw, _ := json.Marshal(b)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
 
-    seed := mmodel.Balance{ID: b["id"].(string), AccountID: b["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.RELEASE}
-    // pending=true, status=CANCELED
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CANCELED, true, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
-    var uoe midazpkg.UnprocessableOperationError
-    if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
-        t.Fatalf("expected 0018 on insufficient onHold, got: %v", err)
-    }
-    // ensure onHold unchanged
-    val, _ := repo.Get(ctx, key)
-    var br mmodel.BalanceRedis
-    _ = json.Unmarshal([]byte(val), &br)
-    if br.OnHold.String() != "10" {
-        t.Fatalf("expected onHold remain 10, got %s", br.OnHold)
-    }
+	seed := mmodel.Balance{ID: b["id"].(string), AccountID: b["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.NewFromInt(10), Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.RELEASE}
+	// pending=true, status=CANCELED
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CANCELED, true, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
+	var uoe midazpkg.UnprocessableOperationError
+	if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
+		t.Fatalf("expected 0018 on insufficient onHold, got: %v", err)
+	}
+	// ensure onHold unchanged
+	val, _ := repo.Get(ctx, key)
+	var br mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(val), &br)
+	if br.OnHold.String() != "10" {
+		t.Fatalf("expected onHold remain 10, got %s", br.OnHold)
+	}
 }
 
 func TestBatchApply_ExternalNonPendingDebit_AllowNegative_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "external", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
-    // Non-pending debit on external should succeed; available can go negative
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
-    if err != nil {
-        t.Fatalf("external non-pending debit failed: %v", err)
-    }
-    val, _ := repo.Get(ctx, key)
-    var br mmodel.BalanceRedis
-    _ = json.Unmarshal([]byte(val), &br)
-    if br.Available.String() != "-10" {
-        t.Fatalf("expected available -10 for external, got %s", br.Available)
-    }
+	seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "external", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.DEBIT}
+	// Non-pending debit on external should succeed; available can go negative
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed})
+	if err != nil {
+		t.Fatalf("external non-pending debit failed: %v", err)
+	}
+	val, _ := repo.Get(ctx, key)
+	var br mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(val), &br)
+	if br.Available.String() != "-10" {
+		t.Fatalf("expected available -10 for external, got %s", br.Available)
+	}
 }
 
 func TestBatchApply_InvalidAmountFormat_0017_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    // No preexisting key; we'll provide seeds but amount malformed ("1.")
-    seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	// No preexisting key; we'll provide seeds but amount malformed ("1.")
+	seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
 
-    client, err := repo.conn.GetClient(ctx)
-    if err != nil {
-        t.Fatalf("get client failed: %v", err)
-    }
-    keys := []string{key}
-    args := []any{0, constant.CREATED, 0,
-        constant.DEBIT,
-        "1.", // invalid format
-        seed.ID,
-        seed.Available.String(),
-        seed.OnHold.String(),
-        fmt.Sprintf("%d", seed.Version),
-        seed.AccountType,
-        1, 1,
-        seed.AssetCode,
-        seed.AccountID,
-    }
-    script := rds.NewScript(batchApplyLua)
-    _, err = script.Run(ctx, client, keys, args...).Result()
-    if err == nil || !strings.Contains(err.Error(), constant.ErrInvalidScriptFormat.Error()) {
-        t.Fatalf("expected 0017 invalid format, got: %v", err)
-    }
+	client, err := repo.conn.GetClient(ctx)
+	if err != nil {
+		t.Fatalf("get client failed: %v", err)
+	}
+	keys := []string{key}
+	args := []any{0, constant.CREATED, 0,
+		constant.DEBIT,
+		"1.", // invalid format
+		seed.ID,
+		seed.Available.String(),
+		seed.OnHold.String(),
+		fmt.Sprintf("%d", seed.Version),
+		seed.AccountType,
+		1, 1,
+		seed.AssetCode,
+		seed.AccountID,
+	}
+	script := rds.NewScript(batchApplyLua)
+	_, err = script.Run(ctx, client, keys, args...).Result()
+	if err == nil || !strings.Contains(err.Error(), constant.ErrInvalidScriptFormat.Error()) {
+		t.Fatalf("expected 0017 invalid format, got: %v", err)
+	}
 }
 
 func TestBatchApply_OccSuccess_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
 
-    // Seed with version 5
-    b := map[string]any{
-        "id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
-        "available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
-    }
-    raw, _ := json.Marshal(b)
-    if err := repo.Set(ctx, key, string(raw), 0); err != nil {
-        t.Fatalf("seed set failed: %v", err)
-    }
+	// Seed with version 5
+	b := map[string]any{
+		"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD",
+		"available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1,
+	}
+	raw, _ := json.Marshal(b)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
 
-    client, err := repo.conn.GetClient(ctx)
-    if err != nil {
-        t.Fatalf("get client failed: %v", err)
-    }
-    keys := []string{key}
-    amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
-    args := []any{0, constant.CREATED, 1,
-        amt.Operation,
-        amt.Value.String(),
-        b["id"],
-        "100",
-        "0",
-        "5", // match version
-        "deposit",
-        1, 1,
-        "USD",
-        b["accountId"],
-    }
-    script := rds.NewScript(batchApplyLua)
-    _, err = script.Run(ctx, client, keys, args...).Result()
-    if err != nil {
-        t.Fatalf("expected OCC success, got: %v", err)
-    }
+	client, err := repo.conn.GetClient(ctx)
+	if err != nil {
+		t.Fatalf("get client failed: %v", err)
+	}
+	keys := []string{key}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	args := []any{0, constant.CREATED, 1,
+		amt.Operation,
+		amt.Value.String(),
+		b["id"],
+		"100",
+		"0",
+		"5", // match version
+		"deposit",
+		1, 1,
+		"USD",
+		b["accountId"],
+	}
+	script := rds.NewScript(batchApplyLua)
+	_, err = script.Run(ctx, client, keys, args...).Result()
+	if err != nil {
+		t.Fatalf("expected OCC success, got: %v", err)
+	}
 }
 
 func TestBatchApply_BatchAtomicity_ThreeKeys_OneFails_Valkey(t *testing.T) {
-    addr, cleanup := startValkey(t)
-    defer cleanup()
-    repo := newRedisRepoForAddr(t, addr)
-    ctx := context.Background()
-    orgID := uuid.New()
-    ledgerID := uuid.New()
-    k1 := libCommons.TransactionInternalKey(orgID, ledgerID, "a1")
-    k2 := libCommons.TransactionInternalKey(orgID, ledgerID, "a2")
-    k3 := libCommons.TransactionInternalKey(orgID, ledgerID, "a3")
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	k1 := libCommons.TransactionInternalKey(orgID, ledgerID, "a1")
+	k2 := libCommons.TransactionInternalKey(orgID, ledgerID, "a2")
+	k3 := libCommons.TransactionInternalKey(orgID, ledgerID, "a3")
 
-    b1 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    b2 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
-    b3 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	b1 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	b2 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	b3 := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
 
-    a1 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
-    a2 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.CREDIT}
-    a3 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1000), Operation: constant.DEBIT} // will fail
+	a1 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.CREDIT}
+	a2 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(20), Operation: constant.CREDIT}
+	a3 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1000), Operation: constant.DEBIT} // will fail
 
-    _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{k1, k2, k3}, constant.CREATED, false, []libTransaction.Amount{a1, a2, a3}, []mmodel.Balance{b1, b2, b3})
-    var uoe midazpkg.UnprocessableOperationError
-    if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
-        t.Fatalf("expected 0018 batch failure, got: %v", err)
-    }
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{k1, k2, k3}, constant.CREATED, false, []libTransaction.Amount{a1, a2, a3}, []mmodel.Balance{b1, b2, b3})
+	var uoe midazpkg.UnprocessableOperationError
+	if err == nil || !asUnprocessableWithCode(err, &uoe, constant.ErrInsufficientFunds.Error()) {
+		t.Fatalf("expected 0018 batch failure, got: %v", err)
+	}
 
-    // Ensure no writes for any key
-    if v, _ := repo.Get(ctx, k1); v != "" { t.Fatalf("expected no write for k1, got %s", v) }
-    if v, _ := repo.Get(ctx, k2); v != "" { t.Fatalf("expected no write for k2, got %s", v) }
-    if v, _ := repo.Get(ctx, k3); v != "" { t.Fatalf("expected no write for k3, got %s", v) }
+	// Ensure no writes for any key
+	if v, _ := repo.Get(ctx, k1); v != "" {
+		t.Fatalf("expected no write for k1, got %s", v)
+	}
+	if v, _ := repo.Get(ctx, k2); v != "" {
+		t.Fatalf("expected no write for k2, got %s", v)
+	}
+	if v, _ := repo.Get(ctx, k3); v != "" {
+		t.Fatalf("expected no write for k3, got %s", v)
+	}
+}
+
+func TestBatchApply_DuplicateKeys_Invalid_0017_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	b := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	// duplicate same key in batch
+	_, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key, key}, constant.CREATED, false, []libTransaction.Amount{amt, amt}, []mmodel.Balance{b, b})
+	var econf midazpkg.EntityConflictError
+	if err == nil || !errors.As(err, &econf) || econf.Code != constant.ErrInvalidScriptFormat.Error() {
+		t.Fatalf("expected 0017 invalid format for duplicate keys, got: %v", err)
+	}
+}
+
+func TestBatchApply_UppercaseJSON_Canonicalized_OnUpdate_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	// Seed uppercase JSON
+	up := map[string]any{"ID": uuid.New().String(), "AccountID": uuid.New().String(), "AssetCode": "USD", "Available": 100, "OnHold": 0, "Version": 1, "AccountType": "deposit", "AllowSending": 1, "AllowReceiving": 1}
+	raw, _ := json.Marshal(up)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
+	// Apply a small credit to trigger rewrite
+	seed := mmodel.Balance{ID: up["ID"].(string), AccountID: up["AccountID"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("batch credit failed: %v", err)
+	}
+	// Fetch and verify canonical keys present
+	val, _ := repo.Get(ctx, key)
+	if strings.Contains(val, "\"Available\"") || strings.Contains(val, "\"ID\"") {
+		t.Fatalf("expected canonical lower/camelCase keys, got JSON: %s", val)
+	}
+	if !strings.Contains(val, "\"available\"") || !strings.Contains(val, "\"id\"") {
+		t.Fatalf("expected canonical keys 'available' and 'id' in JSON: %s", val)
+	}
+}
+
+func TestBatchApply_ZeroAmount_VersionBumps_NoValueChange_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	// Seed with version 5
+	b := map[string]any{"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD", "available": 100, "onHold": 0, "version": 5, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1}
+	raw, _ := json.Marshal(b)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed failed: %v", err)
+	}
+	seed := mmodel.Balance{ID: b["id"].(string), AccountID: b["accountId"].(string), Available: decimal.NewFromInt(100), OnHold: decimal.Zero, Version: 5, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	// amount 0 credit
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.Zero, Operation: constant.CREDIT}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("zero amount failed: %v", err)
+	}
+	val, _ := repo.Get(ctx, key)
+	var br mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(val), &br)
+	if br.Available.String() != "100" || br.OnHold.String() != "0" || br.Version != 6 {
+		t.Fatalf("expected values unchanged and version bumped to 6, got avail=%s onHold=%s version=%d", br.Available, br.OnHold, br.Version)
+	}
+}
+
+func TestBatchApply_ReleaseNonPending_NoChange_VersionBumps_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	// Seed with version 2
+	b := map[string]any{"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD", "available": 50, "onHold": 0, "version": 2, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1}
+	raw, _ := json.Marshal(b)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed failed: %v", err)
+	}
+	seed := mmodel.Balance{ID: b["id"].(string), AccountID: b["accountId"].(string), Available: decimal.NewFromInt(50), OnHold: decimal.Zero, Version: 2, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10), Operation: constant.RELEASE}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("release non-pending failed: %v", err)
+	}
+	val, _ := repo.Get(ctx, key)
+	var br mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(val), &br)
+	if br.Available.String() != "50" || br.OnHold.String() != "0" || br.Version != 3 {
+		t.Fatalf("expected no value change and version bumped to 3, got avail=%s onHold=%s version=%d", br.Available, br.OnHold, br.Version)
+	}
+}
+
+func TestBatchApply_NewKey_DefaultTTL_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	seed := mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("batch failed: %v", err)
+	}
+	client, _ := repo.conn.GetClient(ctx)
+	ttl, _ := client.TTL(ctx, key).Result()
+	if ttl <= 0 || ttl > 3600*time.Second {
+		t.Fatalf("expected default ttl close to 3600s, got %v", ttl)
+	}
+}
+
+func TestBatchApply_OccMismatch_MultiKey_AllAbort_NoWrites_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	k1 := libCommons.TransactionInternalKey(orgID, ledgerID, "a1")
+	k2 := libCommons.TransactionInternalKey(orgID, ledgerID, "a2")
+	// Seed both keys with version 10
+	for _, key := range []string{k1, k2} {
+		j := map[string]any{"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD", "available": 0, "onHold": 0, "version": 10, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1}
+		raw, _ := json.Marshal(j)
+		if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+			t.Fatalf("seed failed: %v", err)
+		}
+	}
+	client, _ := repo.conn.GetClient(ctx)
+	// Build args with enforceOCC=1, mismatch on second key only
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	args := []any{0, constant.CREATED, 1,
+		amt.Operation, amt.Value.String(), "id1", "0", "0", "10", "deposit", 1, 1, "USD", "acc1",
+		amt.Operation, amt.Value.String(), "id2", "0", "0", "9", "deposit", 1, 1, "USD", "acc2",
+	}
+	script := rds.NewScript(batchApplyLua)
+	_, err := script.Run(ctx, client, []string{k1, k2}, args...).Result()
+	if err == nil || !strings.Contains(err.Error(), constant.ErrLockVersionAccountBalance.Error()) {
+		t.Fatalf("expected 0086 for batch OCC mismatch, got: %v", err)
+	}
+	// Ensure no writes occurred
+	for _, key := range []string{k1, k2} {
+		v, _ := repo.Get(ctx, key)
+		var br mmodel.BalanceRedis
+		_ = json.Unmarshal([]byte(v), &br)
+		if br.Version != 10 {
+			t.Fatalf("expected version 10 unchanged for %s, got %d", key, br.Version)
+		}
+	}
+}
+
+func TestBatchApply_TTLClamp_NearZero_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	// Seed with TTL=1s
+	j := map[string]any{"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD", "available": 0, "onHold": 0, "version": 1, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1}
+	raw, _ := json.Marshal(j)
+	if err := repo.Set(ctx, key, string(raw), time.Duration(1)); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
+	// Immediately update to trigger TTL preservation clamp
+	seed := mmodel.Balance{ID: j["id"].(string), AccountID: j["accountId"].(string), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("batch failed: %v", err)
+	}
+	client, _ := repo.conn.GetClient(ctx)
+	ttl, _ := client.TTL(ctx, key).Result()
+	if ttl <= 0 {
+		t.Fatalf("expected TTL clamped to >=1s, got %v", ttl)
+	}
+}
+
+func TestBatchApply_HighPrecisionDecimalMath_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	key := libCommons.TransactionInternalKey(orgID, ledgerID, "alias")
+	// Seed with available as precise string "123.00050"
+	seedJSON := map[string]any{"id": uuid.New().String(), "accountId": uuid.New().String(), "assetCode": "USD", "available": "123.00050", "onHold": "0", "version": 1, "accountType": "deposit", "allowSending": 1, "allowReceiving": 1}
+	raw, _ := json.Marshal(seedJSON)
+	if err := repo.Set(ctx, key, string(raw), 0); err != nil {
+		t.Fatalf("seed set failed: %v", err)
+	}
+
+	// Credit 0.00050 => 123.001 after trimming trailing zeros
+	amt := libTransaction.Amount{Asset: "USD", Value: decimal.RequireFromString("0.00050"), Operation: constant.CREDIT}
+	seed := mmodel.Balance{ID: seedJSON["id"].(string), AccountID: seedJSON["accountId"].(string), Available: decimal.RequireFromString("123.00050"), OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	if _, err := repo.AddSumBalancesAtomicRedis(ctx, []string{key}, constant.CREATED, false, []libTransaction.Amount{amt}, []mmodel.Balance{seed}); err != nil {
+		t.Fatalf("batch credit failed: %v", err)
+	}
+	val, _ := repo.Get(ctx, key)
+	var br mmodel.BalanceRedis
+	_ = json.Unmarshal([]byte(val), &br)
+	if br.Available.String() != "123.001" {
+		t.Fatalf("expected 123.001, got %s", br.Available.String())
+	}
+}
+
+func TestBatchApply_ResultOrderMatchesInputKeys_Valkey(t *testing.T) {
+	addr, cleanup := startValkey(t)
+	defer cleanup()
+	repo := newRedisRepoForAddr(t, addr)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	// Create 3 keys intentionally in non-sorted order
+	k2 := libCommons.TransactionInternalKey(orgID, ledgerID, "b")
+	k1 := libCommons.TransactionInternalKey(orgID, ledgerID, "a")
+	k3 := libCommons.TransactionInternalKey(orgID, ledgerID, "c")
+	// Same seeds
+	mk := func() mmodel.Balance {
+		return mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Available: decimal.Zero, OnHold: decimal.Zero, Version: 1, AccountType: "deposit", AllowSending: true, AllowReceiving: true, AssetCode: "USD"}
+	}
+	a1, a2, a3 := mk(), mk(), mk()
+	m1 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1), Operation: constant.CREDIT}
+	m2 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(2), Operation: constant.CREDIT}
+	m3 := libTransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(3), Operation: constant.CREDIT}
+	// Call with order [k2, k1, k3]
+	results, err := repo.AddSumBalancesAtomicRedis(ctx, []string{k2, k1, k3}, constant.CREATED, false, []libTransaction.Amount{m2, m1, m3}, []mmodel.Balance{a2, a1, a3})
+	if err != nil {
+		t.Fatalf("batch failed: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	// Validate available values correspond to amounts in the same index order
+	if results[0].Available.String() != "2" || results[1].Available.String() != "1" || results[2].Available.String() != "3" {
+		t.Fatalf("result order mismatch: got [%s,%s,%s]",
+			results[0].Available.String(), results[1].Available.String(), results[2].Available.String())
+	}
 }
