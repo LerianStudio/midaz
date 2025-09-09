@@ -3,9 +3,12 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"math"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -118,6 +121,24 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	newBalances := make([]*mmodel.Balance, 0)
+
+	for _, balance := range balances {
+		if from, exists := validate.From[balance.Alias]; exists && balance.AccountType != "external" {
+			var requested, available int64
+
+			if from.Scale >= balance.Scale {
+				requested = from.Value
+				available = balance.Available * int64(math.Pow10(int(from.Scale-balance.Scale)))
+			} else {
+				requested = from.Value * int64(math.Pow10(int(balance.Scale-from.Scale)))
+				available = balance.Available
+			}
+
+			if requested > available {
+				return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+			}
+		}
+	}
 
 	for _, balance := range balances {
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, balance.Alias)
