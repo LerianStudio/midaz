@@ -37,7 +37,11 @@ import React from 'react'
 import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PaginationDto,
+  CursorPaginationDto
+} from '@/core/application/dto/pagination-dto'
+import { CursorPagination } from '@/components/cursor-pagination'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import {
   TransactionOperationDto,
@@ -45,11 +49,24 @@ import {
 } from '@/core/application/dto/transaction-dto'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
 
+type CursorPaginationControls = {
+  hasNext: boolean
+  hasPrev: boolean
+  nextPage: () => void
+  previousPage: () => void
+  goToFirstPage: () => void
+}
+
 type TransactionsDataTableProps = {
-  transactions: PaginationDto<TransactionDto> | undefined
-  total: number
-  pagination: PaginationProps
+  transactions:
+    | PaginationDto<TransactionDto>
+    | CursorPaginationDto<TransactionDto>
+    | undefined
+  total?: number
+  pagination?: PaginationProps
   onCreateTransaction: () => void
+  useCursorPagination?: boolean
+  cursorPaginationControls?: CursorPaginationControls
 }
 
 type TransactionsRowProps = {
@@ -213,7 +230,9 @@ export const TransactionsDataTable = ({
   transactions,
   total,
   pagination,
-  onCreateTransaction
+  onCreateTransaction,
+  useCursorPagination = false,
+  cursorPaginationControls
 }: TransactionsDataTableProps) => {
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
@@ -331,14 +350,27 @@ export const TransactionsDataTable = ({
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination
-            total={total}
-            hasNextPage={
-              transactions?.items &&
-              transactions.items.length < pagination.limit
-            }
-            {...pagination}
-          />
+          {useCursorPagination && cursorPaginationControls ? (
+            <CursorPagination
+              hasNext={cursorPaginationControls.hasNext}
+              hasPrev={cursorPaginationControls.hasPrev}
+              onNext={cursorPaginationControls.nextPage}
+              onPrevious={cursorPaginationControls.previousPage}
+              onFirst={cursorPaginationControls.goToFirstPage}
+            />
+          ) : (
+            pagination &&
+            total !== undefined && (
+              <Pagination
+                total={total}
+                hasNextPage={
+                  transactions?.items &&
+                  transactions.items.length < pagination.limit
+                }
+                {...pagination}
+              />
+            )
+          )}
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

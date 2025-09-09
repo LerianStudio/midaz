@@ -1,11 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useOrganization } from '@lerianstudio/console-layout'
-import { useListTransactions } from '@/client/transactions'
 import { TransactionsDataTable } from './transactions-data-table'
 import { TransactionsSkeleton } from './transactions-skeleton'
-import { useQueryParams } from '@/hooks/use-query-params'
 import { PageHeader } from '@/components/page-header'
 import { useIntl } from 'react-intl'
 import { getBreadcrumbPaths } from '@/components/breadcrumb/get-breadcrumb-paths'
@@ -17,30 +15,43 @@ import {
   TransactionMode,
   useTransactionMode
 } from './create/hooks/use-transaction-mode'
-import { Form } from '@/components/ui/form'
 import { EntityBox } from '@/components/entity-box'
-import { InputField } from '@/components/form'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
+import { PageCounter } from '@/components/page-counter'
+import { useTransactionsCursor } from '@/hooks/use-transactions-cursor'
 
 export default function TransactionsPage() {
   const intl = useIntl()
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
-  const [open, setOpen] = React.useState(false)
-  const [total, setTotal] = React.useState(1000000)
+  const [open, setOpen] = useState(false)
+  const [searchId, setSearchId] = useState('')
   const { setMode } = useTransactionMode()
 
-  const { form, searchValues, pagination } = useQueryParams({
-    total,
-    initialValues: { id: '' }
+  // Cursor pagination for transactions
+  const {
+    transactions,
+    isLoading: isLoadingTransactions,
+    isEmpty,
+    hasNext,
+    hasPrev,
+    nextPage,
+    previousPage,
+    goToFirstPage,
+    setSortOrder,
+    sortOrder,
+    setLimit,
+    limit,
+    refetch: refetchTransactions
+  } = useTransactionsCursor({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    searchParams: {
+      id: searchId || undefined,
+      sortBy: 'createdAt'
+    },
+    limit: 10,
+    sortOrder: 'desc'
   })
-
-  const { data: transactions, isLoading: isLoadingTransactions } =
-    useListTransactions({
-      organizationId: currentOrganization?.id!,
-      ledgerId: currentLedger.id,
-      query: searchValues as any
-    })
 
   const hasLedgerLoaded = Boolean(currentLedger.id)
 
@@ -123,34 +134,35 @@ export default function TransactionsPage() {
         />
       </PageHeader.Root>
 
-      <Form {...form}>
-        <EntityBox.Root>
-          <div>
-            <InputField
-              name="id"
-              placeholder={intl.formatMessage({
-                id: 'common.searchById',
-                defaultMessage: 'Search by ID...'
-              })}
-              control={form.control}
-            />
-          </div>
-          <EntityBox.Actions>
-            <PaginationLimitField control={form.control} />
-          </EntityBox.Actions>
-        </EntityBox.Root>
+      <EntityBox.Root>
+        <PageCounter
+          limit={limit}
+          setLimit={setLimit}
+          limitValues={[5, 10, 20, 50]}
+        />
+      </EntityBox.Root>
 
-        {isLoadingTransactions && <TransactionsSkeleton />}
+      {isLoadingTransactions && <TransactionsSkeleton />}
 
-        {!isLoadingTransactions && hasLedgerLoaded && (
-          <TransactionsDataTable
-            transactions={transactions}
-            total={total}
-            pagination={pagination}
-            onCreateTransaction={() => setOpen(true)}
-          />
-        )}
-      </Form>
+      {!isLoadingTransactions && hasLedgerLoaded && (
+        <TransactionsDataTable
+          transactions={{
+            items: transactions,
+            limit: limit,
+            nextCursor: undefined, // Not needed for display
+            prevCursor: undefined // Not needed for display
+          }}
+          onCreateTransaction={() => setOpen(true)}
+          useCursorPagination={true}
+          cursorPaginationControls={{
+            hasNext,
+            hasPrev,
+            nextPage,
+            previousPage,
+            goToFirstPage
+          }}
+        />
+      )}
     </div>
   )
 }

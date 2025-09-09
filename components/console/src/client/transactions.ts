@@ -2,7 +2,8 @@ import {
   getFetcher,
   patchFetcher,
   postFetcher,
-  getPaginatedFetcher
+  getPaginatedFetcher,
+  getCursorPaginatedFetcher
 } from '@/lib/fetcher'
 import {
   useMutation,
@@ -12,7 +13,10 @@ import {
   UseQueryResult,
   UseMutationResult
 } from '@tanstack/react-query'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PaginationDto,
+  CursorPaginationDto
+} from '@/core/application/dto/pagination-dto'
 import {
   CreateTransactionDto,
   TransactionDto,
@@ -125,6 +129,57 @@ export const useUpdateTransaction = ({
       })
       onSuccess?.(...args)
     },
+    ...options
+  })
+}
+
+type UseListTransactionsCursorProps = {
+  organizationId: string
+  ledgerId: string
+  cursor?: string
+  limit?: number
+  sortOrder?: 'asc' | 'desc'
+  sortBy?: 'id' | 'createdAt' | 'updatedAt'
+  id?: string
+  enabled?: boolean
+}
+
+export const useListTransactionsCursor = ({
+  organizationId,
+  ledgerId,
+  cursor,
+  limit = 10,
+  sortOrder = 'desc',
+  sortBy = 'createdAt',
+  id,
+  enabled = true,
+  ...options
+}: UseListTransactionsCursorProps) => {
+  const params: TransactionSearchDto = {
+    cursor,
+    limit,
+    sortOrder,
+    sortBy,
+    id
+  }
+
+  // Filter out undefined values
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, value]) => value !== undefined)
+  )
+
+  return useQuery<CursorPaginationDto<TransactionDto>>({
+    queryKey: [
+      organizationId,
+      ledgerId,
+      'transactions-cursor',
+      cleanParams
+    ],
+    queryFn: getCursorPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
+      cleanParams
+    ),
+    enabled: !!organizationId && !!ledgerId && enabled,
     ...options
   })
 }

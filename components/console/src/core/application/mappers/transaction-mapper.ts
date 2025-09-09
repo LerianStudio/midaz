@@ -1,8 +1,15 @@
-import { TransactionEntity } from '@/core/domain/entities/transaction-entity'
-import { CreateTransactionDto, TransactionDto } from '../dto/transaction-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { 
+  TransactionEntity, 
+  TransactionSearchEntity 
+} from '@/core/domain/entities/transaction-entity'
+import { 
+  CreateTransactionDto, 
+  TransactionDto, 
+  TransactionSearchDto 
+} from '../dto/transaction-dto'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
-import { PaginationDto } from '../dto/pagination-dto'
+import { CursorPaginationDto } from '../dto/pagination-dto'
 
 export class TransactionMapper {
   static toDomain(transaction: CreateTransactionDto): TransactionEntity {
@@ -36,14 +43,22 @@ export class TransactionMapper {
     }
   }
 
-  static toPaginatedResponseDto(
-    paginationEntity: PaginationEntity<TransactionEntity>
-  ): PaginationDto<TransactionDto> {
-    return PaginationMapper.toResponseDto(
-      paginationEntity,
-      TransactionMapper.toResponseDto as (
-        transaction: TransactionEntity
-      ) => TransactionDto
+  static toSearchDomain(dto: TransactionSearchDto): TransactionSearchEntity {
+    return {
+      limit: dto.limit,
+      cursor: dto.cursor,
+      sortOrder: dto.sortOrder,
+      sortBy: dto.sortBy,
+      id: dto.id
+    }
+  }
+
+  static toCursorPaginationResponseDto(
+    result: CursorPaginationEntity<TransactionEntity>
+  ): CursorPaginationEntity<TransactionDto> {
+    return PaginationMapper.toCursorResponseDto(
+      result,
+      TransactionMapper.toResponseDto
     )
   }
 }

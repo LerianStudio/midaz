@@ -4,12 +4,12 @@ import {
 } from '@/core/domain/entities/transaction-entity'
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { inject, injectable } from 'inversify'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
 import { MidazTransactionMapper } from '../mappers/midaz-transaction-mapper'
 import { MidazTransactionDto } from '../dto/midaz-transaction-dto'
 import { createQueryString } from '@/lib/search'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazCursorPaginationDto } from '../dto/midaz-pagination-dto'
 
 @injectable()
 export class MidazTransactionRepository implements TransactionRepository {
@@ -39,37 +39,55 @@ export class MidazTransactionRepository implements TransactionRepository {
   async fetchAll(
     organizationId: string,
     ledgerId: string,
-    filters: TransactionSearchEntity = { limit: 10, page: 1 }
-  ): Promise<PaginationEntity<TransactionEntity>> {
-    if (filters.id) {
-      try {
-        const response = await this.fetchById(
-          organizationId,
-          ledgerId,
-          filters.id
-        )
+    query?: TransactionSearchEntity
+  ): Promise<CursorPaginationEntity<TransactionEntity>> {
+    const {
+      id,
+      cursor,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'asc'
+    } = query ?? {}
 
-        return {
-          items: [response],
-          limit: filters.limit ?? 10,
-          page: filters.page ?? 1
-        }
-      } catch {
-        return {
-          items: [],
-          limit: filters.limit ?? 10,
-          page: filters.page ?? 1
-        }
-      }
-    }
+    const queryParams = createQueryString({
+      id,
+      cursor,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+      limit: limit.toString()
+    })
 
     const response = await this.httpService.get<
-      MidazPaginationDto<MidazTransactionDto>
+      MidazCursorPaginationDto<MidazTransactionDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions${createQueryString(filters)}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?${queryParams}`
     )
 
-    return MidazTransactionMapper.toPaginationEntity(response)
+    // Debug logging to identify cursor pagination issue
+    console.log(
+      'DEBUG - Transactions API Response:',
+      JSON.stringify(
+        {
+          url: `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?${queryParams}`,
+          response_keys: Object.keys(response),
+          response_sample: {
+            items_length: response.items?.length,
+            limit: response.limit,
+            next_cursor: response.next_cursor,
+            prev_cursor: response.prev_cursor,
+            has_next_cursor: !!response.next_cursor,
+            has_prev_cursor: !!response.prev_cursor
+          }
+        },
+        null,
+        2
+      )
+    )
+
+    return MidazTransactionMapper.toCursorPaginationEntity({
+      ...response,
+      items: response.items
+    })
   }
 
   async fetchById(
