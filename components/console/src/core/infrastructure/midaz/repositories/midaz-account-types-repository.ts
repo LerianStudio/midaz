@@ -4,10 +4,10 @@ import {
 } from '@/core/domain/entities/account-types-entity'
 import { AccountTypesRepository } from '@/core/domain/repositories/account-types-repository'
 import { injectable, inject } from 'inversify'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
 import { MidazAccountTypesDto } from '../dto/midaz-account-types-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazCursorPaginationDto } from '../dto/midaz-pagination-dto'
 import { MidazAccountTypesMapper } from '../mappers/midaz-account-types-mapper'
 import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
@@ -41,24 +41,34 @@ export class MidazAccountTypesRepository implements AccountTypesRepository {
     organizationId: string,
     ledgerId: string,
     query?: AccountTypesSearchEntity
-  ): Promise<PaginationEntity<AccountTypesEntity>> {
-    const { id, name, keyValue, page = 1, limit = 10 } = query ?? {}
+  ): Promise<CursorPaginationEntity<AccountTypesEntity>> {
+    const {
+      id,
+      name,
+      keyValue,
+      cursor,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'asc'
+    } = query ?? {}
 
     const queryParams = createQueryString({
       id,
       name,
       keyValue,
-      page: page.toString(),
+      cursor,
+      sort_by: sortBy,
+      sort_order: sortOrder,
       limit: limit.toString()
     })
 
     const response = await this.httpService.get<
-      MidazPaginationDto<MidazAccountTypesDto>
+      MidazCursorPaginationDto<MidazAccountTypesDto>
     >(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/account-types?${queryParams}`
     )
 
-    return MidazAccountTypesMapper.toPaginationEntity(response)
+    return MidazAccountTypesMapper.toCursorPaginationEntity(response)
   }
 
   async fetchById(

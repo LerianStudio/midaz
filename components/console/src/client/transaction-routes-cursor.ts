@@ -22,7 +22,7 @@ export const useListTransactionRoutesCursor = ({
   ledgerId,
   cursor,
   limit = 10,
-  sortOrder = 'asc',
+  sortOrder = 'desc',
   sortBy = 'createdAt',
   id,
   enabled = true,

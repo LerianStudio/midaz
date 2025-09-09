@@ -1,30 +1,31 @@
-import { useMemo, useEffect } from 'react'
-import { TransactionRoutesSearchParamDto } from '@/core/application/dto/transaction-routes-dto'
+import { useListAccountTypesCursor } from '@/client/account-types'
+import { AccountTypesSearchParamDto } from '@/core/application/dto/account-types-dto'
 import {
   useCursorPagination,
   UseCursorPaginationProps
 } from './use-cursor-pagination'
-import { useListTransactionRoutesCursor } from '@/client/transaction-routes-cursor'
+import { useEffect, useMemo } from 'react'
 
-export type UseTransactionRoutesCursorProps = {
+export type UseAccountTypesCursorProps = {
   organizationId: string
   ledgerId: string
   searchParams?: Omit<
-    TransactionRoutesSearchParamDto,
+    AccountTypesSearchParamDto,
     'limit' | 'cursor' | 'sortOrder'
   >
   enabled?: boolean
 } & UseCursorPaginationProps
 
-export function useTransactionRoutesCursor({
+export function useAccountTypesCursor({
   organizationId,
   ledgerId,
   searchParams,
   enabled = true,
   ...paginationProps
-}: UseTransactionRoutesCursorProps) {
+}: UseAccountTypesCursorProps) {
   const pagination = useCursorPagination(paginationProps)
-  const { data, isLoading, error, refetch } = useListTransactionRoutesCursor({
+
+  const { data, isLoading, error, refetch } = useListAccountTypesCursor({
     organizationId,
     ledgerId,
     cursor: pagination.cursor,
@@ -35,7 +36,6 @@ export function useTransactionRoutesCursor({
     enabled: enabled && !!organizationId && !!ledgerId
   })
 
-  // Update pagination state when data changes
   useEffect(() => {
     if (data) {
       pagination.updatePaginationState({
@@ -46,7 +46,7 @@ export function useTransactionRoutesCursor({
   }, [data, pagination])
 
   const queryParams = useMemo(
-    (): TransactionRoutesSearchParamDto => ({
+    (): AccountTypesSearchParamDto => ({
       ...searchParams,
       limit: pagination.limit,
       cursor: pagination.cursor,
@@ -56,26 +56,17 @@ export function useTransactionRoutesCursor({
   )
 
   return {
-    // Data
     data,
-    transactionRoutes: data?.items ?? [],
+    accountTypes: data?.items ?? [],
     isEmpty: data?.items?.length === 0,
-
-    // Loading states
     isLoading,
     error,
-
-    // Pagination controls
     ...pagination,
-
-    // Actions
     refetch,
-
-    // Debug info
     queryParams
   }
 }
 
-export type UseTransactionRoutesCursorReturn = ReturnType<
-  typeof useTransactionRoutesCursor
+export type UseAccountTypesCursorReturn = ReturnType<
+  typeof useAccountTypesCursor
 >

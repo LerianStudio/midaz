@@ -2,7 +2,7 @@ import {
   AccountTypesEntity,
   AccountTypesSearchEntity
 } from '../entities/account-types-entity'
-import { PaginationEntity } from '../entities/pagination-entity'
+import { CursorPaginationEntity } from '../entities/pagination-entity'
 
 export abstract class AccountTypesRepository {
   abstract create: (
@@ -14,7 +14,7 @@ export abstract class AccountTypesRepository {
     organizationId: string,
     ledgerId: string,
     query?: AccountTypesSearchEntity
-  ) => Promise<PaginationEntity<AccountTypesEntity>>
+  ) => Promise<CursorPaginationEntity<AccountTypesEntity>>
   abstract fetchById: (
     organizationId: string,
     ledgerId: string,

@@ -47,6 +47,7 @@ type CursorPaginationControls = {
   hasPrev: boolean
   nextPage: () => void
   previousPage: () => void
+  goToFirstPage: () => void
 }
 
 type TransactionRoutesDataTableProps = {
@@ -326,6 +327,7 @@ export const TransactionRoutesDataTable: React.FC<
               hasPrev={cursorPaginationControls.hasPrev}
               onNext={cursorPaginationControls.nextPage}
               onPrevious={cursorPaginationControls.previousPage}
+              onFirst={cursorPaginationControls.goToFirstPage}
             />
           ) : (
             pagination &&

@@ -159,14 +159,9 @@ export const TransactionRoutesSheet = ({
       }
     })
 
-  // ajustar para conseguir remover dados que são opcionais
 
   const handleSubmit = (data: FormData) => {
-    // Para campos obrigatórios, remove valores vazios
-    const cleanedData = omitBy(data, (value, key) => {
-      if (key === 'description') return isNil(value)
-      return value === '' || isNil(value)
-    }) as FormData
+    const cleanedData = omitBy(data, (value) => value === '' || isNil(value)) as FormData
 
     if (
       cleanedData.metadata &&

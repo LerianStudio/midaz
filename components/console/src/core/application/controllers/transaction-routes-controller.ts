@@ -77,7 +77,7 @@ export class TransactionRoutesController extends BaseController {
         {
           cursor: cursor || undefined,
           limit,
-          sortOrder: sortOrder || 'asc',
+          sortOrder: sortOrder || 'desc',
           sortBy: sortBy || 'createdAt',
           id: id || undefined
         }

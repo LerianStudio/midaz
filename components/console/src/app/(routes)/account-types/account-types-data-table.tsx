@@ -21,7 +21,10 @@ import {
 import { isNil } from 'lodash'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  CursorPaginationDto,
+  PaginationDto
+} from '@/core/application/dto/pagination-dto'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
 import {
@@ -37,11 +40,22 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
+import { CursorPagination } from '@/components/cursor-pagination'
 
+type CursorPaginationControls = {
+  hasNext: boolean
+  hasPrev: boolean
+  nextPage: () => void
+  previousPage: () => void
+  goToFirstPage: () => void
+}
 type AccountTypesDataTableProps = {
-  accountTypes: PaginationDto<AccountTypesDto> | undefined
-  total: number
-  pagination: PaginationProps
+  accountTypes:
+    | PaginationDto<AccountTypesDto>
+    | CursorPaginationDto<AccountTypesDto>
+    | undefined
+  total?: number
+  pagination?: PaginationProps
   handleCreate: () => void
   handleEdit: (accountType: AccountTypesDto) => void
   isLoading: boolean
@@ -51,6 +65,8 @@ type AccountTypesDataTableProps = {
     }
   }
   onDelete: (id: string, accountType: AccountTypesDto) => void
+  useCursorPagination?: boolean
+  cursorPaginationControls?: CursorPaginationControls
 }
 
 type AccountTypesRowProps = {
@@ -117,7 +133,9 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
   pagination,
   onDelete,
   handleCreate,
-  handleEdit
+  handleEdit,
+  useCursorPagination = false,
+  cursorPaginationControls
 }) => {
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
@@ -255,7 +273,28 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+        
+
+        {useCursorPagination && cursorPaginationControls ? (
+          <CursorPagination
+            hasNext={cursorPaginationControls.hasNext}
+            hasPrev={cursorPaginationControls.hasPrev}
+            onNext={cursorPaginationControls.nextPage}
+            onPrevious={cursorPaginationControls.previousPage}
+            onFirst={cursorPaginationControls.goToFirstPage}
+          />
+        ) : (
+          pagination &&
+          total !== undefined && (
+            <Pagination
+              total={total}
+              hasNextPage={
+                accountTypes && accountTypes?.items.length < pagination.limit
+              }
+              {...pagination}
+            />
+          )
+        )}
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

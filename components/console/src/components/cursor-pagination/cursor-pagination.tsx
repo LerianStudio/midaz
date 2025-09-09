@@ -23,17 +23,6 @@ export const CursorPagination: React.FC<CursorPaginationProps> = ({
 }) => {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      {onFirst && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onFirst}
-          disabled={isLoading || !hasPrev}
-        >
-          First
-        </Button>
-      )}
-
       <Button
         variant="outline"
         size="sm"

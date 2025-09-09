@@ -23,7 +23,7 @@ import { toast } from '@/hooks/use-toast'
 import { useDeleteTransactionRoute } from '@/client/transaction-routes'
 import { TransactionRoutesDto } from '@/core/application/dto/transaction-routes-dto'
 import { useTransactionRoutesCursor } from '@/hooks/use-transaction-routes-cursor'
-import { CursorPagination } from '@/components/cursor-pagination'
+import { PageCounter } from '@/components/page-counter'
 
 export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
@@ -62,7 +62,7 @@ export default function Page() {
       sortBy: 'createdAt'
     },
     limit: 10,
-    sortOrder: 'asc'
+    sortOrder: 'desc'
   })
 
   const transactionRoutesColumns = [
@@ -237,63 +237,12 @@ export default function Page() {
         {...sheetProps}
       />
 
-      {/* Cursor Pagination Controls */}
       <EntityBox.Root>
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-4">
-            {/* Search by ID */}
-            <div className="flex items-center gap-2">
-              <label className="text-muted-foreground text-sm">
-                Search ID:
-              </label>
-              <input
-                type="text"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                placeholder="Enter transaction route ID..."
-                className="w-64 rounded border px-3 py-1 text-sm"
-              />
-            </div>
-
-            {/* Sort Order */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            >
-              Sort: {sortOrder.toUpperCase()}
-            </Button>
-
-            {/* First Page */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={goToFirstPage}
-              disabled={!hasPrev}
-            >
-              First Page
-            </Button>
-          </div>
-
-          {/* Items per page */}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">
-              Items per page:
-            </span>
-            <select
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="rounded border px-2 py-1 text-sm"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
+        <PageCounter
+          limit={limit}
+          setLimit={setLimit}
+          limitValues={[5, 10, 20, 50]}
+        />
       </EntityBox.Root>
 
       {isTransactionRoutesLoading && <TransactionRoutesSkeleton />}
@@ -317,28 +266,10 @@ export default function Page() {
               hasNext,
               hasPrev,
               nextPage,
-              previousPage
+              previousPage,
+              goToFirstPage
             }}
           />
-
-          {/* Main Cursor Pagination */}
-          <div className="mt-6 flex justify-center">
-            <CursorPagination
-              hasNext={hasNext}
-              hasPrev={hasPrev}
-              onNext={nextPage}
-              onPrevious={previousPage}
-              onFirst={goToFirstPage}
-              isLoading={isTransactionRoutesLoading}
-            />
-          </div>
-
-          {/* Data Summary */}
-          {!isEmpty && (
-            <div className="text-muted-foreground mt-4 text-center text-sm">
-              Showing {transactionRoutes.length} transaction routes
-            </div>
-          )}
         </>
       )}
     </React.Fragment>

@@ -10,14 +10,8 @@ import { useIntl } from 'react-intl'
 import { AccountTypesSheet } from './account-types-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
-import {
-  useDeleteAccountType,
-  useListAccountTypes
-} from '@/client/account-types'
+import { useDeleteAccountType } from '@/client/account-types'
 import { EntityBox } from '@/components/entity-box'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
-import { Form } from '@/components/ui/form'
-import { useQueryParams } from '@/hooks/use-query-params'
 import { AccountTypesSkeleton } from './account-types-skeleton'
 import { AccountTypesDataTable } from './account-types-data-table'
 import {
@@ -28,11 +22,14 @@ import {
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { toast } from '@/hooks/use-toast'
+import { useAccountTypesCursor } from '@/hooks/use-account-types-cursor'
+import { PageCounter } from '@/components/page-counter'
 
 export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = useState<any[]>([])
+  const [searchId, setSearchId] = useState('')
 
   const {
     handleCreate,
@@ -42,23 +39,29 @@ export default function Page() {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(1000000)
-
-  const { form, searchValues, pagination } = useQueryParams({
-    total,
-    initialValues: {
-      id: ''
-    }
-  })
-
   const {
-    data: accountTypesData,
-    refetch: refetchAccountTypes,
-    isLoading: isAccountTypesLoading
-  } = useListAccountTypes({
+    accountTypes,
+    isLoading: isAccountTypesLoading,
+    isEmpty,
+    hasNext,
+    hasPrev,
+    nextPage,
+    previousPage,
+    goToFirstPage,
+    setSortOrder,
+    sortOrder,
+    setLimit,
+    limit,
+    refetch: refetchAccountTypes
+  } = useAccountTypesCursor({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    query: searchValues as any
+    searchParams: {
+      id: searchId || undefined,
+      sortBy: 'createdAt'
+    },
+    limit: 10,
+    sortOrder: 'desc'
   })
 
   const accountTypesColumns = [
@@ -100,7 +103,7 @@ export default function Page() {
   ]
 
   const table = useReactTable({
-    data: accountTypesData?.items ?? [],
+    data: accountTypes ?? [],
     columns: accountTypesColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -225,28 +228,41 @@ export default function Page() {
         {...sheetProps}
       />
 
-      <Form {...form}>
-        <EntityBox.Root>
-          <div className="flex w-full justify-end">
-            <PaginationLimitField control={form.control} />
-          </div>
-        </EntityBox.Root>
+      <EntityBox.Root>
+        <PageCounter
+          limit={limit}
+          setLimit={setLimit}
+          limitValues={[5, 10, 20, 50]}
+        />
+      </EntityBox.Root>
 
-        {isAccountTypesLoading && <AccountTypesSkeleton />}
+      {isAccountTypesLoading && <AccountTypesSkeleton />}
 
-        {!isAccountTypesLoading && accountTypesData && (
+      {!isAccountTypesLoading && (
+        <>
           <AccountTypesDataTable
-            accountTypes={accountTypesData}
+            accountTypes={{
+              items: accountTypes,
+              limit: limit,
+              nextCursor: undefined,
+              prevCursor: undefined
+            }}
             isLoading={isAccountTypesLoading}
             handleCreate={handleCreate}
             handleEdit={handleEditOriginal}
             onDelete={handleDialogOpen}
-            pagination={pagination}
             table={table}
-            total={total}
+            useCursorPagination={true}
+            cursorPaginationControls={{
+              hasNext,
+              hasPrev,
+              nextPage,
+              previousPage,
+              goToFirstPage
+            }}
           />
-        )}
-      </Form>
+        </>
+      )}
     </React.Fragment>
   )
 }

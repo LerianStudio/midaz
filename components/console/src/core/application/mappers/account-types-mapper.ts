@@ -1,10 +1,14 @@
-import { AccountTypesEntity } from '@/core/domain/entities/account-types-entity'
+import {
+  AccountTypesEntity,
+  AccountTypesSearchEntity
+} from '@/core/domain/entities/account-types-entity'
 import {
   AccountTypesDto,
+  AccountTypesSearchParamDto,
   CreateAccountTypesDto,
   UpdateAccountTypesDto
 } from '../dto/account-types-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
 
 export class AccountTypesMapper {
@@ -34,9 +38,26 @@ export class AccountTypesMapper {
     }
   }
 
-  static toPaginationResponseDto(
-    result: PaginationEntity<AccountTypesEntity>
-  ): PaginationEntity<AccountTypesDto> {
-    return PaginationMapper.toResponseDto(result, AccountTypesMapper.toDto)
+  static toSearchDomain(
+    dto: AccountTypesSearchParamDto
+  ): AccountTypesSearchEntity {
+    return {
+      limit: dto.limit,
+      cursor: dto.cursor,
+      sortOrder: dto.sortOrder,
+      sortBy: dto.sortBy,
+      id: dto.id,
+      name: dto.name,
+      keyValue: dto.keyValue
+    }
+  }
+
+  static toCursorPaginationResponseDto(
+    result: CursorPaginationEntity<AccountTypesEntity>
+  ): CursorPaginationEntity<AccountTypesDto> {
+    return PaginationMapper.toCursorResponseDto(
+      result,
+      AccountTypesMapper.toDto
+    )
   }
 }

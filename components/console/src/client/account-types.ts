@@ -4,9 +4,13 @@ import {
   CreateAccountTypesDto,
   UpdateAccountTypesDto
 } from '@/core/application/dto/account-types-dto'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  CursorPaginationDto,
+  PaginationDto
+} from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
+  getCursorPaginatedFetcher,
   getFetcher,
   getPaginatedFetcher,
   patchFetcher,
@@ -138,6 +142,51 @@ export const useDeleteAccountType = ({
     mutationFn: deleteFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types`
     ),
+    ...options
+  })
+}
+
+type UseListAccountTypesCursorProps = {
+  organizationId: string
+  ledgerId: string
+  cursor?: string
+  limit?: number
+  sortOrder?: 'asc' | 'desc'
+  sortBy?: 'id' | 'name' | 'createdAt' | 'updatedAt'
+  id?: string
+  enabled?: boolean
+}
+
+export const useListAccountTypesCursor = ({
+  organizationId,
+  ledgerId,
+  cursor,
+  limit,
+  sortOrder,
+  sortBy,
+  id,
+  enabled = true,
+  ...options
+}: UseListAccountTypesCursorProps) => {
+  const params: AccountTypesSearchParamDto = {
+    cursor,
+    limit,
+    sortOrder,
+    sortBy,
+    id
+  }
+
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, value]) => value !== undefined)
+  )
+
+  return useQuery<CursorPaginationDto<AccountTypesDto>>({
+    queryKey: [organizationId, ledgerId, 'account-types', cleanParams],
+    queryFn: getCursorPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/account-types`,
+      cleanParams
+    ),
+    enabled: !!organizationId && !!ledgerId && enabled,
     ...options
   })
 }
