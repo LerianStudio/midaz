@@ -1,5 +1,5 @@
 import { TransactionRoutesRepository } from '@/core/domain/repositories/transaction-routes-repository'
-import { PaginationDto } from '../../dto/pagination-dto'
+import { CursorPaginationDto } from '../../dto/pagination-dto'
 import { inject, injectable } from 'inversify'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 import { TransactionRoutesMapper } from '../../mappers/transaction-routes-mapper'
@@ -7,7 +7,7 @@ import {
   TransactionRoutesDto,
   type TransactionRoutesSearchParamDto
 } from '../../dto/transaction-routes-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { TransactionRoutesEntity } from '@/core/domain/entities/transaction-routes-entity'
 
 export interface FetchAllTransactionRoutesWithOperationRoutes {
@@ -15,7 +15,7 @@ export interface FetchAllTransactionRoutesWithOperationRoutes {
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchParamDto
-  ) => Promise<PaginationDto<TransactionRoutesDto>>
+  ) => Promise<CursorPaginationDto<TransactionRoutesDto>>
 }
 
 @injectable()
@@ -32,8 +32,8 @@ export class FetchAllTransactionRoutesWithOperationRoutesUseCase
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchParamDto
-  ): Promise<PaginationDto<TransactionRoutesDto>> {
-    const transactionRoutesResult: PaginationEntity<TransactionRoutesEntity> =
+  ): Promise<CursorPaginationDto<TransactionRoutesDto>> {
+    const transactionRoutesResult: CursorPaginationEntity<TransactionRoutesEntity> =
       await this.transactionRoutesRepository.fetchAll(
         organizationId,
         ledgerId,
@@ -62,11 +62,11 @@ export class FetchAllTransactionRoutesWithOperationRoutesUseCase
         })
       )
 
-    const enhancedResult: PaginationEntity<TransactionRoutesEntity> = {
+    const enhancedResult: CursorPaginationEntity<TransactionRoutesEntity> = {
       ...transactionRoutesResult,
       items: transactionRoutesWithDetailedOperationRoutes
     }
 
-    return TransactionRoutesMapper.toPaginationResponseDto(enhancedResult)
+    return TransactionRoutesMapper.toCursorPaginationResponseDto(enhancedResult)
   }
 }

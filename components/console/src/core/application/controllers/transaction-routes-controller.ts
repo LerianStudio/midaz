@@ -57,16 +57,29 @@ export class TransactionRoutesController extends BaseController {
   ) {
     const { searchParams } = new URL(request.url)
     const { id: organizationId, ledgerId } = await params
-    const limit = Number(searchParams.get('limit')) || 10
-    const page = Number(searchParams.get('page')) || 1
 
+    // Check if cursor-based pagination is requested
+    const cursor = searchParams.get('cursor')
+    const sortOrder = searchParams.get('sort_order') as 'asc' | 'desc'
+    const sortBy = searchParams.get('sort_by') as
+      | 'id'
+      | 'title'
+      | 'createdAt'
+      | 'updatedAt'
+    const id = searchParams.get('id')
+    const limit = Number(searchParams.get('limit')) || 10
+
+    // Always use cursor pagination - remove page-based pagination entirely
     const transactionRoutes =
       await this.fetchAllTransactionRoutesWithOperationRoutesUseCase.execute(
         organizationId,
         ledgerId,
         {
+          cursor: cursor || undefined,
           limit,
-          page
+          sortOrder: sortOrder || 'asc',
+          sortBy: sortBy || 'createdAt',
+          id: id || undefined
         }
       )
 

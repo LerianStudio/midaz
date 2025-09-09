@@ -1,5 +1,5 @@
-import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationDto } from '../../dto/pagination-dto'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { TransactionRoutesMapper } from '../../mappers/transaction-routes-mapper'
 import { TransactionRoutesEntity } from '@/core/domain/entities/transaction-routes-entity'
 import {
@@ -15,7 +15,7 @@ export interface FetchAllTransactionRoutes {
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchParamDto
-  ) => Promise<PaginationDto<TransactionRoutesDto>>
+  ) => Promise<CursorPaginationDto<TransactionRoutesDto>>
 }
 
 @injectable()
@@ -32,15 +32,18 @@ export class FetchAllTransactionRoutesUseCase
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchParamDto
-  ): Promise<PaginationDto<TransactionRoutesDto>> {
-    const transactionRoutesResult: PaginationEntity<TransactionRoutesEntity> =
+  ): Promise<CursorPaginationDto<TransactionRoutesDto>> {
+    // Map DTO to domain search entity
+    const searchEntity = TransactionRoutesMapper.toSearchDomain(query || {})
+
+    const transactionRoutesResult: CursorPaginationEntity<TransactionRoutesEntity> =
       await this.transactionRoutesRepository.fetchAll(
         organizationId,
         ledgerId,
-        query
+        searchEntity
       )
 
-    const result = TransactionRoutesMapper.toPaginationResponseDto(
+    const result = TransactionRoutesMapper.toCursorPaginationResponseDto(
       transactionRoutesResult
     )
 

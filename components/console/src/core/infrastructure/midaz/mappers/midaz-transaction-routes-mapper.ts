@@ -4,8 +4,14 @@ import {
   MidazCreateTransactionRoutesDto,
   MidazUpdateTransactionRoutesDto
 } from '../dto/midaz-transaction-routes-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import {
+  MidazPaginationDto,
+  MidazCursorPaginationDto
+} from '../dto/midaz-pagination-dto'
+import {
+  PaginationEntity,
+  CursorPaginationEntity
+} from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
 import { MidazOperationRoutesMapper } from './midaz-operation-routes-mapper'
 
@@ -53,10 +59,21 @@ export class MidazTransactionRoutesMapper {
     }
   }
 
+  // Legacy pagination mapping (deprecated - use cursor pagination)
   public static toPaginationEntity(
     result: MidazPaginationDto<MidazTransactionRoutesDto>
   ): PaginationEntity<TransactionRoutesEntity> {
     return MidazPaginationMapper.toResponseDto(
+      result,
+      MidazTransactionRoutesMapper.toEntity
+    )
+  }
+
+  // New cursor pagination mapping (preferred)
+  public static toCursorPaginationEntity(
+    result: MidazCursorPaginationDto<MidazTransactionRoutesDto>
+  ): CursorPaginationEntity<TransactionRoutesEntity> {
+    return MidazPaginationMapper.toCursorResponseDto(
       result,
       MidazTransactionRoutesMapper.toEntity
     )

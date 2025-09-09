@@ -10,9 +10,6 @@ import { useIntl } from 'react-intl'
 import { TransactionRoutesSheet } from './transaction-routes-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { EntityBox } from '@/components/entity-box'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
-import { Form } from '@/components/ui/form'
-import { useQueryParams } from '@/hooks/use-query-params'
 import { TransactionRoutesSkeleton } from './transaction-routes-skeleton'
 import { TransactionRoutesDataTable } from './transaction-routes-data-table'
 import {
@@ -25,12 +22,14 @@ import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-d
 import { toast } from '@/hooks/use-toast'
 import { useDeleteTransactionRoute } from '@/client/transaction-routes'
 import { TransactionRoutesDto } from '@/core/application/dto/transaction-routes-dto'
-import { useListTransactionRoutesWithOperationRoutes } from '@/client/transaction-operation-routes'
+import { useTransactionRoutesCursor } from '@/hooks/use-transaction-routes-cursor'
+import { CursorPagination } from '@/components/cursor-pagination'
 
 export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = useState<any[]>([])
+  const [searchId, setSearchId] = useState('')
 
   const {
     handleCreate,
@@ -40,23 +39,30 @@ export default function Page() {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(1000000)
-
-  const { form, searchValues, pagination } = useQueryParams({
-    total,
-    initialValues: {
-      id: ''
-    }
-  })
-
+  // Cursor pagination for transaction routes
   const {
-    data: transactionRoutesData,
-    refetch: refetchTransactionRoutes,
-    isLoading: isTransactionRoutesLoading
-  } = useListTransactionRoutesWithOperationRoutes({
+    transactionRoutes,
+    isLoading: isTransactionRoutesLoading,
+    isEmpty,
+    hasNext,
+    hasPrev,
+    nextPage,
+    previousPage,
+    goToFirstPage,
+    setSortOrder,
+    sortOrder,
+    setLimit,
+    limit,
+    refetch: refetchTransactionRoutes
+  } = useTransactionRoutesCursor({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    query: searchValues as any
+    searchParams: {
+      id: searchId || undefined,
+      sortBy: 'createdAt'
+    },
+    limit: 10,
+    sortOrder: 'asc'
   })
 
   const transactionRoutesColumns = [
@@ -103,7 +109,7 @@ export default function Page() {
   ]
 
   const table = useReactTable({
-    data: transactionRoutesData?.items ?? [],
+    data: transactionRoutes,
     columns: transactionRoutesColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -231,28 +237,110 @@ export default function Page() {
         {...sheetProps}
       />
 
-      <Form {...form}>
-        <EntityBox.Root>
-          <div className="flex w-full justify-end">
-            <PaginationLimitField control={form.control} />
+      {/* Cursor Pagination Controls */}
+      <EntityBox.Root>
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-4">
+            {/* Search by ID */}
+            <div className="flex items-center gap-2">
+              <label className="text-muted-foreground text-sm">
+                Search ID:
+              </label>
+              <input
+                type="text"
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                placeholder="Enter transaction route ID..."
+                className="w-64 rounded border px-3 py-1 text-sm"
+              />
+            </div>
+
+            {/* Sort Order */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            >
+              Sort: {sortOrder.toUpperCase()}
+            </Button>
+
+            {/* First Page */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={goToFirstPage}
+              disabled={!hasPrev}
+            >
+              First Page
+            </Button>
           </div>
-        </EntityBox.Root>
 
-        {isTransactionRoutesLoading && <TransactionRoutesSkeleton />}
+          {/* Items per page */}
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground text-sm">
+              Items per page:
+            </span>
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+              className="rounded border px-2 py-1 text-sm"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+      </EntityBox.Root>
 
-        {!isTransactionRoutesLoading && transactionRoutesData && (
+      {isTransactionRoutesLoading && <TransactionRoutesSkeleton />}
+
+      {!isTransactionRoutesLoading && (
+        <>
           <TransactionRoutesDataTable
-            transactionRoutes={transactionRoutesData}
+            transactionRoutes={{
+              items: transactionRoutes,
+              limit: limit,
+              nextCursor: undefined, // Not needed for display
+              prevCursor: undefined // Not needed for display
+            }}
             isLoading={isTransactionRoutesLoading}
             handleCreate={handleCreate}
             handleEdit={handleEditOriginal}
             onDelete={handleDialogOpen}
-            pagination={pagination}
             table={table}
-            total={total}
+            useCursorPagination={true}
+            cursorPaginationControls={{
+              hasNext,
+              hasPrev,
+              nextPage,
+              previousPage
+            }}
           />
-        )}
-      </Form>
+
+          {/* Main Cursor Pagination */}
+          <div className="mt-6 flex justify-center">
+            <CursorPagination
+              hasNext={hasNext}
+              hasPrev={hasPrev}
+              onNext={nextPage}
+              onPrevious={previousPage}
+              onFirst={goToFirstPage}
+              isLoading={isTransactionRoutesLoading}
+            />
+          </div>
+
+          {/* Data Summary */}
+          {!isEmpty && (
+            <div className="text-muted-foreground mt-4 text-center text-sm">
+              Showing {transactionRoutes.length} transaction routes
+            </div>
+          )}
+        </>
+      )}
     </React.Fragment>
   )
 }
