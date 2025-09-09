@@ -13,6 +13,17 @@ Contributors: Augusto Alvarenga
 - Updated Next.js dependencies to the latest versions, ensuring compatibility with the newest features and security enhancements. This update contributes to the application's stability and security.
 - Refined build and configuration settings to align with updated dependencies. These adjustments streamline the development process, reducing potential errors and improving efficiency.
 
+## [v3.3.0-beta.9] - 2025-09-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.8...v3.3.0-beta.9)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### ✨ Features
+- **Dynamic Menu System**: Experience greater flexibility with our newly introduced dynamic menu configuration and controller. This enhancement allows you to customize your navigation experience, making it more intuitive and tailored to your needs across the backend, config, database, and frontend components.
+
+### 🔧 Maintenance
+- **General System Updates**: We've performed routine maintenance, including merging the latest developments from the 'develop' branch and updating documentation. These updates ensure your system remains stable and incorporates the latest enhancements for a seamless user experience.
+
 
 ## [v3.3.0-beta.8] - 2025-09-02
 
