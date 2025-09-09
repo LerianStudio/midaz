@@ -68,6 +68,27 @@ export class MidazAccountTypesRepository implements AccountTypesRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/account-types?${queryParams}`
     )
 
+    // Debug logging to compare with operation-routes
+    console.log(
+      'DEBUG - Account Types API Response:',
+      JSON.stringify(
+        {
+          url: `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/account-types?${queryParams}`,
+          response_keys: Object.keys(response),
+          response_sample: {
+            items_length: response.items?.length,
+            limit: response.limit,
+            next_cursor: response.next_cursor,
+            prev_cursor: response.prev_cursor,
+            has_next_cursor: !!response.next_cursor,
+            has_prev_cursor: !!response.prev_cursor
+          }
+        },
+        null,
+        2
+      )
+    )
+
     return MidazAccountTypesMapper.toCursorPaginationEntity(response)
   }
 

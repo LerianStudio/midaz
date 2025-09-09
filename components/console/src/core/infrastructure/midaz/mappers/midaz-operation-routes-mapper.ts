@@ -4,8 +4,14 @@ import {
   MidazCreateOperationRoutesDto,
   MidazUpdateOperationRoutesDto
 } from '../dto/midaz-operation-routes-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import {
+  MidazCursorPaginationDto,
+  MidazPaginationDto
+} from '../dto/midaz-pagination-dto'
+import {
+  CursorPaginationEntity,
+  PaginationEntity
+} from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
 
 export class MidazOperationRoutesMapper {
@@ -47,6 +53,15 @@ export class MidazOperationRoutesMapper {
       updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : undefined,
       deletedAt: dto.deletedAt ? new Date(dto.deletedAt) : undefined
     }
+  }
+
+  public static toCursorPaginationEntity(
+    result: MidazCursorPaginationDto<MidazOperationRoutesDto>
+  ): CursorPaginationEntity<OperationRoutesEntity> {
+    return MidazPaginationMapper.toCursorResponseDto(
+      result,
+      MidazOperationRoutesMapper.toEntity
+    )
   }
 
   public static toPaginationEntity(

@@ -10,9 +10,7 @@ import { useIntl } from 'react-intl'
 import { OperationRoutesSheet } from './operation-routes-sheet'
 import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet'
 import { EntityBox } from '@/components/entity-box'
-import { PaginationLimitField } from '@/components/form/pagination-limit-field'
-import { Form } from '@/components/ui/form'
-import { useQueryParams } from '@/hooks/use-query-params'
+import { PageCounter } from '@/components/page-counter'
 import { OperationRoutesSkeleton } from './operation-routes-skeleton'
 import { OperationRoutesDataTable } from './operation-routes-data-table'
 import {
@@ -23,10 +21,8 @@ import {
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { toast } from '@/hooks/use-toast'
-import {
-  useDeleteOperationRoute,
-  useListOperationRoutes
-} from '@/client/operation-routes'
+import { useDeleteOperationRoute } from '@/client/operation-routes'
+import { useOperationRoutesCursor } from '@/hooks/use-operation-routes-cursor'
 import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
 export default function Page() {
@@ -42,23 +38,32 @@ export default function Page() {
     enableRouting: true
   })
 
-  const [total, setTotal] = useState(1000000)
+  const [searchId, setSearchId] = useState('')
 
-  const { form, searchValues, pagination } = useQueryParams({
-    total,
-    initialValues: {
-      id: ''
-    }
-  })
-
+  // Cursor pagination for operation routes
   const {
-    data: operationRoutesData,
-    refetch: refetchOperationRoutes,
-    isLoading: isOperationRoutesLoading
-  } = useListOperationRoutes({
+    operationRoutes,
+    isLoading: isOperationRoutesLoading,
+    isEmpty,
+    hasNext,
+    hasPrev,
+    nextPage,
+    previousPage,
+    goToFirstPage,
+    setSortOrder,
+    sortOrder,
+    setLimit,
+    limit,
+    refetch: refetchOperationRoutes
+  } = useOperationRoutesCursor({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    query: searchValues as any
+    searchParams: {
+      id: searchId || undefined,
+      sortBy: 'createdAt'
+    },
+    limit: 10,
+    sortOrder: 'desc'
   })
 
   const operationRoutesColumns = [
@@ -115,7 +120,7 @@ export default function Page() {
   ]
 
   const table = useReactTable({
-    data: operationRoutesData?.items ?? [],
+    data: operationRoutes,
     columns: operationRoutesColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -243,28 +248,41 @@ export default function Page() {
         {...sheetProps}
       />
 
-      <Form {...form}>
-        <EntityBox.Root>
-          <div className="flex w-full justify-end">
-            <PaginationLimitField control={form.control} />
-          </div>
-        </EntityBox.Root>
+      <EntityBox.Root>
+        <PageCounter
+          limit={limit}
+          setLimit={setLimit}
+          limitValues={[5, 10, 20, 50]}
+        />
+      </EntityBox.Root>
 
-        {isOperationRoutesLoading && <OperationRoutesSkeleton />}
+      {isOperationRoutesLoading && <OperationRoutesSkeleton />}
 
-        {!isOperationRoutesLoading && operationRoutesData && (
+      {!isOperationRoutesLoading && (
+        <>
           <OperationRoutesDataTable
-            operationRoutes={operationRoutesData}
+            operationRoutes={{
+              items: operationRoutes,
+              limit: limit,
+              nextCursor: undefined, // Not needed for display
+              prevCursor: undefined // Not needed for display
+            }}
             isLoading={isOperationRoutesLoading}
             handleCreate={handleCreate}
             handleEdit={handleEditOriginal}
             onDelete={handleDialogOpen}
-            pagination={pagination}
             table={table}
-            total={total}
+            useCursorPagination={true}
+            cursorPaginationControls={{
+              hasNext,
+              hasPrev,
+              nextPage,
+              previousPage,
+              goToFirstPage
+            }}
           />
-        )}
-      </Form>
+        </>
+      )}
     </React.Fragment>
   )
 }

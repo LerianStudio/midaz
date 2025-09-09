@@ -4,11 +4,15 @@ import {
   CreateOperationRoutesDto,
   UpdateOperationRoutesDto
 } from '@/core/application/dto/operation-routes-dto'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PaginationDto,
+  CursorPaginationDto
+} from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
   getFetcher,
   getPaginatedFetcher,
+  getCursorPaginatedFetcher,
   patchFetcher,
   postFetcher
 } from '@/lib/fetcher'
@@ -136,6 +140,60 @@ export const useDeleteOperationRoute = ({
     mutationFn: deleteFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes`
     ),
+    ...options
+  })
+}
+
+type UseListOperationRoutesCursorProps = {
+  organizationId: string
+  ledgerId: string
+  cursor?: string
+  limit?: number
+  sortOrder?: 'asc' | 'desc'
+  sortBy?: 'id' | 'title' | 'createdAt' | 'updatedAt'
+  id?: string
+  title?: string
+  enabled?: boolean
+}
+
+export const useListOperationRoutesCursor = ({
+  organizationId,
+  ledgerId,
+  cursor,
+  limit = 10,
+  sortOrder = 'desc',
+  sortBy = 'createdAt',
+  id,
+  title,
+  enabled = true,
+  ...options
+}: UseListOperationRoutesCursorProps) => {
+  const params: OperationRoutesSearchParamDto = {
+    cursor,
+    limit,
+    sortOrder,
+    sortBy,
+    id,
+    title
+  }
+
+  // Filter out undefined values
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, value]) => value !== undefined)
+  )
+
+  return useQuery<CursorPaginationDto<OperationRoutesDto>>({
+    queryKey: [
+      organizationId,
+      ledgerId,
+      'operation-routes-cursor',
+      cleanParams
+    ],
+    queryFn: getCursorPaginatedFetcher(
+      `/api/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes`,
+      cleanParams
+    ),
+    enabled: !!organizationId && !!ledgerId && enabled,
     ...options
   })
 }

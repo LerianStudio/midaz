@@ -159,9 +159,11 @@ export const TransactionRoutesSheet = ({
       }
     })
 
-
   const handleSubmit = (data: FormData) => {
-    const cleanedData = omitBy(data, (value) => value === '' || isNil(value)) as FormData
+    const cleanedData = omitBy(
+      data,
+      (value) => value === '' || isNil(value)
+    ) as FormData
 
     if (
       cleanedData.metadata &&

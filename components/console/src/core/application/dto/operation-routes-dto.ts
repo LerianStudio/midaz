@@ -1,5 +1,5 @@
 import { MetadataDto } from './metadata-dto'
-import { SearchParamDto } from './request-dto'
+import { CursorSearchParamDto } from './request-dto'
 
 export type CreateOperationRoutesDto = {
   title: string
@@ -31,6 +31,8 @@ export type OperationRoutesDto = {
   deletedAt?: string
 }
 
-export type OperationRoutesSearchParamDto = SearchParamDto & {
+export type OperationRoutesSearchParamDto = CursorSearchParamDto & {
   id?: string
+  title?: string
+  sortBy?: 'id' | 'title' | 'createdAt' | 'updatedAt'
 }

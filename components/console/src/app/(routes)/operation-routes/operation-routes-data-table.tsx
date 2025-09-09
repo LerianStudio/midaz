@@ -21,7 +21,11 @@ import {
 import { isNil, truncate } from 'lodash'
 import { EntityDataTable } from '@/components/entity-data-table'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PaginationDto,
+  CursorPaginationDto
+} from '@/core/application/dto/pagination-dto'
+import { CursorPagination } from '@/components/cursor-pagination'
 import { MetadataTableCell } from '@/components/table/metadata-table-cell'
 import {
   getCoreRowModel,
@@ -38,10 +42,21 @@ import {
 import { HelpCircle } from 'lucide-react'
 import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 
+type CursorPaginationControls = {
+  hasNext: boolean
+  hasPrev: boolean
+  nextPage: () => void
+  previousPage: () => void
+  goToFirstPage: () => void
+}
+
 type OperationRoutesDataTableProps = {
-  operationRoutes: PaginationDto<OperationRoutesDto> | undefined
-  total: number
-  pagination: PaginationProps
+  operationRoutes:
+    | PaginationDto<OperationRoutesDto>
+    | CursorPaginationDto<OperationRoutesDto>
+    | undefined
+  total?: number
+  pagination?: PaginationProps
   handleCreate: () => void
   handleEdit: (operationRoute: OperationRoutesDto) => void
   isLoading: boolean
@@ -51,6 +66,8 @@ type OperationRoutesDataTableProps = {
     }
   }
   onDelete: (id: string, operationRoute: OperationRoutesDto) => void
+  useCursorPagination?: boolean
+  cursorPaginationControls?: CursorPaginationControls
 }
 
 type OperationRoutesRowProps = {
@@ -182,7 +199,9 @@ export const OperationRoutesDataTable: React.FC<
   pagination,
   onDelete,
   handleCreate,
-  handleEdit
+  handleEdit,
+  useCursorPagination = false,
+  cursorPaginationControls
 }) => {
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
@@ -326,14 +345,28 @@ export const OperationRoutesDataTable: React.FC<
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination
-            total={total}
-            hasNextPage={
-              operationRoutes &&
-              operationRoutes?.items?.length < pagination.limit
-            }
-            {...pagination}
-          />
+
+          {useCursorPagination && cursorPaginationControls ? (
+            <CursorPagination
+              hasNext={cursorPaginationControls.hasNext}
+              hasPrev={cursorPaginationControls.hasPrev}
+              onNext={cursorPaginationControls.nextPage}
+              onPrevious={cursorPaginationControls.previousPage}
+              onFirst={cursorPaginationControls.goToFirstPage}
+            />
+          ) : (
+            pagination &&
+            total !== undefined && (
+              <Pagination
+                total={total}
+                hasNextPage={
+                  operationRoutes &&
+                  operationRoutes?.items?.length < pagination.limit
+                }
+                {...pagination}
+              />
+            )
+          )}
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

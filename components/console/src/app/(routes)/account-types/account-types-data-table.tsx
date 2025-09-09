@@ -273,28 +273,27 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
               }
             )}
           </EntityDataTable.FooterText>
-        
 
-        {useCursorPagination && cursorPaginationControls ? (
-          <CursorPagination
-            hasNext={cursorPaginationControls.hasNext}
-            hasPrev={cursorPaginationControls.hasPrev}
-            onNext={cursorPaginationControls.nextPage}
-            onPrevious={cursorPaginationControls.previousPage}
-            onFirst={cursorPaginationControls.goToFirstPage}
-          />
-        ) : (
-          pagination &&
-          total !== undefined && (
-            <Pagination
-              total={total}
-              hasNextPage={
-                accountTypes && accountTypes?.items.length < pagination.limit
-              }
-              {...pagination}
+          {useCursorPagination && cursorPaginationControls ? (
+            <CursorPagination
+              hasNext={cursorPaginationControls.hasNext}
+              hasPrev={cursorPaginationControls.hasPrev}
+              onNext={cursorPaginationControls.nextPage}
+              onPrevious={cursorPaginationControls.previousPage}
+              onFirst={cursorPaginationControls.goToFirstPage}
             />
-          )
-        )}
+          ) : (
+            pagination &&
+            total !== undefined && (
+              <Pagination
+                total={total}
+                hasNextPage={
+                  accountTypes && accountTypes?.items.length < pagination.limit
+                }
+                {...pagination}
+              />
+            )
+          )}
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

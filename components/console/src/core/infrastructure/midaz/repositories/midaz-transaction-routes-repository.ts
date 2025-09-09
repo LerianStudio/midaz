@@ -65,7 +65,7 @@ export class MidazTransactionRoutesRepository
     const response = await this.httpService.get<
       MidazCursorPaginationDto<MidazTransactionRoutesDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes${queryParams}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes?${queryParams}`
     )
 
     return MidazTransactionRoutesMapper.toCursorPaginationEntity({
