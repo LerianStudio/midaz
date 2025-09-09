@@ -63,27 +63,6 @@ export class MidazTransactionRepository implements TransactionRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?${queryParams}`
     )
 
-    // Debug logging to identify cursor pagination issue
-    console.log(
-      'DEBUG - Transactions API Response:',
-      JSON.stringify(
-        {
-          url: `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions?${queryParams}`,
-          response_keys: Object.keys(response),
-          response_sample: {
-            items_length: response.items?.length,
-            limit: response.limit,
-            next_cursor: response.next_cursor,
-            prev_cursor: response.prev_cursor,
-            has_next_cursor: !!response.next_cursor,
-            has_prev_cursor: !!response.prev_cursor
-          }
-        },
-        null,
-        2
-      )
-    )
-
     return MidazTransactionMapper.toCursorPaginationEntity({
       ...response,
       items: response.items

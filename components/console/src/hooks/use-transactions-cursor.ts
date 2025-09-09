@@ -9,10 +9,7 @@ import { useListTransactionsCursor } from '@/client/transactions'
 export type UseTransactionsCursorProps = {
   organizationId: string
   ledgerId: string
-  searchParams?: Omit<
-    TransactionSearchDto,
-    'limit' | 'cursor' | 'sortOrder'
-  >
+  searchParams?: Omit<TransactionSearchDto, 'limit' | 'cursor' | 'sortOrder'>
   enabled?: boolean
 } & UseCursorPaginationProps
 

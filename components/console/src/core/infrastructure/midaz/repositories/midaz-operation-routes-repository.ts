@@ -68,27 +68,6 @@ export class MidazOperationRoutesRepository
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes?${queryParams}`
     )
 
-    // Debug logging to identify cursor pagination issue
-    console.log(
-      'DEBUG - Operation Routes API Response:',
-      JSON.stringify(
-        {
-          url: `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes?${queryParams}`,
-          response_keys: Object.keys(response),
-          response_sample: {
-            items_length: response.items?.length,
-            limit: response.limit,
-            next_cursor: response.next_cursor,
-            prev_cursor: response.prev_cursor,
-            has_next_cursor: !!response.next_cursor,
-            has_prev_cursor: !!response.prev_cursor
-          }
-        },
-        null,
-        2
-      )
-    )
-
     return MidazOperationRoutesMapper.toCursorPaginationEntity({
       ...response,
       items: response.items

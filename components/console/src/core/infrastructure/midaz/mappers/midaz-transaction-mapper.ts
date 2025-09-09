@@ -85,18 +85,7 @@ export class MidazTransactionMapper {
         operations?.filter((operation) => operation.type === type) ?? []
       const operationsMap = new Map<string, (typeof filteredOperations)[0]>()
 
-      const isFee = (operationItem: any) =>
-        operationItem.description?.toLowerCase().includes('fee') ||
-        operationItem.chartOfAccounts?.toLowerCase().includes('fee')
-
       filteredOperations.forEach((operation) => {
-        if (isFee(operation)) {
-          operationsMap.set(`${operation.accountAlias}-${Math.random()}`, {
-            ...operation
-          })
-          return
-        }
-
         const accountKey = operation.accountAlias
         if (!operationsMap.has(accountKey)) {
           operationsMap.set(accountKey, { ...operation })

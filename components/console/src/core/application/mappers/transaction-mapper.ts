@@ -1,15 +1,14 @@
-import { 
-  TransactionEntity, 
-  TransactionSearchEntity 
+import {
+  TransactionEntity,
+  TransactionSearchEntity
 } from '@/core/domain/entities/transaction-entity'
-import { 
-  CreateTransactionDto, 
-  TransactionDto, 
-  TransactionSearchDto 
+import {
+  CreateTransactionDto,
+  TransactionDto,
+  TransactionSearchDto
 } from '../dto/transaction-dto'
 import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
-import { CursorPaginationDto } from '../dto/pagination-dto'
 
 export class TransactionMapper {
   static toDomain(transaction: CreateTransactionDto): TransactionEntity {

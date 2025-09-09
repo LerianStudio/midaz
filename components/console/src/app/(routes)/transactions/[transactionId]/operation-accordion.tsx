@@ -26,7 +26,7 @@ const Value = ({
 )
 
 export type OperationAccordionProps = {
-  type?: 'debit' | 'credit' | 'fee'
+  type?: 'debit' | 'credit'
   operation: TransactionOperationDto
 }
 
@@ -45,7 +45,6 @@ export const OperationAccordion = ({
           {type === 'credit' && (
             <ArrowRight className="my-1 mr-4 text-green-500" />
           )}
-          {type === 'fee' && <ArrowRight className="my-1 mr-4 text-blue-800" />}
 
           <div className="flex grow flex-col">
             <p className="text-lg font-medium text-neutral-600">
@@ -54,15 +53,10 @@ export const OperationAccordion = ({
                     id: 'common.debit',
                     defaultMessage: 'Debit'
                   })
-                : type === 'credit'
-                  ? intl.formatMessage({
-                      id: 'common.credit',
-                      defaultMessage: 'Credit'
-                    })
-                  : intl.formatMessage({
-                      id: 'common.fee',
-                      defaultMessage: 'Fee'
-                    })}
+                : intl.formatMessage({
+                    id: 'common.credit',
+                    defaultMessage: 'Credit'
+                  })}
             </p>
             <p className="text-shadcn-400 text-xs">{operation.accountAlias}</p>
           </div>
@@ -70,13 +64,11 @@ export const OperationAccordion = ({
             <div className="flex flex-row items-center gap-4">
               {type === 'debit' && <MinusCircle className="text-red-500" />}
               {type === 'credit' && <PlusCircle className="text-green-500" />}
-              {type === 'fee' && <PlusCircle className="text-blue-800" />}
 
               <p
                 className={cn('text-sm', {
                   'text-red-500': type === 'debit',
-                  'text-green-500': type === 'credit',
-                  'text-blue-800': type === 'fee'
+                  'text-green-500': type === 'credit'
                 })}
               >
                 {formatNumber(operation.amount)}

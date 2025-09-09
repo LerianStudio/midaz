@@ -6,14 +6,6 @@ import {
 import { useIntl } from 'react-intl'
 import { ArrowRight, GitBranch, AlertCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@/components/ui/tooltip'
 
 interface TransactionFlowDisplayProps {
   displayData: TransactionDisplayData
@@ -101,50 +93,6 @@ function SimpleTransactionFlow({
           </div>
         </div>
       </div>
-
-      {/* Fees */}
-      {flow.feeOperations.length > 0 && showDetails && (
-        <>
-          <Separator className="my-4" />
-          <div className="space-y-2">
-            <div className="text-muted-foreground text-sm font-medium">
-              {intl.formatMessage({
-                id: 'transactions.fees',
-                defaultMessage: 'Fees'
-              })}
-            </div>
-            {flow.feeOperations.map((feeOp) => (
-              <div
-                key={feeOp.operationId}
-                className="flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{feeOp.accountAlias}</span>
-                  <Badge
-                    variant={
-                      feeOp.feeType === 'deductible' ? 'secondary' : 'outline'
-                    }
-                    className="text-xs"
-                  >
-                    {feeOp.feeType === 'deductible'
-                      ? intl.formatMessage({
-                          id: 'fees.deductible',
-                          defaultMessage: 'Deductible'
-                        })
-                      : intl.formatMessage({
-                          id: 'fees.nonDeductible',
-                          defaultMessage: 'Non-deductible'
-                        })}
-                  </Badge>
-                </div>
-                <span className="text-sm font-medium text-blue-600">
-                  +{asset} {feeOp.amount}
-                </span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </Card>
   )
 }
@@ -176,7 +124,7 @@ function ComplexTransactionFlow({
           </h3>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center">
           <div>
             <div className="text-muted-foreground text-sm">
               {intl.formatMessage({
@@ -197,17 +145,6 @@ function ComplexTransactionFlow({
             </div>
             <div className="text-xl font-bold text-green-600">
               +{displayData.asset} {displayData.summary.totalDestinationAmount}
-            </div>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-sm">
-              {intl.formatMessage({
-                id: 'transactions.fees.total',
-                defaultMessage: 'Total Fees'
-              })}
-            </div>
-            <div className="text-xl font-bold text-blue-600">
-              +{displayData.asset} {displayData.summary.totalFeeAmount}
             </div>
           </div>
         </div>
@@ -258,7 +195,7 @@ function ComplexTransactionFlow({
                 <ArrowRight className="text-muted-foreground h-5 w-5" />
               </div>
 
-              {/* Destinations and Fees */}
+              {/* Destinations */}
               <div className="space-y-3">
                 {/* Main destinations */}
                 <div className="space-y-2">
@@ -274,59 +211,6 @@ function ComplexTransactionFlow({
                     </div>
                   ))}
                 </div>
-
-                {/* Fees for this flow */}
-                {flow.feeOperations.length > 0 && (
-                  <div className="space-y-2 border-t pt-2">
-                    <div className="text-muted-foreground text-xs">
-                      {intl.formatMessage({
-                        id: 'transactions.fees',
-                        defaultMessage: 'Fees'
-                      })}
-                    </div>
-                    {flow.feeOperations.map((feeOp) => (
-                      <div
-                        key={feeOp.operationId}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{feeOp.accountAlias}</span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Badge
-                                  variant={
-                                    feeOp.feeType === 'deductible'
-                                      ? 'secondary'
-                                      : 'outline'
-                                  }
-                                  className="text-xs"
-                                >
-                                  {feeOp.feeType === 'deductible' ? 'D' : 'ND'}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {feeOp.feeType === 'deductible'
-                                  ? intl.formatMessage({
-                                      id: 'fees.deductible.tooltip',
-                                      defaultMessage:
-                                        'Deducted from recipient amount'
-                                    })
-                                  : intl.formatMessage({
-                                      id: 'fees.nonDeductible.tooltip',
-                                      defaultMessage: 'Added to sender amount'
-                                    })}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <span className="text-sm font-medium text-blue-600">
-                          +{displayData.asset} {feeOp.amount}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </Card>
@@ -341,7 +225,7 @@ function ComplexTransactionFlow({
               defaultMessage: 'Transaction Participants'
             })}
           </h4>
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="text-muted-foreground mb-1">
                 {intl.formatMessage(
@@ -376,22 +260,6 @@ function ComplexTransactionFlow({
                     <div key={account}>{account}</div>
                   )
                 )}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted-foreground mb-1">
-                {intl.formatMessage(
-                  {
-                    id: 'transactions.feeRecipients',
-                    defaultMessage: 'Fee Recipients ({count})'
-                  },
-                  { count: displayData.summary.uniqueFeeAccounts.length }
-                )}
-              </div>
-              <div className="space-y-1">
-                {displayData.summary.uniqueFeeAccounts.map((account) => (
-                  <div key={account}>{account}</div>
-                ))}
               </div>
             </div>
           </div>

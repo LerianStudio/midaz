@@ -30,7 +30,6 @@ import { TransactionOperationDto } from '@/core/application/dto/transaction-dto'
 import { TransactionDataTab } from './transaction-data-tab'
 import { truncate } from 'lodash'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
-import { FeeBreakdown } from '@/components/transactions/fee-breakdown'
 
 export const TRANSACTION_DETAILS_TAB_VALUES = {
   SUMMARY: 'summary',
@@ -63,20 +62,6 @@ export default function TransactionDetailsPage() {
   if (!transaction || isLoading) {
     return <SkeletonTransactionDialog />
   }
-
-  // Use simplified fee detection logic focusing only on explicit fee markers
-  const isFeeOperation = (operation: TransactionOperationDto) => {
-    const description = (operation.description ?? '').toLowerCase()
-    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
-
-    // Check for fee markers (case insensitive)
-    return description.includes('fee') || chartOfAccounts.includes('fee')
-  }
-
-  // Filter destinations to exclude fee operations
-  const nonFeeDestinations = transaction.destination.filter(
-    (destination) => !isFeeOperation(destination)
-  )
 
   const displayAmount = Number(transaction.amount)
   const finalAmount = displayAmount
@@ -172,9 +157,9 @@ export default function TransactionDetailsPage() {
                 sources={transaction.source.map((s) => s.accountAlias!)!}
                 destinations={[
                   ...new Set(
-                    transaction.destination
-                      .filter((dest) => !isFeeOperation(dest))
-                      .map((destination) => destination.accountAlias!)
+                    transaction.destination.map(
+                      (destination) => destination.accountAlias!
+                    )
                   )
                 ]}
               />
@@ -210,7 +195,7 @@ export default function TransactionDetailsPage() {
                 })}
                 value={
                   <div className="flex flex-col">
-                    {nonFeeDestinations?.map(
+                    {transaction.destination?.map(
                       (destination: TransactionOperationDto, index: number) => (
                         <p key={index} className="underline">
                           {destination.accountAlias}
@@ -241,7 +226,6 @@ export default function TransactionDetailsPage() {
               )}
               {transaction.destination?.map(
                 (operation: TransactionOperationDto, index: number) => {
-                  // Show all credit operations including fees
                   const displayValue = operation.amount
 
                   return (
@@ -279,15 +263,6 @@ export default function TransactionDetailsPage() {
                     number: Object.keys(transaction.metadata ?? {}).length
                   }
                 )}
-              />
-
-              <FeeBreakdown
-                transaction={transaction}
-                originalAmount={
-                  transaction.metadata?.originalTransactionAmount
-                    ? Number(transaction.metadata.originalTransactionAmount)
-                    : Number(transaction.amount)
-                }
               />
             </TransactionReceipt>
 
