@@ -54,7 +54,7 @@ const Page = () => {
     isLoading: isAccountsLoading
   } = useAccountsWithPortfolios({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
+    ledgerId: currentLedger.id
   })
 
   const accountsList: AccountDto[] = useMemo(() => {

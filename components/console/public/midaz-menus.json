@@ -76,6 +76,33 @@
           "icon": "ArrowLeftRight",
           "hasLedgerDependencies": true,
           "order": 5
+        },
+        {
+          "name": "transaction-routes",
+          "title": "Transaction Routes",
+          "titleKey": "sidebar.ledger.transaction-routes.title",
+          "route": "/transaction-routes",
+          "icon": "Route",
+          "hasLedgerDependencies": true,
+          "order": 6
+        },
+        {
+          "name": "operation-routes",
+          "title": "Operation Routes",
+          "titleKey": "sidebar.ledger.operation-routes.title",
+          "route": "/operation-routes",
+          "icon": "Workflow",
+          "hasLedgerDependencies": true,
+          "order": 7
+        },
+        {
+          "name": "account-types",
+          "title": "Account Types",
+          "titleKey": "sidebar.ledger.account-types.title",
+          "route": "/account-types",
+          "icon": "Layers",
+          "hasLedgerDependencies": true,
+          "order": 8
         }
       ]
     }
