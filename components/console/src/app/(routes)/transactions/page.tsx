@@ -24,29 +24,22 @@ export default function TransactionsPage() {
   const router = useRouter()
   const { currentOrganization, currentLedger } = useOrganization()
   const [open, setOpen] = useState(false)
-  const [searchId, setSearchId] = useState('')
   const { setMode } = useTransactionMode()
 
-  // Cursor pagination for transactions
   const {
     transactions,
     isLoading: isLoadingTransactions,
-    isEmpty,
     hasNext,
     hasPrev,
     nextPage,
     previousPage,
     goToFirstPage,
-    setSortOrder,
-    sortOrder,
     setLimit,
-    limit,
-    refetch: refetchTransactions
+    limit
   } = useTransactionsCursor({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     searchParams: {
-      id: searchId || undefined,
       sortBy: 'createdAt'
     },
     limit: 10,

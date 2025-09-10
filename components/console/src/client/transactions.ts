@@ -169,12 +169,7 @@ export const useListTransactionsCursor = ({
   )
 
   return useQuery<CursorPaginationDto<TransactionDto>>({
-    queryKey: [
-      organizationId,
-      ledgerId,
-      'transactions-cursor',
-      cleanParams
-    ],
+    queryKey: [organizationId, ledgerId, 'transactions-cursor', cleanParams],
     queryFn: getCursorPaginatedFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
       cleanParams

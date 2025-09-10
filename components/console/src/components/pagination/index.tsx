@@ -7,7 +7,6 @@ export type PaginationProps = UsePaginationReturn & {
   total?: number
   hasNextPage?: boolean
   totalItems?: number
-  goToFirstPage?: () => void
 }
 
 export const Pagination = ({
@@ -16,8 +15,7 @@ export const Pagination = ({
   total = 0,
   hasNextPage = false,
   nextPage,
-  previousPage,
-  goToFirstPage
+  previousPage
 }: PaginationProps) => {
   const intl = useIntl()
 

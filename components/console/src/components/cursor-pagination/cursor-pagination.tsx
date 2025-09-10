@@ -7,7 +7,6 @@ interface CursorPaginationProps {
   hasPrev: boolean
   onNext: () => void
   onPrevious: () => void
-  onFirst?: () => void
   isLoading?: boolean
   className?: string
 }
@@ -17,7 +16,6 @@ export const CursorPagination: React.FC<CursorPaginationProps> = ({
   hasPrev,
   onNext,
   onPrevious,
-  onFirst,
   isLoading = false,
   className = ''
 }) => {
