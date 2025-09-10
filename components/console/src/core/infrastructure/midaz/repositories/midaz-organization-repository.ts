@@ -34,7 +34,12 @@ export class MidazOrganizationRepository implements OrganizationRepository {
   }
 
   async fetchAll(
-    filters: OrganizationSearchEntity = { limit: 10, page: 1 }
+    filters: OrganizationSearchEntity = {
+      limit: 10,
+      page: 1,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    }
   ): Promise<PaginationEntity<OrganizationEntity>> {
     if (filters?.id) {
       try {
@@ -56,7 +61,9 @@ export class MidazOrganizationRepository implements OrganizationRepository {
 
     const response = await this.httpService.get<
       MidazPaginationDto<MidazOrganizationDto>
-    >(`${this.baseUrl}${createQueryString(filters)}`)
+    >(
+      `${this.baseUrl}${createQueryString({ ...filters, sort_by: filters.sortBy || 'createdAt', sort_order: filters.sortOrder || 'desc' })}`
+    )
     return MidazOrganizationMapper.toPaginationEntity(response)
   }
 

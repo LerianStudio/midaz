@@ -46,7 +46,7 @@ export class MidazTransactionRepository implements TransactionRepository {
       cursor,
       limit = 10,
       sortBy = 'createdAt',
-      sortOrder = 'asc'
+      sortOrder = 'desc'
     } = query ?? {}
 
     const queryParams = createQueryString({

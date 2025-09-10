@@ -50,7 +50,7 @@ export class MidazOperationRoutesRepository
       cursor,
       limit = 10,
       sortBy = 'createdAt',
-      sortOrder = 'asc'
+      sortOrder = 'desc'
     } = query ?? {}
 
     const queryParams = createQueryString({

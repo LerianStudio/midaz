@@ -138,7 +138,7 @@ type UseListTransactionsCursorProps = {
   ledgerId: string
   cursor?: string
   limit?: number
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
   sortBy?: 'id' | 'createdAt' | 'updatedAt'
   id?: string
   enabled?: boolean

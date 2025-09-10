@@ -50,10 +50,9 @@ export class MidazTransactionRoutesRepository
       cursor,
       limit = 10,
       sortBy = 'createdAt',
-      sortOrder = 'asc'
+      sortOrder = 'desc'
     } = query ?? {}
 
-    // Build query parameters for cursor pagination
     const queryParams = createQueryString({
       id,
       cursor,

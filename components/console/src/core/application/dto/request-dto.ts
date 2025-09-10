@@ -8,5 +8,5 @@ export type SearchParamDto = {
 export type CursorSearchParamDto = {
   cursor?: string
   limit?: number
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
 }

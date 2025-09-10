@@ -50,8 +50,7 @@ interface SimpleTransactionFlowProps {
 function SimpleTransactionFlow({
   flow,
   asset,
-  className,
-  showDetails
+  className
 }: SimpleTransactionFlowProps) {
   const intl = useIntl()
 

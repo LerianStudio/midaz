@@ -149,7 +149,7 @@ type UseListOperationRoutesCursorProps = {
   ledgerId: string
   cursor?: string
   limit?: number
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
   sortBy?: 'id' | 'title' | 'createdAt' | 'updatedAt'
   id?: string
   title?: string

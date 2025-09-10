@@ -52,9 +52,6 @@ export default function Page() {
   } = useAccountTypesCursor({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    searchParams: {
-      sortBy: 'createdAt'
-    },
     limit: 10,
     sortOrder: 'desc'
   })

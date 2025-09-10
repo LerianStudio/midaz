@@ -8,12 +8,12 @@ export type PaginationSearchEntity = {
 export type CursorSearchEntity = {
   limit?: number
   cursor?: string
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
 }
 
 export type SortableSearchEntity = PaginationSearchEntity & {
   sortBy?: string
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
 }
 
 // New cursor-based sortable search

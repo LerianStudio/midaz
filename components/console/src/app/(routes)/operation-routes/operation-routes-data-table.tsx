@@ -352,7 +352,6 @@ export const OperationRoutesDataTable: React.FC<
               hasPrev={cursorPaginationControls.hasPrev}
               onNext={cursorPaginationControls.nextPage}
               onPrevious={cursorPaginationControls.previousPage}
-              onFirst={cursorPaginationControls.goToFirstPage}
             />
           ) : (
             pagination &&

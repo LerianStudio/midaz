@@ -151,7 +151,7 @@ type UseListAccountTypesCursorProps = {
   ledgerId: string
   cursor?: string
   limit?: number
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
   sortBy?: 'id' | 'name' | 'createdAt' | 'updatedAt'
   id?: string
   enabled?: boolean

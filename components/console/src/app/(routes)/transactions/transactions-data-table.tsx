@@ -114,10 +114,6 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     destination = []
   } = transaction.original
 
-  const sourceAliases = new Set(
-    source.map((sourceItem) => sourceItem.accountAlias?.toLowerCase())
-  )
-
   const badgeVariant = getBadgeVariant(code)
 
   const renderItemsList = (
@@ -334,7 +330,6 @@ export const TransactionsDataTable = ({
               hasPrev={cursorPaginationControls.hasPrev}
               onNext={cursorPaginationControls.nextPage}
               onPrevious={cursorPaginationControls.previousPage}
-              onFirst={cursorPaginationControls.goToFirstPage}
             />
           ) : (
             pagination &&

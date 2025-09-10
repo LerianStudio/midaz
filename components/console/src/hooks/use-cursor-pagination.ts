@@ -3,13 +3,13 @@ import { useState, useCallback } from 'react'
 export type UseCursorPaginationProps = {
   limit?: number
   initialCursor?: string
-  sortOrder?: 'asc' | 'desc'
+  sortOrder?: 'desc' | 'asc'
 }
 
 export function useCursorPagination({
   limit: initialLimit = 10,
   initialCursor,
-  sortOrder: initialSortOrder = 'asc'
+  sortOrder: initialSortOrder = 'desc'
 }: UseCursorPaginationProps = {}) {
   const [cursor, setCursor] = useState<string | undefined>(initialCursor)
   const [limit, setLimit] = useState(initialLimit)

@@ -49,7 +49,7 @@ export class MidazAccountTypesRepository implements AccountTypesRepository {
       cursor,
       limit = 10,
       sortBy = 'createdAt',
-      sortOrder = 'asc'
+      sortOrder = 'desc'
     } = query ?? {}
 
     const queryParams = createQueryString({
