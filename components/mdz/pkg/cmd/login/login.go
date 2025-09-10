@@ -92,7 +92,6 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 		return nil
 	case strings.Contains(answer, "terminal"):
 		err := l.terminalLogin()
-
 		if err := validateCredentials(l.username, l.password); err != nil {
 			return err
 		}

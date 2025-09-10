@@ -20,6 +20,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	ctx, span := tracer.Start(ctx, "command.update_account")
 	defer span.End()
+
 	logger.Infof("Trying to update account: %v", uai)
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)

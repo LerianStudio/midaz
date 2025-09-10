@@ -27,6 +27,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	var operations []*operation.Operation
 
 	var fromTo []libTransaction.FromTo
+
 	fromTo = append(fromTo, dsl.Send.Source.From...)
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)
 
@@ -92,6 +93,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation", er)
 
 					logger.Errorf("Error creating operation: %v", er)
+
 					err <- er
 				}
 
@@ -101,6 +103,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 					logger.Errorf("Failed to create metadata on operation: %v", er)
 					logger.Errorf("Returning error: %v", er)
+
 					err <- er
 				}
 
