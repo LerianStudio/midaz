@@ -53,22 +53,13 @@ export function useTransactionsCursor({
   )
 
   return {
-    // Data
     data,
     transactions: data?.items ?? [],
     isEmpty: data?.items?.length === 0,
-
-    // Loading states
     isLoading,
     error,
-
-    // Pagination controls
     ...pagination,
-
-    // Actions
     refetch,
-
-    // Debug info
     queryParams
   }
 }

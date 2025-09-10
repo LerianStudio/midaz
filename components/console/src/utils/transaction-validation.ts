@@ -18,9 +18,6 @@ interface TransactionOperation {
 export class TransactionValidator {
   private readonly BALANCE_TOLERANCE = 0.01 // Allow 1 cent tolerance for rounding
 
-  /**
-   * Validates a complete transaction
-   */
   validateTransaction(
     sourceOperations: TransactionOperation[],
     destinationOperations: TransactionOperation[]

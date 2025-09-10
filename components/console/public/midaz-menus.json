@@ -44,7 +44,7 @@
         {
           "name": "account-types",
           "title": "Account Types",
-          "titleKey": "sidebar.ledger.account-types.title",
+          "titleKey": "sidebar.ledger.accountTypes.title",
           "route": "/account-types",
           "icon": "Layers",
           "hasLedgerDependencies": true,
@@ -53,7 +53,7 @@
         {
           "name": "operation-routes",
           "title": "Operation Routes",
-          "titleKey": "sidebar.ledger.operation-routes.title",
+          "titleKey": "sidebar.ledger.operationRoutes.title",
           "route": "/operation-routes",
           "icon": "Workflow",
           "hasLedgerDependencies": true,
@@ -62,7 +62,7 @@
         {
           "name": "transaction-routes",
           "title": "Transaction Routes",
-          "titleKey": "sidebar.ledger.transaction-routes.title",
+          "titleKey": "sidebar.ledger.transactionRoutes.title",
           "route": "/transaction-routes",
           "icon": "Route",
           "hasLedgerDependencies": true,
