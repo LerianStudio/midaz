@@ -38,20 +38,14 @@ export default function Page() {
     enableRouting: true
   })
 
-  const [searchId, setSearchId] = useState('')
-
-  // Cursor pagination for operation routes
   const {
     operationRoutes,
     isLoading: isOperationRoutesLoading,
-    isEmpty,
     hasNext,
     hasPrev,
     nextPage,
     previousPage,
     goToFirstPage,
-    setSortOrder,
-    sortOrder,
     setLimit,
     limit,
     refetch: refetchOperationRoutes
@@ -59,7 +53,6 @@ export default function Page() {
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     searchParams: {
-      id: searchId || undefined,
       sortBy: 'createdAt'
     },
     limit: 10,

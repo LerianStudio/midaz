@@ -29,7 +29,6 @@ export default function Page() {
   const { currentOrganization, currentLedger } = useOrganization()
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = useState<any[]>([])
-  const [searchId, setSearchId] = useState('')
 
   const {
     handleCreate,
@@ -43,14 +42,11 @@ export default function Page() {
   const {
     transactionRoutes,
     isLoading: isTransactionRoutesLoading,
-    isEmpty,
     hasNext,
     hasPrev,
     nextPage,
     previousPage,
     goToFirstPage,
-    setSortOrder,
-    sortOrder,
     setLimit,
     limit,
     refetch: refetchTransactionRoutes
@@ -58,7 +54,6 @@ export default function Page() {
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
     searchParams: {
-      id: searchId || undefined,
       sortBy: 'createdAt'
     },
     limit: 10,

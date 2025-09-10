@@ -280,7 +280,6 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
               hasPrev={cursorPaginationControls.hasPrev}
               onNext={cursorPaginationControls.nextPage}
               onPrevious={cursorPaginationControls.previousPage}
-              onFirst={cursorPaginationControls.goToFirstPage}
             />
           ) : (
             pagination &&
