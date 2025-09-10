@@ -131,6 +131,11 @@ const messages = defineMessages({
   custom_confirm_password: {
     id: 'errors.custom.confirm_password',
     defaultMessage: 'Passwords do not match'
+  },
+  custom_transaction_route_different_operation_types: {
+    id: 'errors.custom.transaction_route_different_operation_types',
+    defaultMessage:
+      'At least one source and one destination operation route must be selected with different operation types (source and destination)'
   }
 })
 
