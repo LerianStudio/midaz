@@ -55,7 +55,6 @@ const Page = () => {
   } = useAccountsWithPortfolios({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    query: searchValues as any
   })
 
   const accountsList: AccountDto[] = useMemo(() => {
