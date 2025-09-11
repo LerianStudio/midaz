@@ -1,3 +1,26 @@
+## [v3.3.0-beta.11] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-beta.11)
+Contributors: LF Barrile, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **System-Wide Fee Removal**: References to fees have been removed across the backend, build, frontend, and test components. This change affects integrations relying on fee-related data. Users must update their systems to accommodate this change. Please review integration points and remove any dependencies on fee data.
+
+### ✨ Features
+- **Efficient Data Retrieval**: Implemented cursor pagination for account types and operation routes, enabling faster and more scalable data access, especially beneficial for handling large datasets.
+- **Enhanced Transaction Management**: New transaction routes have been added to the frontend, allowing users to easily get and create transactions, thus improving transaction handling capabilities.
+- **Streamlined Data Access**: Backend-for-frontend (BFF) transaction routes have been introduced, enhancing performance and simplifying data access for client applications.
+- **Global Reach**: Internationalization (intl) support is now available, allowing users to interact with the application in multiple languages, expanding accessibility and user base.
+
+### 🐛 Bug Fixes
+- **Improved Navigation**: Fixed navigation bugs and resolved lingering comments and query account issues, leading to a smoother and more reliable user experience.
+- **Code Quality Enhancements**: Addressed linting issues, improving code quality and maintainability.
+
+### 🔧 Maintenance
+- **Library and Configuration Updates**: Updated the console-layout library and configuration files to ensure compatibility with the latest features and maintain system stability.
+- **Codebase Cleanup**: Removed unnecessary console logs and comments, contributing to a cleaner and more maintainable codebase.
+
+
 ## [v3.3.0-beta.10] - 2025-09-04
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.9...v3.3.0-beta.10)
