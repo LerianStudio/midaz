@@ -1,4 +1,11 @@
 import { useIntl } from 'react-intl'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 
 interface PageCounterProps {
   limit: number
@@ -13,25 +20,29 @@ export const PageCounter = ({
 }: PageCounterProps) => {
   const intl = useIntl()
   return (
-    <div className="flex w-full items-center justify-between">
-      <div className="flex w-full justify-end gap-2">
-        <span className="text-muted-foreground text-sm">
+    <div className="flex w-full items-center gap-2">
+      <div className="flex w-full justify-end gap-1">
+      <p className="text-sm font-medium whitespace-nowrap text-gray-600 mr-5 mt-2">
           {intl.formatMessage({
             id: 'common.itemsPerPage',
             defaultMessage: 'Items per page'
           })}
-        </span>
-        <select
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-          className="rounded border px-2 py-1 text-sm"
+        </p>
+        <Select
+          value={limit.toString()}
+          onValueChange={(value) => setLimit(Number(value))}
         >
-          {limitValues.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-20">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {limitValues.map((value) => (
+              <SelectItem key={value} value={value.toString()}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   )

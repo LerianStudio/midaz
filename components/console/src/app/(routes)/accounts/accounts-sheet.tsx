@@ -1,4 +1,3 @@
-import React, { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -42,6 +41,8 @@ import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
 import { useMidazConfig } from '@/hooks/use-midaz-config'
 import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
+import React, { useMemo } from 'react'
+import { IntlShape } from 'react-intl'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
@@ -64,7 +65,7 @@ const initialValues = {
   metadata: {}
 }
 
-const FormSchema = z.object({
+const createFormSchema = (isValidationEnabled: boolean, intl: IntlShape) => z.object({
   name: accounts.name,
   alias: accounts.alias.optional(),
   entityId: accounts.entityId.nullable().optional(),
@@ -72,12 +73,17 @@ const FormSchema = z.object({
   portfolioId: accounts.portfolioId.optional(),
   segmentId: accounts.segmentId.nullable().optional(),
   metadata: accounts.metadata,
-  type: accounts.type,
+  type: isValidationEnabled
+    ? accounts.type.min(1, intl.formatMessage({
+      id: 'errors.invalid_type_received_undefined',
+      defaultMessage: 'Required field'
+    }))
+    : accounts.type.optional(),
   allowSending: accounts.allowSending,
   allowReceiving: accounts.allowReceiving
 })
 
-type FormData = z.infer<typeof FormSchema>
+type FormData = z.infer<ReturnType<typeof createFormSchema>>
 
 export const AccountSheet = ({
   mode,
@@ -95,6 +101,9 @@ export const AccountSheet = ({
   const { formatNumber } = useFormatNumber()
   const { isAccountTypeValidationEnabled: isValidationEnabled } =
     useMidazConfig()
+
+  // Criar schema dinamicamente baseado na validação
+  const FormSchema = createFormSchema(isValidationEnabled, intl)
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -318,7 +327,7 @@ export const AccountSheet = ({
                       readOnly={isReadOnly || mode === 'edit'}
                     />
 
-                    {accountTypesData && accountTypesData?.length > 0 ? (
+                    {isValidationEnabled && accountTypesData && accountTypesData?.length > 0 ? (
                       <SelectField
                         control={form.control}
                         name="type"
@@ -350,7 +359,7 @@ export const AccountSheet = ({
                           id: 'common.type',
                           defaultMessage: 'Type'
                         })}
-                        required
+                        required={isValidationEnabled}
                         readOnly={isReadOnly || mode === 'edit'}
                         disabled={
                           isValidationEnabled && accountTypesData?.length === 0

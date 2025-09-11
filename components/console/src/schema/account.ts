@@ -19,7 +19,7 @@ const portfolioId = z.string()
 
 const segmentId = z.string()
 
-const type = z.string()
+const type = z.string().max(255)
 
 const allowSending = z.boolean()
 
