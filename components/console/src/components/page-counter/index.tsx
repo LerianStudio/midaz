@@ -22,7 +22,7 @@ export const PageCounter = ({
   return (
     <div className="flex w-full items-center gap-2">
       <div className="flex w-full justify-end gap-1">
-      <p className="text-sm font-medium whitespace-nowrap text-gray-600 mr-5 mt-2">
+        <p className="mt-2 mr-5 text-sm font-medium whitespace-nowrap text-gray-600">
           {intl.formatMessage({
             id: 'common.itemsPerPage',
             defaultMessage: 'Items per page'

@@ -65,23 +65,27 @@ const initialValues = {
   metadata: {}
 }
 
-const createFormSchema = (isValidationEnabled: boolean, intl: IntlShape) => z.object({
-  name: accounts.name,
-  alias: accounts.alias.optional(),
-  entityId: accounts.entityId.nullable().optional(),
-  assetCode: accounts.assetCode,
-  portfolioId: accounts.portfolioId.optional(),
-  segmentId: accounts.segmentId.nullable().optional(),
-  metadata: accounts.metadata,
-  type: isValidationEnabled
-    ? accounts.type.min(1, intl.formatMessage({
-      id: 'errors.invalid_type_received_undefined',
-      defaultMessage: 'Required field'
-    }))
-    : accounts.type.optional(),
-  allowSending: accounts.allowSending,
-  allowReceiving: accounts.allowReceiving
-})
+const createFormSchema = (isValidationEnabled: boolean, intl: IntlShape) =>
+  z.object({
+    name: accounts.name,
+    alias: accounts.alias.optional(),
+    entityId: accounts.entityId.nullable().optional(),
+    assetCode: accounts.assetCode,
+    portfolioId: accounts.portfolioId.optional(),
+    segmentId: accounts.segmentId.nullable().optional(),
+    metadata: accounts.metadata,
+    type: isValidationEnabled
+      ? accounts.type.min(
+          1,
+          intl.formatMessage({
+            id: 'errors.invalid_type_received_undefined',
+            defaultMessage: 'Required field'
+          })
+        )
+      : accounts.type.optional(),
+    allowSending: accounts.allowSending,
+    allowReceiving: accounts.allowReceiving
+  })
 
 type FormData = z.infer<ReturnType<typeof createFormSchema>>
 
@@ -102,7 +106,6 @@ export const AccountSheet = ({
   const { isAccountTypeValidationEnabled: isValidationEnabled } =
     useMidazConfig()
 
-  // Criar schema dinamicamente baseado na validação
   const FormSchema = createFormSchema(isValidationEnabled, intl)
 
   const { data: rawSegmentListData } = useListSegments({
@@ -327,7 +330,9 @@ export const AccountSheet = ({
                       readOnly={isReadOnly || mode === 'edit'}
                     />
 
-                    {isValidationEnabled && accountTypesData && accountTypesData?.length > 0 ? (
+                    {isValidationEnabled &&
+                    accountTypesData &&
+                    accountTypesData?.length > 0 ? (
                       <SelectField
                         control={form.control}
                         name="type"
