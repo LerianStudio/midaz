@@ -632,6 +632,7 @@
   "sidebar.ledger.transactionRoutes.title": "Transaction Routes",
   "sidebar.ledger.operationRoutes.title": "Operation Routes",
   "sidebar.ledger.accountTypes.title": "Account Types",
+  "errors.custom.transaction_route_different_operation_types": "At least one source and one destination operation route must be selected with different operation types (source and destination)",
   "sidebar.main.home.title": "Home",
   "sidebar.main.ledgers.title": "Ledgers",
   "signIn.descriptionLogin": "Enter your email and password to continue.",
