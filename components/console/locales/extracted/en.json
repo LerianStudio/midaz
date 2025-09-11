@@ -770,5 +770,16 @@
   "users.showing": "Showing {count} {number, plural, =0 {users} one {user} other {users}}.",
   "users.subtitle": "Manage the users of Midaz.",
   "users.title": "Users",
-  "users.tooltip": "Users who will be able to interact with the Organizations and Ledgers you create."
+  "users.tooltip": "Users who will be able to interact with the Organizations and Ledgers you create.",
+  "sidebar.ledger.transactionRoutes.title": "Transaction Routes",
+  "sidebar.ledger.operationRoutes.title": "Operation Routes",
+  "sidebar.ledger.accountTypes.title": "Account Types",
+  "sidebar.main.ledgers.title": "Ledgers",
+  "sidebar.main.home.title": "Home",
+  "sidebar.group.ledger.title": "Ledger",
+  "sidebar.ledger.assets.title": "Assets",
+  "sidebar.ledger.accounts.title": "Accounts",
+  "sidebar.ledger.segments.title": "Segments",
+  "sidebar.ledger.portfolios.title": "Portfolios",
+  "sidebar.ledger.transactions.title": "Transactions"
 }

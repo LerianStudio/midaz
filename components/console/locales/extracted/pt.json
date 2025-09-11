@@ -770,5 +770,15 @@
   "success.transactionRoutes.updated": "{transactionRouteTitle} rota de transação atualizada com sucesso",
   "success.transactionRoutes.delete": "{transactionRouteTitle} rota de transação excluída com sucesso",
   "errors.custom.transaction_route_different_operation_types": "Pelo menos uma rota de operação de origem e uma de destino devem ser selecionadas com tipos de operação diferentes (origem e destino)",
-  "transactions.finalAmount": ""
+  "sidebar.ledger.transactionRoutes.title": "Rotas de Transação",
+  "sidebar.ledger.operationRoutes.title": "Rotas de Operação",
+  "sidebar.ledger.accountTypes.title": "Tipos de Conta",
+  "sidebar.main.ledgers.title": "Ledgers",
+  "sidebar.main.home.title": "Início",
+  "sidebar.group.ledger.title": "Ledger",
+  "sidebar.ledger.assets.title": "Ativos",
+  "sidebar.ledger.accounts.title": "Contas",
+  "sidebar.ledger.segments.title": "Segmentos",
+  "sidebar.ledger.portfolios.title": "Portfólios",
+  "sidebar.ledger.transactions.title": "Transações"
 }
