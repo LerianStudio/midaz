@@ -11,7 +11,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Form } from '@/components/ui/form'
-import { useIntl } from 'react-intl'
+import { IntlShape, useIntl } from 'react-intl'
 import { DialogProps } from '@radix-ui/react-dialog'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useOrganization } from '@lerianstudio/console-layout'
@@ -35,6 +35,7 @@ import {
   TransactionRoutesDto,
   UpdateTransactionRoutesDto
 } from '@/core/application/dto/transaction-routes-dto'
+import { OperationRoutesDto } from '@/core/application/dto/operation-routes-dto'
 import { MultipleSelectItem } from '@/components/ui/multiple-select'
 
 export type TransactionRoutesSheetProps = DialogProps & {
@@ -73,14 +74,44 @@ const getFormValues = (
   }
 }
 
-const createFormSchema = z.object({
-  title: transactionRoutes.title,
-  description: transactionRoutes.description,
-  operationRoutes: z.array(z.string().uuid()).min(2, {
-    message: 'custom_transaction_route_different_operation_types'
-  }),
-  metadata: transactionRoutes.metadata
-})
+const createFormSchema = (intl: IntlShape, operationRoutesData?: {
+  items: OperationRoutesDto[]
+}) =>
+  z.object({
+    title: transactionRoutes.title,
+    description: transactionRoutes.description,
+    operationRoutes: z
+      .array(z.string().uuid())
+      .min(2)
+      .refine(
+        (operationRouteIds: string[]) => {
+          if (!operationRoutesData?.items) return false
+
+          const selectedOperations = operationRoutesData.items.filter(
+            (op: OperationRoutesDto) => operationRouteIds.includes(op.id)
+          )
+
+          if (selectedOperations.length < 2) return false
+
+          const hasSource = selectedOperations.some(
+            (op: OperationRoutesDto) => op.operationType === 'source'
+          )
+          const hasDestination = selectedOperations.some(
+            (op: OperationRoutesDto) => op.operationType === 'destination'
+          )
+
+          return hasSource && hasDestination
+        },
+      {
+        message: intl.formatMessage({
+          id: 'errors.custom.transaction_route_different_operation_types',
+          defaultMessage:
+            'At least one source and one destination operation route must be selected with different operation types (source and destination)'
+        }),
+      }
+    ),
+    metadata: transactionRoutes.metadata
+  })
 
 export const TransactionRoutesSheet = ({
   mode,
@@ -94,14 +125,6 @@ export const TransactionRoutesSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('transaction-routes')
 
-  type FormData = z.infer<typeof createFormSchema>
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(createFormSchema),
-    values: getFormValues(initialValues, data),
-    defaultValues: initialValues
-  })
-
   const {
     data: operationRoutesData,
     isLoading: operationRoutesLoading,
@@ -113,6 +136,14 @@ export const TransactionRoutesSheet = ({
     query: {
       limit: 100
     }
+  })
+
+  type FormData = z.infer<ReturnType<typeof createFormSchema>>
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(createFormSchema(intl, operationRoutesData)),
+    values: getFormValues(initialValues, data),
+    defaultValues: initialValues
   })
 
   const { mutate: createTransactionRoute, isPending: createPending } =
