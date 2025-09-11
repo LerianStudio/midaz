@@ -1,3 +1,26 @@
+## [v3.3.0-beta.12] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.11...v3.3.0-beta.12)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Management**: We have introduced a new 'key' field in the balance table, allowing for more precise balance management. This update supports more flexible transaction processing, aligning better with business needs.
+- **Additional Balance Support**: Users can now create multiple balances with the new 'BalanceKey' field, providing greater flexibility in managing financial operations.
+
+### 🐛 Bug Fixes
+- **Reliable Database Operations**: Resolved issues with the BalanceKey field in database queries, ensuring accurate data retrieval and preventing errors.
+- **Improved Transaction Integrity**: Implemented a rollback mechanism for failed balance updates, maintaining data consistency and preventing errors.
+
+### ⚡ Performance
+- **Optimized Transaction Processing**: Introduced batch processing for balance updates, reducing redundant operations and enhancing performance. Users will experience faster transaction handling and improved system efficiency.
+
+### 📚 Documentation
+- **Updated API Documentation**: The documentation now includes details on new endpoints and balance management capabilities, ensuring users have access to the latest features and instructions.
+
+### 🔧 Maintenance
+- **Dependency and Configuration Updates**: Upgraded to the latest beta versions of Go and dependencies, improving compatibility and leveraging new features. Configuration files have been streamlined to reduce complexity and enhance deployment processes.
+
+
 ## [v3.3.0-beta.11] - 2025-09-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-beta.11)
