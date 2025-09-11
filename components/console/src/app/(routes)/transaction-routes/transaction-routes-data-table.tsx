@@ -228,7 +228,7 @@ export const TransactionRoutesDataTable: React.FC<
                     <div className="flex items-center gap-2">
                       {intl.formatMessage({
                         id: 'transactionRoutes.field.title',
-                        defaultMessage: 'Title'
+                        defaultMessage: 'Transaction Route Title'
                       })}
                       <TooltipProvider>
                         <Tooltip>
@@ -239,7 +239,7 @@ export const TransactionRoutesDataTable: React.FC<
                             {intl.formatMessage({
                               id: 'transactionRoutes.field.title.tooltip',
                               defaultMessage:
-                                'The title of the transaction route'
+                                'Enter the title of the transaction route'
                             })}
                           </TooltipContent>
                         </Tooltip>

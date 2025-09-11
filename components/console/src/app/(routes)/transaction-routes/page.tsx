@@ -65,7 +65,7 @@ export default function Page() {
       accessorKey: 'title',
       header: intl.formatMessage({
         id: 'transactionRoutes.field.title',
-        defaultMessage: 'Title'
+        defaultMessage: 'Transaction Route Title'
       })
     },
     {

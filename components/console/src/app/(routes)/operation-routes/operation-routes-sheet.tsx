@@ -392,12 +392,12 @@ export const OperationRoutesSheet = ({
                         accountTypesLoading
                           ? intl.formatMessage({
                               id: 'common.loading',
-                              defaultMessage: 'Loading account types...'
+                              defaultMessage: 'Loading ...'
                             })
                           : accountTypesError
                             ? intl.formatMessage({
                                 id: 'common.error',
-                                defaultMessage: 'Error loading account types'
+                                defaultMessage: 'Error loading ...'
                               })
                             : intl.formatMessage({
                                 id: 'operationRoutes.field.validIf.accountType.placeholder',

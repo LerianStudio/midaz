@@ -321,7 +321,7 @@ export const TransactionRoutesSheet = ({
                       tooltip={intl.formatMessage({
                         id: 'transactionRoutes.field.operationRoutes.tooltip',
                         defaultMessage:
-                          'Select one or more operation routes for this transaction route'
+                          'The operation routes associated with this transaction route'
                       })}
                       required
                       multi
@@ -329,12 +329,12 @@ export const TransactionRoutesSheet = ({
                         operationRoutesLoading
                           ? intl.formatMessage({
                               id: 'common.loading',
-                              defaultMessage: 'Loading operation routes...'
+                              defaultMessage: 'Loading ...'
                             })
                           : operationRoutesError
                             ? intl.formatMessage({
                                 id: 'common.error',
-                                defaultMessage: 'Error loading operation routes'
+                                defaultMessage: 'Error loading ...'
                               })
                             : intl.formatMessage({
                                 id: 'transactionRoutes.field.operationRoutes.placeholder',
