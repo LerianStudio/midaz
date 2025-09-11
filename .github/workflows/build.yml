@@ -12,8 +12,6 @@ permissions:
   packages: write       # Required to publish packages/images
 
 env:
-  IS_BETA: ${{ contains(github.ref, '-beta') }}   # Boolean to detect beta tags
-  IS_RC:   ${{ contains(github.ref, '-rc') }}     # Boolean to detect rc tags
   # GitOps file paths (adjust if your repo has a different structure)
   GITOPS_FILE_BETA: gitops/environments/firmino/helmfile/applications/dev/midaz/values.yaml
   GITOPS_FILE_RC:   gitops/environments/firmino/helmfile/applications/stg/midaz/values.yaml
@@ -66,7 +64,8 @@ jobs:
           images: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}
           tags: |
             type=semver,pattern={{version}}   # Semantic version tags (e.g. 1.2.3)
-            type=ref,event=branch,suffix=-${{ github.sha }} # Branch + commit SHA tags
+            type=semver,pattern={{major}}.{{minor}}   # 1.2
+            type=semver,pattern={{major}}            # 1
 
       # ----------------- Security gates before push -----------------
 
@@ -112,20 +111,20 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
-      - name: Extract tag name
+      - name: Extract tag name (strip leading 'v')
         id: extract_tag
         shell: bash
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       # Write GitOps artifact for beta and rc
       - name: Write tag to file for GitOps (beta/rc)
-        if: ${{ env.IS_BETA == 'true' || env.IS_RC == 'true' }}
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         run: |
           mkdir -p gitops-tags
           echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}"
 
       - name: Upload GitOps tag artifact
-        if: ${{ env.IS_BETA == 'true' || env.IS_RC == 'true' }}
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         uses: actions/upload-artifact@v4
         with:
           name: gitops-tags-${{ matrix.app.name }}
@@ -133,7 +132,7 @@ jobs:
 
   update_gitops:
     needs: [build_and_publish]
-    if: ${{ env.IS_BETA == 'true' || env.IS_RC == 'true' }}   # Only run for beta/rc tags
+    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +159,7 @@ jobs:
           set -euo pipefail
 
           # Select GitOps values.yaml file depending on tag type
-          if [[ "${{ env.IS_RC }}" == "true" ]]; then
+          if [[ "${GITHUB_REF}" == *"-rc"* ]]; then
             FILE="${{ env.GITOPS_FILE_RC }}"
             echo "Updating STAGE values file: $FILE"
           else
@@ -179,10 +178,14 @@ jobs:
             yq e -i ".${app_name}.image.tag = \"${tag}\"" "$FILE"
           done
 
+          echo "✅ Final diff:"
+          git -C gitops diff -- "$FILE" || true
+
       - name: Commit and push GitOps update
         run: |
           cd gitops
           git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
           git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
-          git commit -am "ci(midaz): update image tags (${{ env.IS_RC == 'true' && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
+          git add -A
+          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
           git push origin main
