@@ -74,9 +74,12 @@ const getFormValues = (
   }
 }
 
-const createFormSchema = (intl: IntlShape, operationRoutesData?: {
-  items: OperationRoutesDto[]
-}) =>
+const createFormSchema = (
+  intl: IntlShape,
+  operationRoutesData?: {
+    items: OperationRoutesDto[]
+  }
+) =>
   z.object({
     title: transactionRoutes.title,
     description: transactionRoutes.description,
@@ -102,14 +105,14 @@ const createFormSchema = (intl: IntlShape, operationRoutesData?: {
 
           return hasSource && hasDestination
         },
-      {
-        message: intl.formatMessage({
-          id: 'errors.custom.transaction_route_different_operation_types',
-          defaultMessage:
-            'At least one source and one destination operation route must be selected with different operation types (source and destination)'
-        }),
-      }
-    ),
+        {
+          message: intl.formatMessage({
+            id: 'errors.custom.transaction_route_different_operation_types',
+            defaultMessage:
+              'At least one source and one destination operation route must be selected with different operation types (source and destination)'
+          })
+        }
+      ),
     metadata: transactionRoutes.metadata
   })
 
