@@ -144,6 +144,34 @@ definitions:
         minimum: 0
         type: number
     type: object
+  CreateAdditionalBalance:
+    description: Request payload for creating a new balance with specified permissions
+      and custom key.
+    properties:
+      allowReceiving:
+        description: |-
+          Whether the account should be allowed to receive funds to this balance
+          required: false
+          example: true
+        example: true
+        type: boolean
+      allowSending:
+        description: |-
+          Whether the account should be allowed to send funds from this balance
+          required: false
+          example: true
+        example: true
+        type: boolean
+      key:
+        description: |-
+          Unique key for the balance (required, max length 256 characters)
+          required: true
+          example: asset-freeze
+        example: asset-freeze
+        type: string
+    required:
+    - key
+    type: object
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
       Contains required fields for setting up asset conversion rates, including source
@@ -321,6 +349,13 @@ definitions:
               required: true
             type: string
         type: object
+      transactionDate:
+        description: |-
+          TransactionDate Period from transaction creation date until now
+          Example "2021-01-01T00:00:00Z"
+          swagger: type string
+          required: false
+        type: string
     type: object
   CreateTransactionOutflowSwaggerModel:
     description: Schema for creating outflow transaction with the complete SendOutflow
@@ -430,6 +465,13 @@ definitions:
               required: true
             type: string
         type: object
+      transactionDate:
+        description: |-
+          TransactionDate Period from transaction creation date until now
+          Example "2021-01-01T00:00:00Z"
+          swagger: type string
+          required: false
+        type: string
     type: object
   CreateTransactionRouteInput:
     description: CreateTransactionRouteInput payload
@@ -546,6 +588,13 @@ definitions:
         allOf:
         - $ref: '#/definitions/Balance'
         description: Balance before the operation
+      balanceAffected:
+        description: |-
+          BalanceAffected default true
+          format: boolean
+        example: true
+        format: boolean
+        type: boolean
       balanceAfter:
         allOf:
         - $ref: '#/definitions/Balance'
@@ -557,6 +606,12 @@ definitions:
           format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
+        type: string
+      balanceKey:
+        description: |-
+          Unique key for the balance (required, max length 256 characters)
+          example: asset-freeze
+        example: asset-freeze
         type: string
       chartOfAccounts:
         description: |-
@@ -1205,6 +1260,13 @@ definitions:
               required: true
             type: string
         type: object
+      transactionDate:
+        description: |-
+          TransactionDate Period from transaction creation date until now
+          Example "2021-01-01T00:00:00Z"
+          swagger: type string
+          required: false
+        type: string
     type: object
   mmodel.AccountRule:
     type: object
@@ -1291,6 +1353,13 @@ definitions:
           format: uuid
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
+        type: string
+      key:
+        description: |-
+          Unique key for the balance (max length 256 characters)
+          example: asset-freeze
+          maxLength: 256
+        example: asset-freeze
         type: string
       ledgerId:
         description: |-
@@ -1444,6 +1513,71 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Get all balances by account id
+      tags:
+      - Balances
+    post:
+      consumes:
+      - application/json
+      description: Create an Additional Balance with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - description: Balance Input
+        in: body
+        name: balance
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAdditionalBalance'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create Additional Balance
       tags:
       - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
@@ -3314,6 +3448,63 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Revert a Transaction
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation:
+    post:
+      consumes:
+      - application/json
+      description: Create a Transaction Annotation with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a Transaction Annotation using JSON
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:

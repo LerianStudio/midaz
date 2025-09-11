@@ -93,7 +93,6 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 				Body:         message,
 			},
 		)
-
 		if err == nil {
 			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 

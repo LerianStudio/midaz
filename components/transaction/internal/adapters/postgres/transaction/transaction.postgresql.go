@@ -882,6 +882,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&op.DeletedAt,
 			&op.Route,
 			&op.BalanceAffected,
+			&op.BalanceKey,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 

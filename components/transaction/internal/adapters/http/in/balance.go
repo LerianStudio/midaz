@@ -31,9 +31,9 @@ type BalanceHandler struct {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
@@ -106,9 +106,9 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
+//	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
+//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
@@ -222,12 +222,12 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Description	Delete a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			balance_id		path		string	true	"Balance ID"
-//	@Success		204				{string}	string	"Balance successfully deleted"
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string			false	"Request ID"
+//	@Param			organization_id	path		string			true	"Organization ID"
+//	@Param			ledger_id		path		string			true	"Ledger ID"
+//	@Param			balance_id		path		string			true	"Balance ID"
+//	@Success		204				{string}	string			"Balance successfully deleted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -269,12 +269,12 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			X-Request-Id	header		string							false	"Request ID"
-//	@Param			organization_id	path		string							true	"Organization ID"
-//	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			balance_id		path		string							true	"Balance ID"
-//	@Param			balance		    body		mmodel.UpdateBalance			true	"Balance Input"
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string					false	"Request ID"
+//	@Param			organization_id	path		string					true	"Organization ID"
+//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			balance_id		path		string					true	"Balance ID"
+//	@Param			balance			body		mmodel.UpdateBalance	true	"Balance Input"
 //	@Success		200				{object}	mmodel.Balance
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -430,4 +430,60 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 		Limit: 10,
 		Items: balances,
 	})
+}
+
+// CreateAdditionalBalance handles the creation of a new balance using the provided payload and context.
+//
+//	@Summary		Create Additional Balance
+//	@Description	Create an Additional Balance with the input payload
+//	@Tags			Balances
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string							false	"Request ID"
+//	@Param			organization_id	path		string							true	"Organization ID"
+//	@Param			ledger_id		path		string							true	"Ledger ID"
+//	@Param			account_id		path		string							true	"Account ID"
+//	@Param			balance			body		mmodel.CreateAdditionalBalance	true	"Balance Input"
+//	@Success		201				{object}	mmodel.Balance
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Post]
+func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	accountID := c.Locals("account_id").(uuid.UUID)
+
+	payload := p.(*mmodel.CreateAdditionalBalance)
+	logger.Infof("Request to create a Balance with details: %#v", payload)
+
+	ctx, span := tracer.Start(ctx, "handler.create_additional_balance")
+	defer span.End()
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
+
+		return http.WithError(c, err)
+	}
+
+	balance, err := handler.Command.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create additional balance on command", err)
+
+		logger.Errorf("Failed to create additional balance, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully created additional balance")
+
+	return http.Created(c, balance)
 }

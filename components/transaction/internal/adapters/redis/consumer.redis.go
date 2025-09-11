@@ -313,6 +313,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 		balances = append(balances, &mmodel.Balance{
 			Alias:          b.Alias,
+			Key:            mapBalance.Key,
 			ID:             b.ID,
 			AccountID:      b.AccountID,
 			Available:      b.Available,

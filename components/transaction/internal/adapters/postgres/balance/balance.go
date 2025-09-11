@@ -2,9 +2,11 @@ package balance
 
 import (
 	"database/sql"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
-	"time"
 )
 
 // BalancePostgreSQLModel represents the entity Balance into SQL context in Database
@@ -14,6 +16,7 @@ type BalancePostgreSQLModel struct {
 	LedgerID       string
 	AccountID      string
 	Alias          string
+	Key            string
 	AssetCode      string
 	Available      decimal.Decimal
 	OnHold         decimal.Decimal
@@ -45,6 +48,12 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		UpdatedAt:      balance.UpdatedAt,
 	}
 
+	if libCommons.IsNilOrEmpty(&balance.Key) {
+		b.Key = "default"
+	} else {
+		b.Key = balance.Key
+	}
+
 	if balance.DeletedAt != nil {
 		deletedAtCopy := *balance.DeletedAt
 		b.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
@@ -59,6 +68,7 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 		LedgerID:       b.LedgerID,
 		AccountID:      b.AccountID,
 		Alias:          b.Alias,
+		Key:            b.Key,
 		AssetCode:      b.AssetCode,
 		Available:      b.Available,
 		OnHold:         b.OnHold,

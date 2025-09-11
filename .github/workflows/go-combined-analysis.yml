@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: false
 
       - name: Initialize CodeQL
@@ -84,9 +84,9 @@ jobs:
           lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
           lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: '1.23'
+          go_version: '1.25'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: 'v2.0.2'
+          golangci_lint_version: 'v2.4.0'
 
   GoSec:
     name: Run GoSec to Midaz
@@ -98,7 +98,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: false
 
       - name: Gosec Scanner
@@ -116,7 +116,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: false
 
       - name: Unit Tests

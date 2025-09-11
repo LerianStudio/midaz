@@ -152,6 +152,7 @@ Outer:
 			}
 
 			var parentTransactionID *string
+
 			tran := &postgreTransaction.Transaction{
 				ID:                       m.TransactionID.String(),
 				ParentTransactionID:      parentTransactionID,

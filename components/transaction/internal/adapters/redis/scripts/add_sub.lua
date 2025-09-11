@@ -200,14 +200,30 @@ local function updateTransactionHash(transactionBackupQueue, transactionKey, bal
     return updated
 end
 
+local function rollback(rollbackBalances, ttl)
+  if next(rollbackBalances) then
+      local msetArgs = {}
+      for key, value in pairs(rollbackBalances) do
+          table.insert(msetArgs, key)
+          table.insert(msetArgs, value)
+      end
+      redis.call("MSET", unpack(msetArgs))
+
+      for key, _ in pairs(rollbackBalances) do
+          redis.call("EXPIRE", key, ttl)
+      end
+  end
+end
+
 local function main()
     local ttl = 3600
     local groupSize = 15
     local returnBalances = {}
+    local rollbackBalances = {}
 
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
-
+    
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
@@ -240,6 +256,10 @@ local function main()
             balance = cjson.decode(currentBalance)
         end
 
+        if not rollbackBalances[redisBalanceKey] then
+            rollbackBalances[redisBalanceKey] = cjson.encode(balance)
+        end
+
         local result = balance.Available
         local resultOnHold = balance.OnHold
         local isFrom = false
@@ -270,10 +290,12 @@ local function main()
         end
 
         if isPending == 1 and isFrom and balance.AccountType == "external" then
+            rollback(rollbackBalances, ttl)
             return redis.error_reply("0098")
         end
 
         if startsWithMinus(result) and balance.AccountType ~= "external" then
+            rollback(rollbackBalances, ttl)
             return redis.error_reply("0018")
         end
 

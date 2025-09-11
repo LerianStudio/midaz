@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -810,6 +811,7 @@ func (handler *TransactionHandler) BuildOperations(
 					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
 					AccountAlias:    libTransaction.SplitAlias(blc.Alias),
+					BalanceKey:      blc.Key,
 					OrganizationID:  blc.OrganizationID,
 					LedgerID:        blc.LedgerID,
 					CreatedAt:       transactionDate,
@@ -858,11 +860,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		logger.Errorf("Failed to convert transaction to JSON string, Error: %s", err.Error())
 	}
 
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
+
 	var fromTo []libTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
+	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
+
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)...)
+		fromTo = append(fromTo, to...)
 	}
 
 	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
@@ -932,8 +939,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	spanGetBalances.End()
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
+	to = handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
+
 	if transactionStatus != constant.PENDING {
-		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		fromTo = append(fromTo, to...)
 	}
 
 	var parentTransactionID *string
@@ -971,8 +980,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		return http.WithError(c, err)
 	}
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
+	tran.Source = getAliasWithoutKey(validate.Sources)
+	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
@@ -1006,11 +1015,16 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	parserDSL := tran.Body
 
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Source.From)
+	handler.ApplyDefaultBalanceKeys(parserDSL.Send.Distribute.To)
+
 	var fromTo []libTransaction.FromTo
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, true)...)
+	to := handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)
+
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, true)...)
+		fromTo = append(fromTo, to...)
 	}
 
 	if tran.Status.Code != constant.PENDING {
@@ -1047,8 +1061,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Source.From, false)...)
+	to = handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)
+
 	if transactionStatus != constant.CANCELED {
-		fromTo = append(fromTo, handler.HandleAccountFields(parserDSL.Send.Distribute.To, false)...)
+		fromTo = append(fromTo, to...)
 	}
 
 	tran.UpdatedAt = time.Now()
@@ -1066,8 +1082,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
+	tran.Source = getAliasWithoutKey(validate.Sources)
+	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
@@ -1084,4 +1100,25 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
+}
+
+// ApplyDefaultBalanceKeys sets the BalanceKey to "default" for any entries where the BalanceKey is empty.
+func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []libTransaction.FromTo) {
+	for i := range entries {
+		if entries[i].BalanceKey == "" {
+			entries[i].BalanceKey = constant.DefaultBalanceKey
+		}
+	}
+}
+
+// getAliasWithoutKey takes a slice of strings and returns a new slice containing the first part of each string split by '#'.
+func getAliasWithoutKey(array []string) []string {
+	result := make([]string, len(array))
+
+	for i, str := range array {
+		parts := strings.Split(str, "#")
+		result[i] = parts[0]
+	}
+
+	return result
 }
