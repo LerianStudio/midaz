@@ -4,10 +4,10 @@ import {
 } from '@/core/domain/entities/transaction-routes-entity'
 import { TransactionRoutesRepository } from '@/core/domain/repositories/transaction-routes-repository'
 import { injectable, inject } from 'inversify'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
 import { MidazTransactionRoutesDto } from '../dto/midaz-transaction-routes-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazCursorPaginationDto } from '../dto/midaz-pagination-dto'
 import { MidazTransactionRoutesMapper } from '../mappers/midaz-transaction-routes-mapper'
 import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
@@ -44,10 +44,10 @@ export class MidazTransactionRoutesRepository
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchEntity
-  ): Promise<PaginationEntity<TransactionRoutesEntity>> {
+  ): Promise<CursorPaginationEntity<TransactionRoutesEntity>> {
     const {
       id,
-      page = 1,
+      cursor,
       limit = 10,
       sortBy = 'createdAt',
       sortOrder = 'desc'
@@ -55,19 +55,19 @@ export class MidazTransactionRoutesRepository
 
     const queryParams = createQueryString({
       id,
-      page: page.toString(),
+      cursor,
       limit: limit.toString(),
       sort_by: sortBy,
       sort_order: sortOrder
     })
 
     const response = await this.httpService.get<
-      MidazPaginationDto<MidazTransactionRoutesDto>
+      MidazCursorPaginationDto<MidazTransactionRoutesDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes${queryParams}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transaction-routes?${queryParams}`
     )
 
-    return MidazTransactionRoutesMapper.toPaginationEntity({
+    return MidazTransactionRoutesMapper.toCursorPaginationEntity({
       ...response,
       items: response.items
     })

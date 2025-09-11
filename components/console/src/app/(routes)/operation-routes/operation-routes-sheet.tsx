@@ -117,9 +117,9 @@ export const OperationRoutesSheet = ({
   } = useListAccountTypes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    enabled: !!currentOrganization.id && !!currentLedger.id,
     query: {
-      limit: 100
+      limit: 100,
+      sortOrder: 'desc'
     }
   })
 

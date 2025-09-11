@@ -42,7 +42,8 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     ledgerId: string,
     filters: PortfolioSearchEntity = {
       page: 1,
-      limit: 10
+      limit: 10,
+      sortOrder: 'desc'
     }
   ): Promise<PaginationEntity<PortfolioEntity>> {
     if (filters.id) {
@@ -70,7 +71,7 @@ export class MidazPortfolioRepository implements PortfolioRepository {
     const response = await this.httpService.get<
       MidazPaginationDto<MidazPortfolioDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios${createQueryString(filters)}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/portfolios${createQueryString({ ...filters, sortBy: filters.sortBy || 'createdAt', sortOrder: filters.sortOrder || 'desc' })}`
     )
 
     return MidazPortfolioMapper.toPaginationEntity(response)

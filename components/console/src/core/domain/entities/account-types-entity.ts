@@ -1,10 +1,11 @@
 import { MetadataEntity } from './metadata-entity'
-import { PaginationSearchEntity } from './pagination-entity'
+import { CursorSortableSearchEntity } from './pagination-entity'
 
-export type AccountTypesSearchEntity = PaginationSearchEntity & {
+export type AccountTypesSearchEntity = CursorSortableSearchEntity & {
   id?: string
   name?: string
   keyValue?: string
+  sortBy?: 'id' | 'name' | 'createdAt' | 'updatedAt'
 }
 
 export type AccountTypesEntity = {

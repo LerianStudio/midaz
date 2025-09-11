@@ -2,7 +2,7 @@ import {
   TransactionRoutesEntity,
   TransactionRoutesSearchEntity
 } from '@/core/domain/entities/transaction-routes-entity'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import {
   CreateTransactionRoutesDto,
   UpdateTransactionRoutesDto,
@@ -51,13 +51,20 @@ export class TransactionRoutesMapper {
     dto: TransactionRoutesSearchParamDto
   ): TransactionRoutesSearchEntity {
     return {
-      limit: dto.limit
+      limit: dto.limit,
+      cursor: dto.cursor,
+      sortOrder: dto.sortOrder,
+      sortBy: dto.sortBy,
+      id: dto.id
     }
   }
 
-  static toPaginationResponseDto(
-    result: PaginationEntity<TransactionRoutesEntity>
-  ): PaginationEntity<TransactionRoutesDto> {
-    return PaginationMapper.toResponseDto(result, TransactionRoutesMapper.toDto)
+  static toCursorPaginationResponseDto(
+    result: CursorPaginationEntity<TransactionRoutesEntity>
+  ): CursorPaginationEntity<TransactionRoutesDto> {
+    return PaginationMapper.toCursorResponseDto(
+      result,
+      TransactionRoutesMapper.toDto
+    )
   }
 }

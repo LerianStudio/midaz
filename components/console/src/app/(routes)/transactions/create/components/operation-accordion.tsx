@@ -75,7 +75,7 @@ export const OperationEmptyAccordion = ({
 }
 
 export type OperationAccordionProps = {
-  type?: 'debit' | 'credit' | 'fee'
+  type?: 'debit' | 'credit'
   name: string
   asset?: string
   values: TransactionSourceFormSchema[0]

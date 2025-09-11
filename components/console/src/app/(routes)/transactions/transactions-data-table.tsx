@@ -37,7 +37,11 @@ import React from 'react'
 import { defineMessages, useIntl } from 'react-intl'
 import dayjs from 'dayjs'
 import { Pagination, PaginationProps } from '@/components/pagination'
-import { PaginationDto } from '@/core/application/dto/pagination-dto'
+import {
+  PaginationDto,
+  CursorPaginationDto
+} from '@/core/application/dto/pagination-dto'
+import { CursorPagination } from '@/components/cursor-pagination'
 import { IdTableCell } from '@/components/table/id-table-cell'
 import {
   TransactionOperationDto,
@@ -45,11 +49,24 @@ import {
 } from '@/core/application/dto/transaction-dto'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
 
+type CursorPaginationControls = {
+  hasNext: boolean
+  hasPrev: boolean
+  nextPage: () => void
+  previousPage: () => void
+  goToFirstPage: () => void
+}
+
 type TransactionsDataTableProps = {
-  transactions: PaginationDto<TransactionDto> | undefined
-  total: number
-  pagination: PaginationProps
+  transactions:
+    | PaginationDto<TransactionDto>
+    | CursorPaginationDto<TransactionDto>
+    | undefined
+  total?: number
+  pagination?: PaginationProps
   onCreateTransaction: () => void
+  useCursorPagination?: boolean
+  cursorPaginationControls?: CursorPaginationControls
 }
 
 type TransactionsRowProps = {
@@ -97,32 +114,6 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
     destination = []
   } = transaction.original
 
-  const sourceAliases = new Set(
-    source.map((sourceItem) => sourceItem.accountAlias?.toLowerCase())
-  )
-
-  const isFeeOperation = (operation: TransactionOperationDto) => {
-    const description = operation.description?.toLowerCase() ?? ''
-    const chartOfAccounts = (operation.chartOfAccounts ?? '').toLowerCase()
-    const accountAliasMatch = sourceAliases.has(
-      (operation.accountAlias ?? '').toLowerCase()
-    )
-    const amountDiffers =
-      Number(operation.amount) !== Number(transaction.original.amount)
-
-    const creditToSource = accountAliasMatch && amountDiffers
-
-    return (
-      description.includes('fee') ||
-      chartOfAccounts.includes('fee') ||
-      creditToSource
-    )
-  }
-
-  const nonFeeDestinations = destination.filter(
-    (destinationItem) => !isFeeOperation(destinationItem)
-  )
-
   const badgeVariant = getBadgeVariant(code)
 
   const renderItemsList = (
@@ -159,7 +150,7 @@ const TransactionRow: React.FC<TransactionsRowProps> = ({ transaction }) => {
   }
 
   const renderSource = renderItemsList(source, 'source')
-  const renderDestination = renderItemsList(nonFeeDestinations, 'destination')
+  const renderDestination = renderItemsList(destination, 'destination')
 
   return (
     <React.Fragment>
@@ -213,7 +204,9 @@ export const TransactionsDataTable = ({
   transactions,
   total,
   pagination,
-  onCreateTransaction
+  onCreateTransaction,
+  useCursorPagination = false,
+  cursorPaginationControls
 }: TransactionsDataTableProps) => {
   const intl = useIntl()
   const [columnFilters, setColumnFilters] = React.useState<any>([])
@@ -331,14 +324,26 @@ export const TransactionsDataTable = ({
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination
-            total={total}
-            hasNextPage={
-              transactions?.items &&
-              transactions.items.length < pagination.limit
-            }
-            {...pagination}
-          />
+          {useCursorPagination && cursorPaginationControls ? (
+            <CursorPagination
+              hasNext={cursorPaginationControls.hasNext}
+              hasPrev={cursorPaginationControls.hasPrev}
+              onNext={cursorPaginationControls.nextPage}
+              onPrevious={cursorPaginationControls.previousPage}
+            />
+          ) : (
+            pagination &&
+            total !== undefined && (
+              <Pagination
+                total={total}
+                hasNextPage={
+                  transactions?.items &&
+                  transactions.items.length < pagination.limit
+                }
+                {...pagination}
+              />
+            )
+          )}
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </>

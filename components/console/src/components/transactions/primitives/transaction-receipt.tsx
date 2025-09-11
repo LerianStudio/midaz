@@ -3,7 +3,6 @@ import { isNil } from 'lodash'
 import { AlignLeft, ArrowRight } from 'lucide-react'
 import { forwardRef, HTMLAttributes, ReactNode } from 'react'
 import { useIntl } from 'react-intl'
-import { Skeleton } from '@/components/ui/skeleton'
 
 export type TransactionReceiptProps = HTMLAttributes<HTMLDivElement> & {
   type?: 'main' | 'ticket'
@@ -33,7 +32,6 @@ export type TransactionReceiptValueProps =
     asset: string
     value: string | number
     finalAmount?: string | number
-    isCalculatingFees?: boolean
     isDeductibleFrom?: boolean
     showOriginalAmount?: boolean
   }
@@ -48,7 +46,6 @@ export const TransactionReceiptValue = forwardRef<
       asset,
       value,
       finalAmount,
-      isCalculatingFees,
       isDeductibleFrom: _isDeductibleFrom,
       showOriginalAmount = false,
       children: _children,
@@ -58,23 +55,9 @@ export const TransactionReceiptValue = forwardRef<
   ) => {
     const intl = useIntl()
 
-    if (isCalculatingFees) {
-      return (
-        <div className={cn('flex flex-col items-center gap-2', className)}>
-          <Skeleton className="h-12 w-48" />
-          <div className="text-sm text-neutral-500">
-            {intl.formatMessage({
-              id: 'transactions.fees.calculating',
-              defaultMessage: 'Calculating final amount'
-            })}
-          </div>
-        </div>
-      )
-    }
-
     let displayAmount = finalAmount || value
     let label = intl.formatMessage({
-      id: 'transactions.fees.finalAmount',
+      id: 'transactions.finalAmount',
       defaultMessage: 'Transaction final amount'
     })
 
@@ -198,7 +181,7 @@ TransactionReceiptItem.displayName = 'TransactionReceiptTicket'
 
 export type TransactionReceiptOperationProps =
   HTMLAttributes<HTMLDivElement> & {
-    type: 'debit' | 'credit' | 'fee'
+    type: 'debit' | 'credit'
     account: string
     asset: string
     value: string
@@ -227,26 +210,17 @@ export const TransactionReceiptOperation = forwardRef<
                   id: 'common.debit',
                   defaultMessage: 'Debit'
                 })
-              : type === 'credit'
-                ? intl.formatMessage({
-                    id: 'common.credit',
-                    defaultMessage: 'Credit'
-                  })
-                : intl.formatMessage({
-                    id: 'common.fee',
-                    defaultMessage: 'Fee'
-                  })}
+              : intl.formatMessage({
+                  id: 'common.credit',
+                  defaultMessage: 'Credit'
+                })}
           </p>
           <div className="flex flex-row gap-8">
             <p>{account}</p>
             <p
               className={cn(
                 'w-24 text-right text-xs',
-                type === 'debit'
-                  ? 'text-red-500'
-                  : type === 'credit'
-                    ? 'text-green-500'
-                    : 'text-blue-800'
+                type === 'debit' ? 'text-red-500' : 'text-green-500'
               )}
             >
               {type === 'debit' ? '-' : '+'} {asset} {value}

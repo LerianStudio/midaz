@@ -42,13 +42,40 @@
           "order": 1
         },
         {
+          "name": "account-types",
+          "title": "Account Types",
+          "titleKey": "sidebar.ledger.accountTypes.title",
+          "route": "/account-types",
+          "icon": "Layers",
+          "hasLedgerDependencies": true,
+          "order": 2
+        },
+        {
+          "name": "operation-routes",
+          "title": "Operation Routes",
+          "titleKey": "sidebar.ledger.operationRoutes.title",
+          "route": "/operation-routes",
+          "icon": "Workflow",
+          "hasLedgerDependencies": true,
+          "order": 3
+        },
+        {
+          "name": "transaction-routes",
+          "title": "Transaction Routes",
+          "titleKey": "sidebar.ledger.transactionRoutes.title",
+          "route": "/transaction-routes",
+          "icon": "Route",
+          "hasLedgerDependencies": true,
+          "order": 4
+        },
+        {
           "name": "accounts",
           "title": "Accounts",
           "titleKey": "sidebar.ledger.accounts.title",
           "route": "/accounts",
           "icon": "Coins",
           "hasLedgerDependencies": true,
-          "order": 2
+          "order": 5
         },
         {
           "name": "segments",
@@ -57,7 +84,7 @@
           "route": "/segments",
           "icon": "Group",
           "hasLedgerDependencies": true,
-          "order": 3
+          "order": 6
         },
         {
           "name": "portfolios",
@@ -66,7 +93,7 @@
           "route": "/portfolios",
           "icon": "Briefcase",
           "hasLedgerDependencies": true,
-          "order": 4
+          "order": 7
         },
         {
           "name": "transactions",
@@ -75,7 +102,7 @@
           "route": "/transactions",
           "icon": "ArrowLeftRight",
           "hasLedgerDependencies": true,
-          "order": 5
+          "order": 8
         }
       ]
     }

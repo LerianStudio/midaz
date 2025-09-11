@@ -1,8 +1,10 @@
 import { MetadataEntity } from './metadata-entity'
-import { PaginationSearchEntity } from './pagination-entity'
+import { CursorSortableSearchEntity } from './pagination-entity'
 
-export type OperationRoutesSearchEntity = PaginationSearchEntity & {
+export type OperationRoutesSearchEntity = CursorSortableSearchEntity & {
   id?: string
+  title?: string
+  sortBy?: 'id' | 'title' | 'createdAt' | 'updatedAt'
 }
 
 export type OperationRoutesEntity = {

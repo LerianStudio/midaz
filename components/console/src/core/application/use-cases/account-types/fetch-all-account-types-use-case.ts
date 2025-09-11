@@ -1,5 +1,5 @@
-import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationDto } from '../../dto/pagination-dto'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { AccountTypesMapper } from '../../mappers/account-types-mapper'
 import { AccountTypesEntity } from '@/core/domain/entities/account-types-entity'
 import {
@@ -15,7 +15,7 @@ export interface FetchAllAccountTypes {
     organizationId: string,
     ledgerId: string,
     query?: AccountTypesSearchParamDto
-  ) => Promise<PaginationDto<AccountTypesDto>>
+  ) => Promise<CursorPaginationDto<AccountTypesDto>>
 }
 
 @injectable()
@@ -30,14 +30,16 @@ export class FetchAllAccountTypesUseCase implements FetchAllAccountTypes {
     organizationId: string,
     ledgerId: string,
     query?: AccountTypesSearchParamDto
-  ): Promise<PaginationDto<AccountTypesDto>> {
-    const accountTypesResult: PaginationEntity<AccountTypesEntity> =
+  ): Promise<CursorPaginationDto<AccountTypesDto>> {
+    const searchEntity = AccountTypesMapper.toSearchDomain(query || {})
+
+    const accountTypesResult: CursorPaginationEntity<AccountTypesEntity> =
       await this.accountTypesRepository.fetchAll(
         organizationId,
         ledgerId,
-        query
+        searchEntity
       )
 
-    return AccountTypesMapper.toPaginationResponseDto(accountTypesResult)
+    return AccountTypesMapper.toCursorPaginationResponseDto(accountTypesResult)
   }
 }

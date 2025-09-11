@@ -556,6 +556,9 @@
   "sidebar.main.home.title": "Home",
   "sidebar.main.ledgers.title": "Ledgers",
   "sidebar.ledger.assets.title": "Ativos",
+  "sidebar.ledger.transactionRoutes.title": "Rotas de Transação",
+  "sidebar.ledger.operationRoutes.title": "Rotas de Operação",
+  "sidebar.ledger.accountTypes.title": "Tipos de Conta",
   "sidebar.ledger.accounts.title": "Contas",
   "sidebar.ledger.segments.title": "Segmentos",
   "sidebar.ledger.portfolios.title": "Portfólios",
@@ -805,5 +808,6 @@
   "success.transactionRoutes.created": "{transactionRouteTitle} rota de transação criada com sucesso",
   "success.transactionRoutes.updated": "{transactionRouteTitle} rota de transação atualizada com sucesso",
   "success.transactionRoutes.delete": "{transactionRouteTitle} rota de transação excluída com sucesso",
-  "transactionRoutes.validation.operationRoutes.min": "Pelo menos uma rota de operação de origem e uma de destino devem ser selecionadas com tipos de operação diferentes (origem e destino)"
+  "transactionRoutes.validation.operationRoutes.min": "Pelo menos uma rota de operação de origem e uma de destino devem ser selecionadas com tipos de operação diferentes (origem e destino)",
+  "errors.custom.transaction_route_different_operation_types": "Pelo menos uma rota de operação de origem e uma de destino devem ser selecionadas com tipos de operação diferentes (origem e destino)"
 }

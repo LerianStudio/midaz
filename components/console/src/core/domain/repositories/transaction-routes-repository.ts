@@ -2,7 +2,7 @@ import {
   TransactionRoutesEntity,
   TransactionRoutesSearchEntity
 } from '../entities/transaction-routes-entity'
-import { PaginationEntity } from '../entities/pagination-entity'
+import { CursorPaginationEntity } from '../entities/pagination-entity'
 
 export abstract class TransactionRoutesRepository {
   abstract create: (
@@ -15,7 +15,7 @@ export abstract class TransactionRoutesRepository {
     organizationId: string,
     ledgerId: string,
     query?: TransactionRoutesSearchEntity
-  ) => Promise<PaginationEntity<TransactionRoutesEntity>>
+  ) => Promise<CursorPaginationEntity<TransactionRoutesEntity>>
 
   abstract fetchById: (
     organizationId: string,

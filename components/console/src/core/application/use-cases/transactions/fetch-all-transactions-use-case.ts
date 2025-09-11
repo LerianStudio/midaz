@@ -1,19 +1,20 @@
 import { inject, injectable } from 'inversify'
 import { TransactionRepository } from '@/core/domain/repositories/transaction-repository'
 import { TransactionMapper } from '../../mappers/transaction-mapper'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import {
   TransactionDto,
   type TransactionSearchDto
 } from '../../dto/transaction-dto'
+import { CursorPaginationDto } from '../../dto/pagination-dto'
 import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 
 export interface FetchAllTransactions {
   execute: (
     organizationId: string,
     ledgerId: string,
-    filters: TransactionSearchDto
-  ) => Promise<PaginationEntity<TransactionDto>>
+    query?: TransactionSearchDto
+  ) => Promise<CursorPaginationDto<TransactionDto>>
 }
 
 @injectable()
@@ -27,14 +28,17 @@ export class FetchAllTransactionsUseCase implements FetchAllTransactions {
   async execute(
     organizationId: string,
     ledgerId: string,
-    filters: TransactionSearchDto
-  ): Promise<PaginationEntity<TransactionDto>> {
-    const transactionsResult = await this.transactionRepository.fetchAll(
-      organizationId,
-      ledgerId,
-      filters
-    )
+    query?: TransactionSearchDto
+  ): Promise<CursorPaginationDto<TransactionDto>> {
+    const searchEntity = TransactionMapper.toSearchDomain(query || {})
 
-    return TransactionMapper.toPaginatedResponseDto(transactionsResult)
+    const transactionsResult: CursorPaginationEntity<any> =
+      await this.transactionRepository.fetchAll(
+        organizationId,
+        ledgerId,
+        searchEntity
+      )
+
+    return TransactionMapper.toCursorPaginationResponseDto(transactionsResult)
   }
 }
