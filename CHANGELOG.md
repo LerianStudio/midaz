@@ -1,3 +1,15 @@
+## [v3.3.0-beta.13] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.12...v3.3.0-beta.13)
+Contributors: LF Barrile, lerian-studio
+
+### ✨ Features
+- **GitOps Flow Configuration**: We've implemented a new GitOps flow to streamline and automate application deployments. This feature reduces manual intervention, minimizes errors, and ensures faster, more consistent updates. Users will experience a smoother deployment process, making it easier to manage and deploy applications with confidence.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to include the latest changes and improvements, ensuring users have access to the most current information about the project's progress and updates. This enhances transparency and aids in project tracking.
+
+
 ## [v3.3.0-beta.12] - 2025-09-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.11...v3.3.0-beta.12)
