@@ -3,18 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
 )
 
 // TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error
@@ -114,7 +115,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	// Create operations for transactions
 	ops1 := []*operation.Operation{{
 		ID: "op1-" + txID1Str,
-	}}  
+	}}
 	ops2 := []*operation.Operation{{
 		ID: "op2-" + txID2Str,
 	}}
@@ -148,7 +149,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 
 	// 4. Metadata for operations might be fetched
 	mockMetadataRepo.EXPECT().
-		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+		FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil).AnyTimes()
 
 	// Setup the UseCase with our mocks
@@ -171,7 +172,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		assert.NotEmpty(t, tx.Operations, "Transaction operations should be populated")
 		assert.NotNil(t, tx.Metadata, "Transaction metadata should be populated")
 		assert.Equal(t, "value", tx.Metadata["key"])
-		
+
 		// Verify the correct operations were assigned to each transaction
 		if tx.ID == txID1Str {
 			assert.Equal(t, "op1-"+txID1Str, tx.Operations[0].ID)

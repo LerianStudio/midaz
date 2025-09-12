@@ -107,7 +107,7 @@ func TestGetAllTransactions(t *testing.T) {
 		// Mock metadata repo FindList for operations
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), "Operation", gomock.Any()).
+			FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
 			Return([]*mongodb.Metadata{
 				{
 					EntityID:   operations[0].ID,
@@ -257,7 +257,7 @@ func TestGetAllTransactions(t *testing.T) {
 		// because the test expects this call to be set up
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), "Operation", gomock.Any()).
+			FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
 			Return(nil, nil).
 			AnyTimes()
 
