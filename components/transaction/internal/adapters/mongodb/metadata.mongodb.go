@@ -3,6 +3,9 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -12,16 +15,17 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
 // It defines methods for creating, finding, updating, and deleting metadata entities.
+//
+//go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
+	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	Delete(ctx context.Context, collection, id string) error
 }
@@ -262,4 +266,70 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	}
 
 	return nil
+}
+
+// FindByEntityIDs retrieves metadata from the mongodb using a list of entity_ids.
+func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity_ids")
+	defer span.End()
+
+	if len(entityIDs) == 0 {
+		return []*Metadata{}, nil
+	}
+
+	db, err := mmr.connection.GetDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+
+	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}}
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_by_entity_ids.find")
+	defer spanFind.End()
+
+	cur, err := coll.Find(ctx, filter, options.Find())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
+
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var meta []*MetadataMongoDBModel
+
+	for cur.Next(ctx) {
+		var record MetadataMongoDBModel
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata", err)
+
+			return nil, err
+		}
+
+		meta = append(meta, &record)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to iterate metadata", err)
+
+		return nil, err
+	}
+
+	if err := cur.Close(ctx); err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", err)
+
+		return nil, err
+	}
+
+	metadata := make([]*Metadata, 0, len(meta))
+	for i := range meta {
+		metadata = append(metadata, meta[i].ToEntity())
+	}
+
+	return metadata, nil
 }

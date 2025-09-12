@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -12,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
@@ -38,7 +39,12 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+		operationIDs := make([]string, len(op))
+		for i, o := range op {
+			operationIDs[i] = o.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
