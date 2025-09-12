@@ -13,6 +13,15 @@ type balanceItem struct {
     AssetCode string `json:"assetCode"`
 }
 
+// EnsureDefaultBalanceRecord creates (or ensures) a default balance record with send/receive allowed.
+func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, ledgerID, accountID string, headers map[string]string) error {
+    payload := map[string]any{"key": "default", "allowSending": true, "allowReceiving": true}
+    c, b, e := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID), headers, payload)
+    if e != nil { return e }
+    if c == 201 || c == 409 || (c >= 200 && c < 300) { return nil }
+    return fmt.Errorf("create default balance record failed: status %d body=%s", c, string(b))
+}
+
 // EnableDefaultBalance sets AllowSending/AllowReceiving to true on the default balance for an account alias.
 func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias string, headers map[string]string) error {
     // Get balances by alias
@@ -39,8 +48,8 @@ func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerI
     }
     // PATCH update
     payload := map[string]any{"allowSending": true, "allowReceiving": true}
-    code, body, err = trans.Request(ctx, "PATCH", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", orgID, ledgerID, defID), headers, payload)
-    if err != nil { return err }
-    if code != 200 { return fmt.Errorf("patch default balance: status %d body=%s", code, string(body)) }
+    c2, b2, e2 := trans.Request(ctx, "PATCH", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", orgID, ledgerID, defID), headers, payload)
+    if e2 != nil { return e2 }
+    if c2 != 200 { return fmt.Errorf("patch default balance: status %d body=%s", c2, string(b2)) }
     return nil
 }
