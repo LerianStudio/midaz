@@ -47,3 +47,14 @@ func RestartWithWait(container string, wait time.Duration) error {
     return nil
 }
 
+// DockerNetwork connects or disconnects a container to/from a Docker network.
+// action should be "connect" or "disconnect".
+func DockerNetwork(action, network, container string) error {
+    cmd := exec.Command("docker", "network", action, network, container)
+    out, err := cmd.CombinedOutput()
+    if err != nil {
+        return fmt.Errorf("docker network %s %s %s failed: %v\n%s", action, network, container, err, string(out))
+    }
+    return nil
+}
+

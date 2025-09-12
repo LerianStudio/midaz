@@ -66,3 +66,39 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, headers m
     code, b, _, err := c.RequestFull(ctx, method, path, headers, body)
     return code, b, err
 }
+
+// RequestRaw sends a request with an arbitrary raw body and explicit Content-Type.
+func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, headers map[string]string, contentType string, raw []byte) (int, []byte, http.Header, error) {
+    if headers == nil { headers = map[string]string{} }
+    if contentType != "" { headers["Content-Type"] = contentType }
+    req, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(raw))
+    if err != nil { return 0, nil, nil, err }
+    for k, v := range headers { req.Header.Set(k, v) }
+    resp, err := c.client.Do(req)
+    if err != nil { return 0, nil, nil, err }
+    defer resp.Body.Close()
+    b, err := io.ReadAll(resp.Body)
+    if err != nil { return resp.StatusCode, nil, resp.Header, err }
+    return resp.StatusCode, b, resp.Header, nil
+}
+
+// RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
+// Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
+func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {
+    if attempts <= 0 { attempts = 1 }
+    if baseBackoff <= 0 { baseBackoff = 200 * time.Millisecond }
+    var lastCode int
+    var lastBody []byte
+    var lastHdr http.Header
+    var lastErr error
+    for i := 0; i < attempts; i++ {
+        code, b, hdr, err := c.RequestFull(ctx, method, path, headers, body)
+        lastCode, lastBody, lastHdr, lastErr = code, b, hdr, err
+        if err == nil && code != 429 && code != 502 && code != 503 && code != 504 {
+            return code, b, hdr, nil
+        }
+        // back off
+        time.Sleep(time.Duration(1<<i) * baseBackoff)
+    }
+    return lastCode, lastBody, lastHdr, lastErr
+}

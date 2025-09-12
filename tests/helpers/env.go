@@ -6,6 +6,7 @@ import (
     "net/url"
     "os"
     "time"
+    "net/http"
 )
 
 // Environment holds base URLs for Midaz services and behavior flags.
@@ -70,3 +71,21 @@ func URLHostPort(raw string) (string, error) {
     return u.Host, nil
 }
 
+// WaitForHTTP200 polls a URL until it returns HTTP 200 or timeout elapses.
+func WaitForHTTP200(fullURL string, timeout time.Duration) error {
+    client := &http.Client{ Timeout: 2 * time.Second }
+    deadline := time.Now().Add(timeout)
+    for {
+        req, _ := http.NewRequest(http.MethodGet, fullURL, nil)
+        resp, err := client.Do(req)
+        if err == nil {
+            _ = resp.Body.Close()
+            if resp.StatusCode == http.StatusOK { return nil }
+        }
+        if time.Now().After(deadline) {
+            if err != nil { return fmt.Errorf("timeout waiting for %s: %v", fullURL, err) }
+            return fmt.Errorf("timeout waiting for %s: status != 200", fullURL)
+        }
+        time.Sleep(300 * time.Millisecond)
+    }
+}

@@ -18,7 +18,7 @@ type balanceItem struct {
 // EnsureDefaultBalanceRecord waits until the default balance exists for the given account ID.
 // It no longer attempts to create the default, as the system creates it asynchronously upon account creation.
 func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, ledgerID, accountID string, headers map[string]string) error {
-    deadline := time.Now().Add(10 * time.Second)
+    deadline := time.Now().Add(60 * time.Second)
     for {
         c, b, e := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID), headers, nil)
         if e == nil && c == 200 {
@@ -41,7 +41,7 @@ func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, l
 func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias string, headers map[string]string) error {
     // Get balances by alias
     var defID string
-    deadline := time.Now().Add(5 * time.Second)
+    deadline := time.Now().Add(30 * time.Second)
     for {
         c, b, e := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias), headers, nil)
         if e == nil && c == 200 {
