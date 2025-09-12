@@ -1,0 +1,64 @@
+package integration
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "testing"
+
+    h "github.com/LerianStudio/midaz/v3/tests/helpers"
+)
+
+func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
+    env := h.LoadEnvironment()
+    ctx := context.Background()
+    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    headers := h.AuthHeaders(h.RandHex(8))
+
+    // Create org with metadata
+    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, map[string]any{
+        "legalName": fmt.Sprintf("Org %s", h.RandString(5)),
+        "legalDocument": h.RandString(12),
+        "metadata": map[string]any{"tier": "gold", "region": "emea"},
+    })
+    if err != nil || code != 201 { t.Fatalf("create org: code=%d err=%v body=%s", code, err, string(body)) }
+    var org struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &org)
+
+    // Filter with metadata.tier=gold
+    code, body, err = onboard.Request(ctx, "GET", "/v1/organizations?metadata.tier=gold", headers, nil)
+    if err != nil || code != 200 { t.Fatalf("list orgs by metadata: code=%d err=%v body=%s", code, err, string(body)) }
+    var list struct{ Items []struct{ ID string `json:"id"`; Metadata map[string]any `json:"metadata"` } `json:"items"` }
+    _ = json.Unmarshal(body, &list)
+    found := false
+    for _, it := range list.Items { if it.ID == org.ID { found = true; break } }
+    if !found { t.Fatalf("org not found via metadata filter") }
+}
+
+func TestIntegration_MetadataFilters_Ledgers(t *testing.T) {
+    env := h.LoadEnvironment()
+    ctx := context.Background()
+    onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
+    headers := h.AuthHeaders(h.RandHex(8))
+
+    // org + ledger with metadata
+    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, map[string]any{"legalName": fmt.Sprintf("Org %s", h.RandString(5)), "legalDocument": h.RandString(12)})
+    if err != nil || code != 201 { t.Fatalf("create org: code=%d err=%v body=%s", code, err, string(body)) }
+    var org struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &org)
+
+    code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L-Meta", "metadata": map[string]any{"purpose":"test"}})
+    if err != nil || code != 201 { t.Fatalf("create ledger: code=%d err=%v body=%s", code, err, string(body)) }
+    var ledger struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &ledger)
+
+    // Filter with metadata.purpose=test
+    code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers?metadata.purpose=test", org.ID), headers, nil)
+    if err != nil || code != 200 { t.Fatalf("list ledgers by metadata: code=%d err=%v body=%s", code, err, string(body)) }
+    var list struct{ Items []struct{ ID string `json:"id"`; Metadata map[string]any `json:"metadata"` } `json:"items"` }
+    _ = json.Unmarshal(body, &list)
+    found := false
+    for _, it := range list.Items { if it.ID == ledger.ID { found = true; break } }
+    if !found { t.Fatalf("ledger not found via metadata filter") }
+}
+

@@ -152,6 +152,40 @@ help:
 test:
 	@./scripts/run-tests.sh
 
+# Integration tests (Go) – spins up stack, runs tests/integration
+.PHONY: test-integration
+test-integration:
+	$(call print_title,"Running Go integration tests (with Docker stack)")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; \
+	trap '$(MAKE) down-backend' EXIT; \
+	$(MAKE) up-backend; \
+	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/integration
+
+# E2E tests (Go) – expects stack running; will bring it up if not
+.PHONY: test-e2e-go
+test-e2e-go:
+	$(call print_title,"Running Go E2E tests (with Docker stack)")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; \
+	trap '$(MAKE) down-backend' EXIT; \
+	$(MAKE) up-backend; \
+	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/e2e
+
+# Combined Go integration + E2E tests
+.PHONY: test-integration-e2e
+test-integration-e2e:
+	$(call print_title,"Running Go integration + E2E tests (with Docker stack)")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; \
+	trap '$(MAKE) down-backend' EXIT; \
+	$(MAKE) up-backend; \
+	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/integration; \
+	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/e2e
+
 .PHONY: build
 build:
 	$(call print_title,"Building all components")
