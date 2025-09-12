@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "strconv"
+    "time"
     "testing"
 
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -39,9 +40,25 @@ func TestIntegration_CountEndpoints(t *testing.T) {
     if _, err := strconv.Atoi(hdr.Get("X-Total-Count")); err != nil { t.Fatalf("missing or invalid X-Total-Count header for ledgers") }
 
     // Accounts count before creating new account
-    code, _, hdr, err = onboard.RequestFull(ctx, "HEAD", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", org.ID, ledgerID), headers, nil)
-    if err != nil || code != 204 { t.Fatalf("accounts count head (before): code=%d err=%v", code, err) }
-    beforeCount, _ := strconv.Atoi(hdr.Get("X-Total-Count"))
+    // Poll HEAD count before creating account
+    var beforeCount int
+    {
+        deadline := time.Now().Add(2 * time.Second)
+        for {
+            code, _, hdr, err = onboard.RequestFull(ctx, "HEAD", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", org.ID, ledgerID), headers, nil)
+            if err == nil && code == 204 {
+                if v, conv := strconv.Atoi(hdr.Get("X-Total-Count")); conv == nil {
+                    beforeCount = v
+                    break
+                }
+            }
+            if time.Now().After(deadline) { t.Fatalf("accounts count head (before) not ready") }
+            time.Sleep(100 * time.Millisecond)
+        }
+    }
+
+    // Create asset USD required for accounts
+    if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledgerID, headers); err != nil { t.Fatalf("create USD asset: %v", err) }
 
     // Create account and verify accounts count header increases
     alias := fmt.Sprintf("acc-%s", h.RandString(5))
@@ -49,10 +66,22 @@ func TestIntegration_CountEndpoints(t *testing.T) {
     code, acctBody, err := onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledgerID), headers, accountPayload)
     if err != nil || code != 201 { t.Fatalf("create account: code=%d err=%v body=%s", code, err, string(acctBody)) }
 
-    code, _, hdr, err = onboard.RequestFull(ctx, "HEAD", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", org.ID, ledgerID), headers, nil)
-    if err != nil || code != 204 { t.Fatalf("accounts count head (after): code=%d err=%v", code, err) }
-    afterCount, convErr := strconv.Atoi(hdr.Get("X-Total-Count"))
-    if convErr != nil { t.Fatalf("missing or invalid X-Total-Count header for accounts") }
+    // Poll until count increases
+    var afterCount int
+    {
+        deadline := time.Now().Add(3 * time.Second)
+        for {
+            code, _, hdr, err = onboard.RequestFull(ctx, "HEAD", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", org.ID, ledgerID), headers, nil)
+            if err == nil && code == 204 {
+                if v, conv := strconv.Atoi(hdr.Get("X-Total-Count")); conv == nil {
+                    afterCount = v
+                    if afterCount >= beforeCount+1 { break }
+                }
+            }
+            if time.Now().After(deadline) { break }
+            time.Sleep(150 * time.Millisecond)
+        }
+    }
     if afterCount < beforeCount+1 { t.Fatalf("expected accounts count to increase by at least 1: before=%d after=%d", beforeCount, afterCount) }
 }
 

@@ -15,12 +15,10 @@ func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
-    // Create org with metadata
-    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, map[string]any{
-        "legalName": fmt.Sprintf("Org %s", h.RandString(5)),
-        "legalDocument": h.RandString(12),
-        "metadata": map[string]any{"tier": "gold", "region": "emea"},
-    })
+    // Create org with metadata (include valid country)
+    payload := h.OrgPayload(fmt.Sprintf("Org %s", h.RandString(5)), h.RandString(12))
+    payload["metadata"] = map[string]any{"tier": "gold", "region": "emea"}
+    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, payload)
     if err != nil || code != 201 { t.Fatalf("create org: code=%d err=%v body=%s", code, err, string(body)) }
     var org struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &org)
@@ -42,7 +40,7 @@ func TestIntegration_MetadataFilters_Ledgers(t *testing.T) {
     headers := h.AuthHeaders(h.RandHex(8))
 
     // org + ledger with metadata
-    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, map[string]any{"legalName": fmt.Sprintf("Org %s", h.RandString(5)), "legalDocument": h.RandString(12)})
+    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload(fmt.Sprintf("Org %s", h.RandString(5)), h.RandString(12)))
     if err != nil || code != 201 { t.Fatalf("create org: code=%d err=%v body=%s", code, err, string(body)) }
     var org struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &org)
@@ -61,4 +59,3 @@ func TestIntegration_MetadataFilters_Ledgers(t *testing.T) {
     for _, it := range list.Items { if it.ID == ledger.ID { found = true; break } }
     if !found { t.Fatalf("ledger not found via metadata filter") }
 }
-

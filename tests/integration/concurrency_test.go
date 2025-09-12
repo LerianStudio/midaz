@@ -42,8 +42,8 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
     var acc struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &acc)
 
-    // Ensure default balance allows send/receive
-    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure default balance record: %v", err) }
+    // Wait for default balance and ensure permissions are enabled
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure default balance ready: %v", err) }
     if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default balance: %v", err) }
 
     // Seed initial balance via inflow: 500.00
@@ -156,7 +156,7 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
         if err != nil || code != 201 { t.Fatalf("create account %s: code=%d err=%v body=%s", alias, code, err, string(body)) }
         var acc struct{ ID string `json:"id"` }
         _ = json.Unmarshal(body, &acc)
-        if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure balance %s: %v", alias, err) }
+        if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure balance %s ready: %v", alias, err) }
         if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable balance %s: %v", alias, err) }
     }
 
@@ -246,4 +246,3 @@ func TestIntegration_BurstMixedOperations_DeterministicFinal(t *testing.T) {
     }
     if gotB.IsNegative() { t.Fatalf("B negative final balance: %s", gotB.String()) }
 }
-

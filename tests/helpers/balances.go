@@ -15,13 +15,26 @@ type balanceItem struct {
     AssetCode string `json:"assetCode"`
 }
 
-// EnsureDefaultBalanceRecord creates (or ensures) a default balance record with send/receive allowed.
+// EnsureDefaultBalanceRecord waits until the default balance exists for the given account ID.
+// It no longer attempts to create the default, as the system creates it asynchronously upon account creation.
 func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, ledgerID, accountID string, headers map[string]string) error {
-    payload := map[string]any{"key": "default", "allowSending": true, "allowReceiving": true}
-    c, b, e := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID), headers, payload)
-    if e != nil { return e }
-    if c == 201 || c == 409 || (c >= 200 && c < 300) { return nil }
-    return fmt.Errorf("create default balance record failed: status %d body=%s", c, string(b))
+    deadline := time.Now().Add(10 * time.Second)
+    for {
+        c, b, e := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/%s/balances", orgID, ledgerID, accountID), headers, nil)
+        if e == nil && c == 200 {
+            var paged struct{ Items []balanceItem `json:"items"` }
+            _ = json.Unmarshal(b, &paged)
+            for _, it := range paged.Items {
+                if it.Key == "default" {
+                    return nil
+                }
+            }
+        }
+        if time.Now().After(deadline) {
+            return fmt.Errorf("default balance not ready for account %s", accountID)
+        }
+        time.Sleep(150 * time.Millisecond)
+    }
 }
 
 // EnableDefaultBalance sets AllowSending/AllowReceiving to true on the default balance for an account alias.

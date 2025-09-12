@@ -11,6 +11,8 @@ import (
 func TestProperty_ConservationOfValue_Model(t *testing.T) {
     f := func(n int) bool {
         if n <= 0 { n = 1 }
+        // bound n to avoid huge or negative sizes causing panics
+        if n > 20 { n = 20 }
         // generate random positive parts that sum to total
         total := float64(rand.Intn(10000)+1) / 100.0
         parts := make([]float64, n)
@@ -33,4 +35,3 @@ func TestProperty_ConservationOfValue_Model(t *testing.T) {
         t.Fatalf("conservation property failed: %v", err)
     }
 }
-

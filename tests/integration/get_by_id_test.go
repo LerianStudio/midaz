@@ -34,6 +34,11 @@ func TestIntegration_GetByID_OrganizationLedgerAccount(t *testing.T) {
     var ledger struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &ledger)
 
+    // ensure USD asset exists before creating accounts
+    if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
+        t.Fatalf("create USD asset: %v", err)
+    }
+
     // get ledger by id
     code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s", org.ID, ledger.ID), headers, nil)
     if err != nil || code != 200 { t.Fatalf("get ledger by id: code=%d err=%v body=%s", code, err, string(body)) }

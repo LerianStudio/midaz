@@ -68,6 +68,8 @@ func TestIntegration_CoreOrgLedgerAccountAndTransactions(t *testing.T) {
     if err := json.Unmarshal(body, &account); err != nil || account.ID == "" {
         t.Fatalf("parse account: %v body=%s", err, string(body))
     }
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil { t.Fatalf("ensure default ready: %v", err) }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default: %v", err) }
 
     // 4) Simple inflow
     inflow := map[string]any{

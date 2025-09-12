@@ -40,6 +40,9 @@ func TestE2E_HappyPathWorkflow(t *testing.T) {
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/segments", org.ID, ledger.ID), headers, map[string]any{"name": "Retail"})
     if err != nil || code != 201 { t.Fatalf("create segment: code=%d err=%v body=%s", code, err, string(body)) }
 
+    // Ensure USD asset exists for ledger before accounts
+    if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil { t.Fatalf("create USD asset: %v", err) }
+
     // Accounts
     aliasA := fmt.Sprintf("a-%s", h.RandString(5)) // cash-like
     aliasB := fmt.Sprintf("b-%s", h.RandString(5)) // expense/revenue-like
@@ -47,6 +50,13 @@ func TestE2E_HappyPathWorkflow(t *testing.T) {
     if err != nil || code != 201 { t.Fatalf("create account A: code=%d err=%v body=%s", code, err, string(body)) }
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"Expense", "assetCode":"USD", "type":"deposit", "alias": aliasB})
     if err != nil || code != 201 { t.Fatalf("create account B: code=%d err=%v body=%s", code, err, string(body)) }
+
+    // Wait for default balances and enable permissions
+    // No need to fetch IDs; enable by alias ensures existence and permissions
+    // fetch account A ID by recreating body from first response would require tracking; instead fetch via alias A if needed.
+    // Simpler: ensure by alias only
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasA, headers); err != nil { t.Fatalf("enable default A: %v", err) }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasB, headers); err != nil { t.Fatalf("enable default B: %v", err) }
 
     // Inflow to A: +25.50
     inflow := map[string]any{"send": map[string]any{"asset":"USD","value":"25.50","distribute": map[string]any{"to": []map[string]any{{"accountAlias": aliasA, "amount": map[string]any{"asset":"USD","value":"25.50"}}}}}}

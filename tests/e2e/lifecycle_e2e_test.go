@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "testing"
+    "time"
 
     "github.com/shopspring/decimal"
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -36,8 +37,12 @@ func TestE2E_Lifecycle_PendingCommitThenRevert(t *testing.T) {
     var account struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &account)
 
-    // seed 12
+    // seed 12 and wait for availability
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"12.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"12.00"}}}}}})
+    // wait until available reflects the seed
+    if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("12.00"), 5*time.Second); err != nil {
+        t.Fatalf("wait seed balance: %v", err)
+    }
 
     // helper to sum available
     sumAvail := func() decimal.Decimal {
@@ -95,9 +100,12 @@ func TestE2E_Lifecycle_PendingCancelNoEffect(t *testing.T) {
     var account struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &account)
 
-    // Ensure default balance allows sending/receiving
+    // Wait for default balance and ensure permissions are enabled
     if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil {
-        t.Fatalf("ensure default balance record: %v", err)
+        t.Fatalf("ensure default balance ready: %v", err)
+    }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
+        t.Fatalf("enable default balance: %v", err)
     }
     // seed 5.50
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"5.50","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"5.50"}}}}}})

@@ -33,7 +33,8 @@ func TestProperty_Live_Conservation_Small(t *testing.T) {
     if err != nil || code != 201 { t.Fatalf("create account: code=%d err=%v body=%s", code, err, string(body)) }
     var account struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &account)
-    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil { t.Fatalf("ensure default balance: %v", err) }
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, account.ID, headers); err != nil { t.Fatalf("ensure default balance ready: %v", err) }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default balance: %v", err) }
 
     expected := decimal.Zero
     steps := []decimal.Decimal{decimal.NewFromInt(2), decimal.NewFromInt(1), decimal.NewFromInt(3)} // 2, 1, 3 units
@@ -64,4 +65,3 @@ func TestProperty_Live_Conservation_Small(t *testing.T) {
         t.Fatalf("conservation live failed: want %s got %s", expected.String(), sum.String())
     }
 }
-

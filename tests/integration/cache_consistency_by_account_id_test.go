@@ -34,6 +34,8 @@ func TestIntegration_Cache_Consistency_BalancesByAccountID(t *testing.T) {
     if err != nil || code != 201 { t.Fatalf("create account: code=%d err=%v body=%s", code, err, string(body)) }
     var acct struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &acct)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acct.ID, headers); err != nil { t.Fatalf("ensure default ready: %v", err) }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default: %v", err) }
 
     // inflow 6.00, outflow 1.00 → expect 5.00
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"6.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"6.00"}}}}}})

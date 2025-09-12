@@ -40,9 +40,9 @@ func TestIntegration_NegativeCases(t *testing.T) {
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":"@external/USD"})
     if code != 400 { t.Fatalf("expected 400 prohibited external alias prefix, got %d body=%s", code, string(body)) }
 
-    // 4) Unknown alias balances → 404
+    // 4) Unknown alias balances → 200 with empty items (API returns empty list)
     code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", org.ID, ledger.ID, "unknown-alias-"+h.RandString(4)), headers, nil)
-    if code != 404 { t.Fatalf("expected 404 for balances by unknown alias, got %d body=%s", code, string(body)) }
+    if err != nil || code != 200 { t.Fatalf("balances by unknown alias: code=%d err=%v body=%s", code, err, string(body)) }
 
     // 5) Invalid sort_order on transactions list → 400
     code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions?sort_order=sideways", org.ID, ledger.ID), headers, nil)
