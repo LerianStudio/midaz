@@ -74,6 +74,23 @@ endef
 DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export DOCKER_CMD
 
+# ------------------------------------------------------
+# Test configuration
+# ------------------------------------------------------
+TEST_ONBOARDING_URL ?= http://localhost:3000
+TEST_TRANSACTION_URL ?= http://localhost:3001
+TEST_HEALTH_WAIT ?= 60
+
+define wait_for_services
+	@echo "Waiting for services to become healthy..."
+	@bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
+	  if curl -fsS $(TEST_ONBOARDING_URL)/health >/dev/null 2>&1 && curl -fsS $(TEST_TRANSACTION_URL)/health >/dev/null 2>&1; then \
+	    echo "Services are up"; exit 0; \
+	  fi; \
+	  sleep 1; \
+	done; echo "[error] Services not healthy after $(TEST_HEALTH_WAIT)s"; exit 1'
+endef
+
 #-------------------------------------------------------
 # Help Command
 #-------------------------------------------------------
@@ -161,7 +178,8 @@ test-integration:
 	@set -e; \
 	trap '$(MAKE) down-backend' EXIT; \
 	$(MAKE) up-backend; \
-	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/integration
+	$(call wait_for_services); \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration
 
 # E2E tests (Go) – expects stack running; will bring it up if not
 .PHONY: test-e2e-go
@@ -172,7 +190,8 @@ test-e2e-go:
 	@set -e; \
 	trap '$(MAKE) down-backend' EXIT; \
 	$(MAKE) up-backend; \
-	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/e2e
+	$(call wait_for_services); \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/e2e
 
 # Combined Go integration + E2E tests
 .PHONY: test-integration-e2e
@@ -183,8 +202,33 @@ test-integration-e2e:
 	@set -e; \
 	trap '$(MAKE) down-backend' EXIT; \
 	$(MAKE) up-backend; \
-	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/integration; \
-	ONBOARDING_URL=http://localhost:3000 TRANSACTION_URL=http://localhost:3001 go test -v ./tests/e2e
+	$(call wait_for_services); \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration; \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/e2e
+
+# Property tests (model-level)
+.PHONY: test-property
+test-property:
+	$(call print_title,"Running property-based model tests")
+	go test -v ./tests/property
+
+# Chaos tests (guarded)
+.PHONY: test-chaos
+test-chaos:
+	$(call print_title,"Running chaos tests (requires Docker stack, guarded)")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; \
+	trap '$(MAKE) down-backend' EXIT; \
+	$(MAKE) up-backend; \
+	$(call wait_for_services); \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/chaos
+
+# Security tests (run only when auth plugin enabled)
+.PHONY: test-security
+test-security:
+	$(call print_title,"Running security tests (requires PLUGIN_AUTH_ENABLED=true)")
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_REQUIRE_AUTH=true go test -v ./tests/integration -run Security
 
 .PHONY: build
 build:
