@@ -82,6 +82,30 @@ func (c *HTTPClient) RequestRaw(ctx context.Context, method, path string, header
     return resp.StatusCode, b, resp.Header, nil
 }
 
+// RequestWithHeaderValues executes an HTTP request with explicit header values including duplicates.
+// The map value is a slice; each value is added using Header.Add in order. Content-Type is NOT auto-set.
+func (c *HTTPClient) RequestWithHeaderValues(ctx context.Context, method, path string, headers map[string][]string, body any) (int, []byte, http.Header, error) {
+    var rdr io.Reader
+    if body != nil {
+        b, err := json.Marshal(body)
+        if err != nil { return 0, nil, nil, fmt.Errorf("marshal body: %w", err) }
+        rdr = bytes.NewReader(b)
+    }
+    req, err := http.NewRequestWithContext(ctx, method, c.base+path, rdr)
+    if err != nil { return 0, nil, nil, err }
+    for k, vals := range headers {
+        for _, v := range vals {
+            req.Header.Add(k, v)
+        }
+    }
+    resp, err := c.client.Do(req)
+    if err != nil { return 0, nil, nil, err }
+    defer resp.Body.Close()
+    data, err := io.ReadAll(resp.Body)
+    if err != nil { return resp.StatusCode, nil, resp.Header, err }
+    return resp.StatusCode, data, resp.Header, nil
+}
+
 // RequestFullWithRetry performs RequestFull with simple retry/backoff for transient statuses.
 // Retries on 429, 502, 503, 504 or network errors up to attempts with exponential backoff.
 func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path string, headers map[string]string, body any, attempts int, baseBackoff time.Duration) (int, []byte, http.Header, error) {

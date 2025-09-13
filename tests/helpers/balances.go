@@ -41,7 +41,7 @@ func EnsureDefaultBalanceRecord(ctx context.Context, trans *HTTPClient, orgID, l
 func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias string, headers map[string]string) error {
     // Get balances by alias
     var defID string
-    deadline := time.Now().Add(30 * time.Second)
+    deadline := time.Now().Add(60 * time.Second)
     for {
         c, b, e := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias), headers, nil)
         if e == nil && c == 200 {

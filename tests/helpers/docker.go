@@ -58,3 +58,13 @@ func DockerNetwork(action, network, container string) error {
     return nil
 }
 
+// DockerExec runs a command inside a running container and returns its combined output.
+func DockerExec(container string, args ...string) (string, error) {
+    full := append([]string{"exec", container}, args...)
+    cmd := exec.Command("docker", full...)
+    out, err := cmd.CombinedOutput()
+    if err != nil {
+        return string(out), fmt.Errorf("docker exec %s %v failed: %v\n%s", container, args, err, string(out))
+    }
+    return string(out), nil
+}
