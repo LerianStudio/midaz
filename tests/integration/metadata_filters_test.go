@@ -38,7 +38,7 @@ func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
     }
     found := false
     for _, it := range list.Items { if it.ID == org.ID { found = true; break } }
-    if !found { t.Skip("metadata filtering for organizations not yet available; skipping") }
+    if !found { t.Fatalf("organization not found via metadata filter within timeout") }
 }
 
 func TestIntegration_MetadataFilters_Ledgers(t *testing.T) {

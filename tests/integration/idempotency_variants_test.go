@@ -187,11 +187,6 @@ func TestIntegration_Idempotency_DSL(t *testing.T) {
         t.Fatalf("first dsl txn err: %v", err)
     }
     if !(code == 201 || code == 200) {
-        // Known gap: DSL path may return account ineligibility (422) while JSON succeeds.
-        // Until parity is implemented, treat specific 422 as a skip to avoid false failures.
-        if code == 422 && (strings.Contains(string(body1), "0019") || strings.Contains(strings.ToLower(string(body1)), "ineligibility")) {
-            t.Skipf("skipping DSL idempotency due to account ineligibility: %s", string(body1))
-        }
         t.Fatalf("first dsl txn unexpected status: code=%d body=%s", code, string(body1))
     }
     time.Sleep(150 * time.Millisecond)

@@ -4,7 +4,6 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "os"
     "testing"
 
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -14,10 +13,6 @@ import (
 // TEST_VERIFY_EVENTS=true is provided to the test process. It performs a sanity request to ensure
 // transaction creation still behaves with async enabled. Deep queue verification is out of scope here.
 func TestIntegration_EventsAsync_Sanity(t *testing.T) {
-    if os.Getenv("TEST_VERIFY_EVENTS") != "true" {
-        t.Skip("TEST_VERIFY_EVENTS not set; skipping async events sanity")
-    }
-
     env := h.LoadEnvironment()
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
