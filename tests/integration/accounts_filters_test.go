@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "testing"
+    "time"
 
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
@@ -36,11 +37,18 @@ func TestIntegration_Accounts_FilterByMetadata(t *testing.T) {
         "metadata": map[string]any{"group":"ops"},
     })
 
-    // filter by metadata.group=cash
-    code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts?metadata.group=cash", org.ID, ledger.ID), headers, nil)
-    if err != nil || code != 200 { t.Fatalf("accounts by metadata: code=%d err=%v body=%s", code, err, string(body)) }
+    // filter by metadata.group=cash (allow a short wait for metadata indexing)
     var list struct{ Items []struct{ Metadata map[string]any } `json:"items"` }
-    _ = json.Unmarshal(body, &list)
+    deadline := time.Now().Add(5 * time.Second)
+    for {
+        code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts?metadata.group=cash", org.ID, ledger.ID), headers, nil)
+        if err == nil && code == 200 {
+            _ = json.Unmarshal(body, &list)
+            if len(list.Items) > 0 { break }
+        }
+        if time.Now().After(deadline) { break }
+        time.Sleep(150 * time.Millisecond)
+    }
     if len(list.Items) == 0 { t.Fatalf("expected at least one account with metadata.group=cash") }
     for _, it := range list.Items {
         if g, ok := it.Metadata["group"].(string); !ok || g != "cash" {

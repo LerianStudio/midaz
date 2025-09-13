@@ -65,6 +65,11 @@ func TestIntegration_AccountsHeadCount(t *testing.T) {
     var ledger struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &ledger)
 
+    // ensure USD asset exists before creating accounts
+    if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
+        t.Fatalf("create USD asset: %v", err)
+    }
+
     // head count before
     code, _, hdr, err := onboard.RequestFull(ctx, "HEAD", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/metrics/count", org.ID, ledger.ID), headers, nil)
     if err != nil || code != 204 { t.Fatalf("accounts head before: code=%d err=%v", code, err) }

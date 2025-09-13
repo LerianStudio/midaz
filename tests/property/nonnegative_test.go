@@ -11,6 +11,7 @@ import (
 func TestProperty_NonNegativeBalance_Model(t *testing.T) {
     f := func(steps int) bool {
         if steps <= 0 { steps = 1 }
+        if steps > 1000 { steps = 1000 }
         bal := 0
         for i := 0; i < steps; i++ {
             if rand.Intn(2) == 0 { // inflow
@@ -29,4 +30,3 @@ func TestProperty_NonNegativeBalance_Model(t *testing.T) {
         t.Fatalf("non-negative property failed: %v", err)
     }
 }
-

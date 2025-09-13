@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "testing"
+    "time"
 
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
@@ -23,11 +24,18 @@ func TestIntegration_MetadataFilters_Organizations(t *testing.T) {
     var org struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &org)
 
-    // Filter with metadata.tier=gold
-    code, body, err = onboard.Request(ctx, "GET", "/v1/organizations?metadata.tier=gold", headers, nil)
-    if err != nil || code != 200 { t.Fatalf("list orgs by metadata: code=%d err=%v body=%s", code, err, string(body)) }
+    // Filter with metadata.tier=gold (allow a short wait for metadata indexing)
     var list struct{ Items []struct{ ID string `json:"id"`; Metadata map[string]any `json:"metadata"` } `json:"items"` }
-    _ = json.Unmarshal(body, &list)
+    deadline := time.Now().Add(5 * time.Second)
+    for {
+        code, body, err = onboard.Request(ctx, "GET", "/v1/organizations?metadata.tier=gold", headers, nil)
+        if err == nil && code == 200 {
+            _ = json.Unmarshal(body, &list)
+            if len(list.Items) > 0 { break }
+        }
+        if time.Now().After(deadline) { break }
+        time.Sleep(150 * time.Millisecond)
+    }
     found := false
     for _, it := range list.Items { if it.ID == org.ID { found = true; break } }
     if !found { t.Fatalf("org not found via metadata filter") }
