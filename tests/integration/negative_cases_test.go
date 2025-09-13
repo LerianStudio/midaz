@@ -30,15 +30,15 @@ func TestIntegration_NegativeCases(t *testing.T) {
 
     // 1) Create account missing assetCode → 400
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","type":"deposit"})
-    if code != 400 { t.Fatalf("expected 400 missing assetCode, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 missing assetCode, got %d err=%v body=%s", code, err, string(body)) }
 
     // 2) Invalid alias characters (space) → 400
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":"bad alias"})
-    if code != 400 { t.Fatalf("expected 400 invalid alias characters, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 invalid alias characters, got %d err=%v body=%s", code, err, string(body)) }
 
     // 3) Prohibited external alias prefix → 400
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":"@external/USD"})
-    if code != 400 { t.Fatalf("expected 400 prohibited external alias prefix, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 prohibited external alias prefix, got %d err=%v body=%s", code, err, string(body)) }
 
     // 4) Unknown alias balances → 200 with empty items (API returns empty list)
     code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", org.ID, ledger.ID, "unknown-alias-"+h.RandString(4)), headers, nil)
@@ -46,9 +46,9 @@ func TestIntegration_NegativeCases(t *testing.T) {
 
     // 5) Invalid sort_order on transactions list → 400
     code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions?sort_order=sideways", org.ID, ledger.ID), headers, nil)
-    if code != 400 { t.Fatalf("expected 400 invalid sort_order, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 invalid sort_order, got %d err=%v body=%s", code, err, string(body)) }
 
     // 6) Invalid cursor format on ledgers list → 400
     code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers?cursor=not_a_cursor", org.ID), headers, nil)
-    if code != 400 { t.Fatalf("expected 400 invalid cursor, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 invalid cursor, got %d err=%v body=%s", code, err, string(body)) }
 }

@@ -37,7 +37,7 @@ func TestIntegration_OversizedMetadata_Should400(t *testing.T) {
         },
     }
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, payload)
-    if code != 400 {
-        t.Fatalf("expected 400 for oversized metadata, got %d body=%s", code, string(body))
+    if err != nil || code != 400 {
+        t.Fatalf("expected 400 for oversized metadata, got %d err=%v body=%s", code, err, string(body))
     }
 }

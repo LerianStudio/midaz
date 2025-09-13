@@ -110,15 +110,15 @@ func TestIntegration_LedgersPaginationAndValidation(t *testing.T) {
 
     // Invalid limit (exceeds max) -> 400
     code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers?limit=1000", orgID), headers, nil)
-    if code != 400 { t.Fatalf("expected 400 for limit>max, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 for limit>max, got %d err=%v body=%s", code, err, string(body)) }
 
     // Invalid sort_order -> 400
     code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers?sort_order=sideways", orgID), headers, nil)
-    if code != 400 { t.Fatalf("expected 400 for invalid sort_order, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 for invalid sort_order, got %d err=%v body=%s", code, err, string(body)) }
 
     // start_date without end_date -> 400
     code, body, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers?start_date=2024-01-01", orgID), headers, nil)
-    if code != 400 { t.Fatalf("expected 400 for start_date without end_date, got %d body=%s", code, string(body)) }
+    if err != nil || code != 400 { t.Fatalf("expected 400 for start_date without end_date, got %d err=%v body=%s", code, err, string(body)) }
 }
 
 // getID extracts {"id":"..."} from response body.
