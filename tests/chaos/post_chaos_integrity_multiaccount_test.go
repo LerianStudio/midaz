@@ -46,8 +46,14 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
     aliasB := "intB-" + h.RandString(4)
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":aliasA})
     if err != nil || code != 201 { t.Fatalf("create A: %d %s", code, string(body)) }
+    var accA struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &accA)
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"B","assetCode":"USD","type":"deposit","alias":aliasB})
     if err != nil || code != 201 { t.Fatalf("create B: %d %s", code, string(body)) }
+    var accB struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &accB)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, accA.ID, headers); err != nil { t.Fatalf("ensure default A: %v", err) }
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, accB.ID, headers); err != nil { t.Fatalf("ensure default B: %v", err) }
     // Enable default balances for both accounts (by alias)
     if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasA, headers); err != nil { t.Fatalf("enable default A: %v", err) }
     if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, aliasB, headers); err != nil { t.Fatalf("enable default B: %v", err) }

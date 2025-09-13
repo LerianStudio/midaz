@@ -34,6 +34,9 @@ func TestChaos_IdempotencyAcrossChaos_SingleNetEffect(t *testing.T) {
     alias := "idem-" + h.RandString(4)
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":alias})
     if err != nil || code != 201 { t.Fatalf("create account: %d %s", code, string(body)) }
+    var acc struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &acc)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure default: %v", err) }
     if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default: %v", err) }
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"5.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"5.00"}}}}}})
     if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("5.00"), 10*time.Second); err != nil {
@@ -69,4 +72,3 @@ func TestChaos_IdempotencyAcrossChaos_SingleNetEffect(t *testing.T) {
         t.Fatalf("final wait after idempotent chaos: %v", err)
     }
 }
-

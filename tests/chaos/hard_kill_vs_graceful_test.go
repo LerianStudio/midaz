@@ -38,6 +38,9 @@ func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
     alias := "ks-" + h.RandString(4)
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":alias})
     if err != nil || code != 201 { t.Fatalf("create account: %d %s", code, string(body)) }
+    var acc struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &acc)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil { t.Fatalf("ensure default: %v", err) }
     if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil { t.Fatalf("enable default: %v", err) }
     // Seed 50
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"50.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"50.00"}}}}}})
