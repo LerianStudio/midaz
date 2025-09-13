@@ -73,12 +73,12 @@ func TestIntegration_Idempotency_Outflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second outflow err: %v", err)
 	}
-	switch {
-	case code == 201:
+	switch code {
+	case 201:
 		if strings.ToLower(hdr.Get(headerReplayed)) != "true" || string(body1) != string(body2) {
 			t.Fatalf("expected replay true with identical body")
 		}
-	case code == 409:
+	case 409:
 		time.Sleep(250 * time.Millisecond)
 		code3, _, hdr3, err3 := trans.RequestFull(ctx, "POST", path, reqHeaders, outflow)
 		if err3 != nil || code3 != 201 || strings.ToLower(hdr3.Get(headerReplayed)) != "true" {
@@ -274,17 +274,18 @@ func TestIntegration_Idempotency_DSL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second dsl txn err: %v", err)
 	}
-	if code == 201 || code == 200 {
+	switch code {
+	case 201, 200:
 		if strings.ToLower(hdr.Get(headerReplayed)) != "true" || string(body1) != string(body2) {
 			t.Fatalf("expected replay true with identical body (dsl)")
 		}
-	} else if code == 409 {
+	case 409:
 		time.Sleep(250 * time.Millisecond)
 		code3, _, hdr3, err3 := trans.PostDSL(ctx, path, reqHeaders, dsl)
 		if err3 != nil || (code3 != 201 && code3 != 200) || strings.ToLower(hdr3.Get(headerReplayed)) != "true" {
 			t.Fatalf("expected replay after conflict (dsl): code=%d hdr=%s err=%v", code3, hdr3.Get(headerReplayed), err3)
 		}
-	} else {
+	default:
 		t.Fatalf("unexpected status (dsl): %d body=%s", code, string(body2))
 	}
 }

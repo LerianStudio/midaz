@@ -101,15 +101,15 @@ func TestIntegration_TransactionIdempotency_ReplayOrConflict(t *testing.T) {
 		t.Fatalf("second inflow request error: %v", err)
 	}
 
-	switch {
-	case code == 201:
+	switch code {
+	case 201:
 		if strings.ToLower(hdr.Get(headerReplayed)) != "true" {
 			t.Fatalf("expected %s=true on replay, got %q", headerReplayed, hdr.Get(headerReplayed))
 		}
 		if string(body1) != string(body2) {
 			t.Fatalf("replayed body mismatch")
 		}
-	case code == 409:
+	case 409:
 		time.Sleep(250 * time.Millisecond)
 		code3, _, hdr3, err3 := trans.RequestFull(ctx, "POST", path, reqHeaders, inflow)
 		if err3 != nil || code3 != 201 || strings.ToLower(hdr3.Get(headerReplayed)) != "true" {
@@ -186,14 +186,15 @@ func TestIntegration_TransactionIdempotency_ConflictOnDifferentPayload(t *testin
 	if err != nil {
 		t.Fatalf("second inflow err: %v", err)
 	}
-	if code == 409 {
+	switch code {
+	case 409:
 		// ok
-	} else if code == 201 || code == 200 {
+	case 201, 200:
 		// accept replay semantics: must indicate replay
 		if strings.ToLower(hdr.Get(headerReplayed)) != "true" {
 			t.Fatalf("expected replay=true on different payload, got header %q", hdr.Get(headerReplayed))
 		}
-	} else {
+	default:
 		t.Fatalf("unexpected status for different payload same key: %d body=%s", code, string(body2))
 	}
 }
