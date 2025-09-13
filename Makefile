@@ -242,29 +242,29 @@ test-property:
 	$(call print_title,Running property-based model tests)
 	go test -v -failfast -timeout 120s ./tests/property
 
-# Chaos tests (guarded)
+# Chaos tests
 .PHONY: test-chaos
 test-chaos:
-	$(call print_title,Running chaos tests - requires Docker stack, guarded)
+	$(call print_title,Running chaos tests - requires Docker stack)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	MIDAZ_TEST_CHAOS=true MIDAZ_TEST_EVENTS=$${MIDAZ_TEST_EVENTS:-false} ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/chaos
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/chaos
 
-# Fuzzy/robustness tests (guarded)
+# Fuzzy/robustness tests
 .PHONY: test-fuzzy
 test-fuzzy:
-	$(call print_title,Running fuzz/robustness tests - requires Docker stack, guarded)
+	$(call print_title,Running fuzz/robustness tests - requires Docker stack)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	MIDAZ_TEST_FUZZ=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/fuzzy -count=1
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/fuzzy -count=1
 
 # Security tests (run only when auth plugin enabled)
 .PHONY: test-security

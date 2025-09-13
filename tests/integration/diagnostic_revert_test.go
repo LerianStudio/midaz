@@ -65,6 +65,9 @@ func TestDiagnostic_Revert500(t *testing.T) {
 	}
 	_ = json.Unmarshal(body, &tx)
 	code, body, err = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s/commit", org.ID, ledger.ID, tx.ID), headers, nil)
+	if err != nil || (code != 200 && code != 201) {
+		t.Fatalf("commit expected 200/201 got %d body=%s err=%v", code, string(body), err)
+	}
 	t.Logf("commit status=%d body=%s", code, string(body))
 
 	// Revert must succeed

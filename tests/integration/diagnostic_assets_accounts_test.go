@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -12,9 +11,6 @@ import (
 
 // Confirms that after creating USD asset (and verifying via GET), account creation should not 404.
 func TestDiagnostic_AssetsThenAccounts(t *testing.T) {
-	if os.Getenv("MIDAZ_TEST_DIAGNOSTIC") != "true" {
-		t.Skip("diagnostic test; set MIDAZ_TEST_DIAGNOSTIC=true to run")
-	}
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
