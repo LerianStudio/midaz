@@ -65,8 +65,8 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
     var wg sync.WaitGroup
     inSucc, outSucc := 0, 0
     mu := sync.Mutex{}
-    type acc struct{ Kind, ID string }
-    accepted := make([]acc, 0, 256)
+    type acceptedRec struct{ Kind, ID string }
+    accepted := make([]acceptedRec, 0, 256)
     stop := make(chan struct{})
     inflow := func(val string) {
         defer wg.Done()
@@ -79,7 +79,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
                 _ = json.Unmarshal(b, &m)
                 mu.Lock()
                 inSucc++
-                if m.ID != "" { accepted = append(accepted, acc{Kind: "inflow", ID: m.ID}) }
+                if m.ID != "" { accepted = append(accepted, acceptedRec{Kind: "inflow", ID: m.ID}) }
                 mu.Unlock()
             }
             time.Sleep(20 * time.Millisecond)
@@ -96,7 +96,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
                 _ = json.Unmarshal(b, &m)
                 mu.Lock()
                 outSucc++
-                if m.ID != "" { accepted = append(accepted, acc{Kind: "outflow", ID: m.ID}) }
+                if m.ID != "" { accepted = append(accepted, acceptedRec{Kind: "outflow", ID: m.ID}) }
                 mu.Unlock()
             }
             time.Sleep(30 * time.Millisecond)

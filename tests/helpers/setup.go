@@ -23,7 +23,7 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
         return fmt.Errorf("create asset USD failed: status %d", code)
     }
     // Poll until asset appears in listing to avoid race with subsequent account creation
-    deadline := time.Now().Add(2 * time.Second)
+    deadline := time.Now().Add(5 * time.Second)
     for {
         c, b, e := client.Request(ctx, "GET", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/assets", headers, nil)
         if e == nil && c == 200 {

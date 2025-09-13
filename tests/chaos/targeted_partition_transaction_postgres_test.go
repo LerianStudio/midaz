@@ -21,13 +21,20 @@ func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
 
     env := h.LoadEnvironment()
+    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
 
-    // Setup org/ledger/asset/account
-    code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Part Org "+h.RandString(5), h.RandString(12)))
+    // Setup org/ledger/asset/account (with small retry for readiness)
+    var code int; var body []byte; var err error
+    for i := 0; i < 5; i++ {
+        code, body, err = onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Part Org "+h.RandString(5), h.RandString(12)))
+        if err == nil && code == 201 { break }
+        time.Sleep(200 * time.Millisecond)
+    }
     if err != nil || code != 201 { t.Fatalf("create org: %d %s", code, string(body)) }
     var org struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &org)
