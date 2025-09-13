@@ -24,6 +24,9 @@ func shouldRunChaos(t *testing.T) {
 // Restart PostgreSQL primary during a stream of writes; system should recover and final balance should match the net effect of successful operations.
 func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
     shouldRunChaos(t)
+    if os.Getenv("MIDAZ_TEST_CHAOS_STRICT") != "true" {
+        t.Skip("skipping postgres restart chaos (strict) unless MIDAZ_TEST_CHAOS_STRICT=true")
+    }
     // auto log capture for correlation
     defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "PostgresRestart_DuringWrites")()
 

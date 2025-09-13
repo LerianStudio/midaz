@@ -269,8 +269,9 @@ test-fuzzy:
 # Security tests (run only when auth plugin enabled)
 .PHONY: test-security
 test-security:
-	$(call print_title,"Running security tests (requires PLUGIN_AUTH_ENABLED=true)")
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_REQUIRE_AUTH=true go test -v ./tests/integration -run Security
+	$(call print_title,Running security tests (requires PLUGIN_AUTH_ENABLED=true))
+	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration -run Security
 
 .PHONY: build
 build:

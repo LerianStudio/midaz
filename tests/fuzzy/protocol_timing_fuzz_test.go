@@ -34,6 +34,16 @@ func TestFuzz_Protocol_RapidFireAndRetries(t *testing.T) {
     code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":alias})
     if err != nil || code != 201 { t.Fatalf("create account: %d %s", code, string(body)) }
 
+    // Ensure default balance exists and is enabled
+    var acc struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &acc)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
+        t.Fatalf("ensure default balance ready: %v", err)
+    }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
+        t.Fatalf("enable default balance: %v", err)
+    }
+
     // Seed balance
     _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":"100.00","distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value":"100.00"}}}}}})
     if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("100.00"), 5*time.Second); err != nil {

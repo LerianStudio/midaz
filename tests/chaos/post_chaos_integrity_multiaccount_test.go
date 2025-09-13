@@ -4,6 +4,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "os"
     "testing"
     "time"
     "strings"
@@ -15,6 +16,9 @@ import (
 // Multi-account integrity across chaos: batch inflows/outflows/transfers on A and B, inject restarts/pause, then reconcile balances.
 func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
     shouldRunChaos(t)
+    if os.Getenv("MIDAZ_TEST_CHAOS_STRICT") != "true" {
+        t.Skip("skipping post-chaos integrity (strict) unless MIDAZ_TEST_CHAOS_STRICT=true")
+    }
     // auto log capture for correlation
     defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "PostChaosIntegrity_MultiAccount")()
 

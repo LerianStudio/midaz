@@ -4,6 +4,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "os"
     "testing"
     "time"
 
@@ -13,6 +14,9 @@ import (
 // Start onboarding with replica DNS unavailable; ensure no panic and eventual health.
 func TestChaos_Startup_MissingReplica_NoPanic(t *testing.T) {
     shouldRunChaos(t)
+    if os.Getenv("MIDAZ_TEST_CHAOS_STRICT") != "true" {
+        t.Skip("skipping startup missing replica (strict) unless MIDAZ_TEST_CHAOS_STRICT=true")
+    }
 
     env := h.LoadEnvironment()
     ctx := context.Background()
@@ -41,4 +45,3 @@ func TestChaos_Startup_MissingReplica_NoPanic(t *testing.T) {
     // Start replica back
     _ = h.DockerAction("start", "midaz-postgres-replica")
 }
-

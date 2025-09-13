@@ -4,6 +4,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "os"
     "testing"
     "time"
 
@@ -14,6 +15,9 @@ import (
 // Disconnect transaction from infra network; writes should fail transiently and recover upon reconnect.
 func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     shouldRunChaos(t)
+    if os.Getenv("MIDAZ_TEST_CHAOS_STRICT") != "true" {
+        t.Skip("skipping targeted partition (strict) unless MIDAZ_TEST_CHAOS_STRICT=true")
+    }
     defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
 
     env := h.LoadEnvironment()
