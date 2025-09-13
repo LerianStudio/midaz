@@ -17,6 +17,7 @@ import (
 func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
     shouldRunChaos(t)
     if os.Getenv("MIDAZ_TEST_EVENTS") != "true" { t.Skip("set MIDAZ_TEST_EVENTS=true to run RMQ backlog/churn test") }
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-rabbitmq"}, "RabbitMQ_BacklogChurn_AcceptsTransactions")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()
@@ -77,4 +78,3 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
         t.Fatalf("final wait after RMQ backlog/churn: %v (succ=%d)", err, succ)
     }
 }
-

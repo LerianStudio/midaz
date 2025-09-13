@@ -14,6 +14,7 @@ import (
 // Flush cache via redis-cli FLUSHALL and verify caches rehydrate; no negative balances and values correct.
 func TestChaos_CacheFlush_RehydrateNoNegative(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-valkey"}, "CacheFlush_RehydrateNoNegative")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()

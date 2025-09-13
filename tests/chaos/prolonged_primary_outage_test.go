@@ -13,6 +13,7 @@ import (
 // Prolonged primary outage: stop Postgres for ~12s while reads continue; APIs fail gracefully and recover.
 func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "ProlongedPrimaryOutage_GracefulRecovery")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
@@ -51,4 +52,3 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
     code, _, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)
     if err != nil || code != 200 { t.Fatalf("get org after primary recovery: %d err=%v", code, err) }
 }
-

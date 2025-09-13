@@ -11,6 +11,7 @@ import (
 // Pause/unpause containers; and network disconnect/connect to simulate disruptions; verify /health recovers.
 func TestChaos_NetworkDisruptions(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-transaction"}, "NetworkDisruptions")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)

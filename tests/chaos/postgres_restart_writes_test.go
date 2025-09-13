@@ -8,6 +8,7 @@ import (
     "sync"
     "testing"
     "time"
+    "strings"
 
     "github.com/shopspring/decimal"
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
@@ -23,6 +24,8 @@ func shouldRunChaos(t *testing.T) {
 // Restart PostgreSQL primary during a stream of writes; system should recover and final balance should match the net effect of successful operations.
 func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
     shouldRunChaos(t)
+    // auto log capture for correlation
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "PostgresRestart_DuringWrites")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
@@ -56,14 +59,23 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
     var wg sync.WaitGroup
     inSucc, outSucc := 0, 0
     mu := sync.Mutex{}
+    type acc struct{ Kind, ID string }
+    accepted := make([]acc, 0, 256)
     stop := make(chan struct{})
     inflow := func(val string) {
         defer wg.Done()
         for {
             select { case <-stop: return; default: }
             p := map[string]any{"send": map[string]any{"asset":"USD","value":val,"distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}}
-            c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, p)
-            if c == 201 { mu.Lock(); inSucc++; mu.Unlock() }
+            c, b, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, p)
+            if c == 201 {
+                var m struct{ ID string `json:"id"` }
+                _ = json.Unmarshal(b, &m)
+                mu.Lock()
+                inSucc++
+                if m.ID != "" { accepted = append(accepted, acc{Kind: "inflow", ID: m.ID}) }
+                mu.Unlock()
+            }
             time.Sleep(20 * time.Millisecond)
         }
     }
@@ -72,8 +84,15 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
         for {
             select { case <-stop: return; default: }
             p := map[string]any{"send": map[string]any{"asset":"USD","value":val,"source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}}
-            c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, p)
-            if c == 201 { mu.Lock(); outSucc++; mu.Unlock() }
+            c, b, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, p)
+            if c == 201 {
+                var m struct{ ID string `json:"id"` }
+                _ = json.Unmarshal(b, &m)
+                mu.Lock()
+                outSucc++
+                if m.ID != "" { accepted = append(accepted, acc{Kind: "outflow", ID: m.ID}) }
+                mu.Unlock()
+            }
             time.Sleep(30 * time.Millisecond)
         }
     }
@@ -98,6 +117,17 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
     expected := decimal.RequireFromString("100").Add(decimal.NewFromInt(int64(inSucc*2))).Sub(decimal.NewFromInt(int64(outSucc*1)))
     got, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, expected, 20*time.Second)
     if err != nil {
+        // Correlate accepted IDs by fetching their final statuses
+        lines := []string{}
+        max := 20
+        for i, a := range accepted {
+            if i >= max { break }
+            c, b, _ := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/%s", org.ID, ledger.ID, a.ID), headers, nil)
+            lines = append(lines, fmt.Sprintf("%d %s %s %s", c, a.Kind, a.ID, string(b)))
+        }
+        logPath := fmt.Sprintf("reports/logs/postgres_restart_writes_accepted_%d.log", time.Now().Unix())
+        _ = h.WriteTextFile(logPath, strings.Join(lines, "\n"))
+        t.Logf("accepted sample saved: %s (totalAccepted=%d)", logPath, len(accepted))
         t.Fatalf("final mismatch after restart: got=%s expected=%s err=%v (inSucc=%d outSucc=%d)", got.String(), expected.String(), err, inSucc, outSucc)
     }
 }

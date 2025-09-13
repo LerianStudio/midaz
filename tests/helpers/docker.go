@@ -3,6 +3,7 @@ package helpers
 import (
     "fmt"
     "os/exec"
+    "strconv"
     "strings"
     "time"
 )
@@ -65,6 +66,22 @@ func DockerExec(container string, args ...string) (string, error) {
     out, err := cmd.CombinedOutput()
     if err != nil {
         return string(out), fmt.Errorf("docker exec %s %v failed: %v\n%s", container, args, err, string(out))
+    }
+    return string(out), nil
+}
+
+// DockerLogsSince returns docker logs for a container since the provided RFC3339 timestamp.
+// If tail > 0, limits the number of lines returned.
+func DockerLogsSince(container, since string, tail int) (string, error) {
+    args := []string{"logs", "--since", since}
+    if tail > 0 {
+        args = append(args, "--tail", strconv.Itoa(tail))
+    }
+    args = append(args, container)
+    cmd := exec.Command("docker", args...)
+    out, err := cmd.CombinedOutput()
+    if err != nil {
+        return string(out), fmt.Errorf("docker logs failed: %v\n%s", err, string(out))
     }
     return string(out), nil
 }

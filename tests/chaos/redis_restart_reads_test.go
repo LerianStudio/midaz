@@ -14,6 +14,7 @@ import (
 // Restart Redis; reads may degrade briefly but should recover; no negative balances.
 func TestChaos_RedisRestart_ReadsRecover(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-valkey"}, "RedisRestart_ReadsRecover")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)

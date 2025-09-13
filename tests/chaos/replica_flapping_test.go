@@ -13,6 +13,7 @@ import (
 // Stop/start the Postgres replica repeatedly; reads should continue via primary without crashes.
 func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-postgres-replica", "midaz-postgres-primary"}, "ReplicaFlapping_ReadsContinue")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)

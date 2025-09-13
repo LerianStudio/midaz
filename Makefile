@@ -82,8 +82,8 @@ TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_HEALTH_WAIT ?= 60
 
 define wait_for_services
-	@echo "Waiting for services to become healthy..."
-	@bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
+	echo "Waiting for services to become healthy..."
+	bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
 	  if curl -fsS $(TEST_ONBOARDING_URL)/health >/dev/null 2>&1 && curl -fsS $(TEST_TRANSACTION_URL)/health >/dev/null 2>&1; then \
 	    echo "Services are up"; exit 0; \
 	  fi; \
@@ -160,6 +160,15 @@ help:
 	@echo "  make newman-env-check            - Verify environment file exists"
 	@echo ""
 	@echo ""
+	@echo "Test Suite Aliases:"
+	@echo "  make test-unit                   - Run Go unit tests (exclude ./tests/**)"
+	@echo "  make test-integration            - Run Go integration tests (brings up backend)"
+	@echo "  make test-e2e                    - Run Go E2E tests (brings up backend)"
+	@echo "  make test-fuzzy                  - Run fuzz/robustness tests (brings up backend)"
+	@echo "  make test-chaos                  - Run chaos/resilience tests (brings up backend)"
+	@echo "  make test-property               - Run property-based tests"
+	@echo ""
+	@echo ""
 
 #-------------------------------------------------------
 # Core Commands
@@ -169,14 +178,31 @@ help:
 test:
 	@./scripts/run-tests.sh
 
+#-------------------------------------------------------
+# Test Suite Aliases
+#-------------------------------------------------------
+
+# Unit tests (exclude ./tests/** packages)
+.PHONY: test-unit
+test-unit:
+	$(call print_title,Running Go unit tests (excluding ./tests/**))
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	@set -e; \
+	pkgs=$$(go list ./... | rg -v '/tests(/|$$)'); \
+	if [ -z "$$pkgs" ]; then \
+	  echo "No unit test packages found (outside ./tests)**"; \
+	else \
+	  go test -v $$pkgs; \
+	fi
+
 # Integration tests (Go) – spins up stack, runs tests/integration
 .PHONY: test-integration
 test-integration:
-	$(call print_title,"Running Go integration tests (with Docker stack)")
+	$(call print_title,Running Go integration tests (with Docker stack))
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
-	trap '$(MAKE) down-backend' EXIT; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration
@@ -184,23 +210,27 @@ test-integration:
 # E2E tests (Go) – expects stack running; will bring it up if not
 .PHONY: test-e2e-go
 test-e2e-go:
-	$(call print_title,"Running Go E2E tests (with Docker stack)")
+	$(call print_title,Running Go E2E tests (with Docker stack))
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
-	trap '$(MAKE) down-backend' EXIT; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/e2e
 
+# Simple alias for the E2E suite
+.PHONY: test-e2e
+test-e2e: test-e2e-go
+
 # Combined Go integration + E2E tests
 .PHONY: test-integration-e2e
 test-integration-e2e:
-	$(call print_title,"Running Go integration + E2E tests (with Docker stack)")
+	$(call print_title,Running Go integration + E2E tests (with Docker stack))
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
-	trap '$(MAKE) down-backend' EXIT; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration; \
@@ -209,17 +239,17 @@ test-integration-e2e:
 # Property tests (model-level)
 .PHONY: test-property
 test-property:
-	$(call print_title,"Running property-based model tests")
-	go test -v ./tests/property
+	$(call print_title,Running property-based model tests)
+	go test -v -failfast -timeout 120s ./tests/property
 
 # Chaos tests (guarded)
 .PHONY: test-chaos
 test-chaos:
-	$(call print_title,Running chaos tests (requires Docker stack, guarded))
+	$(call print_title,Running chaos tests - requires Docker stack, guarded)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
-	trap '$(MAKE) down-backend' EXIT; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	MIDAZ_TEST_CHAOS=true MIDAZ_TEST_EVENTS=$${MIDAZ_TEST_EVENTS:-false} ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/chaos
@@ -227,11 +257,11 @@ test-chaos:
 # Fuzzy/robustness tests (guarded)
 .PHONY: test-fuzzy
 test-fuzzy:
-	$(call print_title,Running fuzz/robustness tests (requires Docker stack, guarded))
+	$(call print_title,Running fuzz/robustness tests - requires Docker stack, guarded)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; \
-	trap '$(MAKE) down-backend' EXIT; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	MIDAZ_TEST_FUZZ=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/fuzzy -count=1
@@ -244,7 +274,7 @@ test-security:
 
 .PHONY: build
 build:
-	$(call print_title,"Building all components")
+	$(call print_title,Building all components)
 	@for dir in $(COMPONENTS); do \
 		echo "Building in $$dir..."; \
 		(cd $$dir && $(MAKE) build) || exit 1; \
@@ -257,7 +287,7 @@ clean:
 
 .PHONY: cover
 cover:
-	$(call print_title,"Generating test coverage report")
+	$(call print_title,Generating test coverage report)
 	@echo "Note: PostgreSQL repository tests are excluded from coverage metrics."
 	@echo "See coverage report for details on why and what is being tested."
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
@@ -278,7 +308,7 @@ cover:
 
 .PHONY: up-backend
 up-backend:
-	$(call print_title,"Starting backend services")
+	$(call print_title,Starting backend services)
 	$(call check_env_files)
 	@echo "Starting infrastructure services first..."
 	@cd $(INFRA_DIR) && $(MAKE) up
@@ -293,7 +323,7 @@ up-backend:
 
 .PHONY: down-backend
 down-backend:
-	$(call print_title,"Stopping backend services")
+	$(call print_title,Stopping backend services)
 	@echo "Stopping backend components..."
 	@for dir in $(BACKEND_COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
@@ -307,7 +337,7 @@ down-backend:
 
 .PHONY: restart-backend
 restart-backend:
-	$(call print_title,"Restarting backend services")
+	$(call print_title,Restarting backend services)
 	@make down-backend && make up-backend
 	@echo "[ok] Backend services restarted successfully ✔️"
 
@@ -317,7 +347,7 @@ restart-backend:
 
 .PHONY: lint
 lint:
-	$(call print_title,"Running linters on all components")
+	$(call print_title,Running linters on all components)
 	@for dir in $(COMPONENTS); do \
 		echo "Checking for Go files in $$dir..."; \
 		if find "$$dir" -name "*.go" -type f | grep -q .; then \
@@ -331,7 +361,7 @@ lint:
 
 .PHONY: format
 format:
-	$(call print_title,"Formatting code in all components")
+	$(call print_title,Formatting code in all components)
 	@for dir in $(COMPONENTS); do \
 		echo "Checking for Go files in $$dir..."; \
 		if find "$$dir" -name "*.go" -type f | grep -q .; then \
@@ -345,26 +375,26 @@ format:
 
 .PHONY: tidy
 tidy:
-	$(call print_title,"Cleaning dependencies in root directory")
+	$(call print_title,Cleaning dependencies in root directory)
 	@echo "Tidying root go.mod..."
 	@go mod tidy
 	@echo "[ok] Dependencies cleaned successfully"
 
 .PHONY: check-logs
 check-logs:
-	$(call print_title,"Verifying error logging in usecases")
+	$(call print_title,Verifying error logging in usecases)
 	@sh ./scripts/check-logs.sh
 	@echo "[ok] Error logging verification completed"
 
 .PHONY: check-tests
 check-tests:
-	$(call print_title,"Verifying test coverage for components")
+	$(call print_title,Verifying test coverage for components)
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
 .PHONY: sec
 sec:
-	$(call print_title,"Running security checks using gosec")
+	$(call print_title,Running security checks using gosec)
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
@@ -383,13 +413,13 @@ sec:
 
 .PHONY: setup-git-hooks
 setup-git-hooks:
-	$(call print_title,"Installing and configuring git hooks")
+	$(call print_title,Installing and configuring git hooks)
 	@sh ./scripts/setup-git-hooks.sh
 	@echo "[ok] Git hooks installed successfully"
 
 .PHONY: check-hooks
 check-hooks:
-	$(call print_title,"Verifying git hooks installation status")
+	$(call print_title,Verifying git hooks installation status)
 	@err=0; \
 	for hook_dir in .githooks/*; do \
 		hook_name=$$(basename $$hook_dir); \
@@ -409,7 +439,7 @@ check-hooks:
 
 .PHONY: check-envs
 check-envs:
-	$(call print_title,"Checking if github hooks are installed and secret env files are not exposed")
+	$(call print_title,Checking if github hooks are installed and secret env files are not exposed)
 	@sh ./scripts/check-envs.sh
 	@echo "[ok] Environment check completed"
 
@@ -419,7 +449,7 @@ check-envs:
 
 .PHONY: set-env
 set-env:
-	$(call print_title,"Setting up environment files")
+	$(call print_title,Setting up environment files)
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
 			echo "Creating .env in $$dir from .env.example"; \
@@ -438,7 +468,7 @@ set-env:
 
 .PHONY: up
 up:
-	$(call print_title,"Starting all services with Docker Compose")
+	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
@@ -451,7 +481,7 @@ up:
 
 .PHONY: down
 down:
-	$(call print_title,"Stopping all services with Docker Compose")
+	$(call print_title,Stopping all services with Docker Compose)
 	@for dir in $(COMPONENTS); do \
 		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
@@ -465,7 +495,7 @@ down:
 
 .PHONY: start
 start:
-	$(call print_title,"Starting all containers")
+	$(call print_title,Starting all containers)
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "Starting containers in $$dir..."; \

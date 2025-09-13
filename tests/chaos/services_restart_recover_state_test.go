@@ -13,6 +13,7 @@ import (
 // Restart onboarding/transaction services; APIs should return and state remains accessible.
 func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-transaction"}, "ServicesRestart_RecoverState")()
 
     env := h.LoadEnvironment()
     ctx := context.Background()

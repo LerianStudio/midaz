@@ -15,6 +15,7 @@ import (
 // Hard kill vs graceful stop on services during active traffic; verify recovery and no data loss.
 func TestChaos_HardKillVsStop_ServicesDuringTraffic(t *testing.T) {
     shouldRunChaos(t)
+    defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "HardKillVsStop_ServicesDuringTraffic")()
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
