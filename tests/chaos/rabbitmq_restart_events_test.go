@@ -4,7 +4,6 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "os"
     "testing"
     "time"
 
@@ -14,7 +13,6 @@ import (
 // Restart RabbitMQ; when events are enabled, transaction posting should continue without server 5xx.
 func TestChaos_RabbitMQ_Restart_WithEvents(t *testing.T) {
     shouldRunChaos(t)
-    if os.Getenv("MIDAZ_TEST_EVENTS") != "true" { t.Skip("set MIDAZ_TEST_EVENTS=true when events are enabled to run this test") }
 
     env := h.LoadEnvironment()
     _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)

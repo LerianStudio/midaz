@@ -80,6 +80,7 @@ export DOCKER_CMD
 TEST_ONBOARDING_URL ?= http://localhost:3000
 TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_HEALTH_WAIT ?= 60
+TEST_FUZZTIME ?= 30s
 
 define wait_for_services
 	echo "Waiting for services to become healthy..."
@@ -165,6 +166,7 @@ help:
 	@echo "  make test-integration            - Run Go integration tests (brings up backend)"
 	@echo "  make test-e2e                    - Run Go E2E tests (brings up backend)"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests (brings up backend)"
+	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests (brings up backend)"
 	@echo "  make test-chaos                  - Run chaos/resilience tests (brings up backend)"
 	@echo "  make test-property               - Run property-based tests"
 	@echo ""
@@ -192,7 +194,7 @@ test-unit:
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
-	  go test -v -count=1 $$pkgs; \
+	  go test -v -race -count=1 $$pkgs; \
 	fi
 
 # Integration tests (Go) – spins up stack, runs tests/integration
@@ -205,7 +207,7 @@ test-integration:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/integration
 
 
 # E2E tests (Go) – expects stack running; will bring it up if not
@@ -218,7 +220,7 @@ test-e2e-go:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/e2e
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/e2e
 
 # Simple alias for the E2E suite
 .PHONY: test-e2e
@@ -234,14 +236,14 @@ test-integration-e2e:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration; \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/e2e
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/integration; \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/e2e
 
 # Property tests (model-level)
 .PHONY: test-property
 test-property:
 	$(call print_title,Running property-based model tests)
-	go test -v -failfast -timeout 120s -count=1 ./tests/property
+	go test -v -race -failfast -timeout 120s -count=1 ./tests/property
 
 # Chaos tests
 .PHONY: test-chaos
@@ -253,7 +255,7 @@ test-chaos:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/chaos
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/chaos
 
 # Fuzzy/robustness tests
 .PHONY: test-fuzzy
@@ -265,14 +267,26 @@ test-fuzzy:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/fuzzy -count=1
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race ./tests/fuzzy -count=1
+
+# Fuzz engine run (uses Go's built-in fuzzing). Adjust TEST_FUZZTIME to control duration.
+.PHONY: test-fuzz-engine
+test-fuzz-engine:
+	$(call print_title,Running Go fuzz engine on fuzzy tests - requires Docker stack)
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	$(MAKE) up-backend; \
+	$(call wait_for_services); \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) ./tests/fuzzy
 
 # Security tests (run only when auth plugin enabled)
 .PHONY: test-security
 test-security:
 	$(call print_title,Running security tests (requires PLUGIN_AUTH_ENABLED=true))
 	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration -run Security
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 ./tests/integration -run Security
 
 .PHONY: build
 build:

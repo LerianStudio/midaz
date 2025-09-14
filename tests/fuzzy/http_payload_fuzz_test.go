@@ -5,7 +5,6 @@ import (
     "encoding/json"
     "fmt"
     "math/rand"
-    "os"
     "testing"
     "time"
 
@@ -14,11 +13,7 @@ import (
 
 // Run with: MIDAZ_TEST_FUZZ=true go test -v ./tests/fuzzy -run Fuzz -count=1
 
-func shouldRun(t *testing.T) {
-    if os.Getenv("MIDAZ_TEST_FUZZ") != "true" {
-        t.Skip("set MIDAZ_TEST_FUZZ=true to run fuzz/robustness tests")
-    }
-}
+func shouldRun(t *testing.T) { /* always run */ }
 
 func randString(n int) string {
     letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-@:/\t\n")

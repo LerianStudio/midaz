@@ -4,7 +4,6 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "os"
     "sync"
     "testing"
     "time"
@@ -16,7 +15,6 @@ import (
 // Soak test (guarded by MIDAZ_TEST_SOAK): mixed traffic with periodic chaos injections; verify invariants at end.
 func TestChaos_Soak_MixedTraffic_WithInjections(t *testing.T) {
     shouldRunChaos(t)
-    if os.Getenv("MIDAZ_TEST_SOAK") != "true" { t.Skip("set MIDAZ_TEST_SOAK=true to run soak test (5-10 minutes)") }
 
     env := h.LoadEnvironment()
     ctx := context.Background()
@@ -78,4 +76,3 @@ func TestChaos_Soak_MixedTraffic_WithInjections(t *testing.T) {
         t.Fatalf("B balance invalid after soak: %v curB=%s", err, curB.String())
     }
 }
-

@@ -9,11 +9,7 @@ import (
     h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
 
-func shouldRunHeaders(t *testing.T) {
-    if os.Getenv("MIDAZ_TEST_FUZZ") != "true" {
-        t.Skip("set MIDAZ_TEST_FUZZ=true to run fuzz/robustness tests")
-    }
-}
+func shouldRunHeaders(t *testing.T) { /* always run */ }
 
 // Validate behavior for missing/duplicated headers and invalid Authorization tokens.
 // Guarded by MIDAZ_TEST_FUZZ, and 401-specific assertions only when TEST_REQUIRE_AUTH=true.
