@@ -192,7 +192,7 @@ test-unit:
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
-	  go test -v $$pkgs; \
+	  go test -v -count=1 $$pkgs; \
 	fi
 
 # Integration tests (Go) – spins up stack, runs tests/integration
@@ -205,7 +205,7 @@ test-integration:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration
 
 
 # E2E tests (Go) – expects stack running; will bring it up if not
@@ -234,14 +234,14 @@ test-integration-e2e:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration; \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/e2e
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration; \
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/e2e
 
 # Property tests (model-level)
 .PHONY: test-property
 test-property:
 	$(call print_title,Running property-based model tests)
-	go test -v -failfast -timeout 120s ./tests/property
+	go test -v -failfast -timeout 120s -count=1 ./tests/property
 
 # Chaos tests
 .PHONY: test-chaos
@@ -253,7 +253,7 @@ test-chaos:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/chaos
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/chaos
 
 # Fuzzy/robustness tests
 .PHONY: test-fuzzy
@@ -272,7 +272,7 @@ test-fuzzy:
 test-security:
 	$(call print_title,Running security tests (requires PLUGIN_AUTH_ENABLED=true))
 	@echo "Note: set TEST_REQUIRE_AUTH=true and TEST_AUTH_HEADER=\"Bearer <token>\" when plugin is enabled."
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration -run Security
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/integration -run Security
 
 .PHONY: build
 build:
