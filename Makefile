@@ -207,6 +207,7 @@ test-integration:
 	$(call wait_for_services); \
 	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/integration
 
+
 # E2E tests (Go) – expects stack running; will bring it up if not
 .PHONY: test-e2e-go
 test-e2e-go:
@@ -217,7 +218,7 @@ test-e2e-go:
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v ./tests/e2e
+	ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -count=1 ./tests/e2e
 
 # Simple alias for the E2E suite
 .PHONY: test-e2e
