@@ -728,6 +728,7 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 
 	// Run test cases
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			repo := tc.setupRepo()
 			ctx := context.Background()
@@ -747,11 +748,12 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				if tc.name == "successful retrieval of all organizations" {
+				switch name := tc.name; name {
+				case "successful retrieval of all organizations":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
 					assert.Equal(t, "Organization 2", organizations[1].LegalName)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(organizations))
 				}
 			}
@@ -825,6 +827,7 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 
 	// Run test cases
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			repo := tc.setupRepo()
 			ctx := context.Background()
@@ -844,11 +847,12 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				if tc.name == "successful retrieval by IDs" {
+				switch name := tc.name; name {
+				case "successful retrieval by IDs":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
 					assert.Equal(t, "Organization 2", organizations[1].LegalName)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(organizations))
 				}
 			}

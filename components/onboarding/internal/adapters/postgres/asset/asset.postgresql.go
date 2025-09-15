@@ -45,17 +45,12 @@ type AssetPostgreSQLRepository struct {
 
 // NewAssetPostgreSQLRepository returns a new instance of AssetPostgreSQLRepository using the given Postgres connection.
 func NewAssetPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetPostgreSQLRepository {
-	c := &AssetPostgreSQLRepository{
-		connection: pc,
-		tableName:  "asset",
-	}
+    c := &AssetPostgreSQLRepository{
+        connection: pc,
+        tableName:  "asset",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new asset entity into Postgresql and returns it.

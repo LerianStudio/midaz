@@ -65,8 +65,8 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		// Call the function
-		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, account)
+    // Call the function
+    _ = uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, account)
 
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
