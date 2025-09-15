@@ -725,11 +725,12 @@ func TestTransactionRepository_FindAll(t *testing.T) {
 				assert.Equal(t, "", pagination.Next)
 				assert.Equal(t, "", pagination.Prev)
 
-				if tc.name == "successful retrieval of all transactions" {
+				switch tc.name {
+				case "successful retrieval of all transactions":
 					assert.Equal(t, 2, len(transactions))
 					assert.Equal(t, "Transaction 1", transactions[0].Description)
 					assert.Equal(t, "Transaction 2", transactions[1].Description)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(transactions))
 				}
 			}
