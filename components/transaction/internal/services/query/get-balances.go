@@ -33,6 +33,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 			balancesByAliases []*mmodel.Balance
 			err               error
 		)
+
 		// Bounded retry to tolerate eventual creation of default balances
 
 		for attempt := 0; attempt < 50; attempt++ {
@@ -40,6 +41,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 			if err == nil && len(balancesByAliases) > 0 {
 				break
 			}
+
 			// Small backoff before retrying
 			time.Sleep(100 * time.Millisecond)
 		}
