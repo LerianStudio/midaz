@@ -1,8 +1,8 @@
 package in
 
 import (
-    "fmt"
-    "strings"
+	"fmt"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -147,24 +147,27 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
 	}
 
-    raw := c.Queries()
-    meta := bson.M{}
-    for k, v := range raw {
-        if strings.HasPrefix(k, "metadata.") {
-            meta[k] = v
-        }
-    }
+	raw := c.Queries()
+	meta := bson.M{}
 
-    if headerParams.Metadata != nil || len(meta) > 0 {
-        logger.Infof("Initiating retrieval of all Accounts by metadata")
-        if len(meta) > 0 {
-            headerParams.Metadata = &meta
-            headerParams.UseMetadata = true
-        }
-        logger.Infof("Accounts metadata filter: %v", headerParams.Metadata)
+	for k, v := range raw {
+		if strings.HasPrefix(k, "metadata.") {
+			meta[k] = v
+		}
+	}
 
-        accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
-        if err != nil {
+	if headerParams.Metadata != nil || len(meta) > 0 {
+		logger.Infof("Initiating retrieval of all Accounts by metadata")
+
+		if len(meta) > 0 {
+			headerParams.Metadata = &meta
+			headerParams.UseMetadata = true
+		}
+
+		logger.Infof("Accounts metadata filter: %v", headerParams.Metadata)
+
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())

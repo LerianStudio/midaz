@@ -1,30 +1,30 @@
 package command
 
 import (
-    "context"
-    "encoding/json"
-    "os"
+	"context"
+	"encoding/json"
+	"os"
 
-    libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-    "github.com/LerianStudio/midaz/v3/pkg/mmodel"
-    "github.com/google/uuid"
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 // SendAccountQueueTransaction sends an account-related transaction message to a RabbitMQ queue for further processing.
 // It utilizes context for logger and tracer management and handles data serialization and queue message construction.
 func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, account mmodel.Account) error {
-    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.send_account_queue_transaction")
 	defer spanLogTransaction.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
-    marshal, err := json.Marshal(account)
-    if err != nil {
-        logger.Errorf("Failed to marshal account to JSON string: %s", err.Error())
-        return err
-    }
+	marshal, err := json.Marshal(account)
+	if err != nil {
+		logger.Errorf("Failed to marshal account to JSON string: %s", err.Error())
+		return err
+	}
 
 	queueData = append(queueData, mmodel.QueueData{
 		ID:    uuid.MustParse(account.ID),
@@ -38,16 +38,17 @@ func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organization
 		QueueData:      queueData,
 	}
 
-    if _, err := uc.RabbitMQRepo.ProducerDefault(
-        ctxLogTransaction,
-        os.Getenv("RABBITMQ_EXCHANGE"),
-        os.Getenv("RABBITMQ_KEY"),
-        queueMessage,
-    ); err != nil {
-        logger.Errorf("Failed to send message: %s", err.Error())
-        return err
-    }
+	if _, err := uc.RabbitMQRepo.ProducerDefault(
+		ctxLogTransaction,
+		os.Getenv("RABBITMQ_EXCHANGE"),
+		os.Getenv("RABBITMQ_KEY"),
+		queueMessage,
+	); err != nil {
+		logger.Errorf("Failed to send message: %s", err.Error())
+		return err
+	}
 
-    logger.Infof("Account sent to transaction queue successfully")
-    return nil
+	logger.Infof("Account sent to transaction queue successfully")
+
+	return nil
 }
