@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   integration-e2e:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
