@@ -1,17 +1,18 @@
 package in
 
 import (
-	"fmt"
-	"os"
-	"reflect"
+    "fmt"
+    "os"
+    "reflect"
+    "strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+    libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+    "github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
+    "github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+    "github.com/LerianStudio/midaz/v3/pkg"
+    "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -170,12 +171,26 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Ledgers by metadata")
+    // Support direct metadata.* query keys even if ValidateParameters misses them
+    raw := c.Queries()
+    meta := bson.M{}
+    for k, v := range raw {
+        if strings.HasPrefix(k, "metadata.") {
+            meta[k] = v
+        }
+    }
 
-		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers by metadata", err)
+    if headerParams.Metadata != nil || len(meta) > 0 {
+        logger.Infof("Initiating retrieval of all Ledgers by metadata")
+        if len(meta) > 0 {
+            headerParams.Metadata = &meta
+            headerParams.UseMetadata = true
+        }
+        logger.Infof("Ledgers metadata filter: %v", headerParams.Metadata)
+
+        ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
+        if err != nil {
+            libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all ledgers by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 

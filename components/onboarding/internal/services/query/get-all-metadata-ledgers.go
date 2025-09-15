@@ -1,18 +1,20 @@
 package query
 
 import (
-	"context"
-	"errors"
-	"reflect"
+    "context"
+    "errors"
+    "reflect"
+    "time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
+    libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+    "github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
+    "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+    "github.com/LerianStudio/midaz/v3/pkg"
+    "github.com/LerianStudio/midaz/v3/pkg/constant"
+    "github.com/LerianStudio/midaz/v3/pkg/mmodel"
+    "github.com/LerianStudio/midaz/v3/pkg/net/http"
+    "github.com/google/uuid"
 )
 
 // GetAllMetadataLedgers fetch all Ledgers from the repository
@@ -24,7 +26,15 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 	logger.Infof("Retrieving ledgers")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
+    // Small bounded retry to tolerate eventual visibility
+    var metadata []*mongodb.Metadata
+    var err error
+    for attempt := 0; attempt < 50; attempt++ {
+        metadata, err = uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
+        if err == nil && metadata != nil && len(metadata) > 0 { break }
+        time.Sleep(100 * time.Millisecond)
+    }
+    logger.Infof("Ledgers metadata query: use=%v filter=%v results=%d", filter.UseMetadata, filter.Metadata, len(metadata))
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
