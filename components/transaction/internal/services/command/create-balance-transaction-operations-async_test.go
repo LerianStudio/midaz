@@ -156,11 +156,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected when there are no operations/deltas
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -260,14 +256,35 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Metadata:       map[string]interface{}{},
 		}
 
-		parseDSL := &libTransaction.Transaction{}
+        parseDSL := &libTransaction.Transaction{}
 
-		transactionQueue := transaction.TransactionQueue{
-			Transaction: tran,
-			Validate:    validate,
-			Balances:    balances,
-			ParseDSL:    parseDSL,
-		}
+        // Prepare one operation that affects balances to trigger deltas
+        amt := decimal.NewFromInt(10)
+        beforeAvail := decimal.NewFromInt(100)
+        afterAvail := decimal.NewFromInt(90)
+        beforeHold := decimal.NewFromInt(0)
+        afterHold := decimal.NewFromInt(0)
+        op := &operation.Operation{
+            ID:              uuid.New().String(),
+            TransactionID:   transactionID,
+            OrganizationID:  organizationID.String(),
+            LedgerID:        ledgerID.String(),
+            AccountID:       uuid.New().String(),
+            Type:            "debit",
+            AssetCode:       "USD",
+            Amount:          operation.Amount{Value: &amt},
+            Balance:         operation.Balance{Available: &beforeAvail, OnHold: &beforeHold},
+            BalanceAfter:    operation.Balance{Available: &afterAvail, OnHold: &afterHold},
+            BalanceAffected: true,
+        }
+        tran.Operations = []*operation.Operation{op}
+
+        transactionQueue := transaction.TransactionQueue{
+            Transaction: tran,
+            Validate:    validate,
+            Balances:    balances,
+            ParseDSL:    parseDSL,
+        }
 
 		transactionBytes, _ := msgpack.Marshal(transactionQueue)
 		queueData := []mmodel.QueueData{
@@ -283,11 +300,39 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate to return an error
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("failed to update balances")).
-			Times(1)
+        // Mock TransactionRepo.Create (now called before applying deltas)
+        mockTransactionRepo.EXPECT().
+            Create(gomock.Any(), gomock.Any()).
+            Return(tran, nil).
+            Times(1)
+
+        // Mock MetadataRepo.Create for transaction metadata
+        mockMetadataRepo.EXPECT().
+            Create(gomock.Any(), gomock.Any(), gomock.Any()).
+            Return(nil).
+            AnyTimes()
+
+        // Operation create should succeed
+        mockOperationRepo.EXPECT().
+            Create(gomock.Any(), gomock.Any()).
+            Return(op, nil).
+            Times(1)
+
+        // Mock BalanceRepo.BalancesIncrement to return an error (deltas present below)
+        mockBalanceRepo.EXPECT().
+            BalancesIncrement(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+            Return(errors.New("failed to update balances")).
+            Times(1)
+
+        // Background goroutine expectations (events + queue removal)
+        mockRabbitMQRepo.EXPECT().
+            ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+            Return(nil, nil).
+            AnyTimes()
+        mockRedisRepo.EXPECT().
+            RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+            Return(nil).
+            AnyTimes()
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
@@ -381,11 +426,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected without deltas in this test
 
 		// Mock TransactionRepo.Create with duplicate key error
 		pgErr := &pgconn.PgError{Code: "23505"}
@@ -554,11 +595,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected without deltas in this test
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -730,11 +767,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected for this error path
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -885,11 +918,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected for this duplicate path
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -916,11 +945,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(operation2, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // Mock MetadataRepo.Create for operation metadata (both operations; idempotent)
+        mockMetadataRepo.EXPECT().
+            Create(gomock.Any(), gomock.Any(), gomock.Any()).
+            Return(nil).
+            Times(2)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
 		mockRabbitMQRepo.EXPECT().
@@ -1042,11 +1071,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+        // No balance increment expected without deltas in this test
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -1210,10 +1235,7 @@ func TestCreateBTOAsync(t *testing.T) {
 	}
 
 	// Mock all the necessary calls to avoid nil pointer dereference
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		AnyTimes()
+    // No balance increment expected in this wrapper test
 
 	mockTransactionRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).

@@ -106,6 +106,12 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 	}
 
 	// Mock RabbitMQRepo.ProducerDefault
+	// First, ensure health check passes so the code uses RabbitMQ path
+	mockRabbitMQRepo.EXPECT().
+		CheckRabbitMQHealth().
+		Return(true).
+		Times(1)
+
 	mockRabbitMQRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).

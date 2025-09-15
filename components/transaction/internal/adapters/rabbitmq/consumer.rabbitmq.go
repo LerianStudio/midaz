@@ -1,14 +1,16 @@
 package rabbitmq
 
 import (
-	"context"
+    "context"
+    "time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	attribute "go.opentelemetry.io/otel/attribute"
+    libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+    libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+    libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+    libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+    libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+    amqp "github.com/rabbitmq/amqp091-go"
+    attribute "go.opentelemetry.io/otel/attribute"
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
@@ -60,86 +62,127 @@ func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers in
 
 // Register add a new queue to handler.
 func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
-	cr.routes[queueName] = handler
+    cr.routes[queueName] = handler
 }
 
 // RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
-	for queueName, handler := range cr.routes {
-		cr.Infof("Initializing consumer for queue: %s", queueName)
+    // For each registered queue, spawn a resilient manager that will
+    // reconnect and re-subscribe if the channel/connection drops.
+    for queueName, handler := range cr.routes {
+        q := queueName
+        h := handler
+        go cr.runQueueConsumers(q, h)
+    }
+    return nil
+}
 
-		err := cr.conn.Channel.Qos(
-			cr.NumbersOfPrefetch,
-			0,
-			false,
-		)
-		if err != nil {
-			return err
-		}
+// runQueueConsumers manages a single queue subscription with automatic reconnection.
+func (cr *ConsumerRoutes) runQueueConsumers(queueName string, handler QueueHandlerFunc) {
+    for {
+        cr.Infof("Initializing consumer for queue: %s", queueName)
 
-		messages, err := cr.conn.Channel.Consume(
-			queueName,
-			"",
-			false,
-			false,
-			false,
-			false,
-			nil,
-		)
-		if err != nil {
-			return err
-		}
+        // Ensure we have a valid channel; only attempt reconnect when broker is healthy.
+        if cr.conn.Channel == nil {
+            if !cr.conn.HealthCheck() {
+                cr.Warnf("RabbitMQ unhealthy while initializing consumer for %s; waiting...", queueName)
+                <-time.After(750 * time.Millisecond)
+                continue
+            }
+            if _, err := cr.conn.GetNewConnect(); err != nil {
+                cr.Warnf("RabbitMQ not ready for queue %s: %v", queueName, err)
+                <-time.After(750 * time.Millisecond)
+                continue
+            }
+        }
 
-		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
-				for msg := range messages {
-					midazID, found := msg.Headers[libConstants.HeaderID]
-					if !found {
-						midazID = libCommons.GenerateUUIDv7().String()
-					}
+        if err := cr.conn.Channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
+            cr.Errorf("Failed to set QoS for %s: %v", queueName, err)
+            // Force reconnect on QoS error by clearing stale channel state.
+            cr.conn.Channel = nil
+            cr.conn.Connected = false
+            if cr.conn.HealthCheck() { _, _ = cr.conn.GetNewConnect() }
+            <-time.After(750 * time.Millisecond)
+            continue
+        }
 
-					log := cr.Logger.WithFields(
-						libConstants.HeaderID, midazID.(string),
-					).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+        deliveries, err := cr.conn.Channel.Consume(
+            queueName,
+            "",
+            false,
+            false,
+            false,
+            false,
+            nil,
+        )
+        if err != nil {
+            cr.Errorf("Failed to consume from %s: %v", queueName, err)
+            // Force reconnect on consume error by clearing stale channel state.
+            cr.conn.Channel = nil
+            cr.conn.Connected = false
+            if cr.conn.HealthCheck() { _, _ = cr.conn.GetNewConnect() }
+            <-time.After(750 * time.Millisecond)
+            continue
+        }
 
-					ctx := libCommons.ContextWithLogger(
-						libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
-						log,
-					)
+        // Watch for channel closure to re-subscribe.
+        notifyClosed := make(chan *amqp.Error, 1)
+        cr.conn.Channel.NotifyClose(notifyClosed)
 
-					ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
-					ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
+        for i := 0; i < cr.NumbersOfWorkers; i++ {
+            go func(workerID int, queue string, handlerFunc QueueHandlerFunc, msgs <-chan amqp.Delivery) {
+                for msg := range msgs {
+                    midazID, found := msg.Headers[libConstants.HeaderID]
+                    if !found {
+                        midazID = libCommons.GenerateUUIDv7().String()
+                    }
 
-					logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-					ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
+                    log := cr.Logger.WithFields(
+                        libConstants.HeaderID, midazID.(string),
+                    ).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
 
-					ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
+                    ctx := libCommons.ContextWithLogger(
+                        libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
+                        log,
+                    )
 
-					err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
-					if err != nil {
-						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
-					}
+                    ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
+                    ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
-					err = handlerFunc(ctx, msg.Body)
-					if err != nil {
-						libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
+                    logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+                    ctx, spanConsumer := tracer.Start(ctx, "rabbitmq.consumer.process_message")
 
-						spanConsumer.End()
+                    ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
-						logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+                    if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body); err != nil {
+                        libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
+                    }
 
-						_ = msg.Nack(false, true)
+                    if err := handlerFunc(ctx, msg.Body); err != nil {
+                        libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
+                        spanConsumer.End()
+                        logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+                        _ = msg.Nack(false, true)
+                        continue
+                    }
 
-						continue
-					}
+                    spanConsumer.End()
+                    _ = msg.Ack(false)
+                }
+            }(i, queueName, handler, deliveries)
+        }
 
-					spanConsumer.End()
+        // Block until the channel is closed, then loop to reconnect.
+        if err := <-notifyClosed; err != nil {
+            cr.Warnf("RabbitMQ channel closed for %s: %v", queueName, err)
+        } else {
+            cr.Warnf("RabbitMQ channel closed for %s", queueName)
+        }
 
-					_ = msg.Ack(false)
-				}
-			}(i, queueName, handler)
-		}
-	}
-
-	return nil
+        // Attempt to reconnect before next iteration, but only if broker is healthy.
+        cr.conn.Channel = nil
+        cr.conn.Connected = false
+        if cr.conn.HealthCheck() { _, _ = cr.conn.GetNewConnect() }
+        <-time.After(750 * time.Millisecond)
+    }
 }

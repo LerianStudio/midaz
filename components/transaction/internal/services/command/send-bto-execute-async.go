@@ -25,10 +25,10 @@ func (uc *UseCase) TransactionExecute(ctx context.Context, organizationID, ledge
 
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
 func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
-	defer spanSendBTOQueue.End()
+    ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
+    defer spanSendBTOQueue.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -39,14 +39,14 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		ParseDSL:    parseDSL,
 	}
 
-	marshal, err := msgpack.Marshal(value)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
+    marshal, err := msgpack.Marshal(value)
+    if err != nil {
+        libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 
-		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
+        logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 
-		return err
-	}
+        return err
+    }
 
 	queueData = append(queueData, mmodel.QueueData{
 		ID:    tran.IDtoUUID(),
@@ -68,12 +68,24 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		return err
 	}
 
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxSendBTOQueue,
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
-		message,
-	); err != nil {
+    // If async is disabled or RMQ is unhealthy, apply synchronously to avoid lost/lagged effects
+    if !uc.RabbitMQRepo.CheckRabbitMQHealth() || strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "false" {
+        logger.Warnf("RabbitMQ unhealthy or async disabled; applying transaction directly to DB")
+        if err := uc.CreateBalanceTransactionOperationsAsync(ctxSendBTOQueue, queueMessage); err != nil {
+            libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTOQueue, "Failed to apply transaction directly to database", err)
+            logger.Errorf("Failed to apply transaction directly to database: %s", err.Error())
+            return err
+        }
+        logger.Infof("transaction applied directly to database: %s", tran.ID)
+        return nil
+    }
+
+    if _, err := uc.RabbitMQRepo.ProducerDefault(
+        ctxSendBTOQueue,
+        os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
+        os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+        message,
+    ); err != nil {
 		logger.Warnf("Failed to send message to queue: %s", err.Error())
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)

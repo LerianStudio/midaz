@@ -282,18 +282,24 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
 
-	var balanceJSON []byte
-	switch v := result.(type) {
-	case string:
-		balanceJSON = []byte(v)
-	case []byte:
-		balanceJSON = v
-	default:
-		err = fmt.Errorf("unexpected result type from Redis: %T", result)
-		logger.Warnf("Warning: %v", err)
+    var balanceJSON []byte
+    switch v := result.(type) {
+    case string:
+        balanceJSON = []byte(v)
+    case []byte:
+        balanceJSON = v
+    default:
+        err = fmt.Errorf("unexpected result type from Redis: %T", result)
+        logger.Warnf("Warning: %v", err)
 
-		return nil, err
-	}
+        return nil, err
+    }
+
+    // Tolerate empty object returned by Lua script by treating it as an empty list
+    trimmed := strings.TrimSpace(string(balanceJSON))
+    if trimmed == "{}" || trimmed == "null" || trimmed == "" {
+        balanceJSON = []byte("[]")
+    }
 
 	if err := json.Unmarshal(balanceJSON, &blcsRedis); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
