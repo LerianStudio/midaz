@@ -29,10 +29,13 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
-		var balancesByAliases []*mmodel.Balance
-		var err error
+		var (
+			balancesByAliases []*mmodel.Balance
+			err               error
+		)
 
 		// Bounded retry to tolerate eventual creation of default balances
+
 		for attempt := 0; attempt < 50; attempt++ {
 			balancesByAliases, err = uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 			if err == nil && len(balancesByAliases) > 0 {
