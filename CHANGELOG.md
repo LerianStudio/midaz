@@ -12,6 +12,13 @@ Contributors: LF Barrile, paulo
 ### 📚 Documentation
 - **Improved Clarity**: The documentation now includes validation steps for the GitOps flow, providing clearer guidance and reducing the potential for user errors. This update helps users better understand and implement GitOps practices.
 
+## [v3.3.0-beta.14] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.13...v3.3.0-beta.14)
+Contributors: lerian-studio
+
+### 🔧 Maintenance
+- **Changelog Management**: The CHANGELOG file has been updated to include recent project changes and improvements. This ensures transparency in our development process and helps users stay informed about the software's evolution. Keeping the changelog current is crucial for understanding project progress and modifications.
 
 ## [v3.3.0-beta.13] - 2025-09-11
 
