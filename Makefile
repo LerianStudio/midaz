@@ -74,23 +74,6 @@ endef
 DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export DOCKER_CMD
 
-# ------------------------------------------------------
-# Test tooling configuration
-# ------------------------------------------------------
-JUNIT_DIR ?= ./reports/junit
-GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
-RETRY_ON_FAIL ?= 0
-
-.PHONY: tools tools-gotestsum
-tools: tools-gotestsum ## Install helpful dev/test tools
-
-tools-gotestsum:
-	@if [ -z "$(GOTESTSUM)" ]; then \
-		echo "Installing gotestsum..."; \
-		GO111MODULE=on go install gotest.tools/gotestsum@latest; \
-	else \
-		echo "gotestsum already installed: $(GOTESTSUM)"; \
-	fi
 
 # ------------------------------------------------------
 # Test configuration
@@ -205,6 +188,24 @@ help:
 	@echo ""
 	@echo ""
 
+# ------------------------------------------------------
+# Test tooling configuration
+# ------------------------------------------------------
+JUNIT_DIR ?= ./reports/junit
+GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
+RETRY_ON_FAIL ?= 0
+
+.PHONY: tools tools-gotestsum
+tools: tools-gotestsum ## Install helpful dev/test tools
+
+tools-gotestsum:
+	@if [ -z "$(GOTESTSUM)" ]; then \
+		echo "Installing gotestsum..."; \
+		GO111MODULE=on go install gotest.tools/gotestsum@latest; \
+	else \
+		echo "gotestsum already installed: $(GOTESTSUM)"; \
+	fi
+	
 #-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites tests="994" failures="0" errors="0" time="8.392852">
+<testsuites tests="994" failures="0" errors="0" time="7.453780">
 	<testsuite tests="0" failures="0" time="0.000000" name="" timestamp="0001-01-01T00:00:00Z">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="5" failures="0" time="1.321000" name="github.com/LerianStudio/midaz/v3/components/mdz" timestamp="2025-09-15T09:42:20-03:00">
+	<testsuite tests="5" failures="0" time="1.431000" name="github.com/LerianStudio/midaz/v3/components/mdz" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -15,7 +15,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz" name="TestInvalidCommand" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz" name="TestMainFunction" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="105" failures="0" time="1.488000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository" timestamp="2025-09-15T09:42:20-03:00">
+	<testsuite tests="105" failures="0" time="1.216000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -125,12 +125,12 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository" name="TestSegment_Delete/error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/internal/domain/repository" name="TestSegment_Delete" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/model" timestamp="2025-09-15T09:42:20-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/model" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="36" failures="0" time="1.662000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/rest" timestamp="2025-09-15T09:42:20-03:00">
+	<testsuite tests="36" failures="0" time="1.608000" name="github.com/LerianStudio/midaz/v3/components/mdz/internal/rest" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -171,7 +171,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/internal/rest" name="Test_segment_Update" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/internal/rest" name="Test_segment_Delete" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="16" failures="0" time="1.921000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/account" timestamp="2025-09-15T09:42:21-03:00">
+	<testsuite tests="16" failures="0" time="1.657000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/account" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -192,7 +192,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/account" name="Test_newCmdLedgerUpdate/happy_path_no_informing_flags" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/account" name="Test_newCmdLedgerUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="16" failures="0" time="1.725000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/asset" timestamp="2025-09-15T09:42:21-03:00">
+	<testsuite tests="16" failures="0" time="1.833000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/asset" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -213,13 +213,13 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/asset" name="Test_newCmdLedgerUpdate/happy_path_no_informing_flags" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/asset" name="Test_newCmdLedgerUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="1" failures="0" time="2.075000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/configure" timestamp="2025-09-15T09:42:21-03:00">
+	<testsuite tests="1" failures="0" time="1.979000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/configure" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/configure" name="TestNewCmdConfigure" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="5" failures="0" time="1.843000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/ledger" timestamp="2025-09-15T09:42:21-03:00">
+	<testsuite tests="5" failures="0" time="1.730000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/ledger" timestamp="2025-09-15T10:05:52-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -229,15 +229,15 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/ledger" name="Test_newCmdLedgerList" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/ledger" name="Test_newCmdLedgerUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="12" failures="0" time="1.240000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" timestamp="2025-09-15T09:42:22-03:00">
+	<testsuite tests="12" failures="0" time="1.236000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" timestamp="2025-09-15T10:05:53-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE/Successful_login" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE/Successful_login" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE/Invalid_credentials" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE/Empty_username" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE/Empty_password" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestRunE" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestNewCmdLogin/success" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestNewCmdLogin" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestValidateCredentials/Valid_credentials" time="0.000000"></testcase>
@@ -246,7 +246,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestValidateCredentials/Both_empty" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/login" name="TestValidateCredentials" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="5" failures="0" time="1.240000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/organization" timestamp="2025-09-15T09:42:22-03:00">
+	<testsuite tests="5" failures="0" time="1.210000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/organization" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -256,7 +256,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/organization" name="Test_newCmdOrganizationList" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/organization" name="TestNewCmdOrganizationUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="16" failures="0" time="1.261000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/portfolio" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="16" failures="0" time="1.220000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/portfolio" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -277,7 +277,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/portfolio" name="Test_newCmdPortfolioUpdate/no_flags" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/portfolio" name="Test_newCmdPortfolioUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="3" failures="0" time="1.209000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="3" failures="0" time="1.220000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -285,7 +285,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root" name="TestNewCmdRoot/Version_empty" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/root" name="TestNewCmdRoot" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="16" failures="0" time="1.266000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/segment" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="16" failures="0" time="1.267000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/segment" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -306,7 +306,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/segment" name="Test_newCmdSegmentUpdate/no_flags" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/segment" name="Test_newCmdSegmentUpdate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="49" failures="0" time="1.402000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="49" failures="0" time="1.413000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -360,7 +360,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils" name="TestValidateDate/Nonexistent_date" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/utils" name="TestValidateDate" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="4" failures="0" time="1.583000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/version" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="4" failures="0" time="1.571000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/version" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -369,87 +369,87 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/version" name="TestFactoryVersionRunE" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/mdz/pkg/cmd/version" name="TestNewCmdVersion" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/environment" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/factory" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/iostreams" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/mockutil" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/mockutil" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/output" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/output" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/ptr" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/setting" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/setting" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/tui" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/mdz/pkg/tui" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/api" timestamp="2025-09-15T09:42:23-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/api" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/cmd/app" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/cmd/app" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger" timestamp="2025-09-15T10:05:54-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="26" failures="0" time="1.268000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="26" failures="0" time="1.361000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -459,11 +459,11 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Update/successful_update" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Update/organization_not_found" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Update/database_error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Update" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Update" time="0.010000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Find/successful_retrieval" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Find/organization_not_found" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Find/database_error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Find" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Find" time="0.010000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_FindAll/successful_retrieval_of_all_organizations" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_FindAll/empty_result" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_FindAll/database_error" time="0.000000"></testcase>
@@ -480,37 +480,37 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Count/Error_-_Database_error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" name="TestOrganizationRepository_Count" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services" timestamp="2025-09-15T09:42:24-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="136" failures="0" time="1.293000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command" timestamp="2025-09-15T09:42:25-03:00">
+	<testsuite tests="136" failures="0" time="1.577000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -651,7 +651,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command" name="TestUpdateSegmentByID/Error_-_Failure_to_update_segment" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command" name="TestUpdateSegmentByID" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="125" failures="0" time="1.687000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query" timestamp="2025-09-15T09:42:25-03:00">
+	<testsuite tests="125" failures="0" time="1.745000" name="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -781,47 +781,47 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query" name="TestListAccountsByIDs" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query" name="TestNewUseCase" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/api" timestamp="2025-09-15T09:42:25-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/api" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/cmd/app" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/cmd/app" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute" timestamp="2025-09-15T10:05:56-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="22" failures="0" time="1.612000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="22" failures="0" time="1.277000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -848,32 +848,32 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" name="TestTransactionRepository_FindOrListAllWithOperations/should_return_error_when_db_returns_error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" name="TestTransactionRepository_FindOrListAllWithOperations" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services" timestamp="2025-09-15T09:42:26-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="121" failures="0" time="1.292000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="121" failures="0" time="1.418000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -999,7 +999,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command" name="TestUpdateTransactionSuccess" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command" name="TestUpdateTransactionError" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="133" failures="0" time="1.431000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="133" failures="0" time="1.641000" name="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -1108,36 +1108,36 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestUniqueValues/Map_with_duplicate_values_returns_correct_count" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestUniqueValues/Map_with_all_unique_values_returns_correct_count" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestUniqueValues" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances/Success" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances/Error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID/Success" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID/Error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount/Success" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount/Error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataOperations/Success" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataOperations/Error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataOperations" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias/GetAllBalancesByAlias_success" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias/GetAllBalancesByAlias_error" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID/Success" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID/Error" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAccountID" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataTransactions/Success" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataTransactions/Error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllMetadataTransactions" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Success_with_metadata" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Success_with_no_operations" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Error_in_FindAll" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Error_in_FindList_metadata" time="0.000000"></testcase>
-		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances/Success" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances/Error" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalances" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias/GetAllBalancesByAlias_success" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias/GetAllBalancesByAlias_error" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllBalancesByAlias" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount/Success" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount/Error" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperationsByAccount" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllTransactions/Success" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllTransactions/Error_FindAll" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllTransactions/Error_ItemNotFound" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllTransactions/Error_Metadata" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllTransactions" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Success_with_metadata" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Success_with_no_operations" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Error_in_FindAll" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations/Error_in_FindList_metadata" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query" name="TestGetAllOperations" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="63" failures="0" time="1.176000" name="github.com/LerianStudio/midaz/v3/pkg" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="63" failures="0" time="1.940000" name="github.com/LerianStudio/midaz/v3/pkg" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -1205,17 +1205,17 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg" name="TestValidateInternalError/with_nil_error" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg" name="TestValidateInternalError" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/pkg/constant" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/pkg/constant" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/pkg/gold/parser" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/pkg/gold/parser" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
 	</testsuite>
-	<testsuite tests="8" failures="0" time="1.933000" name="github.com/LerianStudio/midaz/v3/pkg/gold/transaction" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="8" failures="0" time="1.793000" name="github.com/LerianStudio/midaz/v3/pkg/gold/transaction" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -1228,7 +1228,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/gold/transaction" name="TestParse/Invalid_DSL_input" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/gold/transaction" name="TestParse" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="39" failures="0" time="1.565000" name="github.com/LerianStudio/midaz/v3/pkg/mmodel" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="39" failures="0" time="2.145000" name="github.com/LerianStudio/midaz/v3/pkg/mmodel" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -1272,7 +1272,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/mmodel" name="TestStatus_IsEmpty/case_03" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/mmodel" name="TestStatus_IsEmpty" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="32" failures="0" time="1.774000" name="github.com/LerianStudio/midaz/v3/pkg/net/http" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="32" failures="0" time="1.671000" name="github.com/LerianStudio/midaz/v3/pkg/net/http" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
@@ -1309,7 +1309,7 @@
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/net/http" name="TestIsDecimalEqual/unsupported_types" time="0.000000"></testcase>
 		<testcase classname="github.com/LerianStudio/midaz/v3/pkg/net/http" name="TestIsDecimalEqual" time="0.000000"></testcase>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/scripts/analyze_accepted" timestamp="2025-09-15T09:42:27-03:00">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/LerianStudio/midaz/v3/scripts/analyze_accepted" timestamp="2025-09-15T10:05:57-03:00">
 		<properties>
 			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
 		</properties>
