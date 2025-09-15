@@ -2,12 +2,14 @@ package rabbitmq
 
 import (
 	"context"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 
@@ -65,19 +67,56 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 
 // RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
+	// For each registered queue, spawn a resilient manager that will
+	// reconnect and re-subscribe if the channel/connection drops.
 	for queueName, handler := range cr.routes {
+		q := queueName
+
+		h := handler
+		go cr.runQueueConsumers(q, h)
+	}
+
+	return nil
+}
+
+// runQueueConsumers manages a single queue subscription with automatic reconnection.
+func (cr *ConsumerRoutes) runQueueConsumers(queueName string, handler QueueHandlerFunc) {
+	for {
 		cr.Infof("Initializing consumer for queue: %s", queueName)
 
-		err := cr.conn.Channel.Qos(
-			cr.NumbersOfPrefetch,
-			0,
-			false,
-		)
-		if err != nil {
-			return err
+		// Ensure we have a valid channel; only attempt reconnect when broker is healthy.
+		if cr.conn.Channel == nil {
+			if !cr.conn.HealthCheck() {
+				cr.Warnf("RabbitMQ unhealthy while initializing consumer for %s; waiting...", queueName)
+				<-time.After(750 * time.Millisecond)
+
+				continue
+			}
+
+			if _, err := cr.conn.GetNewConnect(); err != nil {
+				cr.Warnf("RabbitMQ not ready for queue %s: %v", queueName, err)
+				<-time.After(750 * time.Millisecond)
+
+				continue
+			}
 		}
 
-		messages, err := cr.conn.Channel.Consume(
+		if err := cr.conn.Channel.Qos(cr.NumbersOfPrefetch, 0, false); err != nil {
+			cr.Errorf("Failed to set QoS for %s: %v", queueName, err)
+			// Force reconnect on QoS error by clearing stale channel state.
+			cr.conn.Channel = nil
+
+			cr.conn.Connected = false
+			if cr.conn.HealthCheck() {
+				_, _ = cr.conn.GetNewConnect()
+			}
+
+			<-time.After(750 * time.Millisecond)
+
+			continue
+		}
+
+		deliveries, err := cr.conn.Channel.Consume(
 			queueName,
 			"",
 			false,
@@ -87,12 +126,27 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			nil,
 		)
 		if err != nil {
-			return err
+			cr.Errorf("Failed to consume from %s: %v", queueName, err)
+			// Force reconnect on consume error by clearing stale channel state.
+			cr.conn.Channel = nil
+
+			cr.conn.Connected = false
+			if cr.conn.HealthCheck() {
+				_, _ = cr.conn.GetNewConnect()
+			}
+
+			<-time.After(750 * time.Millisecond)
+
+			continue
 		}
 
+		// Watch for channel closure to re-subscribe.
+		notifyClosed := make(chan *amqp.Error, 1)
+		cr.conn.Channel.NotifyClose(notifyClosed)
+
 		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
-				for msg := range messages {
+			go func(workerID int, queue string, handlerFunc QueueHandlerFunc, msgs <-chan amqp.Delivery) {
+				for msg := range msgs {
 					midazID, found := msg.Headers[libConstants.HeaderID]
 					if !found {
 						midazID = libCommons.GenerateUUIDv7().String()
@@ -115,17 +169,13 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 					ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
-					err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
-					if err != nil {
+					if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body); err != nil {
 						libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
 					}
 
-					err = handlerFunc(ctx, msg.Body)
-					if err != nil {
+					if err := handlerFunc(ctx, msg.Body); err != nil {
 						libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
-
 						spanConsumer.End()
-
 						logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
 						_ = msg.Nack(false, true)
@@ -137,9 +187,24 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 					_ = msg.Ack(false)
 				}
-			}(i, queueName, handler)
+			}(i, queueName, handler, deliveries)
 		}
-	}
 
-	return nil
+		// Block until the channel is closed, then loop to reconnect.
+		if err := <-notifyClosed; err != nil {
+			cr.Warnf("RabbitMQ channel closed for %s: %v", queueName, err)
+		} else {
+			cr.Warnf("RabbitMQ channel closed for %s", queueName)
+		}
+
+		// Attempt to reconnect before next iteration, but only if broker is healthy.
+		cr.conn.Channel = nil
+
+		cr.conn.Connected = false
+		if cr.conn.HealthCheck() {
+			_, _ = cr.conn.GetNewConnect()
+		}
+
+		<-time.After(750 * time.Millisecond)
+	}
 }

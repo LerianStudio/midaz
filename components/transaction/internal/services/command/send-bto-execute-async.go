@@ -68,6 +68,22 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		return err
 	}
 
+	// If async is disabled or RMQ is unhealthy, apply synchronously to avoid lost/lagged effects
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() || strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "false" {
+		logger.Warnf("RabbitMQ unhealthy or async disabled; applying transaction directly to DB")
+
+		if err := uc.CreateBalanceTransactionOperationsAsync(ctxSendBTOQueue, queueMessage); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanSendBTOQueue, "Failed to apply transaction directly to database", err)
+			logger.Errorf("Failed to apply transaction directly to database: %s", err.Error())
+
+			return err
+		}
+
+		logger.Infof("transaction applied directly to database: %s", tran.ID)
+
+		return nil
+	}
+
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxSendBTOQueue,
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),

@@ -45,17 +45,12 @@ type TransactionRoutePostgreSQLRepository struct {
 
 // NewTransactionRoutePostgreSQLRepository creates a new instance of TransactionRoutePostgreSQLRepository.
 func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionRoutePostgreSQLRepository {
-	c := &TransactionRoutePostgreSQLRepository{
-		connection: pc,
-		tableName:  "transaction_route",
-	}
+    c := &TransactionRoutePostgreSQLRepository{
+        connection: pc,
+        tableName:  "transaction_route",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create creates a new transaction route and its operation route relations.

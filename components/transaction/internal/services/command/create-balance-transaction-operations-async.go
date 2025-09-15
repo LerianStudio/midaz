@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -40,21 +39,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	if t.Transaction.Status.Code != constant.NOTED {
-		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-		defer spanUpdateBalances.End()
-
-		logger.Infof("Trying to update balances")
-
-		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
-
-			logger.Errorf("Failed to update balances: %v", err.Error())
-
-			return err
-		}
-	}
+	// New order: create transaction and then atomically insert all operations and apply balance deltas
 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
@@ -83,33 +68,70 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
 	defer spanCreateOperation.End()
 
-	logger.Infof("Trying to create new operations")
+	logger.Infof("Creating operations and applying balance deltas atomically")
 
-	for _, oper := range tran.Operations {
-		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
+	if repo, ok := uc.OperationRepo.(*operation.OperationPostgreSQLRepository); ok {
+		applyBalances := t.Transaction.Status.Code != constant.NOTED
+		if err := repo.CreateManyAndApplyDeltasAtomic(ctxProcessOperation, data.OrganizationID, data.LedgerID, applyBalances, tran.Operations); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operations and apply deltas atomically", err)
+			logger.Errorf("Failed to create operations and apply deltas atomically: %v", err)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
+			return err
+		}
+	} else {
+		// Fallback (should not happen in production): preserve old behavior but warn lack of atomicity
+		logger.Warnf("OperationRepo is not PostgreSQL repository; falling back to non-atomic path")
 
-				logger.Warnf(msg)
+		// Track deltas only for operations actually inserted now
+		deltas := make(map[string]mmodel.BalanceDelta)
 
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
+		for _, oper := range tran.Operations {
+			created := true
 
-				logger.Errorf("Error creating operation: %v", err)
+			if _, err = uc.OperationRepo.Create(ctxProcessOperation, oper); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+					created = false
+				} else {
+					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
+					logger.Errorf("Error creating operation: %v", err)
+
+					return err
+				}
+			}
+
+			if created {
+				if oper.BalanceAffected && oper.Balance.Available != nil && oper.BalanceAfter.Available != nil && oper.Balance.OnHold != nil && oper.BalanceAfter.OnHold != nil {
+					da := oper.BalanceAfter.Available.Sub(*oper.Balance.Available)
+					dh := oper.BalanceAfter.OnHold.Sub(*oper.Balance.OnHold)
+					bd := deltas[oper.BalanceID]
+					bd.ID = oper.BalanceID
+					bd.DeltaAvailable = bd.DeltaAvailable.Add(da)
+					bd.DeltaOnHold = bd.DeltaOnHold.Add(dh)
+					deltas[oper.BalanceID] = bd
+				}
+			}
+		}
+
+		if t.Transaction.Status.Code != constant.NOTED && len(deltas) > 0 {
+			list := make([]mmodel.BalanceDelta, 0, len(deltas))
+			for _, v := range deltas {
+				list = append(list, v)
+			}
+
+			if err := uc.BalanceRepo.BalancesIncrement(ctx, data.OrganizationID, data.LedgerID, list); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to increment balances", err)
+				logger.Errorf("Failed to increment balances: %v", err)
 
 				return err
 			}
 		}
+	}
 
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
-		if err != nil {
+	// Operation metadata is idempotent and can be created after DB atomics
+	for _, oper := range tran.Operations {
+		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
-
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
 			return err
