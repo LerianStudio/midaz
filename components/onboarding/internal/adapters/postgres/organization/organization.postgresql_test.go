@@ -728,6 +728,7 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 
 	// Run test cases
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			repo := tc.setupRepo()
 			ctx := context.Background()
@@ -747,7 +748,7 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				switch tc.name {
+				switch name := tc.name; name {
 				case "successful retrieval of all organizations":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
@@ -826,6 +827,7 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 
 	// Run test cases
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			repo := tc.setupRepo()
 			ctx := context.Background()
@@ -845,7 +847,7 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				switch tc.name {
+				switch name := tc.name; name {
 				case "successful retrieval by IDs":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
