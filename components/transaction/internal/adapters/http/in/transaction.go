@@ -929,20 +929,22 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 			To:      map[string]libTransaction.Amount{},
 			Pending: parserDSL.Pending,
 		}
-        for i := range fromConcat {
-            if fromConcat[i].AccountAlias != "" {
-                aliasKey := fromConcat[i].AccountAlias + "#" + fromConcat[i].BalanceKey
-                fb.Aliases = append(fb.Aliases, aliasKey)
-                fb.From[aliasKey] = libTransaction.Amount{Value: fromConcat[i].Amount.Value}
-            }
-        }
-        for i := range toConcat {
-            if toConcat[i].AccountAlias != "" {
-                aliasKey := toConcat[i].AccountAlias + "#" + toConcat[i].BalanceKey
-                fb.Aliases = append(fb.Aliases, aliasKey)
-                fb.To[aliasKey] = libTransaction.Amount{Value: toConcat[i].Amount.Value}
-            }
-        }
+
+		for i := range fromConcat {
+			if fromConcat[i].AccountAlias != "" {
+				aliasKey := fromConcat[i].AccountAlias + "#" + fromConcat[i].BalanceKey
+				fb.Aliases = append(fb.Aliases, aliasKey)
+				fb.From[aliasKey] = libTransaction.Amount{Value: fromConcat[i].Amount.Value}
+			}
+		}
+
+		for i := range toConcat {
+			if toConcat[i].AccountAlias != "" {
+				aliasKey := toConcat[i].AccountAlias + "#" + toConcat[i].BalanceKey
+				fb.Aliases = append(fb.Aliases, aliasKey)
+				fb.To[aliasKey] = libTransaction.Amount{Value: toConcat[i].Amount.Value}
+			}
+		}
 
 		// Replace validate with fallback; downstream balance rules will enforce correctness
 		validate = fb
@@ -954,6 +956,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 	// Use balance-backed validation path for execution; server-side rules and Redis atomicity enforce correctness.
 	// We skip the secondary library validation to keep DSL and JSON behavior aligned and reduce false rejections.
+
 	var parserForBalances *libTransaction.Transaction = nil
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, parserForBalances, validate, transactionStatus)
 	if err != nil {
