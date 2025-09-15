@@ -372,8 +372,7 @@ func TestBalance_KeyField(t *testing.T) {
 				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
-				AllowSending:   true,
-				AllowReceiving: true,
+				// AllowSending and AllowReceiving removed as they're not used in this test
 			}
 
 			if tt.shouldBeSet {
