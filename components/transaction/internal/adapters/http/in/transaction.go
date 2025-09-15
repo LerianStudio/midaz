@@ -958,6 +958,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	// We skip the secondary library validation to keep DSL and JSON behavior aligned and reduce false rejections.
 
 	var parserForBalances *libTransaction.Transaction = nil
+
 	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, parserForBalances, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
