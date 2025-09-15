@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -170,8 +171,25 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	if headerParams.Metadata != nil {
+	// Support direct metadata.* query keys even if ValidateParameters misses them
+	raw := c.Queries()
+	meta := bson.M{}
+
+	for k, v := range raw {
+		if strings.HasPrefix(k, "metadata.") {
+			meta[k] = v
+		}
+	}
+
+	if headerParams.Metadata != nil || len(meta) > 0 {
 		logger.Infof("Initiating retrieval of all Ledgers by metadata")
+
+		if len(meta) > 0 {
+			headerParams.Metadata = &meta
+			headerParams.UseMetadata = true
+		}
+
+		logger.Infof("Ledgers metadata filter: %v", headerParams.Metadata)
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
