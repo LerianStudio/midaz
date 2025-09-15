@@ -33,6 +33,7 @@ func WithError(c *fiber.Ctx, err error) error {
 		return BadRequest(c, e)
 	case pkg.ResponseError:
 		var rErr pkg.ResponseError
+
 		_ = errors.As(err, &rErr)
 
 		return JSONResponseError(c, rErr)
