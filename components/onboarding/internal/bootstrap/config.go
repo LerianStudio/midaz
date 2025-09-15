@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -122,6 +123,19 @@ func InitServers() *Service {
 
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort, cfg.ReplicaDBSSLMode)
+
+	// If the replica host is not resolvable (e.g., container stopped or DNS missing),
+	// fall back to using the primary connection string as the replica.
+	// This prevents startup failures when the replica is temporarily unavailable.
+	if strings.TrimSpace(cfg.ReplicaDBHost) == "" {
+		logger.Warn("Replica DB host empty; using primary as replica for startup")
+
+		postgreSourceReplica = postgreSourcePrimary
+	} else if _, err := net.LookupHost(cfg.ReplicaDBHost); err != nil {
+		logger.Warnf("Replica host %s not resolvable; using primary as replica for startup: %v", cfg.ReplicaDBHost, err)
+
+		postgreSourceReplica = postgreSourcePrimary
+	}
 
 	postgresConnection := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
