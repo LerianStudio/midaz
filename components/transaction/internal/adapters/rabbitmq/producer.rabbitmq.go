@@ -69,7 +69,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
-		if err := prmq.conn.EnsureChannel(); err != nil {
+		if err = prmq.conn.EnsureChannel(); err != nil {
 			logger.Errorf("Failed to reopen channel: %v", err)
 
 			sleepDuration := utils.FullJitter(backoff)
