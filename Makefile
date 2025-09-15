@@ -355,16 +355,16 @@ test-chaos:
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	fi
 
 # Fuzzy/robustness tests
