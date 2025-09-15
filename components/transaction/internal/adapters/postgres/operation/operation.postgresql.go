@@ -20,10 +20,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/jackc/pgx/v5/pgconn"
-	"sort"
+	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"sort"
 )
 
 // Repository provides an interface for operations related to operation template entities.
@@ -150,14 +150,15 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
 		return nil
 	}
 
-    var attempt int
-    for attempt = 0; attempt < 5; attempt++ {
+	var attempt int
+	for attempt = 0; attempt < 5; attempt++ {
 		db, err := r.connection.GetDB()
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 			logger.Errorf("Failed to get database connection: %v", err)
 			// short backoff then retry
 			time.Sleep(200 * time.Millisecond)
+
 			continue
 		}
 
@@ -167,11 +168,13 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
 			logger.Errorf("Failed to begin transaction: %v", err)
 			// retryable on transient errors
 			time.Sleep(200 * time.Millisecond)
+
 			continue
 		}
 
 		// Aggregate deltas by balance ID for newly inserted operations
 		type agg struct{ da, dh decimal.Decimal }
+
 		deltas := map[string]agg{}
 
 		// operations insert loop
@@ -183,7 +186,7 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
                 $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
             ) ON CONFLICT (id) DO NOTHING`
 
-            result, err := tx.ExecContext(ctx, query,
+			result, err := tx.ExecContext(ctx, query,
 				rec.ID,
 				rec.TransactionID,
 				rec.Description,
@@ -209,17 +212,20 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
 				rec.BalanceAffected,
 				rec.BalanceKey,
 			)
-            if err != nil {
-                _ = tx.Rollback()
-                var pgErr *pgconn.PgError
-                if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
-                    time.Sleep(200 * time.Millisecond)
-                    goto RETRY
-                }
-                libOpentelemetry.HandleSpanError(&span, "Failed to insert operation", err)
-                logger.Errorf("Failed to insert operation %s: %v", rec.ID, err)
-                return err
-            }
+			if err != nil {
+				_ = tx.Rollback()
+
+				var pgErr *pgconn.PgError
+				if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
+					time.Sleep(200 * time.Millisecond)
+					goto RETRY
+				}
+
+				libOpentelemetry.HandleSpanError(&span, "Failed to insert operation", err)
+				logger.Errorf("Failed to insert operation %s: %v", rec.ID, err)
+
+				return err
+			}
 
 			rows, _ := result.RowsAffected()
 			if rows > 0 && applyBalances {
@@ -234,50 +240,60 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
 			}
 		}
 
-        if applyBalances && len(deltas) > 0 {
-            // ensure deterministic update order to avoid deadlocks
-            keys := make([]string, 0, len(deltas))
-            for k := range deltas { keys = append(keys, k) }
-            sort.Strings(keys)
-            for _, balID := range keys {
-                d := deltas[balID]
-                upq := `UPDATE balance 
+		if applyBalances && len(deltas) > 0 {
+			// ensure deterministic update order to avoid deadlocks
+			keys := make([]string, 0, len(deltas))
+			for k := range deltas {
+				keys = append(keys, k)
+			}
+
+			sort.Strings(keys)
+
+			for _, balID := range keys {
+				d := deltas[balID]
+
+				upq := `UPDATE balance 
                         SET available = available + $1,
                             on_hold   = on_hold + $2,
                             version   = version + 1,
                             updated_at= $3
                         WHERE organization_id = $4 AND ledger_id = $5 AND id = $6 AND deleted_at IS NULL`
-            if _, err = tx.ExecContext(ctx, upq,
-                d.da,
-                d.dh,
-                time.Now(),
-                organizationID,
-                ledgerID,
-                uuid.MustParse(balID),
-            ); err != nil {
-                _ = tx.Rollback()
-                var pgErr *pgconn.PgError
-                if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
-                    time.Sleep(200 * time.Millisecond)
-                    goto RETRY
-                }
-                libOpentelemetry.HandleSpanError(&span, "Failed to increment balance", err)
-                logger.Errorf("Failed to increment balance %s: %v", balID, err)
-                return err
-            }
+				if _, err = tx.ExecContext(ctx, upq,
+					d.da,
+					d.dh,
+					time.Now(),
+					organizationID,
+					ledgerID,
+					uuid.MustParse(balID),
+				); err != nil {
+					_ = tx.Rollback()
+
+					var pgErr *pgconn.PgError
+					if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
+						time.Sleep(200 * time.Millisecond)
+						goto RETRY
+					}
+
+					libOpentelemetry.HandleSpanError(&span, "Failed to increment balance", err)
+					logger.Errorf("Failed to increment balance %s: %v", balID, err)
+
+					return err
+				}
 			}
 		}
 
-        if err = tx.Commit(); err != nil {
-            var pgErr *pgconn.PgError
-            if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
-                time.Sleep(200 * time.Millisecond)
-                goto RETRY
-            }
-            libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
-            logger.Errorf("Failed to commit transaction: %v", err)
-            return err
-        }
+		if err = tx.Commit(); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.Is(err, driver.ErrBadConn) || (errors.As(err, &pgErr) && pgErr.Code == "40P01") {
+				time.Sleep(200 * time.Millisecond)
+				goto RETRY
+			}
+
+			libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
+			logger.Errorf("Failed to commit transaction: %v", err)
+
+			return err
+		}
 		// success
 		return nil
 
@@ -288,6 +304,7 @@ func (r *OperationPostgreSQLRepository) CreateManyAndApplyDeltasAtomic(
 	if err == nil && attempt >= 3 {
 		err = errors.New("exceeded retries for atomic operations+deltas")
 	}
+
 	return err
 
 	// unreachable
