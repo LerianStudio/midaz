@@ -1,10 +1,10 @@
 package in
 
 import (
-    "fmt"
-    "os"
-    "reflect"
-    "strings"
+	"fmt"
+	"os"
+	"reflect"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -43,20 +43,20 @@ type OrganizationHandler struct {
 //	@Failure		500				{object}	mmodel.Error					"Internal server error"
 //	@Router			/v1/organizations [post]
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
-    ctx := c.UserContext()
+	ctx := c.UserContext()
 
-    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-    ctx, span := tracer.Start(ctx, "handler.create_organization")
-    defer span.End()
+	ctx, span := tracer.Start(ctx, "handler.create_organization")
+	defer span.End()
 
-    payload := p.(*mmodel.CreateOrganizationInput)
-    logger.Infof("Request to create an organization with details: %#v", payload)
+	payload := p.(*mmodel.CreateOrganizationInput)
+	logger.Infof("Request to create an organization with details: %#v", payload)
 
-    err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-    if err != nil {
-        libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-    }
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	}
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
@@ -220,24 +220,27 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-    raw := c.Queries()
-    meta := bson.M{}
-    for k, v := range raw {
-        if strings.HasPrefix(k, "metadata.") {
-            meta[k] = v
-        }
-    }
+	raw := c.Queries()
+	meta := bson.M{}
 
-    if headerParams.Metadata != nil || len(meta) > 0 {
-        logger.Infof("Initiating retrieval of all Organizations by metadata")
-        if len(meta) > 0 {
-            headerParams.Metadata = &meta
-            headerParams.UseMetadata = true
-        }
-        logger.Infof("Organizations metadata filter: %v", headerParams.Metadata)
+	for k, v := range raw {
+		if strings.HasPrefix(k, "metadata.") {
+			meta[k] = v
+		}
+	}
 
-        organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
-        if err != nil {
+	if headerParams.Metadata != nil || len(meta) > 0 {
+		logger.Infof("Initiating retrieval of all Organizations by metadata")
+
+		if len(meta) > 0 {
+			headerParams.Metadata = &meta
+			headerParams.UseMetadata = true
+		}
+
+		logger.Infof("Organizations metadata filter: %v", headerParams.Metadata)
+
+		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
+		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())

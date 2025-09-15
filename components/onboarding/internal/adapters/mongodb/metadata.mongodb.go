@@ -107,34 +107,36 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-    // For metadata queries, do not paginate at the MongoDB level.
-    // Pagination should occur after joining back to primary entities (Postgres),
-    // otherwise we risk dropping relevant IDs for the requested org/ledger.
-    opts := options.FindOptions{}
+	// For metadata queries, do not paginate at the MongoDB level.
+	// Pagination should occur after joining back to primary entities (Postgres),
+	// otherwise we risk dropping relevant IDs for the requested org/ledger.
+	opts := options.FindOptions{}
 
-    // Normalize query to support both "metadata.field=value" and nested form {metadata: {field: value}}
-    var query any = filter.Metadata
-    if filter.Metadata != nil {
-        flat := *filter.Metadata
-        nested := bson.M{}
-        for k, v := range flat {
-            if strings.HasPrefix(k, "metadata.") {
-                // also prepare nested under metadata to support drivers/configs expecting subdocument form
-                field := strings.TrimPrefix(k, "metadata.")
-                nested[field] = v
-            }
-        }
-        if len(nested) > 0 {
-            // Accept either dot-notation or nested subdocument
-            query = bson.M{"$or": []any{flat, bson.M{"metadata": nested}}}
-        } else {
-            query = flat
-        }
-    }
+	// Normalize query to support both "metadata.field=value" and nested form {metadata: {field: value}}
+	var query any = filter.Metadata
+	if filter.Metadata != nil {
+		flat := *filter.Metadata
+		nested := bson.M{}
 
-    ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
+		for k, v := range flat {
+			if strings.HasPrefix(k, "metadata.") {
+				// also prepare nested under metadata to support drivers/configs expecting subdocument form
+				field := strings.TrimPrefix(k, "metadata.")
+				nested[field] = v
+			}
+		}
 
-    cur, err := coll.Find(ctx, query, &opts)
+		if len(nested) > 0 {
+			// Accept either dot-notation or nested subdocument
+			query = bson.M{"$or": []any{flat, bson.M{"metadata": nested}}}
+		} else {
+			query = flat
+		}
+	}
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
+
+	cur, err := coll.Find(ctx, query, &opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
 
