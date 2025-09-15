@@ -747,11 +747,12 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				if tc.name == "successful retrieval of all organizations" {
+				switch tc.name {
+				case "successful retrieval of all organizations":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
 					assert.Equal(t, "Organization 2", organizations[1].LegalName)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(organizations))
 				}
 			}
@@ -844,11 +845,12 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 					assert.NotNil(t, organizations)
 				}
 
-				if tc.name == "successful retrieval by IDs" {
+				switch tc.name {
+				case "successful retrieval by IDs":
 					assert.Equal(t, 2, len(organizations))
 					assert.Equal(t, "Organization 1", organizations[0].LegalName)
 					assert.Equal(t, "Organization 2", organizations[1].LegalName)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(organizations))
 				}
 			}

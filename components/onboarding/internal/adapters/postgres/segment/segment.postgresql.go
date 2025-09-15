@@ -45,17 +45,12 @@ type SegmentPostgreSQLRepository struct {
 
 // NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
 func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
-	c := &SegmentPostgreSQLRepository{
-		connection: pc,
-		tableName:  "segment",
-	}
+    c := &SegmentPostgreSQLRepository{
+        connection: pc,
+        tableName:  "segment",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new segment entity into Postgresql and returns it.

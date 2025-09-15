@@ -149,10 +149,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	acc.Metadata = metadata
 
-	logger.Infof("Sending account to transaction queue...")
-	uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+    logger.Infof("Sending account to transaction queue...")
+    if err := uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc); err != nil {
+        // Do not crash the service; log and continue, the account was created.
+        logger.Warnf("Failed to enqueue account event: %v", err)
+    }
 
-	return acc, nil
+    return acc, nil
 }
 
 // determineStatus determines the status of the account.

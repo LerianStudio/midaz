@@ -45,17 +45,12 @@ type PortfolioPostgreSQLRepository struct {
 
 // NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
 func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
-	c := &PortfolioPostgreSQLRepository{
-		connection: pc,
-		tableName:  "portfolio",
-	}
+    c := &PortfolioPostgreSQLRepository{
+        connection: pc,
+        tableName:  "portfolio",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new portfolio entity into Postgresql and returns it.

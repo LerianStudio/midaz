@@ -45,17 +45,12 @@ type LedgerPostgreSQLRepository struct {
 
 // NewLedgerPostgreSQLRepository returns a new instance of LedgerPostgresRepository using the given Postgres connection.
 func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPostgreSQLRepository {
-	c := &LedgerPostgreSQLRepository{
-		connection: pc,
-		tableName:  "ledger",
-	}
+    c := &LedgerPostgreSQLRepository{
+        connection: pc,
+        tableName:  "ledger",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new Ledger entity into Postgresql and returns it.
@@ -309,7 +304,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_ledgers_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = ANY($2) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, pq.Array(ids))
+    rows, err := db.QueryContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = ANY($2) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, pq.Array(ids))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
 

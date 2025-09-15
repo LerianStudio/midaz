@@ -50,17 +50,12 @@ type AccountPostgreSQLRepository struct {
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
 func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
-	c := &AccountPostgreSQLRepository{
-		connection: pc,
-		tableName:  "account",
-	}
+    c := &AccountPostgreSQLRepository{
+        connection: pc,
+        tableName:  "account",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new account entity into Postgresql and returns it.
@@ -526,15 +521,17 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	var accounts []*mmodel.Account
+    var accounts []*mmodel.Account
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
-	args := []any{organizationID, ledgerID, ids}
+    // Use pq.Array with []uuid.UUID to let lib/pq encode a proper uuid[] param
+    query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
+    args := []any{organizationID, ledgerID, pq.Array(ids)}
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
 		query += " AND portfolio_id = $4"
 
-		args = append(args, portfolioID)
+		// append the value, not the pointer
+		args = append(args, *portfolioID)
 	}
 
 	query += " ORDER BY created_at DESC"

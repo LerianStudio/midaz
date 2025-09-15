@@ -163,9 +163,12 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 
-		logger.Infof("Sending external account to transaction queue...")
-		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
-	}
+        logger.Infof("Sending external account to transaction queue...")
+        if err := uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc); err != nil {
+            // Do not crash service on messaging failure; log and proceed.
+            logger.Warnf("Failed to enqueue external account event: %v", err)
+        }
+    }
 
-	return inst, nil
+    return inst, nil
 }
