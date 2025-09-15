@@ -48,23 +48,12 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 		assert.Nil(t, value)
 	})
 
-	t.Run("success with empty key", func(t *testing.T) {
-		// When key is empty, it should use the hash value
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
-
-		// Mock Redis.SetNX - success case (key doesn't exist)
-		mockRedisRepo.EXPECT().
-			SetNX(gomock.Any(), internalKey, "", ttl).
-			Return(true, nil).
-			Times(1)
-
-		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
-
-		// Assertions
-		assert.NoError(t, err)
-		assert.Nil(t, value)
-	})
+    t.Run("success with empty key (no lock when absent)", func(t *testing.T) {
+        // When key is empty, idempotency is not enforced and no Redis calls should be made
+        value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
+        assert.NoError(t, err)
+        assert.Nil(t, value)
+    })
 
 	t.Run("key already exists", func(t *testing.T) {
 		key := "existing-key"
@@ -160,30 +149,11 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, txn, ttl)
 	})
 
-	t.Run("success with empty key", func(t *testing.T) {
-		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, hash)
-
-		txn := transaction.Transaction{
-			ID:                       uuid.New().String(),
-			ParentTransactionID:      nil,
-			OrganizationID:           organizationID.String(),
-			LedgerID:                 ledgerID.String(),
-			Description:              "Test transaction with empty key",
-			ChartOfAccountsGroupName: "test-group",
-			Status:                   transaction.Status{Code: "COMMITTED"},
-		}
-
-		expectedValue, _ := json.Marshal(txn)
-
-		// Mock Redis.Set - success case
-		mockRedisRepo.EXPECT().
-			Set(gomock.Any(), internalKey, string(expectedValue), ttl).
-			Return(nil).
-			Times(1)
-
-		// Call the method
-		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, "", hash, txn, ttl)
-	})
+    t.Run("empty key does not persist value", func(t *testing.T) {
+        txn := transaction.Transaction{ID: uuid.New().String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String()}
+        // No Redis Set expected when key is empty
+        uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, "", hash, txn, ttl)
+    })
 
 	t.Run("redis set error", func(t *testing.T) {
 		key := "test-key"
