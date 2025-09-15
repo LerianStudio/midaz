@@ -705,7 +705,10 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		args = append(args, balance.Version)
 
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, balance.ID, balance.Version)
+		args = append(args, time.Now())
+
+		// Add WHERE clause parameters
+		args = append(args, organizationID, ledgerID, balance.ID, balance.Version)
 
 		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
 			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
