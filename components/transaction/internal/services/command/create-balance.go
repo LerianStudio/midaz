@@ -37,6 +37,8 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			OrganizationID: account.OrganizationID,
 			LedgerID:       account.LedgerID,
 			AccountID:      account.ID,
+			// Create the built-in default balance for every new account
+			Key:            "default",
 			AssetCode:      account.AssetCode,
 			AccountType:    account.Type,
 			AllowSending:   true,

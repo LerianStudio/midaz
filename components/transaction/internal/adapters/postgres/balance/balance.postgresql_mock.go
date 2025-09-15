@@ -22,8 +22,8 @@ import (
 
 // MockRepository is a mock of Repository interface.
 type MockRepository struct {
-	ctrl     *gomock.Controller
-	recorder *MockRepositoryMockRecorder
+    ctrl     *gomock.Controller
+    recorder *MockRepositoryMockRecorder
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -51,10 +51,24 @@ func (m *MockRepository) BalancesUpdate(arg0 context.Context, arg1, arg2 uuid.UU
 	return ret0
 }
 
+// BalancesIncrement mocks base method.
+func (m *MockRepository) BalancesIncrement(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []mmodel.BalanceDelta) error {
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "BalancesIncrement", arg0, arg1, arg2, arg3)
+    ret0, _ := ret[0].(error)
+    return ret0
+}
+
 // BalancesUpdate indicates an expected call of BalancesUpdate.
 func (mr *MockRepositoryMockRecorder) BalancesUpdate(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalancesUpdate", reflect.TypeOf((*MockRepository)(nil).BalancesUpdate), arg0, arg1, arg2, arg3)
+}
+
+// BalancesIncrement indicates an expected call of BalancesIncrement.
+func (mr *MockRepositoryMockRecorder) BalancesIncrement(arg0, arg1, arg2, arg3 any) *gomock.Call {
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalancesIncrement", reflect.TypeOf((*MockRepository)(nil).BalancesIncrement), arg0, arg1, arg2, arg3)
 }
 
 // Create mocks base method.

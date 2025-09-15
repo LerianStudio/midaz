@@ -37,6 +37,7 @@ type Repository interface {
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+	BalancesIncrement(ctx context.Context, organizationID, ledgerID uuid.UUID, deltas []mmodel.BalanceDelta) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -49,17 +50,12 @@ type BalancePostgreSQLRepository struct {
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
 func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
-	c := &BalancePostgreSQLRepository{
-		connection: pc,
-		tableName:  "balance",
-	}
+    c := &BalancePostgreSQLRepository{
+        connection: pc,
+        tableName:  "balance",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
@@ -727,25 +723,82 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			return err
 		}
 
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdate, "Err ", err)
+        rowsAffected, err := result.RowsAffected()
+        if err != nil {
+            libOpentelemetry.HandleSpanError(&spanUpdate, "Err ", err)
 
-			logger.Errorf("Err: %v", err)
+            logger.Errorf("Err: %v", err)
 
-			return err
-		}
+            return err
+        }
 
-		if rowsAffected == 0 {
-			logger.Infof("Zero rows affected")
-
-			continue
-		}
+        if rowsAffected == 0 {
+            // No row updated means a lost update race (version not less than provided).
+            // Surface a business error so upstream can retry or reject instead of silently ACKing.
+            return pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Balance{}).Name())
+        }
 
 		spanUpdate.End()
 	}
 
 	return nil
+}
+
+// BalancesIncrement applies incremental changes to balances in a single transaction.
+func (r *BalancePostgreSQLRepository) BalancesIncrement(ctx context.Context, organizationID, ledgerID uuid.UUID, deltas []mmodel.BalanceDelta) error {
+    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+    _, span := tracer.Start(ctx, "postgres.increment_balances")
+    defer span.End()
+
+    if len(deltas) == 0 {
+        return nil
+    }
+
+    db, err := r.connection.GetDB()
+    if err != nil {
+        libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+        return err
+    }
+
+    tx, err := db.BeginTx(ctx, nil)
+    if err != nil {
+        libOpentelemetry.HandleSpanError(&span, "Failed to start transaction", err)
+        return err
+    }
+    defer func() {
+        if err != nil {
+            _ = tx.Rollback()
+        } else {
+            _ = tx.Commit()
+        }
+    }()
+
+    for _, d := range deltas {
+        // Update available/on_hold atomically and bump version
+        // We do not guard on version here; idempotency is enforced at the operation level.
+        query := `UPDATE balance 
+                  SET available = available + $1,
+                      on_hold   = on_hold + $2,
+                      version   = version + 1,
+                      updated_at= $3
+                  WHERE organization_id = $4 AND ledger_id = $5 AND id = $6 AND deleted_at IS NULL`
+        _, err = tx.ExecContext(ctx, query,
+            d.DeltaAvailable,
+            d.DeltaOnHold,
+            time.Now(),
+            organizationID,
+            ledgerID,
+            uuid.MustParse(d.ID),
+        )
+        if err != nil {
+            libOpentelemetry.HandleSpanError(&span, "Failed to increment balance", err)
+            logger.Errorf("Failed to increment balance %s: %v", d.ID, err)
+            return err
+        }
+    }
+
+    return nil
 }
 
 // Find retrieves a balance entity from the database using the provided ID.
