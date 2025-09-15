@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
-    "time"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -28,31 +28,31 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		balances = append(balances, balancesRedis...)
 	}
 
-    if len(aliases) > 0 {
-        var balancesByAliases []*mmodel.Balance
-        var err error
+	if len(aliases) > 0 {
+		var balancesByAliases []*mmodel.Balance
+		var err error
 
-        // Bounded retry to tolerate eventual creation of default balances
-        for attempt := 0; attempt < 50; attempt++ {
-            balancesByAliases, err = uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
-            if err == nil && len(balancesByAliases) > 0 {
-                break
-            }
+		// Bounded retry to tolerate eventual creation of default balances
+		for attempt := 0; attempt < 50; attempt++ {
+			balancesByAliases, err = uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
+			if err == nil && len(balancesByAliases) > 0 {
+				break
+			}
 
-            // Small backoff before retrying
-            time.Sleep(100 * time.Millisecond)
-        }
+			// Small backoff before retrying
+			time.Sleep(100 * time.Millisecond)
+		}
 
-        if err != nil {
-            libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 
-            logger.Error("Failed to get account by alias on balance database", err.Error())
+			logger.Error("Failed to get account by alias on balance database", err.Error())
 
-            return nil, err
-        }
+			return nil, err
+		}
 
-        balances = append(balances, balancesByAliases...)
-    }
+		balances = append(balances, balancesByAliases...)
+	}
 
 	newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, parserDSL, validate, balances, transactionStatus)
 	if err != nil {
