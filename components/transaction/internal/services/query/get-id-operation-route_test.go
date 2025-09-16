@@ -31,6 +31,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-001",
 		OperationType:  "source",
 	}
 
@@ -86,6 +87,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-002",
 		OperationType:  "destination",
 	}
 
@@ -195,6 +197,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-003",
 		OperationType:  "source",
 	}
 
@@ -239,6 +242,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Portfolio Route",
 		Description:    "Portfolio Description",
+		Code:           "PORTFOLIO-001",
 		OperationType:  "destination",
 	}
 
