@@ -44,7 +44,12 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	if accounts != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
+		accountIDs := make([]string, len(accounts))
+		for i, a := range accounts {
+			accountIDs[i] = a.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Account{}).Name(), accountIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 

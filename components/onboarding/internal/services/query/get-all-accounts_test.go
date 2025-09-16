@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetAllAccount(t *testing.T) {
@@ -54,7 +55,7 @@ func TestGetAllAccount(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", filter).
+					FindByEntityIDs(gomock.Any(), "Account", []string{"acc1", "acc2"}).
 					Return([]*mongodb.Metadata{
 						{EntityID: "acc1", Data: map[string]any{"key1": "value1"}},
 						{EntityID: "acc2", Data: map[string]any{"key2": "value2"}},
@@ -101,7 +102,7 @@ func TestGetAllAccount(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", filter).
+					FindByEntityIDs(gomock.Any(), "Account", []string{"acc1", "acc2"}).
 					Return(nil, errors.New("failed to retrieve metadata")).
 					Times(1)
 			},
