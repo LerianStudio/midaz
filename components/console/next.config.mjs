@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  output: 'standalone',
+  outputStandalone: 'compressed',
   trailingSlash: process.env.NODE_ENV === 'production' ? true : false,
   logging: {
     fetches: {

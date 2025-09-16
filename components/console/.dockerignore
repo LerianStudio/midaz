@@ -1,9 +1,39 @@
 Dockerfile-console
 Dockerfile-storybook
-.dockerignore
+
+# Ignore node modules - will be installed inside the container
 node_modules
-.eslintrc.json
-README.md
-.next
-.idea
+
+# Ignore local environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Ignore logs
+*.log
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore git and editor folders
 .git
+.gitignore
+.vscode
+.idea
+
+# Ignore build outputs and cache (will be generated inside container)
+.next
+out
+dist
+coverage
+
+# Ignore local OS files
+.DS_Store
+Thumbs.db
+
+# Ignore Dockerfile and dockerignore itself (optional)
+Dockerfile
+.dockerignore
