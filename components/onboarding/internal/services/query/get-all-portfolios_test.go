@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetAllPortfolio(t *testing.T) {
@@ -53,7 +54,7 @@ func TestGetAllPortfolio(t *testing.T) {
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mongodb.Metadata{
 						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
@@ -89,7 +90,7 @@ func TestGetAllPortfolio(t *testing.T) {
 						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("metadata retrieval error"))
 			},
 			expectErr:      true,
