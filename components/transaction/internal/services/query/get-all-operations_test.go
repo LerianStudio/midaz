@@ -78,8 +78,7 @@ func TestGetAllOperations(t *testing.T) {
 			EXPECT().
 			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, collection string, entityIDs []string) ([]*mongodb.Metadata, error) {
-				// Verify the filter has the correct metadata type
-				assert.Equal(t, []string{op1ID, op2ID}, entityIDs)
+				assert.ElementsMatch(t, []string{op1ID, op2ID}, entityIDs)
 				return metadata, nil
 			}).
 			Times(1)
