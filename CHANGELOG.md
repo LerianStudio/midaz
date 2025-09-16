@@ -1,3 +1,19 @@
+## [v3.3.0-beta.17] - 2025-09-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.16...v3.3.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Jitter Utility Functions for Exponential Backoff**: Enhance the robustness of retry mechanisms by introducing jitter utility functions. This reduces the likelihood of collision in concurrent retry attempts, improving overall system reliability and performance.
+
+### 🐛 Bug Fixes
+- **RabbitMQ Reconnection Resilience**: Resolved issues with consumer and producer reconnection processes. These fixes ensure that RabbitMQ connections are more resilient and recover gracefully from disruptions, minimizing downtime and improving message delivery reliability.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded `lib-commons` to version `v2.3.0-beta.8` and removed outdated versions. This update ensures compatibility with the latest features and security patches, maintaining the integrity and security of the build and test environments.
+- **Changelog Updates**: The changelog has been updated to reflect recent changes, ensuring that documentation is current and users are informed of the latest updates and improvements.
+
+
 ## [v3.3.0-beta.15] - 2025-09-11
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.14...v3.3.0-beta.15)
