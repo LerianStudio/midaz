@@ -296,6 +296,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&opRoute.CreatedAt,
 			&opRoute.UpdatedAt,
 			&opRoute.DeletedAt,
+			&opRoute.Code,
 		); err != nil {
 			errMsg := "Failed to scan transaction route"
 
