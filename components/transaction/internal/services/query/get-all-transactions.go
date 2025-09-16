@@ -46,7 +46,12 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	}
 
 	if trans != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
+		transactionIDs := make([]string, len(trans))
+		for i, t := range trans {
+			transactionIDs[i] = t.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 

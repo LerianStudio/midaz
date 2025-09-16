@@ -44,7 +44,12 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+		operationIDs := make([]string, len(op))
+		for i, o := range op {
+			operationIDs[i] = o.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
