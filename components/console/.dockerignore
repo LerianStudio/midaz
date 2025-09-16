@@ -1,39 +1,97 @@
-Dockerfile-console
-Dockerfile-storybook
+# Dockerfile related
+Dockerfile*
+.dockerignore
+docker-compose*.yml
 
-# Ignore node modules - will be installed inside the container
+# Dependencies - will be installed in container
 node_modules
-
-# Ignore local environment files
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Ignore logs
-*.log
-logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# Ignore git and editor folders
-.git
-.gitignore
-.vscode
-.idea
+# Environment files - should be set at runtime
+.env*
+!.env.example
 
-# Ignore build outputs and cache (will be generated inside container)
+# Build outputs - will be generated in container
 .next
 out
 dist
+build
 coverage
+artifacts
 
-# Ignore local OS files
+# Testing
+tests
+*.test.*
+*.spec.*
+__tests__
+.nyc_output
+playwright-report
+test-results
+
+# Development tools
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+.circleci
+
+# Documentation and configs not needed in production
+README.md
+CHANGELOG.md
+*.md
+!package.json
+!package-lock.json
+docs
+storybook-static
+.storybook
+
+# Logs and runtime files
+*.log
+logs
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Ignore Dockerfile and dockerignore itself (optional)
-Dockerfile
-.dockerignore
+# Cache directories
+.npm
+.yarn
+.cache
+.turbo
+
+# IDE and editor files
+*.sublime-project
+*.sublime-workspace
+
+# ESLint and Prettier
+.eslintcache
+.prettier*
+eslint.config.*
+ESLintReport.html
+
+# Miscellaneous
+*.tgz
+*.tar.gz
