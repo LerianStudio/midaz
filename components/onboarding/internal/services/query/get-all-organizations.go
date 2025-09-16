@@ -43,7 +43,12 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 	}
 
 	if organizations != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
+		organizationIDs := make([]string, len(organizations))
+		for i, o := range organizations {
+			organizationIDs[i] = o.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), organizationIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
