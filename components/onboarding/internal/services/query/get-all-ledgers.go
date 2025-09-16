@@ -44,7 +44,12 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 	}
 
 	if ledgers != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
+		ledgerIDs := make([]string, len(ledgers))
+		for i, l := range ledgers {
+			ledgerIDs[i] = l.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), ledgerIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
