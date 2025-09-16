@@ -44,7 +44,12 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if segments != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
+		segmentIDs := make([]string, len(segments))
+		for i, s := range segments {
+			segmentIDs[i] = s.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), segmentIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
