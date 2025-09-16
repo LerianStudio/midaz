@@ -43,33 +43,35 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if op != nil {
-		operationIDs := make([]string, len(op))
-		for i, o := range op {
-			operationIDs[i] = o.ID
-		}
+	if len(op) == 0 {
+		return op, cur, nil
+	}
 
-		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+	operationIDs := make([]string, len(op))
+	for i, o := range op {
+		operationIDs[i] = o.ID
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
 
-			return nil, libHTTP.CursorPagination{}, err
-		}
+		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		return nil, libHTTP.CursorPagination{}, err
+	}
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+	metadataMap := make(map[string]map[string]any, len(metadata))
 
-		for i := range op {
-			if data, ok := metadataMap[op[i].ID]; ok {
-				op[i].Metadata = data
-			}
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range op {
+		if data, ok := metadataMap[op[i].ID]; ok {
+			op[i].Metadata = data
 		}
 	}
 
