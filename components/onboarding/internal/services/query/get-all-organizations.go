@@ -42,33 +42,35 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 		return nil, err
 	}
 
-	if organizations != nil {
-		organizationIDs := make([]string, len(organizations))
-		for i, o := range organizations {
-			organizationIDs[i] = o.ID
-		}
+	if len(organizations) == 0 {
+		return organizations, nil
+	}
 
-		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), organizationIDs)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+	organizationIDs := make([]string, len(organizations))
+	for i, o := range organizations {
+		organizationIDs[i] = o.ID
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), organizationIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			logger.Warn("No metadata found")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-			return nil, err
-		}
+		logger.Warn("No metadata found")
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		return nil, err
+	}
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+	metadataMap := make(map[string]map[string]any, len(metadata))
 
-		for i := range organizations {
-			if data, ok := metadataMap[organizations[i].ID]; ok {
-				organizations[i].Metadata = data
-			}
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range organizations {
+		if data, ok := metadataMap[organizations[i].ID]; ok {
+			organizations[i].Metadata = data
 		}
 	}
 

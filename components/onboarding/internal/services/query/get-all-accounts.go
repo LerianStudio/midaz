@@ -43,31 +43,33 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	if accounts != nil {
-		accountIDs := make([]string, len(accounts))
-		for i, a := range accounts {
-			accountIDs[i] = a.ID
-		}
+	if len(accounts) == 0 {
+		return accounts, nil
+	}
 
-		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Account{}).Name(), accountIDs)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+	accountIDs := make([]string, len(accounts))
+	for i, a := range accounts {
+		accountIDs[i] = a.ID
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Account{}).Name(), accountIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			return nil, err
-		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		return nil, err
+	}
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+	metadataMap := make(map[string]map[string]any, len(metadata))
 
-		for i := range accounts {
-			if data, ok := metadataMap[accounts[i].ID]; ok {
-				accounts[i].Metadata = data
-			}
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range accounts {
+		if data, ok := metadataMap[accounts[i].ID]; ok {
+			accounts[i].Metadata = data
 		}
 	}
 
