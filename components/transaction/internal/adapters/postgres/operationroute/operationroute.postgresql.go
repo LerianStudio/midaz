@@ -495,7 +495,10 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(
+		"id", "organization_id", "ledger_id", "title", "description", "operation_type",
+		"account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at", "code",
+	).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
