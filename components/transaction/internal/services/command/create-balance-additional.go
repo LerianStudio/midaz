@@ -35,6 +35,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	if existingBalance != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance already exists", nil)
+
 		logger.Infof("Additional balance already exists: %v", cbi.Key)
 
 		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
@@ -50,6 +52,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	if defaultBalance.AccountType == constant.ExternalAccountType {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", nil)
+
 		return nil, pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), defaultBalance.Alias)
 	}
 
