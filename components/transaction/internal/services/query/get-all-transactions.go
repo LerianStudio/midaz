@@ -45,51 +45,58 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if trans != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+	if len(trans) == 0 {
+		return trans, cur, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
+	transactionIDs := make([]string, len(trans))
+	for i, t := range trans {
+		transactionIDs[i] = t.ID
+	}
 
-			logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, err
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
+
+		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	metadataMap := make(map[string]map[string]any, len(metadata))
+
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range trans {
+		source := make([]string, 0)
+		destination := make([]string, 0)
+
+		operationIDs := make([]string, 0, len(trans[i].Operations))
+		for _, op := range trans[i].Operations {
+			operationIDs = append(operationIDs, op.ID)
+
+			switch op.Type {
+			case constant.DEBIT:
+				source = append(source, op.AccountAlias)
+			case constant.CREDIT:
+				destination = append(destination, op.AccountAlias)
+			}
 		}
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		trans[i].Source = source
+		trans[i].Destination = destination
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
+		if data, ok := metadataMap[trans[i].ID]; ok {
+			trans[i].Metadata = data
 		}
 
-		for i := range trans {
-			source := make([]string, 0)
-			destination := make([]string, 0)
-
-			operationIDs := make([]string, 0, len(trans[i].Operations))
-			for _, op := range trans[i].Operations {
-				operationIDs = append(operationIDs, op.ID)
-
-				switch op.Type {
-				case constant.DEBIT:
-					source = append(source, op.AccountAlias)
-				case constant.CREDIT:
-					destination = append(destination, op.AccountAlias)
-				}
-			}
-
-			trans[i].Source = source
-			trans[i].Destination = destination
-
-			if data, ok := metadataMap[trans[i].ID]; ok {
-				trans[i].Metadata = data
-			}
-
-			if len(operationIDs) > 0 {
-				if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
-					return nil, libHTTP.CursorPagination{}, err
-				}
+		if len(operationIDs) > 0 {
+			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
+				return nil, libHTTP.CursorPagination{}, err
 			}
 		}
 	}

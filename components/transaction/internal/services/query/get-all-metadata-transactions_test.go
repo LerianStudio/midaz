@@ -160,3 +160,37 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		}
 	}
 }
+
+// TestGetAllMetadataTransactions_NoMetadata ensures that when metadata lookup
+// returns an empty (non-nil) slice, the use case returns no transactions and no error,
+// and does not call the transaction repository.
+func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	collection := reflect.TypeOf(transaction.Transaction{}).Name()
+	filter := http.QueryHeader{
+		Metadata: &bson.M{"k": "v"},
+		Limit:    10,
+		Page:     1,
+	}
+
+	// Return an empty, non-nil slice to hit the early-return branch.
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), collection, filter).
+		Return([]*mongodb.Metadata{}, nil)
+
+	uc := &UseCase{
+		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo: mockTransactionRepo, // must not be called
+	}
+
+	result, cur, err := uc.GetAllMetadataTransactions(context.Background(), uuid.UUID{}, uuid.UUID{}, filter)
+
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+}

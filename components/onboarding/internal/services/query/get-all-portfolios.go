@@ -43,28 +43,35 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	if portfolios != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+	if len(portfolios) == 0 {
+		return portfolios, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	portfolioIDs := make([]string, len(portfolios))
+	for i, p := range portfolios {
+		portfolioIDs[i] = p.ID
+	}
 
-			logger.Warn("No metadata found")
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), portfolioIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			return nil, err
-		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		logger.Warn("No metadata found")
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		return nil, err
+	}
 
-		for i := range portfolios {
-			if data, ok := metadataMap[portfolios[i].ID]; ok {
-				portfolios[i].Metadata = data
-			}
+	metadataMap := make(map[string]map[string]any, len(metadata))
+
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range portfolios {
+		if data, ok := metadataMap[portfolios[i].ID]; ok {
+			portfolios[i].Metadata = data
 		}
 	}
 

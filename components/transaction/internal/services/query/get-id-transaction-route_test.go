@@ -35,6 +35,7 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 		OperationRoutes: []mmodel.OperationRoute{
 			{
 				ID:            uuid.New(),
+				Code:          "OP-SOURCE-001",
 				OperationType: "source",
 			},
 		},

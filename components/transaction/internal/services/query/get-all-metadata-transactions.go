@@ -37,6 +37,12 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	if len(metadata) == 0 {
+		logger.Infof("No metadata found")
+
+		return nil, libHTTP.CursorPagination{}, nil
+	}
+
 	uuids := make([]uuid.UUID, len(metadata))
 	metadataMap := make(map[string]map[string]any, len(metadata))
 

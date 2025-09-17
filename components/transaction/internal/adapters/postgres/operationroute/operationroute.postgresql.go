@@ -81,12 +81,15 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	result, err := db.ExecContext(ctx, `INSERT INTO operation_route VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO operation_route(
+										id, organization_id, ledger_id, title, description, code, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at
+										) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
 		&record.ID,
 		&record.OrganizationID,
 		&record.LedgerID,
 		&record.Title,
 		&record.Description,
+		&record.Code,
 		&record.OperationType,
 		&record.AccountRuleType,
 		&record.AccountRuleValidIf,
@@ -153,7 +156,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		return nil, err
 	}
 
-	query := `SELECT id, organization_id, ledger_id, title, description, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at 
+	query := `SELECT id, organization_id, ledger_id, title, description, code, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at 
 		FROM operation_route 
 		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`
 	args := []any{organizationID, ledgerID, id}
@@ -172,6 +175,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 		&operationRoute.LedgerID,
 		&operationRoute.Title,
 		&operationRoute.Description,
+		&operationRoute.Code,
 		&operationRoute.OperationType,
 		&operationRoute.AccountRuleType,
 		&operationRoute.AccountRuleValidIf,
@@ -220,7 +224,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 		return nil, err
 	}
 
-	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "operation_type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
+	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
 		From("operation_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -262,6 +266,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 			&operationRoute.LedgerID,
 			&operationRoute.Title,
 			&operationRoute.Description,
+			&operationRoute.Code,
 			&operationRoute.OperationType,
 			&operationRoute.AccountRuleType,
 			&operationRoute.AccountRuleValidIf,
@@ -343,6 +348,11 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	if operationRoute.Description != "" {
 		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Description)
+	}
+
+	if operationRoute.Code != "" {
+		updates = append(updates, "code = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Code)
 	}
 
 	if operationRoute.Account != nil {
@@ -485,7 +495,10 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(
+		"id", "organization_id", "ledger_id", "title", "description", "operation_type",
+		"account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at", "code",
+	).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -533,6 +546,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 			&operationRoute.CreatedAt,
 			&operationRoute.UpdatedAt,
 			&operationRoute.DeletedAt,
+			&operationRoute.Code,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan operation route", err)
 

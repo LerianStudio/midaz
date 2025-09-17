@@ -45,7 +45,12 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if balance != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), filter)
+		balanceIDs := make([]string, len(balance))
+		for i, b := range balance {
+			balanceIDs[i] = b.ID
+		}
+
+		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), balanceIDs)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
