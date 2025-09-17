@@ -1,3 +1,17 @@
+## [v3.3.0-beta.18] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.17...v3.3.0-beta.18)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Frontend**: Fixed an issue with collapsible information margins, improving visual consistency and enhancing user interaction by ensuring margins render correctly.
+
+### 🔧 Maintenance
+- **Frontend**: Updated the Next.js library to the latest version, boosting performance and security. This update aligns with the latest features and bug fixes, providing a more stable and efficient frontend experience.
+- **Deps**: Brought all project dependencies up to date, ensuring the application remains secure and benefits from the latest improvements and patches from third-party libraries.
+- **Changelog**: Refreshed the CHANGELOG file to accurately reflect recent updates, promoting transparency and aiding project management.
+
+
 ## [v3.3.0-beta.17] - 2025-09-16
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.16...v3.3.0-beta.17)
