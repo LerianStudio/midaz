@@ -1,3 +1,23 @@
+## [v3.3.0-beta.19] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.18...v3.3.0-beta.19)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Management**: A new 'code' field has been added to the transaction model, allowing for more detailed tracking and categorization of financial records. This improvement facilitates better organization and analysis of transaction data.
+- **Streamlined Onboarding**: Users can now retrieve metadata for multiple entities simultaneously, significantly reducing the time and effort required to set up new accounts or entities.
+
+### 🐛 Bug Fixes
+- **Reliable Transaction Processing**: Resolved issues in the transaction metadata retrieval process, ensuring correct use of IDs and preventing data mismatches. This fix enhances the reliability of transaction operations.
+- **Accurate Onboarding Data**: Fixed various bugs in the onboarding metadata retrieval processes, ensuring that all entity-related data is accurately fetched and utilized, improving the stability of the onboarding system.
+
+### 📚 Documentation
+- **Updated Transaction Documentation**: The transaction documentation has been updated to include the new 'code' field and revised balance key descriptions. This ensures stakeholders have access to accurate and current information for transaction operations.
+
+### 🔧 Maintenance
+- **Code Refactoring for Efficiency**: Metadata retrieval processes have been refactored to specify entity fields in queries, improving code maintainability and performance. These changes streamline data handling and reduce technical debt.
+
+
 ## [v3.3.0-beta.18] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.17...v3.3.0-beta.18)
