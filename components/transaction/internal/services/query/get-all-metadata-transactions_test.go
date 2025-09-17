@@ -101,6 +101,19 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		},
 	}
 
+	opMeta := []*mongodb.Metadata{
+		{
+			EntityID:   "op1-" + txID1Str,
+			EntityName: "Operation",
+			Data:       map[string]any{"op_key1": "op_value1"},
+		},
+		{
+			EntityID:   "op2-" + txID2Str,
+			EntityName: "Operation",
+			Data:       map[string]any{"op_key2": "op_value2"},
+		},
+	}
+
 	ops1 := []*operation.Operation{{
 		ID:           "op1-" + txID1Str,
 		Type:         constant.DEBIT,
@@ -135,6 +148,15 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID1, txID2}, filter.ToCursorPagination()).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
 
+	// Expect operation metadata lookup with both operation IDs
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(
+			gomock.Any(),
+			reflect.TypeOf(operation.Operation{}).Name(),
+			[]string{"op1-" + txID1Str, "op2-" + txID2Str},
+		).
+		Return(opMeta, nil)
+
 	uc := &UseCase{
 		MetadataRepo:    mockMetadataRepo,
 		TransactionRepo: mockTransactionRepo,
@@ -150,13 +172,16 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		assert.NotEmpty(t, tx.Operations, "Transaction operations should be populated")
 		assert.NotNil(t, tx.Metadata, "Transaction metadata should be populated")
 		assert.Equal(t, "value", tx.Metadata["key"])
+		assert.NotNil(t, tx.Operations[0].Metadata, "Operation metadata should be populated")
 
 		if tx.ID == txID1Str {
 			assert.Equal(t, "op1-"+txID1Str, tx.Operations[0].ID)
 			assert.Contains(t, tx.Source, "source1")
+			assert.Equal(t, "op_value1", tx.Operations[0].Metadata["op_key1"])
 		} else if tx.ID == txID2Str {
 			assert.Equal(t, "op2-"+txID2Str, tx.Operations[0].ID)
 			assert.Contains(t, tx.Destination, "destination2")
+			assert.Equal(t, "op_value2", tx.Operations[0].Metadata["op_key2"])
 		}
 	}
 }
