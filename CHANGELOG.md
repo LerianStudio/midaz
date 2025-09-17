@@ -1,3 +1,21 @@
+## [v3.3.0-beta.21] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.20...v3.3.0-beta.21)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Transaction Reliability**: Resolved an issue where creating additional balances could fail if certain entities were missing. This fix enhances transaction processing, ensuring consistent handling even when data is incomplete, leading to fewer disruptions for users.
+
+### 🔄 Changes
+- **Transaction Creation Process**: Improved handling of scenarios where entities are not found during transaction creation. This change increases the system's robustness, allowing it to manage missing data gracefully and maintain accurate financial data management.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the changelog to include recent improvements and fixes, providing users with clear and up-to-date information on the system's progress.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Ensured that all recent changes and enhancements are accurately documented, facilitating better understanding and communication of the project's updates.
+
+
 ## [v3.3.0-beta.20] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.19...v3.3.0-beta.20)
