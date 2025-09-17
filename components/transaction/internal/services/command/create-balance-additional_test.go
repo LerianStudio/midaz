@@ -3,13 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -55,6 +56,12 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowReceiving: &allowReceiving,
 		}
 
+		// First lookup for existing additional balance should return EntityNotFound to continue flow
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "asset-freeze").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
+
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
 			Return(defaultBalance, nil).
@@ -97,6 +104,12 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowReceiving: &allowReceiving,
 		}
 
+		// First lookup for existing additional balance should return EntityNotFound to continue flow
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
+
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
 			Return(nil, errors.New("default balance not found")).
@@ -120,15 +133,11 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowReceiving: &allowReceiving,
 		}
 
+		// Simulate that the additional balance already exists
+		existingAdditional := &mmodel.Balance{Key: key}
 		mockBalanceRepo.EXPECT().
-			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
-			Return(defaultBalance, nil).
-			Times(1)
-
-		pgErr := &pgconn.PgError{Code: "23505"}
-		mockBalanceRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(pgErr).
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "duplicate-key").
+			Return(existingAdditional, nil).
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
@@ -148,6 +157,12 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowSending:   &allowSending,
 			AllowReceiving: &allowReceiving,
 		}
+
+		// First lookup for existing additional balance should return EntityNotFound to continue flow
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
 
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
@@ -176,6 +191,12 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowSending:   &allowSending,
 			AllowReceiving: &allowReceiving,
 		}
+
+		// First lookup for existing additional balance should return EntityNotFound to continue flow
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "upper-case-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
 
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
@@ -220,6 +241,12 @@ func TestCreateAdditionalBalance(t *testing.T) {
 			AllowSending:   &allowSending,
 			AllowReceiving: &allowReceiving,
 		}
+
+		// First lookup for existing additional balance should return EntityNotFound to continue flow
+		mockBalanceRepo.EXPECT().
+			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "test-key").
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())).
+			Times(1)
 
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).

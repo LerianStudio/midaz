@@ -13,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // CreateAdditionalBalance creates a new additional balance.
@@ -23,9 +22,27 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
 
+	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
+	if err != nil {
+		var notFound pkg.EntityNotFoundError
+		if !errors.As(err, &notFound) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check if additional balance already exists", err)
+
+			logger.Errorf("Failed to check if additional balance already exists: %v", err)
+
+			return nil, err
+		}
+	}
+
+	if existingBalance != nil {
+		logger.Infof("Additional balance already exists: %v", cbi.Key)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
+	}
+
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get existing balance", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get default balance", err)
 
 		logger.Errorf("Failed to get default balance: %v", err)
 
@@ -53,16 +70,9 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	err = uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			logger.Infof("Additional balance already exists: %v", cbi.Key)
+		logger.Errorf("Error creating additional balance on repo: %v", err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), cbi.Key)
-		} else {
-			logger.Errorf("Error creating additional balance on repo: %v", err)
-
-			return nil, err
-		}
+		return nil, err
 	}
 
 	return additionalBalance, nil
