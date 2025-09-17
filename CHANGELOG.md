@@ -1,3 +1,15 @@
+## [v3.3.0-beta.24] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.23...v3.3.0-beta.24)
+Contributors: Clara Tersi
+
+### 🔄 Changes
+- **Enhanced Transaction Validation Logging**: We've improved the logging details for transaction validation processes in the backend. This enhancement provides clearer insights, making it easier for developers and system administrators to understand and resolve validation issues. While this change does not directly impact end-user functionality, it significantly boosts backend transparency and operational efficiency.
+
+### 🔧 Maintenance
+- **Backend Improvements**: This update includes behind-the-scenes enhancements to the backend infrastructure, ensuring smoother operations and better support for future updates.
+
+
 ## [v3.3.0-beta.22] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.21...v3.3.0-beta.22)
