@@ -101,6 +101,19 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		},
 	}
 
+	opMeta := []*mongodb.Metadata{
+		{
+			EntityID:   "op1-" + txID1Str,
+			EntityName: "Operation",
+			Data:       map[string]any{"op_key1": "op_value1"},
+		},
+		{
+			EntityID:   "op2-" + txID2Str,
+			EntityName: "Operation",
+			Data:       map[string]any{"op_key2": "op_value2"},
+		},
+	}
+
 	ops1 := []*operation.Operation{{
 		ID:           "op1-" + txID1Str,
 		Type:         constant.DEBIT,
@@ -134,6 +147,15 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	mockTransactionRepo.EXPECT().
 		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID1, txID2}, filter.ToCursorPagination()).
 		Return(transactions, libHTTP.CursorPagination{}, nil)
+
+	// Expect operation metadata lookup with both operation IDs
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(
+			gomock.Any(),
+			reflect.TypeOf(operation.Operation{}).Name(),
+			[]string{"op1-" + txID1Str, "op2-" + txID2Str},
+		).
+		Return(opMeta, nil)
 
 	uc := &UseCase{
 		MetadataRepo:    mockMetadataRepo,

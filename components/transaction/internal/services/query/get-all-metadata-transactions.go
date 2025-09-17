@@ -9,6 +9,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -70,11 +71,41 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	operationIDsAll := make([]string, 0)
+
+	for _, t := range trans {
+		for _, op := range t.Operations {
+			operationIDsAll = append(operationIDsAll, op.ID)
+		}
+	}
+
+	var operationMetadataMap map[string]map[string]any
+
+	if len(operationIDsAll) > 0 {
+		operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDsAll)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+
+			logger.Warnf("Error getting operation metadata: %v", err)
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
+
+		operationMetadataMap = make(map[string]map[string]any, len(operationMetadata))
+		for _, meta := range operationMetadata {
+			operationMetadataMap[meta.EntityID] = meta.Data
+		}
+	}
+
 	for i := range trans {
 		source := make([]string, 0)
 		destination := make([]string, 0)
 
 		for _, op := range trans[i].Operations {
+			if opData, ok := operationMetadataMap[op.ID]; ok {
+				op.Metadata = opData
+			}
+
 			switch op.Type {
 			case constant.DEBIT:
 				source = append(source, op.AccountAlias)
