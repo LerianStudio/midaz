@@ -164,10 +164,12 @@ definitions:
         type: boolean
       key:
         description: |-
-          Unique key for the balance (required, max length 256 characters)
+          Unique key for the balance
           required: true
+          maxLength: 100
           example: asset-freeze
         example: asset-freeze
+        maxLength: 100
         type: string
     required:
     - key
@@ -609,9 +611,11 @@ definitions:
         type: string
       balanceKey:
         description: |-
-          Unique key for the balance (required, max length 256 characters)
+          Unique key for the balance
           example: asset-freeze
+          maxLength: 100
         example: asset-freeze
+        maxLength: 100
         type: string
       chartOfAccounts:
         description: |-
@@ -719,6 +723,10 @@ definitions:
         allOf:
         - $ref: '#/definitions/mmodel.AccountRule'
         description: The account selection rule configuration.
+      code:
+        description: External reference of the operation route.
+        example: EXT-001
+        type: string
       createdAt:
         description: The timestamp when the operation route was created.
         example: "2021-01-01T00:00:00Z"
@@ -1037,6 +1045,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/mmodel.AccountRule'
         description: The account selection rule configuration.
+      code:
+        description: External reference of the operation route.
+        example: EXT-001
+        maxLength: 100
+        type: string
       description:
         description: Detailed description of the operation route purpose and usage.
         example: This operation route handles cash-in transactions from service charge
@@ -1356,10 +1369,11 @@ definitions:
         type: string
       key:
         description: |-
-          Unique key for the balance (max length 256 characters)
+          Unique key for the balance
           example: asset-freeze
-          maxLength: 256
+          maxLength: 100
         example: asset-freeze
+        maxLength: 100
         type: string
       ledgerId:
         description: |-

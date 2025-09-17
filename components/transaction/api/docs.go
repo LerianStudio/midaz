@@ -3617,8 +3617,9 @@ const docTemplate = `{
                     "example": true
                 },
                 "key": {
-                    "description": "Unique key for the balance (required, max length 256 characters)\nrequired: true\nexample: asset-freeze",
+                    "description": "Unique key for the balance\nrequired: true\nmaxLength: 100\nexample: asset-freeze",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "asset-freeze"
                 }
             }
@@ -3996,8 +3997,9 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "balanceKey": {
-                    "description": "Unique key for the balance (required, max length 256 characters)\nexample: asset-freeze",
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "asset-freeze"
                 },
                 "chartOfAccounts": {
@@ -4092,6 +4094,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/mmodel.AccountRule"
                         }
                     ]
+                },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "example": "EXT-001"
                 },
                 "createdAt": {
                     "description": "The timestamp when the operation route was created.",
@@ -4413,6 +4420,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "EXT-001"
+                },
                 "description": {
                     "description": "Detailed description of the operation route purpose and usage.",
                     "type": "string",
@@ -4685,8 +4698,9 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "key": {
-                    "description": "Unique key for the balance (max length 256 characters)\nexample: asset-freeze\nmaxLength: 256",
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "asset-freeze"
                 },
                 "ledgerId": {
