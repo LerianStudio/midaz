@@ -1,3 +1,15 @@
+## [v3.3.0-beta.22] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.21...v3.3.0-beta.22)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Security Improvement**: Implemented a crucial fix to address a vulnerability, significantly enhancing the security of your data. This update protects against potential exploits, ensuring the integrity and safety of your information.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes, providing users and developers with clear and current information about the application's updates and fixes. This ensures transparency and ease of understanding for future reference.
+
+
 ## [v3.3.0-beta.21] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.20...v3.3.0-beta.21)
