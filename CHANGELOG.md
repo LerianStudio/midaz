@@ -1,3 +1,13 @@
+## [v3.3.0-beta.20] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.19...v3.3.0-beta.20)
+Contributors: lerian-studio, paulo
+
+### 🔧 Maintenance
+- **Updated Axios Library**: We've upgraded the Axios library to its latest version, ensuring compatibility with the latest security patches. This update enhances the application's reliability and performance, particularly in data fetching from external APIs. Users can expect smoother and more secure interactions with third-party services.
+- **Changelog Update**: The changelog has been refreshed to include recent updates, providing users and developers with clear insights into the project's current state. This ensures transparency and aids in maintaining accurate documentation.
+
+
 ## [v3.3.0-beta.19] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.18...v3.3.0-beta.19)
