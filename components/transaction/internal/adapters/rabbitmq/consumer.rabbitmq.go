@@ -149,7 +149,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 	return nil
 }
 
-// startWorker inicia um worker que processa mensagens da fila.
+// startWorker starts a worker that processes messages from the queue.
 func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
 		midazID, found := msg.Headers[libConstants.HeaderID]
