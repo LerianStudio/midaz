@@ -45,11 +45,9 @@ jobs:
       #     fi
 
       - name: Run Apidog Test Scenario
-        env:
-          APIDOG_ACCESS_TOKEN: ${{ secrets.MIDAZ_APIDOG_ACCESS_TOKEN }}
         run: |
           apidog run \
-            --access-token "$APIDOG_ACCESS_TOKEN" \
+            --access-token ${{ secrets.APIDOG_ACCESS_TOKEN }} \
             --test-scenario ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }} \
             -e ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }} \
             -n 1 \
