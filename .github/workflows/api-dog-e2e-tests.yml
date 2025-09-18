@@ -22,3 +22,4 @@ jobs:
       runner_type: "firmino-lxc-runners"
     secrets:
       apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
+
