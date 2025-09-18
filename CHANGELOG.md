@@ -1,3 +1,14 @@
+## [v3.3.0-beta.25] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.24...v3.3.0-beta.25)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Version Consistency**: Updated the project version to v3.3.0 across all configuration files and documentation. This ensures that users and developers have a clear understanding of the current software version, reducing confusion and aligning all project resources.
+- **Dependency Updates**: We have refreshed several dependencies to their latest versions. This proactive approach enhances security, improves compatibility with other software, and maintains optimal performance, ensuring a stable and efficient user experience.
+- **Changelog Updates**: The changelog has been updated to include the latest changes, providing users with an organized and transparent history of the project's evolution. This helps users track modifications and understand the software's development trajectory.
+
+
 ## [v3.3.0-beta.24] - 2025-09-17
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.23...v3.3.0-beta.24)
