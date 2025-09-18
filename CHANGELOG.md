@@ -1,3 +1,15 @@
+## [v3.3.0-beta.26] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.25...v3.3.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Improved Clarity**: We have refined the documentation to better explain the purpose of the worker function. This enhancement aids in understanding the function's role, facilitating easier code comprehension and maintenance for developers.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to accurately reflect recent changes and improvements. This ensures all stakeholders have access to the latest information about the software's development, promoting transparency and effective communication.
+
+
 ## [v3.3.0-beta.25] - 2025-09-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.24...v3.3.0-beta.25)
