@@ -49,7 +49,7 @@ jobs:
           apidog run \
             --access-token ${{ secrets.APIDOG_ACCESS_TOKEN }} \
             --test-scenario ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }} \
-            -e ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }} \
+            -e ${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }} \
             -n 1 \
             -r html,cli \
             --out-dir ./apidog-reports
