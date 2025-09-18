@@ -11,35 +11,14 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    runs-on: firmino-lxc-runners
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Apidog CLI
-        run: npm install -g apidog-cli
-
-      - name: Run Apidog Test Scenario
-        env:
-          APIDOG_ACCESS_TOKEN: ${{ secrets.APIDOG_ACCESS_TOKEN }}
-        run: |
-          apidog run \
-            --access-token "$APIDOG_ACCESS_TOKEN" \
-            --test-scenario 1407969 \
-            -e 4770599 \
-            -n 1 \
-            -r html,cli \
-            --out-dir ./apidog-reports
-
-      - name: Upload HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: apidog-report
-          path: ./apidog-reports
+  api-dog-e2e-tests:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@develop
+    with:
+      test_scenario_id: "1407969"
+      environment_id: "4770599"
+      test_iterations: "1"
+      output_formats: "html,cli"
+      node_version: "20"
+      runner_type: "firmino-lxc-runners"
+    secrets:
+      apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
