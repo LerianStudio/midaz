@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - feature/api-dog-e2e-tests
+    # tags:
+    #   - 'v*.*.*-beta.*'
+    #   - 'v*.*.*-rc.*'
 
 permissions:
   id-token: write
@@ -12,13 +15,51 @@ permissions:
 
 jobs:
   api-dog-e2e-tests:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@develop
-    with:
-      test_scenario_id: "1407969"
-      environment_id: "4770599"
-      test_iterations: "1"
-      output_formats: "html,cli"
-      node_version: "20"
-      runner_type: "firmino-lxc-runners"
-    secrets:
-      apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
+    runs-on: firmino-lxc-runners
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Apidog CLI
+        run: npm install -g apidog-cli
+
+      # - name: Determine environment ID based on tag
+      #   id: set-env
+      #   run: |
+      #     TAG_NAME="${{ github.ref_name }}"
+      #     echo "Processing tag: $TAG_NAME"
+
+      #     if [[ "$TAG_NAME" == *"-beta."* ]]; then
+      #       echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}" >> $GITHUB_ENV
+      #       echo "TAG_TYPE=beta" >> $GITHUB_ENV
+      #       echo "Detected beta tag - using dev environment"
+      #     elif [[ "$TAG_NAME" == *"-rc."* ]]; then
+      #       echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}" >> $GITHUB_ENV
+      #       echo "TAG_TYPE=rc" >> $GITHUB_ENV
+      #       echo "Detected rc tag - using stg environment"
+      #     fi
+
+      - name: Run Apidog Test Scenario
+        env:
+          APIDOG_ACCESS_TOKEN: ${{ secrets.MIDAZ_APIDOG_ACCESS_TOKEN }}
+        run: |
+          apidog run \
+            --access-token "$APIDOG_ACCESS_TOKEN" \
+            --test-scenario ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }} \
+            -e ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }} \
+            -n 1 \
+            -r html,cli \
+            --out-dir ./apidog-reports
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apidog-e2e-test-reports-${{ env.TAG_TYPE }}
+          path: ./apidog-reports
+          retention-days: 30
