@@ -1,3 +1,15 @@
+## [v3.3.0-beta.27] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.26...v3.3.0-beta.27)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- Updated the CHANGELOG to include the latest project changes and improvements. This helps users easily track the software's evolution and stay informed about updates.
+
+### 🔧 Maintenance
+- **Configuration Updates**: The version number has been updated to v3.3.0 in the installation script and environment example files. This ensures users are installing the correct version, aligning with the latest features and improvements, and reducing potential setup errors and confusion.
+
+
 ## [v3.3.0-beta.26] - 2025-09-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.25...v3.3.0-beta.26)
