@@ -1,3 +1,27 @@
+## [v3.3.0-beta.29] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.28...v3.3.0-beta.29)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Graph Rendering**: Resolved an issue affecting the Y-axis margin in graphs. This fix improves the visual accuracy and usability of data presentations, ensuring that graphs are displayed correctly without unnecessary margins.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect recent changes, providing users and contributors with the latest information about the project's development history.
+
+
+## [v3.3.0-beta.28] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.27...v3.3.0-beta.28)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to include the latest updates, ensuring that all stakeholders have access to accurate and up-to-date information. This facilitates better communication and project tracking, making it easier for developers and users to stay informed about the project's progress.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `esbuild` to version 0.25.10 and restored `axios` in `package.json`. This update ensures compatibility with the latest build tools, enhancing security and stability. Keeping dependencies current prevents potential vulnerabilities and supports a more reliable development process.
+- **Codebase Cleanup**: Removed the `.trivyignore` file, which is no longer needed. This helps maintain a clean codebase, reducing clutter and minimizing confusion during security scans.
+
 ## [v3.3.0-rc.1] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-rc.1)
