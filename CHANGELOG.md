@@ -1,3 +1,19 @@
+## [v3.3.0-rc.2] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.1...v3.3.0-rc.2)
+Contributors: Clara Tersi, lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Consistent Layout**: Fixed an issue with the Y-axis margin that was causing inconsistencies in the layout. This improvement enhances the visual consistency and overall aesthetics of the user interface, providing a more polished experience.
+
+### 🔄 Changes
+- **Dependency Updates**: Updated `esbuild` to version 0.25.10 and restored the `axios` dependency. These changes ensure compatibility with the latest build tools and libraries, improving build performance and reliability.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: Removed the `.trivyignore` file as it is no longer necessary. This helps maintain a cleaner and more efficient codebase by eliminating outdated files.
+- **Changelog Update**: Updated the CHANGELOG file to reflect the latest changes and improvements, ensuring users have access to the most recent information about updates and fixes.
+
+
 ## [v3.3.0-beta.29] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.28...v3.3.0-beta.29)
