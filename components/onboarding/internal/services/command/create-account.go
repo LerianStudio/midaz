@@ -2,14 +2,15 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateAccount creates a new account persists data in the repository.
@@ -104,6 +105,19 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		Status:          status,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
+	}
+
+	// Ensure RabbitMQ channel is open before persisting to avoid side effects without publish
+	if uc.RabbitConn != nil {
+		if uc.RabbitConn.Channel == nil || uc.RabbitConn.Channel.IsClosed() {
+			logger.Warnf("RabbitMQ channel is closed before account create. Attempting reconnect...")
+
+			if err := uc.RabbitConn.Connect(); err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to reconnect RabbitMQ before account create", err)
+
+				return nil, pkg.ValidateBusinessError(constant.ErrRabbitMQUnavailableBeforePublish, "rabbitmq")
+			}
+		}
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)

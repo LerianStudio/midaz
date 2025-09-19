@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+
 	"github.com/LerianStudio/lib-auth/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
@@ -169,6 +170,7 @@ func InitServers() *Service {
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
+		RabbitConn:       rabbitMQConnection,
 	}
 
 	queryUseCase := &query.UseCase{

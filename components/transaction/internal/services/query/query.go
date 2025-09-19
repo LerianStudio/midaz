@@ -1,6 +1,7 @@
 package query
 
 import (
+	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -28,4 +29,7 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// RabbitConn provides access to the underlying RabbitMQ connection for health checks.
+	RabbitConn *libRabbitmq.RabbitMQConnection
 }

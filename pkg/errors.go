@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"strings"
+
+	"github.com/LerianStudio/midaz/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -853,6 +854,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrParentIDSameID.Error(),
 			Title:      "ID cannot be used as the parent ID",
 			Message:    "The provided ID cannot be used as the parent ID. Please choose a different one.",
+		},
+
+		// RabbitMQ pre-publish connectivity failure becomes a known validation/business error
+		constant.ErrRabbitMQUnavailableBeforePublish: FailedPreconditionError{
+			EntityType: entityType,
+			Code:       constant.ErrRabbitMQUnavailableBeforePublish.Error(),
+			Title:      "RabbitMQ unavailable",
+			Message:    "Message broker is unavailable to publish events. Please try again later.",
 		},
 	}
 

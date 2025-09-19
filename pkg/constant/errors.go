@@ -102,4 +102,7 @@ var (
 	ErrNoBalancesFound                          = errors.New("0092")
 	ErrBalancesCantDeleted                      = errors.New("0093")
 	ErrInvalidRequestBody                       = errors.New("0094")
+
+	// Custom domain error for RabbitMQ unavailability before producing a message
+	ErrRabbitMQUnavailableBeforePublish = errors.New("1001")
 )
