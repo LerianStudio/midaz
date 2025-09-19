@@ -49,6 +49,6 @@ branches:
   - main
   - name: develop
     prerelease: beta
-  - name: hotfix/list-performance
+  - name: fix/v2.1.3
     range: 2.1.x
     channel: 2.1.x
