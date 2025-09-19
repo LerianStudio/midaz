@@ -9,6 +9,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -35,6 +36,12 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		logger.Infof("No metadata found")
+
+		return nil, libHTTP.CursorPagination{}, nil
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -64,6 +71,10 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	if err := uc.enrichTransactionsWithOperationMetadata(ctx, trans); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
 	for i := range trans {
 		source := make([]string, 0)
 		destination := make([]string, 0)
@@ -86,4 +97,53 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	}
 
 	return trans, cur, nil
+}
+
+// enrichTransactionsWithOperationMetadata fetches operation metadata in bulk and assigns it to operations
+func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, trans []*transaction.Transaction) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions_enrich_operations")
+	defer span.End()
+
+	var totalOps int
+	for _, t := range trans {
+		totalOps += len(t.Operations)
+	}
+
+	if totalOps == 0 {
+		return nil
+	}
+
+	operationIDsAll := make([]string, 0, totalOps)
+
+	for _, t := range trans {
+		for _, op := range t.Operations {
+			operationIDsAll = append(operationIDsAll, op.ID)
+		}
+	}
+
+	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDsAll)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+
+		logger.Warnf("Error getting operation metadata: %v", err)
+
+		return err
+	}
+
+	opMetadataMap := make(map[string]map[string]any, len(operationMetadata))
+	for _, meta := range operationMetadata {
+		opMetadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range trans {
+		for _, op := range trans[i].Operations {
+			if data, ok := opMetadataMap[op.ID]; ok {
+				op.Metadata = data
+			}
+		}
+	}
+
+	return nil
 }

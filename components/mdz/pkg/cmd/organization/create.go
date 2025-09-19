@@ -70,8 +70,8 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 	org.Address = mmodel.Address{}
 
 	var err error
-	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 
+	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 	if err != nil {
 		return err
 	}

@@ -76,10 +76,9 @@ func TestGetAllOperations(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, collection string, queryFilter http.QueryHeader) ([]*mongodb.Metadata, error) {
-				// Verify the filter has the correct metadata type
-				assert.IsType(t, &bson.M{}, queryFilter.Metadata)
+			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, collection string, entityIDs []string) ([]*mongodb.Metadata, error) {
+				assert.ElementsMatch(t, []string{op1ID, op2ID}, entityIDs)
 				return metadata, nil
 			}).
 			Times(1)
@@ -133,7 +132,7 @@ func TestGetAllOperations(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
 			Return(nil, errors.New("metadata error")).
 			Times(1)
 

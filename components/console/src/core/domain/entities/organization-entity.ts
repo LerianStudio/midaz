@@ -3,6 +3,8 @@ import { PaginationSearchEntity } from './pagination-entity'
 
 export type OrganizationSearchEntity = PaginationSearchEntity & {
   id?: string
+  sortOrder?: 'desc' | 'asc'
+  sortBy?: string
 }
 
 type Address = {

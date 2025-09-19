@@ -1,10 +1,11 @@
 import { MetadataDto } from './metadata-dto'
-import { SearchParamDto } from './request-dto'
+import { CursorSearchParamDto } from './request-dto'
 
-export type AccountTypesSearchParamDto = SearchParamDto & {
+export type AccountTypesSearchParamDto = CursorSearchParamDto & {
   id?: string
   name?: string
   keyValue?: string
+  sortBy?: 'id' | 'name' | 'createdAt' | 'updatedAt'
 }
 
 export type CreateAccountTypesDto = {

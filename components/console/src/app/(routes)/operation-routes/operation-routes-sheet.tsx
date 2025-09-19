@@ -117,9 +117,9 @@ export const OperationRoutesSheet = ({
   } = useListAccountTypes({
     organizationId: currentOrganization.id!,
     ledgerId: currentLedger.id,
-    enabled: !!currentOrganization.id && !!currentLedger.id,
     query: {
-      limit: 100
+      limit: 100,
+      sortOrder: 'desc'
     }
   })
 
@@ -392,12 +392,12 @@ export const OperationRoutesSheet = ({
                         accountTypesLoading
                           ? intl.formatMessage({
                               id: 'common.loading',
-                              defaultMessage: 'Loading account types...'
+                              defaultMessage: 'Loading ...'
                             })
                           : accountTypesError
                             ? intl.formatMessage({
                                 id: 'common.error',
-                                defaultMessage: 'Error loading account types'
+                                defaultMessage: 'Error loading ...'
                               })
                             : intl.formatMessage({
                                 id: 'operationRoutes.field.validIf.accountType.placeholder',

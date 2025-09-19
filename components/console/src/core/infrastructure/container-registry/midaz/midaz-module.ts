@@ -20,6 +20,8 @@ import { MidazTransactionRepository } from '@/core/infrastructure/midaz/reposito
 import { MidazHttpService } from '../../midaz/services/midaz-http-service'
 import { OperationRoutesRepository } from '@/core/domain/repositories/operation-routes-repository'
 import { MidazOperationRoutesRepository } from '@/core/infrastructure/midaz/repositories/midaz-operation-routes-repository'
+import { TransactionRoutesRepository } from '@/core/domain/repositories/transaction-routes-repository'
+import { MidazTransactionRoutesRepository } from '@/core/infrastructure/midaz/repositories/midaz-transaction-routes-repository'
 
 export const MidazModule = new ContainerModule((container: Container) => {
   container.bind<MidazHttpService>(MidazHttpService).toSelf()
@@ -50,4 +52,7 @@ export const MidazModule = new ContainerModule((container: Container) => {
   container
     .bind<OperationRoutesRepository>(OperationRoutesRepository)
     .to(MidazOperationRoutesRepository)
+  container
+    .bind<TransactionRoutesRepository>(TransactionRoutesRepository)
+    .to(MidazTransactionRoutesRepository)
 })

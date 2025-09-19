@@ -5,6 +5,7 @@ import { SearchParamDto } from './request-dto'
 export type AccountSearchParamDto = SearchParamDto & {
   id?: string
   alias?: string
+  sortOrder?: 'desc' | 'asc'
 }
 
 export type CreateAccountDto = {

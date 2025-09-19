@@ -4,10 +4,10 @@ import {
 } from '@/core/domain/entities/operation-routes-entity'
 import { OperationRoutesRepository } from '@/core/domain/repositories/operation-routes-repository'
 import { injectable, inject } from 'inversify'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { MidazHttpService } from '../services/midaz-http-service'
 import { MidazOperationRoutesDto } from '../dto/midaz-operation-routes-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
+import { MidazCursorPaginationDto } from '../dto/midaz-pagination-dto'
 import { MidazOperationRoutesMapper } from '../mappers/midaz-operation-routes-mapper'
 import { createQueryString } from '@/lib/search'
 import { MidazApiException } from '../exceptions/midaz-exceptions'
@@ -43,22 +43,35 @@ export class MidazOperationRoutesRepository
     organizationId: string,
     ledgerId: string,
     query?: OperationRoutesSearchEntity
-  ): Promise<PaginationEntity<OperationRoutesEntity>> {
-    const { id, page = 1, limit = 10 } = query ?? {}
+  ): Promise<CursorPaginationEntity<OperationRoutesEntity>> {
+    const {
+      id,
+      title,
+      cursor,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = query ?? {}
 
     const queryParams = createQueryString({
       id,
-      page: page.toString(),
+      title,
+      cursor,
+      sort_by: sortBy,
+      sort_order: sortOrder,
       limit: limit.toString()
     })
 
     const response = await this.httpService.get<
-      MidazPaginationDto<MidazOperationRoutesDto>
+      MidazCursorPaginationDto<MidazOperationRoutesDto>
     >(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/operation-routes?${queryParams}`
     )
 
-    return MidazOperationRoutesMapper.toPaginationEntity(response)
+    return MidazOperationRoutesMapper.toCursorPaginationEntity({
+      ...response,
+      items: response.items
+    })
   }
 
   async fetchById(

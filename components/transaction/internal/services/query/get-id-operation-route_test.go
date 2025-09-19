@@ -31,6 +31,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-001",
 		OperationType:  "source",
 	}
 
@@ -67,6 +68,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
+	assert.Equal(t, "TEST-001", result.Code)
 	assert.Equal(t, "source", result.OperationType)
 	assert.Equal(t, map[string]any{"key": "value", "type": "important"}, result.Metadata)
 }
@@ -86,6 +88,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-002",
 		OperationType:  "destination",
 	}
 
@@ -116,6 +119,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Equal(t, "Test Route", result.Title)
 	assert.Equal(t, "Test Description", result.Description)
+	assert.Equal(t, "TEST-002", result.Code)
 	assert.Equal(t, "destination", result.OperationType)
 	assert.Nil(t, result.Metadata)
 }
@@ -195,6 +199,7 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Test Route",
 		Description:    "Test Description",
+		Code:           "TEST-003",
 		OperationType:  "source",
 	}
 
@@ -239,6 +244,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 		LedgerID:       ledgerID,
 		Title:          "Portfolio Route",
 		Description:    "Portfolio Description",
+		Code:           "PORTFOLIO-001",
 		OperationType:  "destination",
 	}
 
@@ -272,5 +278,6 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, "Portfolio Route", result.Title)
+	assert.Equal(t, "PORTFOLIO-001", result.Code)
 	assert.Equal(t, map[string]any{"portfolio": "specific", "category": "premium"}, result.Metadata)
 }

@@ -43,26 +43,33 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 		return nil, err
 	}
 
-	if ledgers != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+	if len(ledgers) == 0 {
+		return ledgers, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	ledgerIDs := make([]string, len(ledgers))
+	for i, l := range ledgers {
+		ledgerIDs[i] = l.ID
+	}
 
-			return nil, err
-		}
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), ledgerIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		return nil, err
+	}
 
-		for i := range ledgers {
-			if data, ok := metadataMap[ledgers[i].ID]; ok {
-				ledgers[i].Metadata = data
-			}
+	metadataMap := make(map[string]map[string]any, len(metadata))
+
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range ledgers {
+		if data, ok := metadataMap[ledgers[i].ID]; ok {
+			ledgers[i].Metadata = data
 		}
 	}
 

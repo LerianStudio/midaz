@@ -4,6 +4,8 @@ import { PaginationSearchEntity } from './pagination-entity'
 export type AccountSearchEntity = PaginationSearchEntity & {
   id?: string
   alias?: string
+  sortOrder?: 'desc' | 'asc'
+  sortBy?: string
 }
 
 export type AccountEntity = {

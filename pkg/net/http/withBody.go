@@ -228,6 +228,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
+	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -313,6 +314,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("invalidaccounttype", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaccounttype", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("nowhitespaces", trans, func(ut ut.Translator) error {
+		return ut.Add("nowhitespaces", "{0} cannot contain whitespaces", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nowhitespaces", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -419,6 +428,18 @@ func validateAccountType(fl validator.FieldLevel) bool {
 	}
 
 	match, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, f)
+
+	return match
+}
+
+// validateNoWhitespaces ensures the provided string does not contain any whitespace characters. Return false if input is invalid.
+func validateNoWhitespaces(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	match, _ := regexp.MatchString(`^\S+$`, f)
 
 	return match
 }

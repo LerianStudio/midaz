@@ -51,19 +51,32 @@ export class AccountTypesController extends BaseController {
   async fetchAll(request: Request, { params }: { params: AccountTypesParams }) {
     const { searchParams } = new URL(request.url)
     const { id: organizationId, ledgerId } = await params
+
+    // Check if cursor-based pagination is requested
+    const cursor = searchParams.get('cursor')
+    const sortOrder = searchParams.get('sort_order') as 'asc' | 'desc'
+    const sortBy = searchParams.get('sort_by') as
+      | 'id'
+      | 'name'
+      | 'createdAt'
+      | 'updatedAt'
+    const id = searchParams.get('id')
     const name = searchParams.get('name') ?? undefined
     const keyValue = searchParams.get('keyValue') ?? undefined
     const limit = Number(searchParams.get('limit')) || 10
-    const page = Number(searchParams.get('page')) || 1
 
+    // Always use cursor pagination - remove page-based pagination entirely
     const accountTypes = await this.fetchAllAccountTypesUseCase.execute(
       organizationId,
       ledgerId,
       {
-        name,
-        keyValue,
+        cursor: cursor || undefined,
         limit,
-        page
+        sortOrder: sortOrder || 'desc',
+        sortBy: sortBy || 'createdAt',
+        id: id || undefined,
+        name,
+        keyValue
       }
     )
 

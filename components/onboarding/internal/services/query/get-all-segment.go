@@ -43,28 +43,35 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 		return nil, err
 	}
 
-	if segments != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+	if len(segments) == 0 {
+		return segments, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	segmentIDs := make([]string, len(segments))
+	for i, s := range segments {
+		segmentIDs[i] = s.ID
+	}
 
-			logger.Warn("No metadata found")
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), segmentIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			return nil, err
-		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		logger.Warn("No metadata found")
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		return nil, err
+	}
 
-		for i := range segments {
-			if data, ok := metadataMap[segments[i].ID]; ok {
-				segments[i].Metadata = data
-			}
+	metadataMap := make(map[string]map[string]any, len(metadata))
+
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range segments {
+		if data, ok := metadataMap[segments[i].ID]; ok {
+			segments[i].Metadata = data
 		}
 	}
 

@@ -1,5 +1,5 @@
-import { PaginationDto } from '../../dto/pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import { CursorPaginationDto } from '../../dto/pagination-dto'
+import { CursorPaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { OperationRoutesMapper } from '../../mappers/operation-routes-mapper'
 import { OperationRoutesEntity } from '@/core/domain/entities/operation-routes-entity'
 import {
@@ -15,7 +15,7 @@ export interface FetchAllOperationRoutes {
     organizationId: string,
     ledgerId: string,
     query?: OperationRoutesSearchParamDto
-  ) => Promise<PaginationDto<OperationRoutesDto>>
+  ) => Promise<CursorPaginationDto<OperationRoutesDto>>
 }
 
 @injectable()
@@ -30,14 +30,18 @@ export class FetchAllOperationRoutesUseCase implements FetchAllOperationRoutes {
     organizationId: string,
     ledgerId: string,
     query?: OperationRoutesSearchParamDto
-  ): Promise<PaginationDto<OperationRoutesDto>> {
-    const operationRoutesResult: PaginationEntity<OperationRoutesEntity> =
+  ): Promise<CursorPaginationDto<OperationRoutesDto>> {
+    const searchEntity = OperationRoutesMapper.toSearchDomain(query || {})
+
+    const operationRoutesResult: CursorPaginationEntity<OperationRoutesEntity> =
       await this.operationRoutesRepository.fetchAll(
         organizationId,
         ledgerId,
-        query
+        searchEntity
       )
 
-    return OperationRoutesMapper.toPaginationResponseDto(operationRoutesResult)
+    return OperationRoutesMapper.toCursorPaginationResponseDto(
+      operationRoutesResult
+    )
   }
 }

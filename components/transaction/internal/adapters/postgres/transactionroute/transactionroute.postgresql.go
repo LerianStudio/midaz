@@ -214,7 +214,9 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		return nil, err
 	}
 
-	subQuery := squirrel.Select("*").
+	subQuery := squirrel.Select(
+		"id", "organization_id", "ledger_id", "title", "description", "created_at", "updated_at", "deleted_at",
+	).
 		From("transaction_route").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -222,7 +224,12 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	mainQuery := squirrel.Select("*").
+	mainQuery := squirrel.Select(
+		"tr.id", "tr.organization_id", "tr.ledger_id", "tr.title", "tr.description", "tr.created_at", "tr.updated_at", "tr.deleted_at",
+		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.created_at", "otr.deleted_at",
+		"or_data.id", "or_data.organization_id", "or_data.ledger_id", "or_data.title", "or_data.description", "or_data.operation_type",
+		"or_data.account_rule_type", "or_data.account_rule_valid_if", "or_data.created_at", "or_data.updated_at", "or_data.deleted_at", "or_data.code",
+	).
 		FromSelect(subQuery, "tr").
 		LeftJoin("operation_transaction_route otr ON tr.id = otr.transaction_route_id AND otr.deleted_at IS NULL").
 		LeftJoin("operation_route or_data ON otr.operation_route_id = or_data.id AND or_data.deleted_at IS NULL").
@@ -296,6 +303,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&opRoute.CreatedAt,
 			&opRoute.UpdatedAt,
 			&opRoute.DeletedAt,
+			&opRoute.Code,
 		); err != nil {
 			errMsg := "Failed to scan transaction route"
 
@@ -581,7 +589,9 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 		}
 	}
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(
+		"id", "organization_id", "ledger_id", "title", "description", "created_at", "updated_at", "deleted_at",
+	).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).

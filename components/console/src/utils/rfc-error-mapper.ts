@@ -89,9 +89,6 @@ export class RFCErrorMapper {
     if (error.message) {
       const message = error.message.toLowerCase()
 
-      if (message.includes('fee') && message.includes('calculation')) {
-        return this.createError('0102', error.message)
-      }
       if (message.includes('package') && message.includes('not found')) {
         return this.createError('0101')
       }

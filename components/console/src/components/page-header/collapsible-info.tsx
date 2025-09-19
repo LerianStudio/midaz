@@ -20,7 +20,7 @@ export const CollapsibleInfo = ({
 }: CollapsibleInfoProps) => (
   <CollapsibleContent>
     <div className="flex w-full justify-between">
-      <div className="mt-12 flex flex-col gap-3">
+      <div className="mt-12 mb-5 flex flex-col gap-3">
         <h1 className="text-xl font-bold text-[#3f3f46]">{question}</h1>
 
         <div className="flex items-center gap-3">

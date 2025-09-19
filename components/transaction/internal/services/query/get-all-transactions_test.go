@@ -111,7 +111,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), "Transaction", filter).
+			FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
 			Return(metadata, nil).
 			Times(1)
 
@@ -183,7 +183,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		mockMetadataRepo.
 			EXPECT().
-			FindList(gomock.Any(), "Transaction", filter).
+			FindByEntityIDs(gomock.Any(), "Transaction", []string{trans[0].ID}).
 			Return(nil, errors.New("metadata error")).
 			Times(1)
 

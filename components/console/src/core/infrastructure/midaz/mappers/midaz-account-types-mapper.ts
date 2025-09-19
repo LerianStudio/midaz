@@ -4,8 +4,14 @@ import {
   MidazCreateAccountTypesDto,
   MidazUpdateAccountTypesDto
 } from '../dto/midaz-account-types-dto'
-import { MidazPaginationDto } from '../dto/midaz-pagination-dto'
-import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
+import {
+  MidazCursorPaginationDto,
+  MidazPaginationDto
+} from '../dto/midaz-pagination-dto'
+import {
+  CursorPaginationEntity,
+  PaginationEntity
+} from '@/core/domain/entities/pagination-entity'
 import { MidazPaginationMapper } from './midaz-pagination-mapper'
 
 export class MidazAccountTypesMapper {
@@ -43,6 +49,15 @@ export class MidazAccountTypesMapper {
       updatedAt: dto.updatedAt,
       deletedAt: dto.deletedAt
     }
+  }
+
+  public static toCursorPaginationEntity(
+    result: MidazCursorPaginationDto<MidazAccountTypesDto>
+  ): CursorPaginationEntity<AccountTypesEntity> {
+    return MidazPaginationMapper.toCursorResponseDto(
+      result,
+      MidazAccountTypesMapper.toEntity
+    )
   }
 
   public static toPaginationEntity(

@@ -370,6 +370,102 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "Create an Additional Balance with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Create Additional Balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Balance Input",
+                        "name": "balance",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateAdditionalBalance"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.Balance"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
             }
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
@@ -2398,6 +2494,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/annotation": {
+            "post": {
+                "description": "Create a Transaction Annotation with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create a Transaction Annotation using JSON",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_transaction_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
             "post": {
                 "description": "Create a Transaction with the input DSL file",
@@ -3418,6 +3599,31 @@ const docTemplate = `{
                 }
             }
         },
+        "CreateAdditionalBalance": {
+            "description": "Request payload for creating a new balance with specified permissions and custom key.",
+            "type": "object",
+            "required": [
+                "key"
+            ],
+            "properties": {
+                "allowReceiving": {
+                    "description": "Whether the account should be allowed to receive funds to this balance\nrequired: false\nexample: true",
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "description": "Whether the account should be allowed to send funds from this balance\nrequired: false\nexample: true",
+                    "type": "boolean",
+                    "example": true
+                },
+                "key": {
+                    "description": "Unique key for the balance\nrequired: true\nmaxLength: 100\nexample: asset-freeze",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "asset-freeze"
+                }
+            }
+        },
         "CreateAssetRateInput": {
             "description": "CreateAssetRateInput is the input payload to create an asset rate. Contains required fields for setting up asset conversion rates, including source and target assets, rate value, scale, and optional metadata.",
             "type": "object",
@@ -3557,6 +3763,10 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                },
+                "transactionDate": {
+                    "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
+                    "type": "string"
                 }
             }
         },
@@ -3646,6 +3856,10 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                },
+                "transactionDate": {
+                    "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
+                    "type": "string"
                 }
             }
         },
@@ -3762,6 +3976,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "balanceAffected": {
+                    "description": "BalanceAffected default true\nformat: boolean",
+                    "type": "boolean",
+                    "format": "boolean",
+                    "example": true
+                },
                 "balanceAfter": {
                     "description": "Balance after the operation",
                     "allOf": [
@@ -3775,6 +3995,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "balanceKey": {
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "asset-freeze"
                 },
                 "chartOfAccounts": {
                     "description": "Chart of accounts code for accounting purposes\nexample: 1000\nmaxLength: 20",
@@ -3868,6 +4094,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/mmodel.AccountRule"
                         }
                     ]
+                },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "example": "EXT-001"
                 },
                 "createdAt": {
                     "description": "The timestamp when the operation route was created.",
@@ -4189,6 +4420,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "code": {
+                    "description": "External reference of the operation route.",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "EXT-001"
+                },
                 "description": {
                     "description": "Detailed description of the operation route purpose and usage.",
                     "type": "string",
@@ -4387,6 +4624,10 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
+                },
+                "transactionDate": {
+                    "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
+                    "type": "string"
                 }
             }
         },
@@ -4455,6 +4696,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "key": {
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "asset-freeze"
                 },
                 "ledgerId": {
                     "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",

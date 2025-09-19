@@ -44,7 +44,14 @@ export class MidazAccountRepository implements AccountRepository {
     ledgerId: string,
     query?: AccountSearchEntity
   ): Promise<PaginationEntity<AccountEntity>> {
-    const { id, alias, page = 1, limit = 10 } = query ?? {}
+    const {
+      id,
+      alias,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = query ?? {}
 
     // If alias starts with the external account prefix, fetch external account
     if (alias && alias.includes(externalAccountAliasPrefix)) {
@@ -100,7 +107,7 @@ export class MidazAccountRepository implements AccountRepository {
     const response = await this.httpService.get<
       MidazPaginationDto<MidazAccountDto>
     >(
-      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts${createQueryString({ page, limit })}`
+      `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/accounts${createQueryString({ page, limit, sort_by: sortBy, sort_order: sortOrder })}`
     )
     return MidazAccountMapper.toPaginationEntity(response)
   }

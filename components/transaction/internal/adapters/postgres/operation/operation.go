@@ -26,6 +26,7 @@ type OperationPostgreSQLModel struct {
 	StatusDescription     *string          // Status description
 	AccountID             string           // Account ID associated with operation
 	AccountAlias          string           // Account alias
+	BalanceKey            string           // Balance key for additional balances
 	BalanceID             string           // Balance ID affected by operation
 	ChartOfAccounts       string           // Chart of accounts code
 	OrganizationID        string           // Organization ID
@@ -154,6 +155,11 @@ type Operation struct {
 	// maxLength: 256
 	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance
+	// example: asset-freeze
+	// maxLength: 100
+	BalanceKey string `json:"balanceKey" example:"asset-freeze" maxLength:"100"`
+
 	// Balance identifier affected by this operation
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
@@ -232,6 +238,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Status:          status,
 		AccountID:       t.AccountID,
 		AccountAlias:    t.AccountAlias,
+		BalanceKey:      t.BalanceKey,
 		LedgerID:        t.LedgerID,
 		OrganizationID:  t.OrganizationID,
 		BalanceAffected: t.BalanceAffected,
@@ -276,6 +283,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		StatusDescription:     operation.Status.Description,
 		AccountID:             operation.AccountID,
 		AccountAlias:          operation.AccountAlias,
+		BalanceKey:            operation.BalanceKey,
 		BalanceID:             operation.BalanceID,
 		LedgerID:              operation.LedgerID,
 		OrganizationID:        operation.OrganizationID,
@@ -386,6 +394,10 @@ type OperationLog struct {
 	// maxLength: 256
 	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance (required, max length 256 characters)
+	// example: asset-freeze
+	BalanceKey string `json:"balanceKey" example:"asset-freeze"`
+
 	// Balance identifier affected by this operation
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
@@ -420,6 +432,7 @@ func (o *Operation) ToLog() *OperationLog {
 		Status:          o.Status,
 		AccountID:       o.AccountID,
 		AccountAlias:    o.AccountAlias,
+		BalanceKey:      o.BalanceKey,
 		BalanceID:       o.BalanceID,
 		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
