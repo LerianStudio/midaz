@@ -1,3 +1,15 @@
+## [v3.3.0-rc.3] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.2...v3.3.0-rc.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to provide clear and current information about project changes. This ensures all users and team members have access to the latest updates, facilitating better understanding and tracking of the project's progress over time.
+
+### 🔧 Maintenance
+- **CI/CD Configuration Updates**: We've improved our continuous integration process by updating the branch check configuration. This change automates quality checks, reducing manual oversight and enhancing workflow efficiency for developers. Users benefit from more reliable and consistent software updates.
+
+
 ## [v3.3.0-rc.2] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.1...v3.3.0-rc.2)
