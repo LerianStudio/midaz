@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="4" failures="0" errors="0" time="1.999909">
+	<testsuite tests="0" failures="0" time="0.000000" name="" timestamp="0001-01-01T00:00:00Z">
+		<properties>
+			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
+		</properties>
+	</testsuite>
+	<testsuite tests="4" failures="0" skipped="1" time="2.000000" name="github.com/LerianStudio/midaz/v3/tests/e2e" timestamp="2025-09-15T10:07:09-03:00">
+		<properties>
+			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
+		</properties>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/e2e" name="TestCompleteWorkflow" time="0.000000">
+			<skipped message="=== RUN   TestCompleteWorkflow&#xA;    workflow_test.go:12: implementation pending: complete e2e workflow&#xA;--- SKIP: TestCompleteWorkflow (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/e2e" name="TestE2E_HappyPathWorkflow" time="0.070000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/e2e" name="TestE2E_Lifecycle_PendingCommitThenRevert" time="0.400000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/e2e" name="TestE2E_Lifecycle_PendingCancelNoEffect" time="0.300000"></testcase>
+	</testsuite>
+</testsuites>

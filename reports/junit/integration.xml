@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="48" failures="0" errors="0" time="23.601155">
+	<testsuite tests="0" failures="0" time="0.000000" name="" timestamp="0001-01-01T00:00:00Z">
+		<properties>
+			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
+		</properties>
+	</testsuite>
+	<testsuite tests="48" failures="0" skipped="5" time="23.601000" name="github.com/LerianStudio/midaz/v3/tests/integration" timestamp="2025-09-15T10:06:14-03:00">
+		<properties>
+			<property name="go.version" value="go1.25.1 darwin/arm64"></property>
+		</properties>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestBasicOnboardingTransactionFlow" time="0.000000">
+			<skipped message="=== RUN   TestBasicOnboardingTransactionFlow&#xA;    basic_flow_test.go:17: implementation pending: end-to-end basic flow&#xA;--- SKIP: TestBasicOnboardingTransactionFlow (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Organization_DuplicateLegalDocument_Conflict" time="0.000000">
+			<skipped message="=== RUN   TestIntegration_Organization_DuplicateLegalDocument_Conflict&#xA;    duplicates_semantics_test.go:10: Semantics for duplicate legalDocument not confirmed; add when clarified (expect 409 or allow)&#xA;--- SKIP: TestIntegration_Organization_DuplicateLegalDocument_Conflict (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Ledger_DuplicateNameOrCode_Conflict" time="0.000000">
+			<skipped message="=== RUN   TestIntegration_Ledger_DuplicateNameOrCode_Conflict&#xA;    duplicates_semantics_test.go:14: Semantics for duplicate ledger name/code not confirmed; add when clarified (expect 409 or allow)&#xA;--- SKIP: TestIntegration_Ledger_DuplicateNameOrCode_Conflict (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Security_UnauthorizedWithoutToken" time="0.000000">
+			<skipped message="=== RUN   TestIntegration_Security_UnauthorizedWithoutToken&#xA;    security_authz_test.go:14: TEST_REQUIRE_AUTH not set; skipping authz checks&#xA;--- SKIP: TestIntegration_Security_UnauthorizedWithoutToken (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Security_AuthorizedWithToken" time="0.000000">
+			<skipped message="=== RUN   TestIntegration_Security_AuthorizedWithToken&#xA;    security_authz_test.go:30: TEST_REQUIRE_AUTH not set; skipping authz checks&#xA;--- SKIP: TestIntegration_Security_AuthorizedWithToken (0.00s)&#xA;"></skipped>
+		</testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Accounts_GetByAlias" time="0.120000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Accounts_FilterByMetadata" time="0.040000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Accounts_ListPagination" time="0.040000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Cache_Consistency_BalancesByAccountID" time="0.110000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Cache_EventualConsistency_Sanity" time="0.190000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestDiagnostic_AssetsThenAccounts" time="0.020000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestDiagnostic_BurstConsistency" time="0.190000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestDiagnostic_DSLvsJSONParity" time="5.140000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestDiagnostic_Revert500" time="0.440000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_EventsAsync_Sanity" time="5.120000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_GetByID_OrganizationLedgerAccount" time="0.040000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_TransactionIdempotency_ReplayOrConflict" time="0.180000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_TransactionIdempotency_ConflictOnDifferentPayload" time="0.200000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Idempotency_Outflow" time="0.350000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Idempotency_JSON" time="0.210000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Idempotency_DSL" time="5.300000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Lifecycle_CommitNonPending_Should400" time="0.310000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Lifecycle_RevertNonApproved_Should400" time="0.290000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_TransactionLifecycle_PendingCommitCancelRevert" time="0.500000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestProperty_Live_Conservation_Small" time="0.190000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_MetadataFilters_Organizations" time="0.030000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_MetadataFilters_Ledgers" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_NegativeCases" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Organizations_ListPagination" time="0.060000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_OversizedFields_Should400" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_OversizedMetadata_Should400" time="0.010000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_CountEndpoints" time="0.030000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_LedgersPaginationAndValidation" time="0.020000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Portfolio_UpdateAndGet" time="0.020000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Segment_UpdateAndGet" time="0.020000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestProperty_Monotonic_CountMetrics" time="0.030000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestProperty_Pagination_UnionStableNoDuplicates" time="0.040000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_ReadReplicaAwareness_ReadsSucceedWithReplica" time="2.350000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestSmoke_OnboardingHealthAndVersion" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestSmoke_TransactionHealthAndVersion" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_Transaction_GetByID" time="0.330000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_AccountAliasUniqueness_Conflict" time="0.040000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_AccountsHeadCount" time="0.030000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_OnboardingValidationErrors" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_InvalidUUIDPathParam" time="0.000000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_CoreOrgLedgerAccountAndTransactions" time="0.200000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_ParallelContention_NoNegativeBalance" time="0.330000"></testcase>
+		<testcase classname="github.com/LerianStudio/midaz/v3/tests/integration" name="TestIntegration_BurstMixedOperations_DeterministicFinal" time="0.370000"></testcase>
+	</testsuite>
+</testsuites>
