@@ -36,7 +36,7 @@ jobs:
 
       # Verify that PR is from develop or hotfix branch and block if not
       - name: Check if PR is from develop or hotfix
-        if: github.event.pull_request.head.ref != 'develop' && startsWith(github.event.pull_request.head.ref, 'hotfix/') == false
+        if: github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'release-candidate' && startsWith(github.event.pull_request.head.ref, 'hotfix/') == false
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
