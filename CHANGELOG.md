@@ -1,3 +1,34 @@
+## [v3.3.0-rc.1] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-rc.1)
+Contributors: Clara Tersi, LF Barrile, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **Fee References Removed**: This update removes all references to fees across backend, build, frontend, and test components. Users must update any integrations or scripts relying on fee data. Ensure all dependencies are compatible with this change to avoid disruptions.
+
+### ✨ Features
+- **Enhanced Transaction Balances**: Support for additional balances in transactions has been added, allowing for more flexible financial operations. This update includes new repository methods and database schema updates, enhancing transaction handling capabilities.
+- **Internationalization Support**: The frontend now supports multiple languages, broadening the application's accessibility and usability for a global audience.
+- **Cursor Pagination**: Implemented in transaction routes and account types, this feature improves data retrieval efficiency, allowing users to navigate large datasets more smoothly.
+
+### 🐛 Bug Fixes
+- **Balance Handling**: Improved handling of additional balances to resolve EntityNotFound issues, ensuring data integrity and reliability.
+- **Account Field Optimization**: Reduced redundant calls in account field handling, enhancing performance and reducing server load.
+- **RabbitMQ Reliability**: Fixed reconnection issues with RabbitMQ consumers and producers, improving message processing reliability.
+
+### ⚡ Performance
+- **Transaction Validation Logging**: Enhanced logging provides clearer insights into transaction processing, aiding debugging and monitoring efforts.
+- **BalanceKey Field Limitation**: Limited to 100 characters to prevent data overflow, ensuring consistent data storage.
+
+### 🔄 Changes
+- **User Interface Improvements**: Refined error messages and updated menu options enhance the user experience, making interactions more intuitive.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated dependencies, including Go version and lib-commons, to ensure compatibility and leverage new features.
+- **Metadata Retrieval Refactoring**: Improved query efficiency and code maintainability by using entity IDs for metadata retrieval.
+- **Codebase Cleanup**: Removed unnecessary console logs and comments from the frontend, improving code readability and maintenance.
+
+
 ## [v3.3.0-beta.27] - 2025-09-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.26...v3.3.0-beta.27)
