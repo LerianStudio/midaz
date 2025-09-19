@@ -109,14 +109,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	// Ensure RabbitMQ channel is open before persisting to avoid side effects without publish
 	if uc.RabbitConn != nil {
-		if uc.RabbitConn.Channel == nil || uc.RabbitConn.Channel.IsClosed() {
-			logger.Warnf("RabbitMQ channel is closed before account create. Attempting reconnect...")
+		if err := uc.RabbitConn.EnsureChannel(); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to ensure RabbitMQ channel before account create", err)
+			logger.Errorf("Failed to ensure RabbitMQ channel before account create: %v", err)
 
-			if err := uc.RabbitConn.Connect(); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to reconnect RabbitMQ before account create", err)
-
-				return nil, pkg.ValidateBusinessError(constant.ErrRabbitMQUnavailableBeforePublish, "rabbitmq")
-			}
+			return nil, pkg.ValidateBusinessError(constant.ErrRabbitMQUnavailableBeforePublish, "rabbitmq")
 		}
 	}
 

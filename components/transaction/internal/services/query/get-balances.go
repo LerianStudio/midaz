@@ -142,14 +142,11 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	// Ensure RabbitMQ channel is open before locking balances to avoid stale locks
 	if uc.RabbitConn != nil {
-		if uc.RabbitConn.Channel == nil || uc.RabbitConn.Channel.IsClosed() {
-			logger.Warnf("RabbitMQ channel is closed before lock. Attempting reconnect...")
+		if err := uc.RabbitConn.EnsureChannel(); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to ensure RabbitMQ channel before lock", err)
+			logger.Errorf("Failed to ensure RabbitMQ channel before lock: %v", err)
 
-			if err := uc.RabbitConn.Connect(); err != nil {
-				logger.Errorf("Failed to reconnect RabbitMQ before lock: %v", err)
-
-				return nil, pkg.ValidateBusinessError(constant.ErrRabbitMQUnavailableBeforePublish, "rabbitmq")
-			}
+			return nil, pkg.ValidateBusinessError(constant.ErrRabbitMQUnavailableBeforePublish, "rabbitmq")
 		}
 	}
 

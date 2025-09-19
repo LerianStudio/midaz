@@ -1,13 +1,13 @@
 package query
 
 import (
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
+	libRabbitmq "github.com/LerianStudio/midaz/pkg/rabbitmq"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.

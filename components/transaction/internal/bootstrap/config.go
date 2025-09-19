@@ -8,7 +8,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/commons/zap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
@@ -21,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	libRabbitmq "github.com/LerianStudio/midaz/pkg/rabbitmq"
 )
 
 const ApplicationName = "transaction"

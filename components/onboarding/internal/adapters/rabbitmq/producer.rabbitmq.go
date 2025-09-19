@@ -3,11 +3,12 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	libRabbitmq "github.com/LerianStudio/midaz/pkg/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
