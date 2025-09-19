@@ -321,9 +321,7 @@ func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cab := &CreateAdditionalBalance{
-				Key:            tt.key,
-				AllowSending:   &[]bool{true}[0],
-				AllowReceiving: &[]bool{true}[0],
+				Key: tt.key,
 			}
 
 			assert.Equal(t, tt.expectedLength, len(cab.Key), tt.description)
@@ -374,8 +372,7 @@ func TestBalance_KeyField(t *testing.T) {
 				OnHold:         decimal.NewFromInt(0),
 				Version:        1,
 				AccountType:    "deposit",
-				AllowSending:   true,
-				AllowReceiving: true,
+				// AllowSending and AllowReceiving removed as they're not used in this test
 			}
 
 			if tt.shouldBeSet {
