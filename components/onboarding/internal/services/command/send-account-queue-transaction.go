@@ -12,7 +12,7 @@ import (
 
 // SendAccountQueueTransaction sends an account-related transaction message to a RabbitMQ queue for further processing.
 // It utilizes context for logger and tracer management and handles data serialization and queue message construction.
-func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, account mmodel.Account) {
+func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, account mmodel.Account) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.send_account_queue_transaction")
@@ -22,7 +22,8 @@ func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organization
 
 	marshal, err := json.Marshal(account)
 	if err != nil {
-		logger.Fatalf("Failed to marshal account to JSON string: %s", err.Error())
+		logger.Errorf("Failed to marshal account to JSON string: %s", err.Error())
+		return err
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
@@ -43,8 +44,11 @@ func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organization
 		os.Getenv("RABBITMQ_KEY"),
 		queueMessage,
 	); err != nil {
-		logger.Fatalf("Failed to send message: %s", err.Error())
+		logger.Errorf("Failed to send message: %s", err.Error())
+		return err
 	}
 
 	logger.Infof("Account sent to transaction queue successfully")
+
+	return nil
 }

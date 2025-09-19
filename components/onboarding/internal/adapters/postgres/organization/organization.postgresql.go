@@ -45,17 +45,12 @@ type OrganizationPostgreSQLRepository struct {
 
 // NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
 func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
-	c := &OrganizationPostgreSQLRepository{
-		connection: pc,
-		tableName:  "organization",
-	}
+    c := &OrganizationPostgreSQLRepository{
+        connection: pc,
+        tableName:  "organization",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
@@ -410,7 +405,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_organizations_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, `SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC`, pq.Array(ids))
+    rows, err := db.QueryContext(ctx, `SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC`, pq.Array(ids))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
