@@ -12,6 +12,33 @@ Contributors: Fred Amaral, lerian-studio
 ### ✨ Improvements
 - **Enhanced Testing Framework**: We've significantly improved our testing strategies by incorporating chaos, fuzz, property, and end-to-end (E2E) testing across key components such as authentication, backend, and frontend. These enhancements ensure that the system is more reliable and capable of handling edge cases, providing a more stable experience for users. [#1283]
 
+## [v3.3.0-rc.3] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.2...v3.3.0-rc.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to provide clear and current information about project changes. This ensures all users and team members have access to the latest updates, facilitating better understanding and tracking of the project's progress over time.
+
+### 🔧 Maintenance
+- **CI/CD Configuration Updates**: We've improved our continuous integration process by updating the branch check configuration. This change automates quality checks, reducing manual oversight and enhancing workflow efficiency for developers. Users benefit from more reliable and consistent software updates.
+
+
+## [v3.3.0-rc.2] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.1...v3.3.0-rc.2)
+Contributors: Clara Tersi, lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Consistent Layout**: Fixed an issue with the Y-axis margin that was causing inconsistencies in the layout. This improvement enhances the visual consistency and overall aesthetics of the user interface, providing a more polished experience.
+
+### 🔄 Changes
+- **Dependency Updates**: Updated `esbuild` to version 0.25.10 and restored the `axios` dependency. These changes ensure compatibility with the latest build tools and libraries, improving build performance and reliability.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: Removed the `.trivyignore` file as it is no longer necessary. This helps maintain a cleaner and more efficient codebase by eliminating outdated files.
+- **Changelog Update**: Updated the CHANGELOG file to reflect the latest changes and improvements, ensuring users have access to the most recent information about updates and fixes.
+
 
 ## [v3.3.0-beta.29] - 2025-09-19
 
