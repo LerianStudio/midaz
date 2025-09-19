@@ -1,3 +1,16 @@
+## [v3.3.0-beta.28] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.27...v3.3.0-beta.28)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to include the latest updates, ensuring that all stakeholders have access to accurate and up-to-date information. This facilitates better communication and project tracking, making it easier for developers and users to stay informed about the project's progress.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `esbuild` to version 0.25.10 and restored `axios` in `package.json`. This update ensures compatibility with the latest build tools, enhancing security and stability. Keeping dependencies current prevents potential vulnerabilities and supports a more reliable development process.
+- **Codebase Cleanup**: Removed the `.trivyignore` file, which is no longer needed. This helps maintain a clean codebase, reducing clutter and minimizing confusion during security scans.
+
+
 ## [v3.3.0-beta.27] - 2025-09-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.26...v3.3.0-beta.27)
