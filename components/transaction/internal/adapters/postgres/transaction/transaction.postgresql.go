@@ -47,17 +47,12 @@ type TransactionPostgreSQLRepository struct {
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
 func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionPostgreSQLRepository {
-	c := &TransactionPostgreSQLRepository{
-		connection: pc,
-		tableName:  "transaction",
-	}
+    c := &TransactionPostgreSQLRepository{
+        connection: pc,
+        tableName:  "transaction",
+    }
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
-	}
-
-	return c
+    return c
 }
 
 // Create a new Transaction entity into Postgresql and returns it.
@@ -663,8 +658,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
-		organizationID, ledgerID, id)
+    rows, err := db.QueryContext(ctx, "SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
+        organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
@@ -683,46 +678,47 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 		var body *string
 
-		if err := rows.Scan(
-			&tran.ID,
-			&tran.ParentTransactionID,
-			&tran.Description,
-			&tran.Status,
-			&tran.StatusDescription,
-			&tran.Amount,
-			&tran.AssetCode,
-			&tran.ChartOfAccountsGroupName,
-			&tran.LedgerID,
-			&tran.OrganizationID,
-			&body,
-			&tran.CreatedAt,
-			&tran.UpdatedAt,
-			&tran.DeletedAt,
-			&tran.Route,
-			&op.ID,
-			&op.TransactionID,
-			&op.Description,
-			&op.Type,
-			&op.AssetCode,
-			&op.Amount,
-			&op.AvailableBalance,
-			&op.OnHoldBalance,
-			&op.AvailableBalanceAfter,
-			&op.OnHoldBalanceAfter,
-			&op.Status,
-			&op.StatusDescription,
-			&op.AccountID,
-			&op.AccountAlias,
-			&op.BalanceID,
-			&op.ChartOfAccounts,
-			&op.OrganizationID,
-			&op.LedgerID,
-			&op.CreatedAt,
-			&op.UpdatedAt,
-			&op.DeletedAt,
-			&op.Route,
-			&op.BalanceAffected,
-		); err != nil {
+        if err := rows.Scan(
+            &tran.ID,
+            &tran.ParentTransactionID,
+            &tran.Description,
+            &tran.Status,
+            &tran.StatusDescription,
+            &tran.Amount,
+            &tran.AssetCode,
+            &tran.ChartOfAccountsGroupName,
+            &tran.LedgerID,
+            &tran.OrganizationID,
+            &body,
+            &tran.CreatedAt,
+            &tran.UpdatedAt,
+            &tran.DeletedAt,
+            &tran.Route,
+            &op.ID,
+            &op.TransactionID,
+            &op.Description,
+            &op.Type,
+            &op.AssetCode,
+            &op.Amount,
+            &op.AvailableBalance,
+            &op.OnHoldBalance,
+            &op.AvailableBalanceAfter,
+            &op.OnHoldBalanceAfter,
+            &op.Status,
+            &op.StatusDescription,
+            &op.AccountID,
+            &op.AccountAlias,
+            &op.BalanceID,
+            &op.ChartOfAccounts,
+            &op.OrganizationID,
+            &op.LedgerID,
+            &op.CreatedAt,
+            &op.UpdatedAt,
+            &op.DeletedAt,
+            &op.Route,
+            &op.BalanceAffected,
+            &op.BalanceKey,
+        ); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
 			logger.Errorf("Failed to scan rows: %v", err)
