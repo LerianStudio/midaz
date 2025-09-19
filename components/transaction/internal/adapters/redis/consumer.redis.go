@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
@@ -12,9 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // RedisRepository provides an interface for redis.
@@ -257,7 +258,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 			
 			local finalBalance = OperateBalances(amount, balance, operation)
 			
-			if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
+			if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" and operation == "DEBIT" then
 			  return redis.error_reply("0018")
 			end
 			
