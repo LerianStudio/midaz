@@ -1,3 +1,18 @@
+## [v3.3.0-beta.30] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.29...v3.3.0-beta.30)
+Contributors: Fred Amaral, lerian-studio
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to accurately reflect recent changes and improvements. This ensures that users and developers have access to the latest information about the project's progress and updates, supporting better decision-making and understanding of the software's evolution.
+
+### 🔧 Maintenance
+- **Build System Enhancements**: Behind-the-scenes improvements have been made to the build process, increasing the efficiency and maintainability of the codebase. While these changes do not directly impact user-facing features, they contribute to overall system stability and improve developer productivity.
+
+### ✨ Improvements
+- **Enhanced Testing Framework**: We've significantly improved our testing strategies by incorporating chaos, fuzz, property, and end-to-end (E2E) testing across key components such as authentication, backend, and frontend. These enhancements ensure that the system is more reliable and capable of handling edge cases, providing a more stable experience for users. [#1283]
+
+
 ## [v3.3.0-beta.29] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.28...v3.3.0-beta.29)
