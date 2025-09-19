@@ -27,13 +27,18 @@ import { Form } from '@/components/ui/form'
 import { EntityBox } from '@/components/entity-box'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { InputField } from '@/components/form'
+import { useListAccountTypes } from '@/client/account-types'
+import { useMidazConfig } from '@/hooks/use-midaz-config'
+import { AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useRouter } from 'next/navigation'
 
 const Page = () => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
   const [columnFilters, setColumnFilters] = useState<any>([])
   const { toast } = useToast()
-
+  const router = useRouter()
   const [total, setTotal] = useState(1000000)
 
   const { form, searchValues, pagination } = useQueryParams({
@@ -49,8 +54,7 @@ const Page = () => {
     isLoading: isAccountsLoading
   } = useAccountsWithPortfolios({
     organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id,
-    query: searchValues as any
+    ledgerId: currentLedger.id
   })
 
   const accountsList: AccountDto[] = useMemo(() => {
@@ -198,6 +202,15 @@ const Page = () => {
     }
   ])
 
+  const { data: accountTypesData } = useListAccountTypes({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    query: searchValues as any
+  })
+
+  const { isAccountTypeValidationEnabled: isValidationEnabled } =
+    useMidazConfig()
+
   return (
     <React.Fragment>
       <Breadcrumb paths={breadcrumbPaths} />
@@ -225,7 +238,10 @@ const Page = () => {
             <Button
               onClick={handleCreate}
               data-testid="new-account"
-              disabled={!hasAssets}
+              disabled={
+                !hasAssets ||
+                (isValidationEnabled && accountTypesData?.items.length === 0)
+              }
             >
               {intl.formatMessage({
                 id: 'accounts.sheet.create.title',
@@ -251,6 +267,43 @@ const Page = () => {
           })}
           href="https://docs.lerian.studio/docs/accounts"
         />
+
+        {isValidationEnabled && accountTypesData?.items.length === 0 && (
+          <div className="pt-6">
+            <Alert variant="warning" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>
+                {intl.formatMessage({
+                  id: 'accounts.alert.noAccountType.title',
+                  defaultMessage: 'Account Type Validation is Disabled'
+                })}
+              </AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                <span className="opacity-70">
+                  {intl.formatMessage({
+                    id: 'accounts.alert.noAccountType.description',
+                    defaultMessage:
+                      'Account Type Validation is disabled for this organization and ledger. You cannot create accounts.'
+                  })}
+                </span>
+
+                <Button
+                  variant="link"
+                  className="w-fit p-0 text-yellow-800"
+                  size="sm"
+                  onClick={() => {
+                    router.push('/account-types')
+                  }}
+                >
+                  {intl.formatMessage({
+                    id: 'accounts.alert.AccountType.createLink',
+                    defaultMessage: 'Manage Account Types'
+                  })}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
       </PageHeader.Root>
 
       <ConfirmationDialog
@@ -269,6 +322,7 @@ const Page = () => {
       <AccountSheet
         ledgerId={currentLedger.id}
         onSuccess={refetchAccounts}
+        accountTypesData={accountTypesData?.items}
         {...sheetProps}
       />
 

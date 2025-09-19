@@ -3,6 +3,8 @@ import { PaginationSearchEntity } from './pagination-entity'
 
 export type PortfolioSearchEntity = PaginationSearchEntity & {
   id?: string
+  sortOrder?: 'desc' | 'asc'
+  sortBy?: string
 }
 
 export type PortfolioEntity = {

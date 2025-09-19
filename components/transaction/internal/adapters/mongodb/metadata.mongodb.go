@@ -15,15 +15,17 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
 // It defines methods for creating, finding, updating, and deleting metadata entities.
+//
+//go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
+	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	Delete(ctx context.Context, collection, id string) error
 }
@@ -49,24 +51,10 @@ func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDB
 
 // Create inserts a new metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.collection", collection),
-		attribute.String("app.request.entity_id", metadata.EntityID),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", metadata)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata to JSON string", err)
-	}
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
@@ -74,8 +62,6 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 		return err
 	}
-
-	logger := libCommons.NewLoggerFromContext(ctx)
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	record := &MetadataMongoDBModel{}
@@ -87,13 +73,6 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	}
 
 	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_metadata.insert")
-
-	spanInsert.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanInsert, "app.request.repository_input", record)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanInsert, "Failed to convert record to JSON string", err)
-	}
 
 	insertResult, err := coll.InsertOne(ctx, record)
 	if err != nil {
@@ -111,27 +90,16 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
 func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.collection", collection),
-	}
-
-	span.SetAttributes(attributes...)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
-	}
-
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
 
 		return nil, err
 	}
@@ -142,16 +110,11 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	spanFind.SetAttributes(attributes...)
-
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanFind, "app.request.repository_filter", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanFind, "Failed to convert filter to JSON string", err)
-	}
-
 	cur, err := coll.Find(ctx, filter.Metadata, opts)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
+
+		logger.Errorf("Failed to find metadata: %v", err)
 
 		return nil, err
 	}
@@ -165,6 +128,8 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		if err := cur.Decode(&record); err != nil {
 			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata", err)
 
+			logger.Errorf("Failed to decode metadata: %v", err)
+
 			return nil, err
 		}
 
@@ -174,11 +139,15 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	if err := cur.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to iterate metadata", err)
 
+		logger.Errorf("Failed to iterate metadata: %v", err)
+
 		return nil, err
 	}
 
 	if err := cur.Close(ctx); err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", err)
+
+		logger.Errorf("Failed to close cursor: %v", err)
 
 		return nil, err
 	}
@@ -193,23 +162,16 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
 	defer span.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.collection", collection),
-		attribute.String("app.request.entity_id", id),
-	}
-
-	span.SetAttributes(attributes...)
-
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
+		logger.Errorf("Failed to get database: %v", err)
 
 		return nil, err
 	}
@@ -220,14 +182,14 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 	ctx, spanFindOne := tracer.Start(ctx, "mongodb.find_by_entity.find_one")
 
-	spanFindOne.SetAttributes(attributes...)
-
 	if err = coll.FindOne(ctx, bson.M{"entity_id": id}).Decode(&record); err != nil {
-		libOpentelemetry.HandleSpanError(&spanFindOne, "Failed to find metadata", err)
-
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
+
+		libOpentelemetry.HandleSpanError(&spanFindOne, "Failed to find metadata", err)
+
+		logger.Errorf("Failed to find metadata: %v", err)
 
 		return nil, err
 	}
@@ -237,21 +199,88 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 	return record.ToEntity(), nil
 }
 
+// FindByEntityIDs retrieves metadata from the mongodb using a list of entity_ids.
+func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity_ids")
+	defer span.End()
+
+	if len(entityIDs) == 0 {
+		return []*Metadata{}, nil
+	}
+
+	db, err := mmr.connection.GetDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
+
+	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}}
+
+	ctx, spanFind := tracer.Start(ctx, "mongodb.find_by_entity_ids.find")
+	defer spanFind.End()
+
+	cur, err := coll.Find(ctx, filter, options.Find())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
+
+		logger.Errorf("Failed to find metadata: %v", err)
+
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var meta []*MetadataMongoDBModel
+
+	for cur.Next(ctx) {
+		var record MetadataMongoDBModel
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata", err)
+
+			logger.Errorf("Failed to decode metadata: %v", err)
+
+			return nil, err
+		}
+
+		meta = append(meta, &record)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to iterate metadata", err)
+
+		logger.Errorf("Failed to iterate metadata: %v", err)
+
+		return nil, err
+	}
+
+	if err := cur.Close(ctx); err != nil {
+		libOpentelemetry.HandleSpanError(&spanFind, "Failed to close cursor", err)
+
+		logger.Errorf("Failed to close cursor: %v", err)
+
+		return nil, err
+	}
+
+	metadata := make([]*Metadata, 0, len(meta))
+	for i := range meta {
+		metadata = append(metadata, meta[i].ToEntity())
+	}
+
+	return metadata, nil
+}
+
 // Update an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.collection", collection),
-		attribute.String("app.request.entity_id", id),
-	}
-
-	span.SetAttributes(attributes...)
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
@@ -260,16 +289,12 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	opts := options.Update().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
 
 	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
-
-	spanUpdate.SetAttributes(attributes...)
 
 	updated, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
@@ -293,19 +318,10 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 // Delete an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
 	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.collection", collection),
-		attribute.String("app.request.entity_id", id),
-	}
-
-	span.SetAttributes(attributes...)
 
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
@@ -314,15 +330,11 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := libCommons.NewLoggerFromContext(ctx)
-
 	opts := options.Delete()
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_metadata.delete_one")
-
-	spanDelete.SetAttributes(attributes...)
 
 	deleted, err := coll.DeleteOne(ctx, bson.D{{Key: "entity_id", Value: id}}, opts)
 	if err != nil {

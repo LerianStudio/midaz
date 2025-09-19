@@ -3,12 +3,18 @@ name: "Build midaz images"
 on:
   push:
     tags:
-      - '**'
+      - '**'  # Trigger on any tag push (e.g., v1.2.3, v2.0.0-beta.7, v2.0.0-rc.1, etc.)
 
 permissions:
-  id-token: write       # Needed for authentication
-  contents: read        # Needed to check out the repository
-  pull-requests: write  # Needed to comment on PRs
+  id-token: write       # Required for OIDC authentication (used by some actions)
+  contents: read        # Required to checkout the repository
+  pull-requests: write  # Allows commenting on PRs if necessary
+  packages: write       # Required to publish packages/images
+
+env:
+  # GitOps file paths (adjust if your repo has a different structure)
+  GITOPS_FILE_BETA: gitops/environments/firmino/helmfile/applications/dev/midaz/values.yaml
+  GITOPS_FILE_RC:   gitops/environments/firmino/helmfile/applications/stg/midaz/values.yaml
 
 jobs:
   detect_changes:
@@ -25,25 +31,25 @@ jobs:
             components/onboarding
             components/transaction
             components/console
-          get_app_name: true
-          path_level: 2
-          app_name_prefix: midaz
+          get_app_name: true         # Derive an app name from changed paths
+          path_level: 2              # Use 2 levels of directory depth to extract name
+          app_name_prefix: midaz     # Prefix app names with "midaz-" for consistency
 
   build_and_publish:
     needs: detect_changes
-    if: needs.detect_changes.outputs.matrix != '[]'
+    if: needs.detect_changes.outputs.matrix != '[]'  # Skip if no relevant changes
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
+        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}  # Build each changed app
     env:
       DOCKERHUB_ORG: lerianstudio
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # Checkout repository code
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3  # Enable multi-arch builds
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -57,61 +63,76 @@ jobs:
         with:
           images: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=ref,event=branch,suffix=-${{ github.sha }}
+            type=semver,pattern={{version}}   # Semantic version tags (e.g. 1.2.3)
+            type=semver,pattern={{major}}.{{minor}}   # 1.2
+            type=semver,pattern={{major}}            # 1
+
+      # ----------------- Security gates before push -----------------
+
+      - name: Trivy Secret Scan (repo)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: '1'             # Fail pipeline if secrets are detected
+          hide-progress: true
+          security-checks: secret
+          skip-dirs: '.git,node_modules,dist,build,.next,coverage,vendor'
+
+      - name: Build (scan candidate) - single arch, load:true
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.app.working_dir }}/Dockerfile
+          platforms: linux/amd64
+          load: true                 # Load image into local Docker for scanning
+          push: false
+          tags: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner (pre-push gate)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}'
+          format: table
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'             # Block pipeline if vulnerabilities found
+
+      # ----------------- Push final multi-arch image -----------------
 
       - name: Build and Push Docker image (Multi-Arch)
         uses: docker/build-push-action@v5
         with:
+          context: .
           file: ${{ matrix.app.working_dir }}/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
-      - name: Extract tag name
+      - name: Extract tag name (strip leading 'v')
         id: extract_tag
         shell: bash
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Write tag to file for GitOps
-        if: contains(github.ref, '-beta')
+      # Write GitOps artifact for beta and rc
+      - name: Write tag to file for GitOps (beta/rc)
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         run: |
           mkdir -p gitops-tags
-          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}
+          echo "${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}" > "gitops-tags/${{ matrix.app.name }}=${{ steps.extract_tag.outputs.tag }}"
 
       - name: Upload GitOps tag artifact
-        if: contains(github.ref, '-beta')
+        if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         uses: actions/upload-artifact@v4
         with:
           name: gitops-tags-${{ matrix.app.name }}
           path: gitops-tags/
 
-      - name: Run Trivy vulnerability scanner (fail on release)
-        if: "!contains(github.ref, '-beta')"
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
-          format: 'table'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
-      - name: Run Trivy vulnerability scanner (non-blocking on pre-release)
-        if: contains(github.ref, '-beta')
-        uses: aquasecurity/trivy-action@master
-        continue-on-error: true
-        with:
-          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:${{ steps.extract_tag.outputs.tag }}'
-          format: 'table'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-
   update_gitops:
     needs: [build_and_publish]
-    if: contains(github.ref, '-beta')
+    if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,27 +142,50 @@ jobs:
           path: gitops
           fetch-depth: 0
 
+      - name: Install yq (YAML processor)
+        run: |
+          sudo curl -L https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
       - name: Download tags from artifacts
         uses: actions/download-artifact@v4
         with:
           path: .gitops-tags
 
-      - name: Apply image tags to values.yaml
+      - name: Apply image tags to values.yaml (beta → dev, rc → stg)
+        shell: bash
         run: |
-          find .gitops-tags -type f | while read tagfile; do
-            filename=$(basename "$tagfile")
-            full_app="${filename%%=*}"
-            tag="${filename#*=}"
-            app_name="${full_app#midaz-}"
+          set -euo pipefail
 
-            echo "🔧 Updating tag for $app_name to $tag"
-            yq e ".${app_name}.image.tag = \"${tag}\"" -i gitops/environments/firmino/helmfile/applications/midaz/values.yaml
+          # Select GitOps values.yaml file depending on tag type
+          if [[ "${GITHUB_REF}" == *"-rc"* ]]; then
+            FILE="${{ env.GITOPS_FILE_RC }}"
+            echo "Updating STAGE values file: $FILE"
+          else
+            FILE="${{ env.GITOPS_FILE_BETA }}"
+            echo "Updating DEV values file: $FILE"
+          fi
+
+          # Iterate through all tag artifacts and apply changes
+          find .gitops-tags -type f | while read -r tagfile; do
+            filename="$(basename "$tagfile")"
+            full_app="${filename%%=*}"    # Extract full app name (e.g. midaz-onboarding)
+            tag="${filename#*=}"          # Extract version/tag (e.g. 1.2.3-rc.1)
+            app_name="${full_app#midaz-}" # Remove "midaz-" prefix to match values keys
+
+            echo "🔧 Updating ${app_name}.image.tag = ${tag}"
+            yq e -i ".${app_name}.image.tag = \"${tag}\"" "$FILE"
           done
+
+          echo "✅ Final diff:"
+          git -C gitops diff -- "$FILE" || true
 
       - name: Commit and push GitOps update
         run: |
           cd gitops
           git config user.name "${{ secrets.LERIAN_CI_CD_USER_NAME }}"
           git config user.email "${{ secrets.LERIAN_CI_CD_USER_EMAIL }}"
-          git commit -am "ci: update image tags"
+          git add -A
+          git commit -m "ci(midaz): update image tags (${{ contains(github.ref, '-rc') && 'rc/stage' || 'beta/dev' }})" || echo "No changes to commit"
           git push origin main

@@ -9,8 +9,8 @@ import (
 func Select(message string, options []string) (string, error) {
 	model := initialSelectModel(message, options)
 	p := tea.NewProgram(model)
-	finalModel, err := p.Run()
 
+	finalModel, err := p.Run()
 	if err != nil {
 		return "", err
 	}

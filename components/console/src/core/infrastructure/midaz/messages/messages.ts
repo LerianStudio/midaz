@@ -459,10 +459,10 @@ export const apiErrorMessages = defineMessages({
     id: 'errors.fee.invalidAssetType',
     defaultMessage: 'Invalid asset type for fee calculation'
   },
-  '0104': {
-    id: 'errors.fee.insufficientBalance',
-    defaultMessage: 'Insufficient balance for fee deduction'
-  },
+  // '0104': {
+  //   id: 'errors.fee.insufficientBalance',
+  //   defaultMessage: 'Insufficient balance for fee deduction'
+  // },
   '0105': {
     id: 'errors.fee.ruleValidationFailed',
     defaultMessage: 'Fee rule validation failed'

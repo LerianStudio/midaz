@@ -1,9 +1,10 @@
 import { MetadataDto } from './metadata-dto'
-import { SearchParamDto } from './request-dto'
+import { CursorSearchParamDto } from './request-dto'
 import { StatusDto } from './status-dto'
 
-export type TransactionSearchDto = SearchParamDto & {
+export type TransactionSearchDto = CursorSearchParamDto & {
   id?: string
+  sortBy?: 'id' | 'createdAt' | 'updatedAt'
 }
 
 export type AmountDto = {

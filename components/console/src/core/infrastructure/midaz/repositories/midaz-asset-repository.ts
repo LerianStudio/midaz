@@ -39,7 +39,9 @@ export class MidazAssetRepository implements AssetRepository {
     page: number,
     type?: string,
     code?: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    sortBy: string = 'createdAt',
+    sortOrder: 'asc' | 'desc' = 'desc'
   ): Promise<PaginationEntity<AssetEntity>> {
     const response = await this.httpService.get<
       MidazPaginationDto<MidazAssetDto>
@@ -50,7 +52,9 @@ export class MidazAssetRepository implements AssetRepository {
           limit,
           type,
           code,
-          metadata
+          metadata,
+          sort_by: sortBy,
+          sort_order: sortOrder
         }
       )}`
     )

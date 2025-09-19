@@ -240,7 +240,13 @@ export const AssetsDataTable: React.FC<AssetsTableProps> = (props) => {
               }
             )}
           </EntityDataTable.FooterText>
-          <Pagination total={total} {...pagination} />
+          <Pagination
+            total={total}
+            hasNextPage={
+              assets?.items && assets?.items.length < pagination.limit
+            }
+            {...pagination}
+          />
         </EntityDataTable.Footer>
       </EntityDataTable.Root>
     </FormProvider>

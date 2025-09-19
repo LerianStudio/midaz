@@ -13,32 +13,21 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
 func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *libTransaction.Transaction, validate libTransaction.Responses, result chan []*operation.Operation, err chan error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.transaction_id", transactionID),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", dsl); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Trying to create new operations")
 
 	var operations []*operation.Operation
 
 	var fromTo []libTransaction.FromTo
+
 	fromTo = append(fromTo, dsl.Send.Source.From...)
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)
 
@@ -104,6 +93,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation", er)
 
 					logger.Errorf("Error creating operation: %v", er)
+
 					err <- er
 				}
 
@@ -113,6 +103,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 					logger.Errorf("Failed to create metadata on operation: %v", er)
 					logger.Errorf("Returning error: %v", er)
+
 					err <- er
 				}
 

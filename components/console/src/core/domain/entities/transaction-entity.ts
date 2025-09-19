@@ -1,9 +1,10 @@
 import { MetadataEntity } from './metadata-entity'
-import { PaginationSearchEntity } from './pagination-entity'
+import { CursorSortableSearchEntity } from './pagination-entity'
 import { StatusEntity } from './status-entity'
 
-export type TransactionSearchEntity = PaginationSearchEntity & {
+export type TransactionSearchEntity = CursorSortableSearchEntity & {
   id?: string
+  sortBy?: 'id' | 'createdAt' | 'updatedAt'
 }
 
 type TransactionSourceDto = {

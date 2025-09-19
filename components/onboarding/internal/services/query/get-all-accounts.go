@@ -13,27 +13,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetAllAccount fetch all Account from the repository
 func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_account")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Retrieving accounts")
 
@@ -56,26 +43,33 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	if accounts != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+	if len(accounts) == 0 {
+		return accounts, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+	accountIDs := make([]string, len(accounts))
+	for i, a := range accounts {
+		accountIDs[i] = a.ID
+	}
 
-			return nil, err
-		}
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Account{}).Name(), accountIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		return nil, err
+	}
 
-		for i := range accounts {
-			if data, ok := metadataMap[accounts[i].ID]; ok {
-				accounts[i].Metadata = data
-			}
+	metadataMap := make(map[string]map[string]any, len(metadata))
+
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range accounts {
+		if data, ok := metadataMap[accounts[i].ID]; ok {
+			accounts[i].Metadata = data
 		}
 	}
 

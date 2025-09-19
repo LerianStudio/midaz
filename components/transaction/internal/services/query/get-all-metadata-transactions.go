@@ -6,10 +6,10 @@ import (
 	"reflect"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -20,23 +20,10 @@ import (
 
 // GetAllMetadataTransactions fetch all Transactions from the repository
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert filter to JSON string", err)
-	}
 
 	logger.Infof("Retrieving transactions")
 
@@ -49,6 +36,12 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		logger.Infof("No metadata found")
+
+		return nil, libHTTP.CursorPagination{}, nil
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -78,6 +71,10 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
+	if err := uc.enrichTransactionsWithOperationMetadata(ctx, trans); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
 	for i := range trans {
 		source := make([]string, 0)
 		destination := make([]string, 0)
@@ -100,4 +97,53 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	}
 
 	return trans, cur, nil
+}
+
+// enrichTransactionsWithOperationMetadata fetches operation metadata in bulk and assigns it to operations
+func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, trans []*transaction.Transaction) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions_enrich_operations")
+	defer span.End()
+
+	var totalOps int
+	for _, t := range trans {
+		totalOps += len(t.Operations)
+	}
+
+	if totalOps == 0 {
+		return nil
+	}
+
+	operationIDsAll := make([]string, 0, totalOps)
+
+	for _, t := range trans {
+		for _, op := range t.Operations {
+			operationIDsAll = append(operationIDsAll, op.ID)
+		}
+	}
+
+	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDsAll)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+
+		logger.Warnf("Error getting operation metadata: %v", err)
+
+		return err
+	}
+
+	opMetadataMap := make(map[string]map[string]any, len(operationMetadata))
+	for _, meta := range operationMetadata {
+		opMetadataMap[meta.EntityID] = meta.Data
+	}
+
+	for i := range trans {
+		for _, op := range trans[i].Operations {
+			if data, ok := opMetadataMap[op.ID]; ok {
+				op.Metadata = data
+			}
+		}
+	}
+
+	return nil
 }

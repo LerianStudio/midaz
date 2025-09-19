@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -10,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestGetAllLedgers(t *testing.T) {
@@ -51,7 +52,7 @@ func TestGetAllLedgers(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Ledger", filter).
+					FindByEntityIDs(gomock.Any(), "Ledger", []string{"ledger1", "ledger2"}).
 					Return([]*mongodb.Metadata{
 						{EntityID: "ledger1", Data: map[string]any{"key1": "value1"}},
 						{EntityID: "ledger2", Data: map[string]any{"key2": "value2"}},
@@ -98,7 +99,7 @@ func TestGetAllLedgers(t *testing.T) {
 					Times(1)
 
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Ledger", filter).
+					FindByEntityIDs(gomock.Any(), "Ledger", []string{"ledger1", "ledger2"}).
 					Return(nil, errors.New("failed to retrieve metadata")).
 					Times(1)
 			},

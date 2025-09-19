@@ -78,8 +78,8 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrganizationInput) error {
 	var err error
-	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 
+	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 	if err != nil {
 		return err
 	}

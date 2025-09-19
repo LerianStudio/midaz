@@ -2,7 +2,6 @@ package rabbitmq
 
 import (
 	"context"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -11,16 +10,8 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
-	attribute "go.opentelemetry.io/otel/attribute"
-)
-
-const (
-	maxRetries     = 3
-	initialBackoff = 500 * time.Millisecond
-	maxBackoff     = 10 * time.Second
-	backoffFactor  = 2.0
-	jitterFactor   = 0.3
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
@@ -58,32 +49,18 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	return prmq.conn.HealthCheck()
 }
 
+// ProducerDefault sends a message to a RabbitMQ queue for further processing.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
 	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.rabbitmq.producer.exchange", exchange),
-		attribute.String("app.request.rabbitmq.producer.key", key),
-	}
-
 	var err error
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanProducer, "app.request.rabbitmq.producer.message", message)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to convert message to JSON string", err)
-	}
-
-	spanProducer.SetAttributes(attributes...)
-
-	backoff := initialBackoff
+	backoff := utils.InitialBackoff
 
 	headers := amqp.Table{
 		libConstants.HeaderID: reqId,
@@ -91,7 +68,19 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
+	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
+		if err = prmq.conn.EnsureChannel(); err != nil {
+			logger.Errorf("Failed to reopen channel: %v", err)
+
+			sleepDuration := utils.FullJitter(backoff)
+			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
+			time.Sleep(sleepDuration)
+
+			backoff = utils.NextBackoff(backoff)
+
+			continue
+		}
+
 		err = prmq.conn.Channel.Publish(
 			exchange,
 			key,
@@ -104,36 +93,27 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 				Body:         message,
 			},
 		)
-
 		if err == nil {
 			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 
 			return nil, nil
 		}
 
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, maxRetries+1, err)
+		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 
-		if attempt == maxRetries {
+		if attempt == utils.MaxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
 
-			logger.Errorf("Giving up after %d attempts: %s", maxRetries+1, err)
+			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
 
 			return nil, err
 		}
 
-		// #nosec G404
-		jitter := time.Duration(rand.Float64() * jitterFactor * float64(backoff))
-
-		sleepDuration := backoff + jitter
-		if sleepDuration > maxBackoff {
-			sleepDuration = maxBackoff
-		}
-
+		sleepDuration := utils.FullJitter(backoff)
 		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
-
 		time.Sleep(sleepDuration)
 
-		backoff = time.Duration(float64(backoff) * backoffFactor)
+		backoff = utils.NextBackoff(backoff)
 	}
 
 	return nil, err

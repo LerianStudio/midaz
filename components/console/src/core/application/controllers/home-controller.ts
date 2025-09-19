@@ -1,7 +1,7 @@
 import { inject } from 'inversify'
 import { FetchHomeMetricsUseCase } from '../use-cases/home/fetch-home-metrics-use-case'
 import { Controller } from '@/lib/http/server/decorators/controller-decorator'
-import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators'
+import { LoggerInterceptor } from '@/core/infrastructure/logger/decorators/logger-interceptor-decorator'
 import { NextResponse } from 'next/server'
 import { BaseController } from '@/lib/http/server/base-controller'
 

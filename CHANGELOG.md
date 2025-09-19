@@ -1,3 +1,441 @@
+## [v3.3.0-rc.3] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.2...v3.3.0-rc.3)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to provide clear and current information about project changes. This ensures all users and team members have access to the latest updates, facilitating better understanding and tracking of the project's progress over time.
+
+### 🔧 Maintenance
+- **CI/CD Configuration Updates**: We've improved our continuous integration process by updating the branch check configuration. This change automates quality checks, reducing manual oversight and enhancing workflow efficiency for developers. Users benefit from more reliable and consistent software updates.
+
+
+## [v3.3.0-rc.2] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-rc.1...v3.3.0-rc.2)
+Contributors: Clara Tersi, lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Consistent Layout**: Fixed an issue with the Y-axis margin that was causing inconsistencies in the layout. This improvement enhances the visual consistency and overall aesthetics of the user interface, providing a more polished experience.
+
+### 🔄 Changes
+- **Dependency Updates**: Updated `esbuild` to version 0.25.10 and restored the `axios` dependency. These changes ensure compatibility with the latest build tools and libraries, improving build performance and reliability.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: Removed the `.trivyignore` file as it is no longer necessary. This helps maintain a cleaner and more efficient codebase by eliminating outdated files.
+- **Changelog Update**: Updated the CHANGELOG file to reflect the latest changes and improvements, ensuring users have access to the most recent information about updates and fixes.
+
+
+## [v3.3.0-beta.29] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.28...v3.3.0-beta.29)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Graph Rendering**: Resolved an issue affecting the Y-axis margin in graphs. This fix improves the visual accuracy and usability of data presentations, ensuring that graphs are displayed correctly without unnecessary margins.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect recent changes, providing users and contributors with the latest information about the project's development history.
+
+
+## [v3.3.0-beta.28] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.27...v3.3.0-beta.28)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been revised to include the latest updates, ensuring that all stakeholders have access to accurate and up-to-date information. This facilitates better communication and project tracking, making it easier for developers and users to stay informed about the project's progress.
+
+### 🔧 Maintenance
+- **Dependency Update**: Upgraded `esbuild` to version 0.25.10 and restored `axios` in `package.json`. This update ensures compatibility with the latest build tools, enhancing security and stability. Keeping dependencies current prevents potential vulnerabilities and supports a more reliable development process.
+- **Codebase Cleanup**: Removed the `.trivyignore` file, which is no longer needed. This helps maintain a clean codebase, reducing clutter and minimizing confusion during security scans.
+
+## [v3.3.0-rc.1] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-rc.1)
+Contributors: Clara Tersi, LF Barrile, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **Fee References Removed**: This update removes all references to fees across backend, build, frontend, and test components. Users must update any integrations or scripts relying on fee data. Ensure all dependencies are compatible with this change to avoid disruptions.
+
+### ✨ Features
+- **Enhanced Transaction Balances**: Support for additional balances in transactions has been added, allowing for more flexible financial operations. This update includes new repository methods and database schema updates, enhancing transaction handling capabilities.
+- **Internationalization Support**: The frontend now supports multiple languages, broadening the application's accessibility and usability for a global audience.
+- **Cursor Pagination**: Implemented in transaction routes and account types, this feature improves data retrieval efficiency, allowing users to navigate large datasets more smoothly.
+
+### 🐛 Bug Fixes
+- **Balance Handling**: Improved handling of additional balances to resolve EntityNotFound issues, ensuring data integrity and reliability.
+- **Account Field Optimization**: Reduced redundant calls in account field handling, enhancing performance and reducing server load.
+- **RabbitMQ Reliability**: Fixed reconnection issues with RabbitMQ consumers and producers, improving message processing reliability.
+
+### ⚡ Performance
+- **Transaction Validation Logging**: Enhanced logging provides clearer insights into transaction processing, aiding debugging and monitoring efforts.
+- **BalanceKey Field Limitation**: Limited to 100 characters to prevent data overflow, ensuring consistent data storage.
+
+### 🔄 Changes
+- **User Interface Improvements**: Refined error messages and updated menu options enhance the user experience, making interactions more intuitive.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated dependencies, including Go version and lib-commons, to ensure compatibility and leverage new features.
+- **Metadata Retrieval Refactoring**: Improved query efficiency and code maintainability by using entity IDs for metadata retrieval.
+- **Codebase Cleanup**: Removed unnecessary console logs and comments from the frontend, improving code readability and maintenance.
+
+
+## [v3.3.0-beta.27] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.26...v3.3.0-beta.27)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- Updated the CHANGELOG to include the latest project changes and improvements. This helps users easily track the software's evolution and stay informed about updates.
+
+### 🔧 Maintenance
+- **Configuration Updates**: The version number has been updated to v3.3.0 in the installation script and environment example files. This ensures users are installing the correct version, aligning with the latest features and improvements, and reducing potential setup errors and confusion.
+
+
+## [v3.3.0-beta.26] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.25...v3.3.0-beta.26)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Improved Clarity**: We have refined the documentation to better explain the purpose of the worker function. This enhancement aids in understanding the function's role, facilitating easier code comprehension and maintenance for developers.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to accurately reflect recent changes and improvements. This ensures all stakeholders have access to the latest information about the software's development, promoting transparency and effective communication.
+
+
+## [v3.3.0-beta.25] - 2025-09-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.24...v3.3.0-beta.25)
+Contributors: Clara Tersi, lerian-studio
+
+### 🔧 Maintenance
+- **Version Consistency**: Updated the project version to v3.3.0 across all configuration files and documentation. This ensures that users and developers have a clear understanding of the current software version, reducing confusion and aligning all project resources.
+- **Dependency Updates**: We have refreshed several dependencies to their latest versions. This proactive approach enhances security, improves compatibility with other software, and maintains optimal performance, ensuring a stable and efficient user experience.
+- **Changelog Updates**: The changelog has been updated to include the latest changes, providing users with an organized and transparent history of the project's evolution. This helps users track modifications and understand the software's development trajectory.
+
+
+## [v3.3.0-beta.24] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.23...v3.3.0-beta.24)
+Contributors: Clara Tersi
+
+### 🔄 Changes
+- **Enhanced Transaction Validation Logging**: We've improved the logging details for transaction validation processes in the backend. This enhancement provides clearer insights, making it easier for developers and system administrators to understand and resolve validation issues. While this change does not directly impact end-user functionality, it significantly boosts backend transparency and operational efficiency.
+
+### 🔧 Maintenance
+- **Backend Improvements**: This update includes behind-the-scenes enhancements to the backend infrastructure, ensuring smoother operations and better support for future updates.
+
+
+## [v3.3.0-beta.22] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.21...v3.3.0-beta.22)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Security Improvement**: Implemented a crucial fix to address a vulnerability, significantly enhancing the security of your data. This update protects against potential exploits, ensuring the integrity and safety of your information.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes, providing users and developers with clear and current information about the application's updates and fixes. This ensures transparency and ease of understanding for future reference.
+
+
+## [v3.3.0-beta.21] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.20...v3.3.0-beta.21)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Transaction Reliability**: Resolved an issue where creating additional balances could fail if certain entities were missing. This fix enhances transaction processing, ensuring consistent handling even when data is incomplete, leading to fewer disruptions for users.
+
+### 🔄 Changes
+- **Transaction Creation Process**: Improved handling of scenarios where entities are not found during transaction creation. This change increases the system's robustness, allowing it to manage missing data gracefully and maintain accurate financial data management.
+
+### 📚 Documentation
+- **Changelog Updates**: Updated the changelog to include recent improvements and fixes, providing users with clear and up-to-date information on the system's progress.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Ensured that all recent changes and enhancements are accurately documented, facilitating better understanding and communication of the project's updates.
+
+
+## [v3.3.0-beta.20] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.19...v3.3.0-beta.20)
+Contributors: lerian-studio, paulo
+
+### 🔧 Maintenance
+- **Updated Axios Library**: We've upgraded the Axios library to its latest version, ensuring compatibility with the latest security patches. This update enhances the application's reliability and performance, particularly in data fetching from external APIs. Users can expect smoother and more secure interactions with third-party services.
+- **Changelog Update**: The changelog has been refreshed to include recent updates, providing users and developers with clear insights into the project's current state. This ensures transparency and aids in maintaining accurate documentation.
+
+
+## [v3.3.0-beta.19] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.18...v3.3.0-beta.19)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Management**: A new 'code' field has been added to the transaction model, allowing for more detailed tracking and categorization of financial records. This improvement facilitates better organization and analysis of transaction data.
+- **Streamlined Onboarding**: Users can now retrieve metadata for multiple entities simultaneously, significantly reducing the time and effort required to set up new accounts or entities.
+
+### 🐛 Bug Fixes
+- **Reliable Transaction Processing**: Resolved issues in the transaction metadata retrieval process, ensuring correct use of IDs and preventing data mismatches. This fix enhances the reliability of transaction operations.
+- **Accurate Onboarding Data**: Fixed various bugs in the onboarding metadata retrieval processes, ensuring that all entity-related data is accurately fetched and utilized, improving the stability of the onboarding system.
+
+### 📚 Documentation
+- **Updated Transaction Documentation**: The transaction documentation has been updated to include the new 'code' field and revised balance key descriptions. This ensures stakeholders have access to accurate and current information for transaction operations.
+
+### 🔧 Maintenance
+- **Code Refactoring for Efficiency**: Metadata retrieval processes have been refactored to specify entity fields in queries, improving code maintainability and performance. These changes streamline data handling and reduce technical debt.
+
+
+## [v3.3.0-beta.18] - 2025-09-17
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.17...v3.3.0-beta.18)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Frontend**: Fixed an issue with collapsible information margins, improving visual consistency and enhancing user interaction by ensuring margins render correctly.
+
+### 🔧 Maintenance
+- **Frontend**: Updated the Next.js library to the latest version, boosting performance and security. This update aligns with the latest features and bug fixes, providing a more stable and efficient frontend experience.
+- **Deps**: Brought all project dependencies up to date, ensuring the application remains secure and benefits from the latest improvements and patches from third-party libraries.
+- **Changelog**: Refreshed the CHANGELOG file to accurately reflect recent updates, promoting transparency and aiding project management.
+
+
+## [v3.3.0-beta.17] - 2025-09-16
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.16...v3.3.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Jitter Utility Functions for Exponential Backoff**: Enhance the robustness of retry mechanisms by introducing jitter utility functions. This reduces the likelihood of collision in concurrent retry attempts, improving overall system reliability and performance.
+
+### 🐛 Bug Fixes
+- **RabbitMQ Reconnection Resilience**: Resolved issues with consumer and producer reconnection processes. These fixes ensure that RabbitMQ connections are more resilient and recover gracefully from disruptions, minimizing downtime and improving message delivery reliability.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded `lib-commons` to version `v2.3.0-beta.8` and removed outdated versions. This update ensures compatibility with the latest features and security patches, maintaining the integrity and security of the build and test environments.
+- **Changelog Updates**: The changelog has been updated to reflect recent changes, ensuring that documentation is current and users are informed of the latest updates and improvements.
+
+
+## [v3.3.0-beta.15] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.14...v3.3.0-beta.15)
+Contributors: LF Barrile, paulo
+
+### ✨ Features
+- **Documentation Validation**: We've introduced validation for the GitOps flow in our documentation. This enhancement ensures that users can confidently and accurately implement GitOps practices, reducing the likelihood of errors and improving overall workflow efficiency.
+
+### 🐛 Bug Fixes
+- **Translation Fixes**: Resolved issues affecting translations in the build and frontend components. This fix enhances the user experience by ensuring that all interface elements are accurately translated, making the application more accessible to non-English speaking users.
+
+### 📚 Documentation
+- **Improved Clarity**: The documentation now includes validation steps for the GitOps flow, providing clearer guidance and reducing the potential for user errors. This update helps users better understand and implement GitOps practices.
+
+## [v3.3.0-beta.14] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.13...v3.3.0-beta.14)
+Contributors: lerian-studio
+
+### 🔧 Maintenance
+- **Changelog Management**: The CHANGELOG file has been updated to include recent project changes and improvements. This ensures transparency in our development process and helps users stay informed about the software's evolution. Keeping the changelog current is crucial for understanding project progress and modifications.
+
+## [v3.3.0-beta.13] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.12...v3.3.0-beta.13)
+Contributors: LF Barrile, lerian-studio
+
+### ✨ Features
+- **GitOps Flow Configuration**: We've implemented a new GitOps flow to streamline and automate application deployments. This feature reduces manual intervention, minimizes errors, and ensures faster, more consistent updates. Users will experience a smoother deployment process, making it easier to manage and deploy applications with confidence.
+
+### 🔧 Maintenance
+- **Changelog Update**: The changelog has been updated to include the latest changes and improvements, ensuring users have access to the most current information about the project's progress and updates. This enhances transparency and aids in project tracking.
+
+
+## [v3.3.0-beta.12] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.11...v3.3.0-beta.12)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Transaction Management**: We have introduced a new 'key' field in the balance table, allowing for more precise balance management. This update supports more flexible transaction processing, aligning better with business needs.
+- **Additional Balance Support**: Users can now create multiple balances with the new 'BalanceKey' field, providing greater flexibility in managing financial operations.
+
+### 🐛 Bug Fixes
+- **Reliable Database Operations**: Resolved issues with the BalanceKey field in database queries, ensuring accurate data retrieval and preventing errors.
+- **Improved Transaction Integrity**: Implemented a rollback mechanism for failed balance updates, maintaining data consistency and preventing errors.
+
+### ⚡ Performance
+- **Optimized Transaction Processing**: Introduced batch processing for balance updates, reducing redundant operations and enhancing performance. Users will experience faster transaction handling and improved system efficiency.
+
+### 📚 Documentation
+- **Updated API Documentation**: The documentation now includes details on new endpoints and balance management capabilities, ensuring users have access to the latest features and instructions.
+
+### 🔧 Maintenance
+- **Dependency and Configuration Updates**: Upgraded to the latest beta versions of Go and dependencies, improving compatibility and leveraging new features. Configuration files have been streamlined to reduce complexity and enhance deployment processes.
+
+
+## [v3.3.0-beta.11] - 2025-09-11
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.10...v3.3.0-beta.11)
+Contributors: LF Barrile, lerian-studio, paulo
+
+### ⚠️ Breaking Changes
+- **System-Wide Fee Removal**: References to fees have been removed across the backend, build, frontend, and test components. This change affects integrations relying on fee-related data. Users must update their systems to accommodate this change. Please review integration points and remove any dependencies on fee data.
+
+### ✨ Features
+- **Efficient Data Retrieval**: Implemented cursor pagination for account types and operation routes, enabling faster and more scalable data access, especially beneficial for handling large datasets.
+- **Enhanced Transaction Management**: New transaction routes have been added to the frontend, allowing users to easily get and create transactions, thus improving transaction handling capabilities.
+- **Streamlined Data Access**: Backend-for-frontend (BFF) transaction routes have been introduced, enhancing performance and simplifying data access for client applications.
+- **Global Reach**: Internationalization (intl) support is now available, allowing users to interact with the application in multiple languages, expanding accessibility and user base.
+
+### 🐛 Bug Fixes
+- **Improved Navigation**: Fixed navigation bugs and resolved lingering comments and query account issues, leading to a smoother and more reliable user experience.
+- **Code Quality Enhancements**: Addressed linting issues, improving code quality and maintainability.
+
+### 🔧 Maintenance
+- **Library and Configuration Updates**: Updated the console-layout library and configuration files to ensure compatibility with the latest features and maintain system stability.
+- **Codebase Cleanup**: Removed unnecessary console logs and comments, contributing to a cleaner and more maintainable codebase.
+
+
+## [v3.3.0-beta.10] - 2025-09-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.9...v3.3.0-beta.10)
+Contributors: Augusto Alvarenga
+
+### 🐛 Bug Fixes
+- Resolved an issue with middleware affecting remote image optimization. This fix ensures images are processed correctly, enhancing the visual experience by preventing errors or delays.
+
+### ⚡ Performance
+- Improved the performance of image handling, resulting in faster load times and a smoother user experience. Users will notice quicker access to image-heavy content, enhancing overall application responsiveness.
+
+### 🔧 Maintenance
+- Updated Next.js dependencies to the latest versions, ensuring compatibility with the newest features and security enhancements. This update contributes to the application's stability and security.
+- Refined build and configuration settings to align with updated dependencies. These adjustments streamline the development process, reducing potential errors and improving efficiency.
+
+## [v3.3.0-beta.9] - 2025-09-04
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.8...v3.3.0-beta.9)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### ✨ Features
+- **Dynamic Menu System**: Experience greater flexibility with our newly introduced dynamic menu configuration and controller. This enhancement allows you to customize your navigation experience, making it more intuitive and tailored to your needs across the backend, config, database, and frontend components.
+
+### 🔧 Maintenance
+- **General System Updates**: We've performed routine maintenance, including merging the latest developments from the 'develop' branch and updating documentation. These updates ensure your system remains stable and incorporates the latest enhancements for a seamless user experience.
+
+
+## [v3.3.0-beta.8] - 2025-09-02
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.7...v3.3.0-beta.8)
+Contributors: lerian-studio, paulo
+
+### ✨ Features
+- **Search by Alias**: Users can now search by alias, making it easier to find items using alternative names. This feature enhances search flexibility and efficiency.
+- **Alias Support on Tables**: Tables now support aliases, allowing users to manage data with familiar or custom labels, improving data accessibility and organization.
+
+### 🐛 Bug Fixes
+- **Frontend Language Consistency**: Resolved language inconsistencies and function errors, ensuring a smoother user experience and improved application reliability.
+- **Key-Value Handling**: Fixed issues with key-value handling and validation logic, enhancing data integrity and stability.
+
+### ⚡ Performance
+- **HTTP Method Expansion**: Expanded HTTP method support across components, increasing system flexibility and integration capabilities for faster and more reliable operations.
+
+### 🔧 Maintenance
+- **Turbo Pack Integration**: Added a turbo pack for dependencies, optimizing build processes and significantly reducing setup times.
+- **Code Quality Improvements**: Conducted comprehensive linting across all components, ensuring consistent code quality and maintainability.
+
+
+## [v3.3.0-beta.7] - 2025-08-28
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.6...v3.3.0-beta.7)
+Contributors: LF Barrile, lerian-studio
+
+### ✨ Features
+- **Enhanced Security Gateway**: We've introduced a new security gateway for the build, push, and publish operations. This enhancement ensures that all processes are conducted securely, safeguarding sensitive data and maintaining the integrity of your deployment pipeline. Users can continue their workflows with added peace of mind, knowing their operations are protected.
+
+### 🔧 Maintenance
+- **Changelog Update**: We've updated our CHANGELOG to provide you with the most current information on recent changes and improvements. This ensures transparency and helps you track the evolution of our software effectively.
+
+
+## [v3.3.0-beta.6] - 2025-08-27
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.5...v3.3.0-beta.6)
+Contributors: Brecci, Clara Tersi, MartinezAvellan
+
+### ✨ Features
+- **Enhanced Transaction Insights**: Gain deeper insights into each transaction with enriched metadata, making tracking and auditing more efficient.
+- **Efficient Data Retrieval**: Quickly access detailed entity information with the new method for finding metadata by entity IDs, streamlining data analysis.
+
+### 🐛 Bug Fixes
+- **Consistent Data Validation**: Ensures reliable data serialization by fixing model validation issues, preventing data loss.
+- **Predictable Transaction Ordering**: Resolves transaction ordering problems, providing users with consistent and reliable transaction lists.
+- **Reliable Financial Computations**: Fixes in balance management improve the accuracy and reliability of financial operations.
+
+### ⚡ Performance
+- **Streamlined Data Navigation**: Improved pagination handling enhances performance when browsing large datasets, making navigation smoother and faster.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated `lib-commons` to the latest version, ensuring compatibility with new features and security enhancements.
+- **Simplified Telemetry Management**: Removed redundant OpenTelemetry attributes, reducing system overhead and simplifying context tracking.
+
+
+## [v3.3.0-beta.4] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.3...v3.3.0-beta.4)
+Contributors: Adryan Alencar
+
+### ✨ Features
+- **Enhanced Database Security**: Introduced the `DB_SSLMODE` option in the environment configuration. This feature allows users to specify the SSL mode for database connections, significantly enhancing data protection and compliance with security standards. Users can now configure their database connections to meet specific security requirements, ensuring greater control and peace of mind.
+
+### 📚 Documentation
+- **Updated Configuration Guide**: The documentation has been updated to include detailed information on the new `DB_SSLMODE` configuration option. This ensures users have clear and comprehensive guidance on how to implement and benefit from the enhanced security features.
+
+### 🔧 Maintenance
+- General updates to improve the overall stability and maintainability of the project, ensuring a smoother user experience.
+
+
+## [v3.3.0-beta.2] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.1...v3.3.0-beta.2)
+Contributors: lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to include the latest project changes and improvements. This helps users and developers stay informed about the project's evolution and understand the context of recent updates.
+
+### 🔧 Maintenance
+- **Configuration Update**: The version number in the `.env.example` file has been updated to v3.3.0. This change ensures that new installations or setups are aligned with the latest release, reducing configuration errors and improving setup consistency.
+
+
+## [v3.3.0-beta.1] - 2025-08-18
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.2.0...v3.3.0-beta.1)
+Contributors: MartinezAvellan, lerian-studio
+
+### ✨ Features
+- **Enhanced Transactions**: Transactions now include annotation capabilities and improved balance operations. This ensures more accurate financial processing and provides users with detailed insights into transaction impacts.
+- **Improved Balance Operations**: The backend now supports optimized balance operations for NOTED transactions, preventing unnecessary updates and boosting system performance.
+
+### 🐛 Bug Fixes
+- **Transaction Tests Reliability**: Resolved issues in transaction tests, enhancing test accuracy and development efficiency.
+- **Redis Key Management**: Fixed errors related to unused Redis keys, leading to a cleaner and more efficient codebase.
+- **Improved Test Coverage**: Addressed linting issues and expanded test coverage, reducing potential bugs and ensuring code quality.
+
+### ⚡ Performance
+- **Real-time Balance Updates**: Adjusted Lua scripts for better management of balances within the Redis queue, improving system responsiveness and real-time update efficiency.
+
+### 🔄 Changes
+- **Balance Insights**: Added a 'BalanceAffected' flag to transaction GET operations, offering users clearer insights into balance impacts.
+- **Transaction Validation**: Implemented transaction date validation, enhancing data integrity and transaction accuracy.
+
+### 📚 Documentation
+- **RabbitMQ Update**: Updated RabbitMQ version for improved compatibility and system stability, ensuring smoother operations.
+
+### 🔧 Maintenance
+- **CI Workflow Improvements**: Enhanced CI workflows and dependency management, reducing build times and increasing system reliability.
+- **Code Refactoring**: Simplified the `createTransaction` method to improve code readability and maintainability.
+
+
 ## [v3.2.0] - 2025-08-18
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.0.0...v3.2.0)

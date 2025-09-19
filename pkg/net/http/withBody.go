@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libTransction "github.com/LerianStudio/lib-commons/v2/commons/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -171,24 +172,30 @@ func ValidateStruct(s any) error {
 	return nil
 }
 
-// ParseUUIDPathParameters globally, considering all path parameters are UUIDs
-func ParseUUIDPathParameters(c *fiber.Ctx) error {
-	for param, value := range c.AllParams() {
-		if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
-			c.Locals(param, value)
-			continue
+// ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
+// entityName is a snake_case string used to identify id name, for example the "organization" entity name will result in "app.request.organization_id"
+// otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id"
+func ParseUUIDPathParameters(entityName string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		for param, value := range c.AllParams() {
+			if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
+				c.Locals(param, value)
+				continue
+			}
+
+			libOpentelemetry.SetSpanAttributeForParam(c, param, value, entityName)
+
+			parsedUUID, err := uuid.Parse(value)
+			if err != nil {
+				err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
+				return WithError(c, err)
+			}
+
+			c.Locals(param, parsedUUID)
 		}
 
-		parsedUUID, err := uuid.Parse(value)
-		if err != nil {
-			err := pkg.ValidateBusinessError(cn.ErrInvalidPathParameter, "", param)
-			return WithError(c, err)
-		}
-
-		c.Locals(param, parsedUUID)
+		return c.Next()
 	}
-
-	return c.Next()
 }
 
 //nolint:ireturn
@@ -221,6 +228,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("invalidstrings", validateInvalidStrings)
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
+	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -306,6 +314,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("invalidaccounttype", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("invalidaccounttype", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("nowhitespaces", trans, func(ut ut.Translator) error {
+		return ut.Add("nowhitespaces", "{0} cannot contain whitespaces", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nowhitespaces", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -412,6 +428,18 @@ func validateAccountType(fl validator.FieldLevel) bool {
 	}
 
 	match, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, f)
+
+	return match
+}
+
+// validateNoWhitespaces ensures the provided string does not contain any whitespace characters. Return false if input is invalid.
+func validateNoWhitespaces(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	match, _ := regexp.MatchString(`^\S+$`, f)
 
 	return match
 }

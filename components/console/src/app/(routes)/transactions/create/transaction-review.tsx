@@ -24,13 +24,12 @@ import { useCreateTransaction } from '@/client/transactions'
 import { useOrganization } from '@lerianstudio/console-layout'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { TransactionFormSchema } from './schemas'
 import {
   TransactionMode,
   useTransactionMode
 } from './hooks/use-transaction-mode'
-import { useFeeCalculation } from './hooks/use-fee-calculation'
 import { validateTransactionPreflight } from '@/utils/transaction-validation'
 
 export const TransactionReview = () => {
@@ -42,19 +41,6 @@ export const TransactionReview = () => {
   const { values, handleBack, handleReset } = useTransactionForm()
 
   const [sendAnother, setSendAnother] = useState(false)
-
-  const {
-    mutate: calculateFees,
-    isPending: calculatingFees,
-    data: calculatedFees,
-    error: feesError
-  } = useFeeCalculation({
-    organizationId: currentOrganization.id!,
-    ledgerId: currentLedger.id!
-  })
-
-  const hasCalculatedFees =
-    calculatedFees !== undefined || feesError !== undefined
 
   const { mutate: createTransaction, isPending: loading } =
     useCreateTransaction({
@@ -82,26 +68,6 @@ export const TransactionReview = () => {
       }
     })
 
-  useEffect(() => {
-    if (values && currentOrganization.id && currentLedger.id) {
-      const feesEnabled = process.env.NEXT_PUBLIC_PLUGIN_FEES_ENABLED === 'true'
-
-      if (feesEnabled) {
-        const hasExternalAccount =
-          values.source?.some((source) =>
-            source.accountAlias?.startsWith('@external/')
-          ) ||
-          values.destination?.some((destination) =>
-            destination.accountAlias?.startsWith('@external/')
-          )
-
-        if (!hasExternalAccount) {
-          calculateFees({ transaction: values })
-        }
-      }
-    }
-  }, [values, currentOrganization.id, currentLedger.id])
-
   const parse = ({ value, ...values }: TransactionFormSchema) => ({
     ...values,
     amount: value.toString(),
@@ -116,159 +82,13 @@ export const TransactionReview = () => {
   })
 
   const getTransactionPayload = () => {
-    if (calculatedFees && calculatedFees.transaction) {
-      const feeTransaction = calculatedFees.transaction
-      const originalAmount = values.value?.toString() || '0'
-
-      const sourceMap = new Map<string, any>()
-
-      feeTransaction.send.source.from.forEach((source: any) => {
-        const accountAlias = source.accountAlias
-
-        if (sourceMap.has(accountAlias)) {
-          const existing = sourceMap.get(accountAlias)
-          const existingAmount = parseFloat(existing.amount.value)
-          const sourceAmount = parseFloat(source.amount.value)
-          const totalAmount = existingAmount + sourceAmount
-
-          sourceMap.set(accountAlias, {
-            ...existing,
-            amount: {
-              ...existing.amount,
-              value: totalAmount.toString()
-            },
-            metadata: {
-              ...existing.metadata,
-              consolidatedOperations: true,
-              originalAmounts: [
-                ...(existing.metadata.originalAmounts || [
-                  existing.amount.value
-                ]),
-                source.amount.value
-              ]
-            }
-          })
-        } else {
-          sourceMap.set(accountAlias, {
-            accountAlias: source.accountAlias,
-            asset: source.amount.asset,
-            amount: source.amount, // Keep the full amount object
-            description: source.description,
-            chartOfAccounts: source.chartOfAccounts,
-            metadata: source.metadata || {}
-          })
-        }
-      })
-
-      const sourceOperations = Array.from(sourceMap.values())
-
-      const allDestOperations = feeTransaction.send.distribute.to || []
-
-      const feeOperations = allDestOperations.filter(
-        (op: any) => op.metadata?.source
-      )
-      const nonFeeOperations = allDestOperations.filter(
-        (op: any) => !op.metadata?.source
-      )
-
-      // Keep fee operations separate from principal operations
-      const destinationOperations: any[] = []
-
-      nonFeeOperations.forEach((op: any) => {
-        destinationOperations.push({
-          accountAlias: op.accountAlias,
-          asset: op.amount.asset,
-          amount: op.amount, // Keep the full amount object
-          description: op.description,
-          chartOfAccounts: op.chartOfAccounts,
-          metadata: op.metadata || {}
-        })
-      })
-
-      feeOperations.forEach((feeOp: any) => {
-        // Find the matching fee rule to get the proper fee label
-        const matchingRule = calculatedFees?.transaction?.feeRules?.find(
-          (rule: any) =>
-            rule.creditAccount === feeOp.accountAlias ||
-            rule.creditAccount.replace('@', '') ===
-              feeOp.accountAlias.replace('@', '')
-        )
-
-        const feeLabel = matchingRule?.feeLabel || feeOp.description || 'Fee'
-
-        destinationOperations.push({
-          accountAlias: feeOp.accountAlias,
-          asset: feeOp.amount.asset,
-          amount: feeOp.amount,
-          description: feeLabel,
-          chartOfAccounts: feeOp.chartOfAccounts,
-          metadata: {
-            ...feeOp.metadata,
-            isFee: true // Mark as fee operation
-          }
-        })
-      })
-
-      const transactionTotal = sourceOperations.reduce((sum, op) => {
-        return sum + parseFloat(op.amount.value)
-      }, 0)
-
-      if (transactionTotal.toString() !== originalAmount) {
-        console.warn(
-          '[TransactionReview] Source total does not match original amount:',
-          {
-            originalAmount,
-            sourceTotal: transactionTotal,
-            difference: transactionTotal - parseFloat(originalAmount)
-          }
-        )
-      }
-
-      // This ensures source total = destination total = transaction amount
-      const totalTransactionAmount = transactionTotal.toString()
-
-      return {
-        description: feeTransaction.description,
-        chartOfAccountsGroupName: feeTransaction.chartOfAccountsGroupName,
-        amount: totalTransactionAmount, // Use the total amount including fees
-        asset: feeTransaction.send.asset,
-        source: sourceOperations.map((op) => ({
-          accountAlias: op.accountAlias,
-          asset: op.asset,
-          amount: op.amount.value, // Extract just the value for API
-          description: op.description,
-          chartOfAccounts: op.chartOfAccounts,
-          metadata: op.metadata?.source ? { source: op.metadata.source } : {}
-        })),
-        destination: destinationOperations.map((op) => ({
-          accountAlias: op.accountAlias,
-          asset: op.asset,
-          amount: op.amount.value, // Extract just the value for API
-          description: op.description,
-          chartOfAccounts: op.chartOfAccounts,
-          metadata: op.metadata?.source ? { source: op.metadata.source } : {}
-        })),
-        metadata: {
-          ...(feeTransaction.metadata || {}),
-          originalTransactionAmount: originalAmount,
-          deductibleAccounts: (feeTransaction.feeRules || [])
-            .filter((rule: any) => rule.isDeductibleFrom)
-            .map((rule: any) => rule.creditAccount)
-            .join(',')
-        }
-      }
-    }
     return parse(values)
   }
 
   const handleSubmitAnother = () => {
     const payload = getTransactionPayload()
 
-    const validationResult = validateTransactionPreflight(
-      values,
-      calculatedFees,
-      payload
-    )
+    const validationResult = validateTransactionPreflight(values, payload)
 
     if (!validationResult.isValid) {
       toast({
@@ -293,11 +113,7 @@ export const TransactionReview = () => {
   const handleSubmit = () => {
     const payload = getTransactionPayload()
 
-    const validationResult = validateTransactionPreflight(
-      values,
-      calculatedFees,
-      payload
-    )
+    const validationResult = validateTransactionPreflight(values, payload)
 
     if (!validationResult.isValid) {
       toast({
@@ -389,36 +205,6 @@ export const TransactionReview = () => {
               value={intl.formatNumber(values.value, {
                 roundingPriority: 'morePrecision'
               })}
-              finalAmount={
-                hasCalculatedFees && !feesError && calculatedFees?.transaction
-                  ? intl.formatNumber(
-                      (() => {
-                        const feeOps =
-                          calculatedFees.transaction.send?.distribute?.to?.filter(
-                            (dest: any) => dest.metadata?.source
-                          ) || []
-
-                        let nonDeductibleFees = 0
-                        feeOps.forEach((op: any) => {
-                          const rule =
-                            calculatedFees.transaction.feeRules?.find(
-                              (r: any) =>
-                                r.creditAccount === op.accountAlias ||
-                                r.creditAccount.replace('@', '') ===
-                                  op.accountAlias.replace('@', '')
-                            )
-                          if (rule && !rule.isDeductibleFrom) {
-                            nonDeductibleFees += parseFloat(op.amount.value)
-                          }
-                        })
-
-                        return Number(values.value) + nonDeductibleFees
-                      })(),
-                      { roundingPriority: 'morePrecision' }
-                    )
-                  : undefined
-              }
-              isCalculatingFees={calculatingFees}
             />
             <TransactionReceiptSubjects
               sources={values.source?.map((source) => source.accountAlias)}
@@ -472,143 +258,29 @@ export const TransactionReview = () => {
               value={`${values.asset} ${intl.formatNumber(values.value, { roundingPriority: 'morePrecision' })}`}
             />
 
-            {hasCalculatedFees && feesError && (
-              <div className="mx-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3 transition-all duration-300">
-                <div className="flex items-center gap-2">
-                  <div>
-                    <p className="text-sm font-medium text-red-800">
-                      {intl.formatMessage({
-                        id: 'transactions.fees.error.title',
-                        defaultMessage: 'Fee Calculation Failed'
-                      })}
-                    </p>
-                    <p className="mt-1 text-xs text-red-500">
-                      {intl.formatMessage({
-                        id: 'transactions.fees.error.fallback',
-                        defaultMessage:
-                          'Transaction will proceed without fee calculation.'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <Separator orientation="horizontal" />
-            {/* Show fee-adjusted amounts if available, otherwise show original values */}
-            {calculatedFees && calculatedFees.transaction ? (
-              <>
-                {(() => {
-                  const sourceOps = calculatedFees.transaction.send.source.from
-
-                  const sourceMap = new Map<
-                    string,
-                    { amount: number; asset: string }
-                  >()
-                  sourceOps.forEach((source: any) => {
-                    const current = sourceMap.get(source.accountAlias)
-                    if (current) {
-                      sourceMap.set(source.accountAlias, {
-                        amount:
-                          current.amount + parseFloat(source.amount.value),
-                        asset: source.amount.asset
-                      })
-                    } else {
-                      sourceMap.set(source.accountAlias, {
-                        amount: parseFloat(source.amount.value),
-                        asset: source.amount.asset
-                      })
-                    }
-                  })
-
-                  return Array.from(sourceMap.entries()).map(
-                    ([accountAlias, data], index) => (
-                      <TransactionReceiptOperation
-                        key={`source-${index}`}
-                        type="debit"
-                        account={accountAlias}
-                        asset={data.asset}
-                        value={intl.formatNumber(data.amount, {
-                          roundingPriority: 'morePrecision'
-                        })}
-                      />
-                    )
-                  )
-                })()}
-                {(() => {
-                  const allDestinations =
-                    calculatedFees.transaction.send.distribute.to
-                  const nonFeeDestinations = allDestinations.filter(
-                    (dest: any) => !dest.metadata?.source
-                  )
-                  const feeDestinations = allDestinations.filter(
-                    (dest: any) => dest.metadata?.source
-                  )
-
-                  // For N:N transactions, split the original amount equally among non-fee destinations
-                  const recipientCount = nonFeeDestinations.length
-                  const amountPerRecipient =
-                    recipientCount > 0
-                      ? parseFloat(values.value.toString()) / recipientCount
-                      : 0
-
-                  const principalOperations = nonFeeDestinations.map(
-                    (dest: any, index: number) => (
-                      <TransactionReceiptOperation
-                        key={`dest-principal-${index}`}
-                        type="credit"
-                        account={dest.accountAlias}
-                        asset={dest.amount.asset}
-                        value={intl.formatNumber(amountPerRecipient, {
-                          roundingPriority: 'morePrecision'
-                        })}
-                      />
-                    )
-                  )
-
-                  const feeOperations = feeDestinations.map(
-                    (fee: any, index: number) => (
-                      <TransactionReceiptOperation
-                        key={`dest-fee-${index}`}
-                        type="credit"
-                        account={fee.accountAlias}
-                        asset={fee.amount.asset}
-                        value={intl.formatNumber(parseFloat(fee.amount.value), {
-                          roundingPriority: 'morePrecision'
-                        })}
-                      />
-                    )
-                  )
-
-                  return [...principalOperations, ...feeOperations]
-                })()}
-              </>
-            ) : (
-              <>
-                {values.source?.map((source, index) => (
-                  <TransactionReceiptOperation
-                    key={index}
-                    type="debit"
-                    account={source.accountAlias}
-                    asset={values.asset}
-                    value={intl.formatNumber(source.value, {
-                      roundingPriority: 'morePrecision'
-                    })}
-                  />
-                ))}
-                {values.destination?.map((destination, index) => (
-                  <TransactionReceiptOperation
-                    key={index}
-                    type="credit"
-                    account={destination.accountAlias}
-                    asset={values.asset}
-                    value={intl.formatNumber(destination.value, {
-                      roundingPriority: 'morePrecision'
-                    })}
-                  />
-                ))}
-              </>
-            )}
+            {values.source?.map((source, index) => (
+              <TransactionReceiptOperation
+                key={index}
+                type="debit"
+                account={source.accountAlias}
+                asset={values.asset}
+                value={intl.formatNumber(source.value, {
+                  roundingPriority: 'morePrecision'
+                })}
+              />
+            ))}
+            {values.destination?.map((destination, index) => (
+              <TransactionReceiptOperation
+                key={index}
+                type="credit"
+                account={destination.accountAlias}
+                asset={values.asset}
+                value={intl.formatNumber(destination.value, {
+                  roundingPriority: 'morePrecision'
+                })}
+              />
+            ))}
             <Separator orientation="horizontal" />
 
             <TransactionReceiptItem
@@ -642,203 +314,6 @@ export const TransactionReview = () => {
                 }
               )}
             />
-
-            {/* Fee Breakdown Section */}
-            {hasCalculatedFees &&
-              !feesError &&
-              calculatedFees &&
-              calculatedFees.transaction && (
-                <>
-                  <Separator orientation="horizontal" />
-                  {/* Show individual fees grouped by account */}
-                  {(() => {
-                    const feeOps =
-                      calculatedFees.transaction.send?.distribute?.to?.filter(
-                        (dest: any) => dest.metadata?.source
-                      ) || []
-
-                    const feesByAccount = new Map<
-                      string,
-                      {
-                        total: number
-                        operations: any[]
-                        rule: any
-                        asset: string
-                      }
-                    >()
-
-                    feeOps.forEach((feeOp: any) => {
-                      const matchingRule =
-                        calculatedFees.transaction.feeRules?.find(
-                          (rule: any) =>
-                            rule.creditAccount === feeOp.accountAlias ||
-                            rule.creditAccount.replace('@', '') ===
-                              feeOp.accountAlias.replace('@', '')
-                        )
-
-                      const current = feesByAccount.get(feeOp.accountAlias)
-                      if (current) {
-                        current.total += parseFloat(feeOp.amount.value)
-                        current.operations.push(feeOp)
-                      } else {
-                        feesByAccount.set(feeOp.accountAlias, {
-                          total: parseFloat(feeOp.amount.value),
-                          operations: [feeOp],
-                          rule: matchingRule,
-                          asset: feeOp.amount.asset
-                        })
-                      }
-                    })
-
-                    return Array.from(feesByAccount.entries()).map(
-                      ([accountAlias, data], index) => {
-                        const baseLabel =
-                          data.rule?.feeLabel ||
-                          data.operations[0]?.description ||
-                          `Fee - ${accountAlias}`
-
-                        const label = `${baseLabel} (${accountAlias})`
-
-                        return (
-                          <TransactionReceiptItem
-                            key={index}
-                            label={label}
-                            value={
-                              <div className="flex items-center gap-2">
-                                <span className="text-blue-600">
-                                  +{data.asset}{' '}
-                                  {intl.formatNumber(data.total, {
-                                    roundingPriority: 'morePrecision'
-                                  })}
-                                </span>
-                                {data.operations.length > 1 && (
-                                  <span className="text-xs text-gray-500">
-                                    ({data.operations.length} operations)
-                                  </span>
-                                )}
-                              </div>
-                            }
-                          />
-                        )
-                      }
-                    )
-                  })()}
-
-                  <Separator orientation="horizontal" />
-
-                  {/* Source pays / Destination receives */}
-                  {(() => {
-                    const feeOps =
-                      calculatedFees.transaction.send?.distribute?.to?.filter(
-                        (dest: any) => dest.metadata?.source
-                      ) || []
-
-                    const feesByAccount = new Map<
-                      string,
-                      { total: number; isDeductible: boolean }
-                    >()
-
-                    feeOps.forEach((op: any) => {
-                      const rule = calculatedFees.transaction.feeRules?.find(
-                        (r: any) =>
-                          r.creditAccount === op.accountAlias ||
-                          r.creditAccount.replace('@', '') ===
-                            op.accountAlias.replace('@', '')
-                      )
-
-                      if (rule) {
-                        const current = feesByAccount.get(op.accountAlias)
-                        if (current) {
-                          current.total += parseFloat(op.amount.value)
-                        } else {
-                          feesByAccount.set(op.accountAlias, {
-                            total: parseFloat(op.amount.value),
-                            isDeductible: rule.isDeductibleFrom
-                          })
-                        }
-                      }
-                    })
-
-                    let deductibleFees = 0
-                    let nonDeductibleFees = 0
-
-                    feesByAccount.forEach((fee) => {
-                      if (fee.isDeductible) {
-                        deductibleFees += fee.total
-                      } else {
-                        nonDeductibleFees += fee.total
-                      }
-                    })
-
-                    const sourcePays = Number(values.value) + nonDeductibleFees
-                    const destinationReceives =
-                      Number(values.value) - deductibleFees
-
-                    return (
-                      <>
-                        <TransactionReceiptItem
-                          label={intl.formatMessage({
-                            id: 'fees.sourcePays',
-                            defaultMessage: 'Source pays'
-                          })}
-                          value={
-                            <span className="font-medium">
-                              {values.asset}{' '}
-                              {intl.formatNumber(sourcePays, {
-                                roundingPriority: 'morePrecision'
-                              })}
-                            </span>
-                          }
-                        />
-
-                        <TransactionReceiptItem
-                          label={intl.formatMessage({
-                            id: 'fees.destinationReceives',
-                            defaultMessage: 'Destination receives'
-                          })}
-                          value={
-                            <span className="font-medium text-green-600">
-                              {values.asset}{' '}
-                              {intl.formatNumber(destinationReceives, {
-                                roundingPriority: 'morePrecision'
-                              })}
-                            </span>
-                          }
-                        />
-
-                        {/* Show explanation for mixed fees */}
-                        {deductibleFees > 0 && nonDeductibleFees > 0 && (
-                          <TransactionReceiptItem
-                            label=""
-                            value={
-                              <span className="text-xs text-gray-500 italic">
-                                {intl.formatMessage(
-                                  {
-                                    id: 'entity.transactions.mixedFees.explanation',
-                                    defaultMessage:
-                                      'Mixed fees: {currency} {deductible} deducted from recipient, {currency} {nonDeductible} charged to sender'
-                                  },
-                                  {
-                                    currency: values.asset,
-                                    deductible: intl.formatNumber(
-                                      deductibleFees,
-                                      { roundingPriority: 'morePrecision' }
-                                    ),
-                                    nonDeductible: intl.formatNumber(
-                                      nonDeductibleFees,
-                                      { roundingPriority: 'morePrecision' }
-                                    )
-                                  }
-                                )}
-                              </span>
-                            }
-                          />
-                        )}
-                      </>
-                    )
-                  })()}
-                </>
-              )}
           </TransactionReceipt>
 
           <TransactionReceiptTicket />

@@ -1,0 +1,1 @@
+ALTER TABLE operation DROP COLUMN balance_key;

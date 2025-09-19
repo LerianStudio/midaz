@@ -8,33 +8,21 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // GetAllTransactions fetch all Transactions from the repository
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Retrieving transactions")
 
@@ -57,43 +45,58 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if trans != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+	if len(trans) == 0 {
+		return trans, cur, nil
+	}
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
+	transactionIDs := make([]string, len(trans))
+	for i, t := range trans {
+		transactionIDs[i] = t.ID
+	}
 
-			logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
+	if err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			return nil, libHTTP.CursorPagination{}, err
-		}
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		return nil, libHTTP.CursorPagination{}, err
+	}
 
-		for i := range trans {
-			source := make([]string, 0)
+	metadataMap := make(map[string]map[string]any, len(metadata))
 
-			destination := make([]string, 0)
+	for _, meta := range metadata {
+		metadataMap[meta.EntityID] = meta.Data
+	}
 
-			for _, op := range trans[i].Operations {
-				switch op.Type {
-				case constant.DEBIT:
-					source = append(source, op.AccountAlias)
-				case constant.CREDIT:
-					destination = append(destination, op.AccountAlias)
-				}
+	for i := range trans {
+		source := make([]string, 0)
+		destination := make([]string, 0)
+
+		operationIDs := make([]string, 0, len(trans[i].Operations))
+		for _, op := range trans[i].Operations {
+			operationIDs = append(operationIDs, op.ID)
+
+			switch op.Type {
+			case constant.DEBIT:
+				source = append(source, op.AccountAlias)
+			case constant.CREDIT:
+				destination = append(destination, op.AccountAlias)
 			}
+		}
 
-			trans[i].Source = source
-			trans[i].Destination = destination
+		trans[i].Source = source
+		trans[i].Destination = destination
 
-			if data, ok := metadataMap[trans[i].ID]; ok {
-				trans[i].Metadata = data
+		if data, ok := metadataMap[trans[i].ID]; ok {
+			trans[i].Metadata = data
+		}
+
+		if len(operationIDs) > 0 {
+			if err := uc.enrichOperationsWithMetadata(ctx, trans[i].Operations, operationIDs); err != nil {
+				return nil, libHTTP.CursorPagination{}, err
 			}
 		}
 	}
@@ -101,24 +104,41 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	return trans, cur, nil
 }
 
+// enrichOperationsWithMetadata retrieves and assigns metadata to operations
+func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_transactions_enrich_operations_with_metadata")
+	defer span.End()
+
+	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+
+		logger.Warnf("Error getting operation metadata: %v", err)
+
+		return err
+	}
+
+	operationMetadataMap := make(map[string]map[string]any, len(operationMetadata))
+	for _, meta := range operationMetadata {
+		operationMetadataMap[meta.EntityID] = meta.Data
+	}
+
+	for j := range operations {
+		if opData, ok := operationMetadataMap[operations[j].ID]; ok {
+			operations[j].Metadata = opData
+		}
+	}
+
+	return nil
+}
+
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
-	reqId := libCommons.NewHeaderIDFromContext(ctx)
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_id", tran.ID),
-	)
-
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", filter); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
 
 	logger.Infof("Retrieving Operations")
 

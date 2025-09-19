@@ -21,6 +21,8 @@ type OperationRoute struct {
 	Title string `json:"title,omitempty" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
+	// External reference of the operation route.
+	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
@@ -44,10 +46,12 @@ type CreateOperationRouteInput struct {
 	Title string `json:"title,omitempty" validate:"required,max=50" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
+	// External reference of the operation route.
+	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
 	// Additional metadata stored as JSON
-	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
 } // @name CreateOperationRouteInput
@@ -61,8 +65,10 @@ type UpdateOperationRouteInput struct {
 	Title string `json:"title,omitempty" validate:"max=50" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
+	// External reference of the operation route.
+	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// Additional metadata stored as JSON
-	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
 	Account *AccountRule `json:"account,omitempty"`
 } // @name UpdateOperationRouteInput

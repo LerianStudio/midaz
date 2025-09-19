@@ -44,7 +44,7 @@ type CreateTransactionRouteInput struct {
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
-	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required"`
 } // @name CreateTransactionRouteInput
@@ -59,7 +59,7 @@ type UpdateTransactionRouteInput struct {
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
-	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
 } // @name UpdateTransactionRouteInput

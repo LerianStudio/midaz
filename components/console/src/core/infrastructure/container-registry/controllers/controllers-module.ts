@@ -5,16 +5,22 @@ import { PluginMenuController } from '@/core/application/controllers/plugin-menu
 import { HomeController } from '@/core/application/controllers/home-controller'
 import { MidazInfoController } from '@/core/application/controllers/midaz-info-controller'
 import { AccountController } from '@/core/application/controllers/account-controller'
+import { AccountTypesController } from '@/core/application/controllers/account-types-controller'
 import { PortfolioController } from '@/core/application/controllers/portfolio-controller'
 import { LedgerController } from '@/core/application/controllers/ledger-controller'
 import { TransactionController } from '@/core/application/controllers/transaction-controller'
 import { OrganizationController } from '@/core/application/controllers/organization-controller'
 import { PermissionController } from '@/core/application/controllers/permission-controller'
+import { MidazConfigController } from '@/core/application/controllers/midaz-config-controller'
+import { MidazMenuController } from '@/core/application/controllers/midaz-menu-controllers'
+import { OperationRoutesController } from '@/core/application/controllers/operation-routes-controller'
+import { TransactionRoutesController } from '@/core/application/controllers/transaction-routes-controller'
 
 export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<OrganizationController>(OrganizationController).toSelf()
   container.bind<LedgerController>(LedgerController).toSelf()
   container.bind<AccountController>(AccountController).toSelf()
+  container.bind<AccountTypesController>(AccountTypesController).toSelf()
   container.bind<PortfolioController>(PortfolioController).toSelf()
   container.bind<SegmentController>(SegmentController).toSelf()
   container.bind<TransactionController>(TransactionController).toSelf()
@@ -23,4 +29,10 @@ export const ControllersModule = new ContainerModule((container: Container) => {
   container.bind<HomeController>(HomeController).toSelf()
   container.bind<MidazInfoController>(MidazInfoController).toSelf()
   container.bind<PermissionController>(PermissionController).toSelf()
+  container.bind<MidazConfigController>(MidazConfigController).toSelf()
+  container.bind<MidazMenuController>(MidazMenuController).toSelf()
+  container.bind<OperationRoutesController>(OperationRoutesController).toSelf()
+  container
+    .bind<TransactionRoutesController>(TransactionRoutesController)
+    .toSelf()
 })

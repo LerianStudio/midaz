@@ -1,7 +1,7 @@
 import { PluginManifestEntity } from '@/core/domain/entities/plugin-manifest-entity'
 import { PluginManifestRepository } from '@/core/domain/repositories/plugin/plugin-manifest-repository'
 import { ServiceDiscoveryRepository } from '@/core/domain/repositories/plugin/service-discovery-repository'
-import { LogOperation } from '@/core/infrastructure/logger/decorators'
+import { LogOperation } from '@/core/infrastructure/logger/decorators/log-operation'
 import { inject } from 'inversify'
 import { PluginManifestDto } from '@/core/infrastructure/midaz-plugins/plugin-service-discovery/dto/plugin-manifest-dto'
 import type { CreatePluginManifestDto } from '@/core/application/dto/plugin-manifest-dto'

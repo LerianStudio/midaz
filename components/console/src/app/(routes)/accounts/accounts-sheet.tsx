@@ -1,4 +1,3 @@
-import React, { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -39,12 +38,18 @@ import { Enforce } from '@lerianstudio/console-layout'
 import { AccountDto } from '@/core/application/dto/account-dto'
 import { useFormatNumber } from '@/lib/intl/use-format-number'
 import { Separator } from '@/components/ui/separator'
+import Link from 'next/link'
+import { useMidazConfig } from '@/hooks/use-midaz-config'
+import { AccountTypesDto } from '@/core/application/dto/account-types-dto'
+import React, { useMemo } from 'react'
+import { IntlShape } from 'react-intl'
 
 export type AccountSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
   data?: AccountDto | null
   onSuccess?: () => void
+  accountTypesData?: AccountTypesDto[]
 }
 
 const initialValues = {
@@ -60,26 +65,36 @@ const initialValues = {
   metadata: {}
 }
 
-const FormSchema = z.object({
-  name: accounts.name,
-  alias: accounts.alias.optional(),
-  entityId: accounts.entityId.nullable().optional(),
-  assetCode: accounts.assetCode,
-  portfolioId: accounts.portfolioId.optional(),
-  segmentId: accounts.segmentId.nullable().optional(),
-  metadata: accounts.metadata,
-  type: accounts.type,
-  allowSending: accounts.allowSending,
-  allowReceiving: accounts.allowReceiving
-})
+const createFormSchema = (isValidationEnabled: boolean, intl: IntlShape) =>
+  z.object({
+    name: accounts.name,
+    alias: accounts.alias.optional(),
+    entityId: accounts.entityId.nullable().optional(),
+    assetCode: accounts.assetCode,
+    portfolioId: accounts.portfolioId.optional(),
+    segmentId: accounts.segmentId.nullable().optional(),
+    metadata: accounts.metadata,
+    type: isValidationEnabled
+      ? accounts.type.min(
+          1,
+          intl.formatMessage({
+            id: 'errors.invalid_type_received_undefined',
+            defaultMessage: 'Required field'
+          })
+        )
+      : accounts.type.optional(),
+    allowSending: accounts.allowSending,
+    allowReceiving: accounts.allowReceiving
+  })
 
-type FormData = z.infer<typeof FormSchema>
+type FormData = z.infer<ReturnType<typeof createFormSchema>>
 
 export const AccountSheet = ({
   mode,
   data,
   onSuccess,
   onOpenChange,
+  accountTypesData,
   ...others
 }: AccountSheetProps) => {
   const intl = useIntl()
@@ -88,6 +103,10 @@ export const AccountSheet = ({
   const { toast } = useToast()
   const { isReadOnly } = useFormPermissions('accounts')
   const { formatNumber } = useFormatNumber()
+  const { isAccountTypeValidationEnabled: isValidationEnabled } =
+    useMidazConfig()
+
+  const FormSchema = createFormSchema(isValidationEnabled, intl)
 
   const { data: rawSegmentListData } = useListSegments({
     organizationId: currentOrganization.id!,
@@ -199,7 +218,7 @@ export const AccountSheet = ({
     if (mode === 'create') {
       createAccount(cleanedData)
     } else if (mode === 'edit') {
-      const updateData = omit(cleanedData, ['assetCode', 'type'])
+      const updateData = omit(cleanedData, ['assetCode', 'type', 'alias'])
       updateAccount(updateData)
     }
   }
@@ -311,55 +330,59 @@ export const AccountSheet = ({
                       readOnly={isReadOnly || mode === 'edit'}
                     />
 
-                    <SelectField
-                      control={form.control}
-                      name="type"
-                      label={intl.formatMessage({
-                        id: 'common.type',
-                        defaultMessage: 'Type'
-                      })}
-                      tooltip={intl.formatMessage({
-                        id: 'accounts.field.type.tooltip',
-                        defaultMessage: 'The type of account'
-                      })}
-                      readOnly={isReadOnly || mode === 'edit'}
-                      required
-                    >
-                      <SelectItem value="deposit">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.deposit',
-                          defaultMessage: 'Deposit'
+                    {isValidationEnabled &&
+                    accountTypesData &&
+                    accountTypesData?.length > 0 ? (
+                      <SelectField
+                        control={form.control}
+                        name="type"
+                        label={intl.formatMessage({
+                          id: 'common.type',
+                          defaultMessage: 'Type'
                         })}
-                      </SelectItem>
+                        tooltip={intl.formatMessage({
+                          id: 'accounts.field.type.tooltip',
+                          defaultMessage: 'The type of account'
+                        })}
+                        readOnly={isReadOnly || mode === 'edit'}
+                        required={isValidationEnabled}
+                      >
+                        {accountTypesData?.map((accountType) => (
+                          <SelectItem
+                            key={accountType.id}
+                            value={accountType.keyValue}
+                          >
+                            {accountType.name}
+                          </SelectItem>
+                        ))}
+                      </SelectField>
+                    ) : (
+                      <InputField
+                        control={form.control}
+                        name="type"
+                        label={intl.formatMessage({
+                          id: 'common.type',
+                          defaultMessage: 'Type'
+                        })}
+                        required={isValidationEnabled}
+                        readOnly={isReadOnly || mode === 'edit'}
+                        disabled={
+                          isValidationEnabled && accountTypesData?.length === 0
+                        }
+                      />
+                    )}
 
-                      <SelectItem value="savings">
+                    {isValidationEnabled && (
+                      <Link
+                        href="/account-types"
+                        className="text-shadcn-600 justify-start text-sm font-medium underline underline-offset-4"
+                      >
                         {intl.formatMessage({
-                          id: 'account.sheet.type.savings',
-                          defaultMessage: 'Savings'
+                          id: 'accounts.alert.noAccountType.createLink',
+                          defaultMessage: 'Manage Account Types'
                         })}
-                      </SelectItem>
-
-                      <SelectItem value="loans">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.loans',
-                          defaultMessage: 'Loans'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="marketplace">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.marketplace',
-                          defaultMessage: 'Marketplace'
-                        })}
-                      </SelectItem>
-
-                      <SelectItem value="creditCard">
-                        {intl.formatMessage({
-                          id: 'account.sheet.type.creditCard',
-                          defaultMessage: 'CreditCard'
-                        })}
-                      </SelectItem>
-                    </SelectField>
+                      </Link>
+                    )}
 
                     <InputField
                       control={form.control}

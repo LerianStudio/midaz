@@ -33,6 +33,19 @@ export const getPaginatedFetcher = (url: string, params?: {}) => {
   }
 }
 
+export const getCursorPaginatedFetcher = (url: string, params?: {}) => {
+  return async () => {
+    const response = await fetch(url + createQueryString(params), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    return responseHandler(response)
+  }
+}
+
 export const postFetcher = (url: string) => {
   return async (body: any) => {
     const response = await fetch(url, {
