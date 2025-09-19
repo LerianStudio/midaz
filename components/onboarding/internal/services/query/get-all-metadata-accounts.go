@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -24,7 +26,22 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 	logger.Infof("Retrieving accounts")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
+	var (
+		metadata []*mongodb.Metadata
+		err      error
+	)
+
+	for attempt := 0; attempt < 50; attempt++ {
+		metadata, err = uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
+		if err == nil && metadata != nil && len(metadata) > 0 {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	logger.Infof("Accounts metadata query: use=%v filter=%v results=%d", filter.UseMetadata, filter.Metadata, len(metadata))
+
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
@@ -56,6 +73,8 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 			return nil, err
 		}
+
+		logger.Infof("Accounts fetched by IDs for org=%s ledger=%s -> %d", organizationID.String(), ledgerID.String(), len(accounts))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
