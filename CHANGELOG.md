@@ -1,3 +1,15 @@
+## [v3.3.0-beta.29] - 2025-09-19
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.28...v3.3.0-beta.29)
+Contributors: lerian-studio, paulo
+
+### 🐛 Bug Fixes
+- **Graph Rendering**: Resolved an issue affecting the Y-axis margin in graphs. This fix improves the visual accuracy and usability of data presentations, ensuring that graphs are displayed correctly without unnecessary margins.
+
+### 📚 Documentation
+- **Changelog Update**: The CHANGELOG has been updated to reflect recent changes, providing users and contributors with the latest information about the project's development history.
+
+
 ## [v3.3.0-beta.28] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.27...v3.3.0-beta.28)
