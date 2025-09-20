@@ -18,6 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: ArgoCD Sync
+        uses: LerianStudio/github-actions-argocd-sync@main
+        with:
+          app-name: firmino-midaz
+          argo-cd-token: ${{ secrets.ARGOCD_GHUSER_TOKEN }}
+          argo-cd-url: ${{ secrets.ARGOCD_URL }}
+          env-prefix: 'dev'
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
