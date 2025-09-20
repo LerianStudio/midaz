@@ -1,9 +1,11 @@
 name: Automated e2e API Tests
 on:
   push:
-    tags:
-      - 'v*.*.*-beta.*'
-      - 'v*.*.*-rc.*'
+    branches:
+      - 'feature/api-dog-e2e-tests'
+    # tags:
+    #   - 'v*.*.*-beta.*'
+    #   - 'v*.*.*-rc.*'
 
 permissions:
   id-token: write
@@ -34,21 +36,21 @@ jobs:
       - name: Install Apidog CLI
         run: npm install -g apidog-cli
 
-      - name: Determine environment ID based on tag
-        id: set-env
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          echo "Processing tag: $TAG_NAME"
+      # - name: Determine environment ID based on tag
+      #   id: set-env
+      #   run: |
+      #     TAG_NAME="${{ github.ref_name }}"
+      #     echo "Processing tag: $TAG_NAME"
 
-          if [[ "$TAG_NAME" == *"-beta."* ]]; then
-            echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}" >> $GITHUB_ENV
-            echo "TAG_TYPE=beta" >> $GITHUB_ENV
-            echo "Detected beta tag - using dev environment"
-          elif [[ "$TAG_NAME" == *"-rc."* ]]; then
-            echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}" >> $GITHUB_ENV
-            echo "TAG_TYPE=rc" >> $GITHUB_ENV
-            echo "Detected rc tag - using stg environment"
-          fi
+      #     if [[ "$TAG_NAME" == *"-beta."* ]]; then
+      #       echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}" >> $GITHUB_ENV
+      #       echo "TAG_TYPE=beta" >> $GITHUB_ENV
+      #       echo "Detected beta tag - using dev environment"
+      #     elif [[ "$TAG_NAME" == *"-rc."* ]]; then
+      #       echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}" >> $GITHUB_ENV
+      #       echo "TAG_TYPE=rc" >> $GITHUB_ENV
+      #       echo "Detected rc tag - using stg environment"
+      #     fi
 
       - name: Run Apidog e2e Test Scenario
         run: |
@@ -56,7 +58,7 @@ jobs:
           apidog run \
             --access-token ${{ secrets.APIDOG_ACCESS_TOKEN }} \
             --test-scenario ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }} \
-            -e $ENVIRONMENT_ID \
+            -e ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }} \
             --color on \
             -n 1 \
             -r html,cli \
