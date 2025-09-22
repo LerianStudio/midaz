@@ -12,18 +12,18 @@ import (
 
 // OperationRoutePostgreSQLModel represents the database model for operation routes
 type OperationRoutePostgreSQLModel struct {
-	ID                 uuid.UUID    `db:"id"`
-	OrganizationID     uuid.UUID    `db:"organization_id"`
-	LedgerID           uuid.UUID    `db:"ledger_id"`
-	Title              string       `db:"title"`
-	Description        string       `db:"description"`
-	Code               string       `db:"code"`
-	OperationType      string       `db:"operation_type"`
-	AccountRuleType    string       `db:"account_rule_type"`
-	AccountRuleValidIf string       `db:"account_rule_valid_if"`
-	CreatedAt          time.Time    `db:"created_at"`
-	UpdatedAt          time.Time    `db:"updated_at"`
-	DeletedAt          sql.NullTime `db:"deleted_at"`
+	ID                 uuid.UUID      `db:"id"`
+	OrganizationID     uuid.UUID      `db:"organization_id"`
+	LedgerID           uuid.UUID      `db:"ledger_id"`
+	Title              string         `db:"title"`
+	Description        string         `db:"description"`
+	Code               sql.NullString `db:"code"`
+	OperationType      string         `db:"operation_type"`
+	AccountRuleType    string         `db:"account_rule_type"`
+	AccountRuleValidIf string         `db:"account_rule_valid_if"`
+	CreatedAt          time.Time      `db:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at"`
+	DeletedAt          sql.NullTime   `db:"deleted_at"`
 }
 
 // ToEntity converts the database model to a domain model
@@ -32,13 +32,18 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		return nil
 	}
 
+	codeValue := ""
+	if m.Code.Valid {
+		codeValue = m.Code.String
+	}
+
 	e := &mmodel.OperationRoute{
 		ID:             m.ID,
 		OrganizationID: m.OrganizationID,
 		LedgerID:       m.LedgerID,
 		Title:          m.Title,
 		Description:    m.Description,
-		Code:           m.Code,
+		Code:           codeValue,
 		OperationType:  m.OperationType,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
@@ -83,32 +88,38 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 	m.LedgerID = e.LedgerID
 	m.Title = e.Title
 	m.Description = e.Description
-	m.Code = e.Code
+
+	if strings.TrimSpace(e.Code) == "" {
+		m.Code = sql.NullString{}
+	} else {
+		m.Code = sql.NullString{String: e.Code, Valid: true}
+	}
+
 	m.OperationType = strings.ToLower(e.OperationType)
 
 	if e.Account != nil {
 		m.AccountRuleType = e.Account.RuleType
+	}
 
-		if e.Account.ValidIf != nil {
-			switch strings.ToLower(e.Account.RuleType) {
-			case constant.AccountRuleTypeAccountType:
-				if values, ok := e.Account.ValidIf.([]string); ok {
-					m.AccountRuleValidIf = strings.Join(values, ",")
-				} else if values, ok := e.Account.ValidIf.([]any); ok {
-					stringValues := make([]string, len(values))
+	if e.Account != nil && e.Account.ValidIf != nil {
+		switch strings.ToLower(e.Account.RuleType) {
+		case constant.AccountRuleTypeAccountType:
+			if values, ok := e.Account.ValidIf.([]string); ok {
+				m.AccountRuleValidIf = strings.Join(values, ",")
+			} else if values, ok := e.Account.ValidIf.([]any); ok {
+				stringValues := make([]string, 0, len(values))
 
-					for i, v := range values {
-						if str, ok := v.(string); ok {
-							stringValues[i] = str
-						}
+				for _, v := range values {
+					if str, ok := v.(string); ok {
+						stringValues = append(stringValues, str)
 					}
+				}
 
-					m.AccountRuleValidIf = strings.Join(stringValues, ",")
-				}
-			default:
-				if value, ok := e.Account.ValidIf.(string); ok {
-					m.AccountRuleValidIf = value
-				}
+				m.AccountRuleValidIf = strings.Join(stringValues, ",")
+			}
+		default:
+			if value, ok := e.Account.ValidIf.(string); ok {
+				m.AccountRuleValidIf = value
 			}
 		}
 	}
