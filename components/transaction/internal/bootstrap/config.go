@@ -55,7 +55,7 @@ type Config struct {
 	MongoDBUser                  string `env:"MONGO_USER"`
 	MongoDBPassword              string `env:"MONGO_PASSWORD"`
 	MongoDBPort                  string `env:"MONGO_PORT"`
-	MongoDBParameters             string `env:"MONGO_PARAMETERS"`
+	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
 	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
@@ -152,7 +152,7 @@ func InitServers() *Service {
 	}
 
 	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" cfg.MongoDBParameters
+		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{

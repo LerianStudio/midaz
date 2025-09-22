@@ -143,7 +143,7 @@ func InitServers() *Service {
 	}
 
 	if cfg.MongoDBParameters != "" {
-		mongoSource += "?" cfg.MongoDBParameters
+		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
