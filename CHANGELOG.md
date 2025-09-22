@@ -1,3 +1,20 @@
+## [v3.3.1-beta.1] - 2025-09-22
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0...v3.3.1-beta.1)
+Contributors: Fred Amaral, Gabriel Ferreira, lerian-studio
+
+### ✨ Features
+- **Comprehensive Testing Suite**: We've introduced a robust testing framework that includes chaos, fuzz, property, and end-to-end tests. This ensures that the system is thoroughly evaluated under various scenarios, enhancing overall reliability and user confidence in the software.
+
+### 🔄 Changes
+- **Build and Configuration Enhancements**: The build pipeline now includes an 'else' condition in tag steps, making it more adaptable and efficient. This change streamlines the build process, reducing potential errors and improving deployment speed.
+- **Deployment Process Improvements**: We've updated the build.yml to ensure that end-to-end tests are aligned with GitOps updates, and added an ArgoCD sync step. These enhancements promote smoother and more reliable deployments, integrating seamlessly with continuous deployment tools.
+
+### 🔧 Maintenance
+- **Release Management**: The CHANGELOG has been updated to accurately reflect recent modifications, ensuring transparency and easy access to change history.
+- **Dependency Management**: We've refined configurations to better handle dependencies during build and deployment, which helps maintain system stability and minimizes the risk of issues related to dependencies.
+
+
 ## [v3.3.0-beta.30] - 2025-09-19
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0-beta.29...v3.3.0-beta.30)
