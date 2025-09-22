@@ -224,7 +224,7 @@ test-unit:
 	$(call print_title,Running Go unit tests (excluding ./tests/**))
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@set -e; mkdir -p $(JUNIT_DIR); \
-	pkgs=$$(go list ./... | rg -v '/tests(/|$$)'); \
+	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/'); \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
