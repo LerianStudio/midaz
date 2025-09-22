@@ -14,8 +14,15 @@ permissions:
   packages: write
 
 jobs:
-  api-dog-e2e-tests:
+  log-start:
     needs: update_gitops
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log e2e pipeline start
+        run: echo "🚀 E2E API testing pipeline is about to start..."
+
+  api-dog-e2e-tests:
+    needs: log-start
     runs-on: firmino-lxc-runners
 
     steps:
