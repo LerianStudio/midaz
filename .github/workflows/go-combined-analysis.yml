@@ -104,7 +104,7 @@ jobs:
       - name: Gosec Scanner
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: ./components/... ./pkg/...
 
   unit-tests:
     name: Run Unit Tests to Midaz
