@@ -1,3 +1,18 @@
+## [v3.4.0-beta.1] - 2025-09-22
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.1-beta.1...v3.4.0-beta.1)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Enhanced Guidance for Developers**: The documentation for the `NewRouter` function has been improved with clearer guidance and examples. This helps developers integrate routing functionality more effectively, ensuring a smoother development experience.
+
+### 🔧 Maintenance
+- **Improved Security Scans**: Updated Gosec scanner arguments to target specific directories, enhancing the efficiency and accuracy of security scans.
+- **Dependency Management**: Modified the package listing command used by test-unit to align with the latest dependency management practices, improving test reliability.
+- **Cleaner Codebase**: Removed obsolete report files and added the `reports` directory to `.gitignore`, reducing clutter and preventing unnecessary files from being tracked in version control.
+- **Updated Changelog**: Ensured the CHANGELOG reflects recent updates, providing users with the latest information on project changes and enhancements.
+
+
 ## [v3.3.1-beta.1] - 2025-09-22
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.0...v3.3.1-beta.1)
