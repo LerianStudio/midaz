@@ -1,8 +1,6 @@
 name: Automated e2e API Tests
 on:
   push:
-    branches:
-      - 'feature/api-dog-e2e-tests'
     tags:
       - 'v*.*.*-beta.*'
       - 'v*.*.*-rc.*'
@@ -14,11 +12,11 @@ permissions:
   packages: write
 
 jobs:
-  log-start:
-    runs-on: firmino-lxc-runners
-    steps:
-      - name: Log e2e pipeline start
-        run: echo "🚀 E2E API testing pipeline is about to start..."
+  # log-start:
+  #   runs-on: firmino-lxc-runners
+  #   steps:
+  #     - name: Log e2e pipeline start
+  #       run: echo "🚀 E2E API testing pipeline is about to start..."
 
   api-dog-e2e-tests:
     needs: log-start
