@@ -15,8 +15,7 @@ permissions:
 
 jobs:
   log-start:
-    needs: update_gitops
-    runs-on: ubuntu-latest
+    runs-on: firmino-lxc-runners
     steps:
       - name: Log e2e pipeline start
         run: echo "🚀 E2E API testing pipeline is about to start..."
