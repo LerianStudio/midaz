@@ -12,14 +12,14 @@ permissions:
   packages: write
 
 jobs:
-  log-start:
+  log_start:
     runs-on: firmino-lxc-runners
     steps:
       - name: Log e2e pipeline start
         run: echo "🚀 E2E API testing pipeline is about to start..."
 
   api-dog-e2e-tests:
-    needs: log-start
+    needs: [update_gitops, log_start]
     runs-on: firmino-lxc-runners
 
     steps:
