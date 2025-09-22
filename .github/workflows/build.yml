@@ -228,6 +228,9 @@ jobs:
             echo "ENVIRONMENT_ID=${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}" >> $GITHUB_ENV
             echo "TAG_TYPE=rc" >> $GITHUB_ENV
             echo "Detected rc tag - using stg environment"
+          else
+            echo "::error::Unrecognized tag format for e2e tests: $TAG_NAME. Expected a tag containing '-beta.' or '-rc.'"
+            exit 1
           fi
 
       - name: Run Apidog e2e Test Scenario
