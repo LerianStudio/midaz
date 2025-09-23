@@ -1,3 +1,19 @@
+## [v3.4.0-beta.2] - 2025-09-22
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.1...v3.4.0-beta.2)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Improved Reliability**: Updated the `OperationRoutePostgreSQLModel` to use `sql.NullString` for the `Code` field. This fix resolves issues related to null values, ensuring more robust handling of optional database fields and preventing unexpected behavior.
+
+### ⚡ Performance
+- **Faster Database Operations**: Optimized string slice handling in the `FromEntity` method of the `OperationRoutePostgreSQLModel`. Users will experience faster data processing and reduced resource consumption, leading to more efficient database interactions.
+- **Streamlined Validation**: Simplified the `Account ValidIf` logic within the `OperationRoutePostgreSQLModel`, making the validation process easier to maintain and reducing the potential for errors, ultimately enhancing system reliability.
+
+### 📚 Documentation
+- **Updated Changelog**: Revised the CHANGELOG file to accurately reflect recent changes and improvements, ensuring that users and developers have access to current and informative documentation.
+
+
 ## [v3.4.0-beta.1] - 2025-09-22
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.3.1-beta.1...v3.4.0-beta.1)
