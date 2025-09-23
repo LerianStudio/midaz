@@ -107,11 +107,11 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 			if values, ok := e.Account.ValidIf.([]string); ok {
 				m.AccountRuleValidIf = strings.Join(values, ",")
 			} else if values, ok := e.Account.ValidIf.([]any); ok {
-				stringValues := make([]string, len(values))
+				stringValues := make([]string, 0, len(values))
 
-				for i, v := range values {
+				for _, v := range values {
 					if str, ok := v.(string); ok {
-						stringValues[i] = str
+						stringValues = append(stringValues, str)
 					}
 				}
 
