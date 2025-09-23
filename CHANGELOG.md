@@ -1,3 +1,16 @@
+## [v3.4.0-beta.3] - 2025-09-23
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.2...v3.4.0-beta.3)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend CORS Improvement**: Resolved an issue with CORS settings by applying the middleware exclusively to `/api` routes. This fix enhances security by correctly enforcing CORS policies, ensuring reliable and secure API interactions.
+
+### 🔧 Maintenance
+- **Code Quality Enhancements**: Improved code maintainability by adding missing newlines at the end of JSON files and cleaning up `middleware.ts`. This ensures consistent formatting and easier future updates.
+- **Changelog Update**: Updated the CHANGELOG to reflect recent changes, keeping users and developers informed about the project's progress and improvements.
+
+
 ## [v3.4.0-beta.2] - 2025-09-22
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.1...v3.4.0-beta.2)
