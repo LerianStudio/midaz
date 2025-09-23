@@ -1,3 +1,19 @@
+## [v3.4.0-beta.4] - 2025-09-23
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.3...v3.4.0-beta.4)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 🐛 Bug Fixes
+- **Database Integrity**: Improved handling of optional fields in the database by updating the `OperationRoutePostgreSQLModel` to use `sql.NullString` for the `Code` field. This fix prevents runtime errors and enhances data integrity, ensuring more robust database operations.
+- **Release Process**: Simplified the release pipeline by removing the hotfix rule. This change reduces complexity and enhances the predictability of release cycles, leading to more reliable deployments and minimized downtime.
+
+### 📚 Documentation
+- **Changelog Updates**: The CHANGELOG has been updated to reflect recent changes and improvements, providing users and developers with accurate and up-to-date information about the project's progress.
+
+### 🔧 Maintenance
+- **Dependency Management**: Adjustments in the release pipeline contribute to a more stable and maintainable system, indirectly benefiting users by ensuring more consistent updates.
+
+
 ## [v3.4.0-beta.3] - 2025-09-23
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.2...v3.4.0-beta.3)
