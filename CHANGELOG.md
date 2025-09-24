@@ -1,3 +1,18 @@
+## [v3.4.0-beta.6] - 2025-09-24
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.5...v3.4.0-beta.6)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 🐛 Bug Fixes
+- **Improved Deployment Reliability**: Addressed access issues within the build workflow to ensure seamless integration with ArgoCD. This fix enhances the stability of our continuous integration and delivery pipelines, resulting in more predictable and reliable build and deployment operations.
+
+### 📚 Documentation
+- **Updated Changelog**: The changelog has been revised to include the latest updates and fixes. This ensures users have access to the most current information, aiding in better understanding and tracking of project developments.
+
+### 🔧 Maintenance
+- **Workflow Enhancements**: Behind-the-scenes improvements to the build process ensure smoother operations and reduced potential for disruptions, indirectly benefiting users by improving overall system reliability.
+
+
 ## [v3.4.0-beta.5] - 2025-09-24
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.4...v3.4.0-beta.5)
