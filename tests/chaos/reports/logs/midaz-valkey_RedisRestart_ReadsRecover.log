@@ -1,0 +1,24 @@
+--- midaz-valkey logs since 2025-09-22T16:05:37-03:00
+1:signal-handler (1758567938) Received SIGTERM scheduling shutdown...
+1:M 22 Sep 2025 19:05:38.295 * User requested shutdown...
+1:M 22 Sep 2025 19:05:38.295 * Calling fsync() on the AOF file.
+1:M 22 Sep 2025 19:05:38.297 * Saving the final RDB snapshot before exiting.
+1:M 22 Sep 2025 19:05:38.300 * DB saved on disk
+1:M 22 Sep 2025 19:05:38.300 # Valkey is now ready to exit, bye bye...
+1:M 22 Sep 2025 19:05:38.603 * oO0OoO0OoO0Oo Valkey is starting oO0OoO0OoO0Oo
+1:M 22 Sep 2025 19:05:38.603 * Valkey version=8.1.3, bits=64, commit=00000000, modified=0, pid=1, just started
+1:M 22 Sep 2025 19:05:38.603 * Configuration loaded
+1:M 22 Sep 2025 19:05:38.603 * monotonic clock: POSIX clock_gettime
+1:M 22 Sep 2025 19:05:38.604 * Running mode=standalone, port=5704.
+1:M 22 Sep 2025 19:05:38.604 * Server initialized
+1:M 22 Sep 2025 19:05:38.604 * Reading RDB base file on AOF loading...
+1:M 22 Sep 2025 19:05:38.604 * Loading RDB produced by Valkey version 8.1.3
+1:M 22 Sep 2025 19:05:38.604 * RDB age 361446 seconds
+1:M 22 Sep 2025 19:05:38.604 * RDB memory usage when created 0.87 Mb
+1:M 22 Sep 2025 19:05:38.604 * RDB is base AOF
+1:M 22 Sep 2025 19:05:38.604 * Done loading RDB, keys loaded: 0, keys expired: 0.
+1:M 22 Sep 2025 19:05:38.604 * DB loaded from base file appendonly.aof.1.base.rdb: 0.000 seconds
+1:M 22 Sep 2025 19:05:38.615 * DB loaded from incr file appendonly.aof.1.incr.aof: 0.011 seconds
+1:M 22 Sep 2025 19:05:38.615 * DB loaded from append only file: 0.011 seconds
+1:M 22 Sep 2025 19:05:38.615 * Opening AOF incr file appendonly.aof.1.incr.aof on server start
+1:M 22 Sep 2025 19:05:38.615 * Ready to accept connections tcp

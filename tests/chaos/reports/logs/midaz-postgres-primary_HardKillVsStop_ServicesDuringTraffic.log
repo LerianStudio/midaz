@@ -1,0 +1,19 @@
+--- midaz-postgres-primary logs since 2025-09-22T16:02:48-03:00
+
+PostgreSQL Database directory appears to contain a database; Skipping initialization
+
+2025-09-22 19:02:58.380 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2025-09-22 19:02:58.380 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5701
+2025-09-22 19:02:58.380 UTC [1] LOG:  listening on IPv6 address "::", port 5701
+2025-09-22 19:02:58.383 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5701"
+2025-09-22 19:02:58.385 UTC [16] LOG:  database system was interrupted; last known up at 2025-09-22 19:02:42 UTC
+2025-09-22 19:02:58.399 UTC [17] FATAL:  the database system is starting up
+2025-09-22 19:02:58.424 UTC [18] FATAL:  the database system is starting up
+2025-09-22 19:02:58.448 UTC [19] FATAL:  the database system is starting up
+2025-09-22 19:02:58.453 UTC [16] LOG:  database system was not properly shut down; automatic recovery in progress
+2025-09-22 19:02:58.455 UTC [16] LOG:  redo starts at 0/464C120
+2025-09-22 19:02:58.456 UTC [16] LOG:  invalid record length at 0/46AE5E8: expected at least 24, got 0
+2025-09-22 19:02:58.456 UTC [16] LOG:  redo done at 0/46AE5B8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2025-09-22 19:02:58.458 UTC [14] LOG:  checkpoint starting: end-of-recovery immediate wait
+2025-09-22 19:02:58.469 UTC [14] LOG:  checkpoint complete: wrote 51 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.005 s, total=0.012 s; sync files=32, longest=0.003 s, average=0.001 s; distance=393 kB, estimate=393 kB; lsn=0/46AE5E8, redo lsn=0/46AE5E8
+2025-09-22 19:02:58.471 UTC [1] LOG:  database system is ready to accept connections

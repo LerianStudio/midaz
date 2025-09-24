@@ -81,6 +81,33 @@ func EnableDefaultBalance(ctx context.Context, trans *HTTPClient, orgID, ledgerI
 	return nil
 }
 
+// SetDefaultBalanceFlags sets AllowSending/AllowReceiving on the default balance for an account alias.
+func SetDefaultBalanceFlags(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias string, headers map[string]string, allowSending, allowReceiving bool) error {
+    // Get balances by alias
+    var defID string
+    deadline := time.Now().Add(60 * time.Second)
+    for {
+        c, b, e := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias), headers, nil)
+        if e == nil && c == 200 {
+            var paged struct {
+                Items []balanceItem `json:"items"`
+            }
+            _ = json.Unmarshal(b, &paged)
+            for _, it := range paged.Items {
+                if it.Key == "default" { defID = it.ID; break }
+            }
+            if defID != "" { break }
+        }
+        if time.Now().After(deadline) { return fmt.Errorf("default balance not found for alias %s", alias) }
+        time.Sleep(100 * time.Millisecond)
+    }
+    payload := map[string]any{"allowSending": allowSending, "allowReceiving": allowReceiving}
+    c2, b2, e2 := trans.Request(ctx, "PATCH", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", orgID, ledgerID, defID), headers, payload)
+    if e2 != nil { return e2 }
+    if c2 != 200 { return fmt.Errorf("patch default balance flags: status %d body=%s", c2, string(b2)) }
+    return nil
+}
+
 // GetAvailableSumByAlias returns the sum of Available across all balances for the given alias and asset code.
 func GetAvailableSumByAlias(ctx context.Context, trans *HTTPClient, orgID, ledgerID, alias, asset string, headers map[string]string) (decimal.Decimal, error) {
 	code, body, err := trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts/alias/%s/balances", orgID, ledgerID, alias), headers, nil)

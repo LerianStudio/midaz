@@ -183,6 +183,7 @@ help:
 	@echo "  make test-e2e                    - Run Go E2E tests (brings up backend)"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests (brings up backend)"
 	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests (brings up backend)"
+	@echo "  make test-nightly                 - Run nightly tests (heavy + higher property iterations)"
 	@echo "  make test-chaos                  - Run chaos/resilience tests (brings up backend)"
 	@echo "  make test-property               - Run property-based tests"
 	@echo ""
@@ -324,6 +325,31 @@ test-integration-e2e:
 	else \
 	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
 	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
+	fi
+
+# Nightly tests: run property with higher iterations and run heavy integration/e2e with flags
+.PHONY: test-nightly
+test-nightly:
+	$(call print_title,Running nightly tests (heavy + higher property iterations))
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@set -e; mkdir -p $(JUNIT_DIR); \
+	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	# Property tests with higher iterations
+	if [ -n "$(GOTESTSUM)" ]; then \
+	  MIDAZ_PROP_MAXCOUNT=1000 gotestsum --format testname --junitfile $(JUNIT_DIR)/property-nightly.xml -- -v -count=1 $(GO_TEST_LDFLAGS) ./tests/property || true; \
+	else \
+	  MIDAZ_PROP_MAXCOUNT=1000 go test -v -count=1 $(GO_TEST_LDFLAGS) ./tests/property || true; \
+	fi; \
+	# Bring up backend and run heavy-gated integration + e2e
+	$(MAKE) up-backend; \
+	$(call wait_for_services); \
+	if [ -n "$(GOTESTSUM)" ]; then \
+	  MIDAZ_TEST_HEAVY=true MIDAZ_TEST_NIGHTLY=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration-nightly.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || true; \
+	  MIDAZ_TEST_HEAVY=true MIDAZ_TEST_NIGHTLY=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e-nightly.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e || true; \
+	else \
+	  MIDAZ_TEST_HEAVY=true MIDAZ_TEST_NIGHTLY=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || true; \
+	  MIDAZ_TEST_HEAVY=true MIDAZ_TEST_NIGHTLY=true ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e || true; \
 	fi
 
 # Property tests (model-level)

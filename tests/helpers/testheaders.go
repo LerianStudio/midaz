@@ -19,3 +19,12 @@ func AuthHeaders(requestID string) map[string]string {
     return hdr
 }
 
+// AuthHeadersWithIdempotency returns default headers plus Idempotency-Key.
+func AuthHeadersWithIdempotency(requestID, idempotencyKey string) map[string]string {
+    hdr := AuthHeaders(requestID)
+    if idempotencyKey == "" {
+        idempotencyKey = RandHex(8)
+    }
+    hdr["Idempotency-Key"] = idempotencyKey
+    return hdr
+}

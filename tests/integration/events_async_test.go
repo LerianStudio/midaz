@@ -27,6 +27,8 @@ func TestIntegration_EventsAsync_Sanity(t *testing.T) {
     if err != nil || code != 201 { t.Fatalf("create ledger: code=%d err=%v body=%s", code, err, string(body)) }
     var ledger struct{ ID string `json:"id"` }
     _ = json.Unmarshal(body, &ledger)
+    // Ensure USD asset exists before creating accounts and posting inflows
+    if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil { t.Fatalf("create USD asset: %v", err) }
     alias := fmt.Sprintf("ev-%s", h.RandString(5))
     _, _, _ = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name":"A","assetCode":"USD","type":"deposit","alias":alias})
 

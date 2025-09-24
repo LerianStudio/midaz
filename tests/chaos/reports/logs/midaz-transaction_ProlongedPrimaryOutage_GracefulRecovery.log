@@ -1,0 +1,113 @@
+--- midaz-transaction logs since 2025-09-22T16:04:49-03:00
+2025-09-22T19:04:49.092Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/accounts/alias/chaos-QzQD/balances" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.092Z	[34mINFO[0m	in/balance.go:359	883d2a9de14a54a2 | Initiating retrieval of balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.092Z	[34mINFO[0m	query/get-all-balances.go:86	883d2a9de14a54a2 | Retrieving all balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.093Z	[34mINFO[0m	in/balance.go:370	883d2a9de14a54a2 | Successfully retrieved balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.246Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/accounts/alias/chaos-QzQD/balances" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.246Z	[34mINFO[0m	in/balance.go:359	883d2a9de14a54a2 | Initiating retrieval of balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.246Z	[34mINFO[0m	query/get-all-balances.go:86	883d2a9de14a54a2 | Retrieving all balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.247Z	[34mINFO[0m	in/balance.go:370	883d2a9de14a54a2 | Successfully retrieved balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.401Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/accounts/alias/chaos-QzQD/balances" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.402Z	[34mINFO[0m	in/balance.go:359	883d2a9de14a54a2 | Initiating retrieval of balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.402Z	[34mINFO[0m	query/get-all-balances.go:86	883d2a9de14a54a2 | Retrieving all balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.403Z	[34mINFO[0m	in/balance.go:370	883d2a9de14a54a2 | Successfully retrieved balances by alias	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.412Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.413Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.421Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.421Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.423Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.424Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.424Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.425Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.425Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.426Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.427Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.427Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.428Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.428Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.429Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.430Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.430Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.430Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.430Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.431Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.432Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.432Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.433Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.433Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.433Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.434Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.434Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.435Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.435Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.436Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.436Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.436Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.437Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.437Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.438Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.439Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.439Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.439Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.439Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.440Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.441Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.441Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.442Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.442Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.442Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.443Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.443Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.443Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.443Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.444Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.448Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.448Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.451Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.451Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.451Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.453Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.453Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.454Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.454Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.454Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.455Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.455Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.456Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.456Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.457Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.458Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.458Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.458Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.458Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.459Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.460Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.460Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.460Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.460Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.461Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.462Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.462Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.462Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.462Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.463Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.464Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.464Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.464Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.464Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.465Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.466Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0ac9-71d7-999f-1dc7d75a512d" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.466Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.466Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.466Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.467Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0ac9-71d7-999f-1dc7d75a512d	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.468Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.468Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.468Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.468Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.469Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.470Z	[34mINFO[0m	http/withLogging.go:186	883d2a9de14a54a2 | 172.217.162.177 - - http "GET /v1/organizations/019972d0-0ab2-7732-a546-1abd0255c400/ledgers/019972d0-0ab5-7787-b43d-2ef48a51b583/transactions/019972d0-0acb-73e8-9f60-dd0c5430539b" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.470Z	[34mINFO[0m	query/get-id-transaction.go:20	883d2a9de14a54a2 | Trying to get transaction	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.470Z	[34mINFO[0m	query/get-all-transactions.go:143	883d2a9de14a54a2 | Retrieving Operations	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.470Z	[34mINFO[0m	query/get-all-operations.go:25	883d2a9de14a54a2 | Retrieving operations by account	{"X-Request-Id": "883d2a9de14a54a2"}
+2025-09-22T19:04:49.471Z	[34mINFO[0m	in/transaction.go:591	883d2a9de14a54a2 | Successfully retrieved Transaction with ID: 019972d0-0acb-73e8-9f60-dd0c5430539b	{"X-Request-Id": "883d2a9de14a54a2"}

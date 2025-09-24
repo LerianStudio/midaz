@@ -1,0 +1,23 @@
+--- midaz-onboarding logs since 2025-09-22T16:12:29-03:00
+VERSION: [31mv2.1.1[0m
+ENVIRONMENT NAME: [31m(development)[0m
+2025-09-22T19:13:18.259Z	[34mINFO[0m	app/main.go:20	Log level is (debug)
+2025-09-22T19:13:18.259Z	[34mINFO[0m	app/main.go:20	Logger is (*zap.SugaredLogger) 
+
+2025-09-22T19:13:18.259Z	[33mWARN[0m	opentelemetry/otel.go:138	Telemetry turned off ⚠️ 
+2025-09-22T19:13:18.259Z	[34mINFO[0m	redis/redis.go:68	Connecting to Redis/Valkey...
+2025-09-22T19:13:18.260Z	[34mINFO[0m	redis/redis.go:132	Connected to Redis/Valkey in STANDALONE mode ✅ 
+
+2025-09-22T19:13:18.260Z	[34mINFO[0m	postgres/postgres.go:39	Connecting to primary and replica databases...
+2025-09-22T19:13:18.265Z	[34mINFO[0m	postgres/postgres.go:101	No new migrations found. Skipping...
+2025-09-22T19:13:18.271Z	[34mINFO[0m	postgres/postgres.go:111	PostgresConnection.Ping {error 26 0  failed to connect to `user=midaz database=onboarding`: hostname resolving error: lookup midaz-postgres-replica on 127.0.0.11:53: no such host}
+2025-09-22T19:13:18.271Z	[34mINFO[0m	postgres/postgres.go:129	ERRCONECT failed to connect to `user=midaz database=onboarding`: hostname resolving error: lookup midaz-postgres-replica on 127.0.0.11:53: no such host
+panic: Failed to connect database
+
+goroutine 1 [running]:
+github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization.NewOrganizationPostgreSQLRepository(0x4000186a20)
+	/onboarding-app/components/onboarding/internal/adapters/postgres/organization/organization.postgresql.go:55 +0x90
+github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap.InitServers()
+	/onboarding-app/components/onboarding/internal/bootstrap/config.go:191 +0x8a4
+main.main()
+	/onboarding-app/components/onboarding/cmd/app/main.go:20 +0x20

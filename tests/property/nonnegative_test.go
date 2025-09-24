@@ -3,7 +3,7 @@ package property
 import (
     "math/rand"
     "testing"
-    "testing/quick"
+    h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
 
 // Property: Starting from zero, applying only non-negative inflows and outflows
@@ -25,8 +25,5 @@ func TestProperty_NonNegativeBalance_Model(t *testing.T) {
         }
         return true
     }
-    cfg := &quick.Config{MaxCount: 200}
-    if err := quick.Check(f, cfg); err != nil {
-        t.Fatalf("non-negative property failed: %v", err)
-    }
+    h.CheckProp(t, f)
 }

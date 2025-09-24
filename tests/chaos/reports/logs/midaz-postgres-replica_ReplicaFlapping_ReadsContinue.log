@@ -1,0 +1,57 @@
+--- midaz-postgres-replica logs since 2025-09-22T16:05:42-03:00
+2025-09-22 19:05:42.753 UTC [1] LOG:  received fast shutdown request
+2025-09-22 19:05:42.754 UTC [1] LOG:  aborting any active transactions
+2025-09-22 19:05:42.754 UTC [687] FATAL:  terminating connection due to administrator command
+2025-09-22 19:05:42.754 UTC [731] FATAL:  terminating connection due to administrator command
+2025-09-22 19:05:42.754 UTC [801] FATAL:  terminating walreceiver process due to administrator command
+2025-09-22 19:05:42.757 UTC [7] LOG:  shutting down
+2025-09-22 19:05:42.757 UTC [7] LOG:  restartpoint starting: shutdown immediate
+2025-09-22 19:05:42.769 UTC [7] LOG:  restartpoint complete: wrote 83 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.007 s, sync=0.003 s, total=0.012 s; sync files=32, longest=0.002 s, average=0.001 s; distance=973 kB, estimate=973 kB; lsn=0/473F7C8, redo lsn=0/473F7C8
+2025-09-22 19:05:42.769 UTC [7] LOG:  recovery restart point at 0/473F7C8
+2025-09-22 19:05:42.769 UTC [7] DETAIL:  Last completed transaction was at log time 2025-09-22 19:05:42.737196+00.
+2025-09-22 19:05:42.777 UTC [1] LOG:  database system is shut down
+2025-09-22 19:05:45.166 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2025-09-22 19:05:45.166 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5702
+2025-09-22 19:05:45.166 UTC [1] LOG:  listening on IPv6 address "::", port 5702
+2025-09-22 19:05:45.173 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5702"
+2025-09-22 19:05:45.177 UTC [9] LOG:  database system was shut down in recovery at 2025-09-22 19:05:42 UTC
+2025-09-22 19:05:45.177 UTC [9] LOG:  entering standby mode
+2025-09-22 19:05:45.179 UTC [9] LOG:  redo starts at 0/473F840
+2025-09-22 19:05:45.180 UTC [9] LOG:  consistent recovery state reached at 0/47659D8
+2025-09-22 19:05:45.180 UTC [9] LOG:  invalid record length at 0/47659D8: expected at least 24, got 0
+2025-09-22 19:05:45.180 UTC [1] LOG:  database system is ready to accept read-only connections
+2025-09-22 19:05:45.186 UTC [10] LOG:  started streaming WAL from primary at 0/4000000 on timeline 1
+2025-09-22 19:05:45.338 UTC [1] LOG:  received fast shutdown request
+2025-09-22 19:05:45.338 UTC [1] LOG:  aborting any active transactions
+2025-09-22 19:05:45.339 UTC [10] FATAL:  terminating walreceiver process due to administrator command
+2025-09-22 19:05:45.339 UTC [11] FATAL:  terminating connection due to administrator command
+2025-09-22 19:05:45.340 UTC [7] LOG:  shutting down
+2025-09-22 19:05:45.349 UTC [1] LOG:  database system is shut down
+2025-09-22 19:05:47.679 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2025-09-22 19:05:47.679 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5702
+2025-09-22 19:05:47.679 UTC [1] LOG:  listening on IPv6 address "::", port 5702
+2025-09-22 19:05:47.681 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5702"
+2025-09-22 19:05:47.685 UTC [9] LOG:  database system was shut down in recovery at 2025-09-22 19:05:45 UTC
+2025-09-22 19:05:47.685 UTC [9] LOG:  entering standby mode
+2025-09-22 19:05:47.686 UTC [9] LOG:  redo starts at 0/473F840
+2025-09-22 19:05:47.687 UTC [9] LOG:  consistent recovery state reached at 0/47659D8
+2025-09-22 19:05:47.688 UTC [9] LOG:  invalid record length at 0/47659D8: expected at least 24, got 0
+2025-09-22 19:05:47.688 UTC [1] LOG:  database system is ready to accept read-only connections
+2025-09-22 19:05:47.694 UTC [10] LOG:  started streaming WAL from primary at 0/4000000 on timeline 1
+2025-09-22 19:05:47.870 UTC [1] LOG:  received fast shutdown request
+2025-09-22 19:05:47.873 UTC [1] LOG:  aborting any active transactions
+2025-09-22 19:05:47.873 UTC [11] FATAL:  terminating connection due to administrator command
+2025-09-22 19:05:47.873 UTC [10] FATAL:  terminating walreceiver process due to administrator command
+2025-09-22 19:05:47.874 UTC [7] LOG:  shutting down
+2025-09-22 19:05:47.885 UTC [1] LOG:  database system is shut down
+2025-09-22 19:05:50.298 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2025-09-22 19:05:50.298 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5702
+2025-09-22 19:05:50.298 UTC [1] LOG:  listening on IPv6 address "::", port 5702
+2025-09-22 19:05:50.300 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5702"
+2025-09-22 19:05:50.303 UTC [9] LOG:  database system was shut down in recovery at 2025-09-22 19:05:47 UTC
+2025-09-22 19:05:50.303 UTC [9] LOG:  entering standby mode
+2025-09-22 19:05:50.306 UTC [9] LOG:  redo starts at 0/473F840
+2025-09-22 19:05:50.306 UTC [9] LOG:  consistent recovery state reached at 0/4765A10
+2025-09-22 19:05:50.306 UTC [1] LOG:  database system is ready to accept read-only connections
+2025-09-22 19:05:50.306 UTC [9] LOG:  invalid record length at 0/4765A10: expected at least 24, got 0
+2025-09-22 19:05:50.315 UTC [10] LOG:  started streaming WAL from primary at 0/4000000 on timeline 1

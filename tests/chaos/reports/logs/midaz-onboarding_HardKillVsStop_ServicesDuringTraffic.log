@@ -1,0 +1,72 @@
+--- midaz-onboarding logs since 2025-09-22T16:02:48-03:00
+2025-09-22T19:02:48.373Z	[34mINFO[0m	http/withLogging.go:186	6427f370bc9dcba9 | 172.217.162.177 - - http "POST /v1/organizations" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"address":{"country":"US"},"legalDocument":"NmJUTvaIUsHR","legalName":"Chaos DB PBJwsQ"}	{"X-Request-Id": "6427f370bc9dcba9"}
+2025-09-22T19:02:48.374Z	[34mINFO[0m	in/organization.go:53	6427f370bc9dcba9 | Request to create an organization with details: &mmodel.CreateOrganizationInput{LegalName:"Chaos DB PBJwsQ", ParentOrganizationID:(*string)(nil), DoingBusinessAs:(*string)(nil), LegalDocument:"NmJUTvaIUsHR", Address:mmodel.Address{Line1:"", Line2:(*string)(nil), ZipCode:"", City:"", State:"", Country:"US"}, Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "6427f370bc9dcba9"}
+2025-09-22T19:02:48.374Z	[34mINFO[0m	command/create-organization.go:22	6427f370bc9dcba9 | Trying to create organization: &{Chaos DB PBJwsQ <nil> <nil> NmJUTvaIUsHR { <nil>    US} { <nil>} map[]}	{"X-Request-Id": "6427f370bc9dcba9"}
+2025-09-22T19:02:48.391Z	[34mINFO[0m	command/create-metadata.go:14	6427f370bc9dcba9 | Trying to create metadata for Organization: 019972ce-a136-7163-90bf-7871c0bf78dc	{"X-Request-Id": "6427f370bc9dcba9"}
+2025-09-22T19:02:48.396Z	[34mINFO[0m	in/organization.go:67	6427f370bc9dcba9 | Successfully created organization: &{019972ce-a136-7163-90bf-7871c0bf78dc %!s(*string=<nil>) Chaos DB PBJwsQ %!s(*string=<nil>) NmJUTvaIUsHR { %!s(*string=<nil>)    US} {ACTIVE %!s(*string=<nil>)} 2025-09-22 19:02:48.374084418 +0000 UTC m=+807.099350496 2025-09-22 19:02:48.37408446 +0000 UTC m=+807.099350537 <nil> map[]}	{"X-Request-Id": "6427f370bc9dcba9"}
+2025-09-22T19:02:48.468Z	[34mINFO[0m	http/withLogging.go:186	fba00cb82b8afe02 | 172.217.162.177 - - http "POST /v1/organizations" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"address":{"country":"US"},"legalDocument":"hAYOyvqG6MET","legalName":"KillStop Org p6TiwC"}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.469Z	[34mINFO[0m	in/organization.go:53	fba00cb82b8afe02 | Request to create an organization with details: &mmodel.CreateOrganizationInput{LegalName:"KillStop Org p6TiwC", ParentOrganizationID:(*string)(nil), DoingBusinessAs:(*string)(nil), LegalDocument:"hAYOyvqG6MET", Address:mmodel.Address{Line1:"", Line2:(*string)(nil), ZipCode:"", City:"", State:"", Country:"US"}, Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.469Z	[34mINFO[0m	command/create-organization.go:22	fba00cb82b8afe02 | Trying to create organization: &{KillStop Org p6TiwC <nil> <nil> hAYOyvqG6MET { <nil>    US} { <nil>} map[]}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.469Z	[34mINFO[0m	command/create-metadata.go:14	fba00cb82b8afe02 | Trying to create metadata for Organization: 019972ce-a195-727a-965e-5b7ce378f2c0	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.470Z	[34mINFO[0m	in/organization.go:67	fba00cb82b8afe02 | Successfully created organization: &{019972ce-a195-727a-965e-5b7ce378f2c0 %!s(*string=<nil>) KillStop Org p6TiwC %!s(*string=<nil>) hAYOyvqG6MET { %!s(*string=<nil>)    US} {ACTIVE %!s(*string=<nil>)} 2025-09-22 19:02:48.469159585 +0000 UTC m=+807.194425663 2025-09-22 19:02:48.469159627 +0000 UTC m=+807.194425704 <nil> map[]}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.471Z	[34mINFO[0m	http/withLogging.go:186	fba00cb82b8afe02 | 172.217.162.177 - - http "POST /v1/organizations/019972ce-a195-727a-965e-5b7ce378f2c0/ledgers" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"name":"L-ks"}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.471Z	[34mINFO[0m	in/ledger.go:57	fba00cb82b8afe02 | Request to create an ledger with details: &mmodel.CreateLedgerInput{Name:"L-ks", Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.471Z	[34mINFO[0m	command/create-ledger.go:21	fba00cb82b8afe02 | Trying to create ledger: &{L-ks { <nil>} map[]}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.472Z	[34mINFO[0m	command/create-metadata.go:14	fba00cb82b8afe02 | Trying to create metadata for Ledger: 019972ce-a197-7a16-9827-848fdcd880ff	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.473Z	[34mINFO[0m	in/ledger.go:71	fba00cb82b8afe02 | Successfully created ledger	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.474Z	[34mINFO[0m	http/withLogging.go:186	fba00cb82b8afe02 | 172.217.162.177 - - http "POST /v1/organizations/019972ce-a195-727a-965e-5b7ce378f2c0/ledgers/019972ce-a197-7a16-9827-848fdcd880ff/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"code":"USD","name":"US Dollar","type":"currency"}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.474Z	[34mINFO[0m	in/asset.go:56	fba00cb82b8afe02 | Initiating create of Asset with organization ID: 019972ce-a195-727a-965e-5b7ce378f2c0	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.474Z	[34mINFO[0m	in/asset.go:57	fba00cb82b8afe02 | Initiating create of Asset with ledger ID: 019972ce-a197-7a16-9827-848fdcd880ff	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.474Z	[34mINFO[0m	in/asset.go:60	fba00cb82b8afe02 | Request to create a Asset with details: &mmodel.CreateAssetInput{Name:"US Dollar", Type:"currency", Code:"USD", Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.474Z	[34mINFO[0m	command/create-asset.go:23	fba00cb82b8afe02 | Trying to create asset: &{US Dollar currency USD { <nil>} map[]}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.475Z	[34mINFO[0m	command/create-metadata.go:14	fba00cb82b8afe02 | Trying to create metadata for Asset: 019972ce-a19b-759c-b6ce-cc4c4bd3dacf	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.476Z	[34mINFO[0m	command/create-asset.go:133	fba00cb82b8afe02 | Creating external account for asset: USD	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	command/create-asset.go:164	fba00cb82b8afe02 | External account created for asset USD with alias @external/USD	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	command/create-asset.go:166	fba00cb82b8afe02 | Sending external account to transaction queue...	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:52	fba00cb82b8afe02 | Init sent message	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:102	fba00cb82b8afe02 | Messages sent successfully to exchange: transaction.balance_create.exchange, key: transaction.balance_create.key	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	command/send-account-queue-transaction.go:49	fba00cb82b8afe02 | Account sent to transaction queue successfully	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.477Z	[34mINFO[0m	in/asset.go:76	fba00cb82b8afe02 | Successfully created Asset	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	http/withLogging.go:186	fba00cb82b8afe02 | 172.217.162.177 - - http "GET /v1/organizations/019972ce-a195-727a-965e-5b7ce378f2c0/ledgers/019972ce-a197-7a16-9827-848fdcd880ff/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	in/asset.go:115	fba00cb82b8afe02 | Initiating create of Asset with organization ID: 019972ce-a195-727a-965e-5b7ce378f2c0	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	in/asset.go:116	fba00cb82b8afe02 | Initiating create of Asset with ledger ID: 019972ce-a197-7a16-9827-848fdcd880ff	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	in/asset.go:159	fba00cb82b8afe02 | Initiating retrieval of all Assets 	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	query/get-all-asset.go:25	fba00cb82b8afe02 | Retrieving assets	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.478Z	[34mINFO[0m	in/asset.go:172	fba00cb82b8afe02 | Successfully retrieved all Assets	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.479Z	[34mINFO[0m	http/withLogging.go:186	fba00cb82b8afe02 | 172.217.162.177 - - http "POST /v1/organizations/019972ce-a195-727a-965e-5b7ce378f2c0/ledgers/019972ce-a197-7a16-9827-848fdcd880ff/accounts" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"alias":"ks-GK1x","assetCode":"USD","name":"A","type":"deposit"}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.479Z	[34mINFO[0m	in/account.go:55	fba00cb82b8afe02 | Request to create a Account with details: &mmodel.CreateAccountInput{Name:"A", ParentAccountID:(*string)(nil), EntityID:(*string)(nil), AssetCode:"USD", PortfolioID:(*string)(nil), SegmentID:(*string)(nil), Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Alias:(*string)(0x4000e7a570), Type:"deposit", Metadata:map[string]interface {}{}}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.479Z	[34mINFO[0m	command/create-account.go:27	fba00cb82b8afe02 | Trying to create account: &{A <nil> <nil> USD <nil> <nil> { <nil>} 0x4000e7a570 deposit map[]}	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.479Z	[34mINFO[0m	command/create-account.go:183	fba00cb82b8afe02 | Accounting validations are disabled	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.480Z	[33mWARN[0m	asset/asset.postgresql.go:164	fba00cb82b8afe02 | Asset name or code duplicate found: <nil>	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.480Z	[34mINFO[0m	command/create-metadata.go:14	fba00cb82b8afe02 | Trying to create metadata for Account: 019972ce-a1a0-72b6-8536-4b84bf62e3b5	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.481Z	[34mINFO[0m	command/create-account.go:152	fba00cb82b8afe02 | Sending account to transaction queue...	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.481Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:52	fba00cb82b8afe02 | Init sent message	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.481Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:102	fba00cb82b8afe02 | Messages sent successfully to exchange: transaction.balance_create.exchange, key: transaction.balance_create.key	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.481Z	[34mINFO[0m	command/send-account-queue-transaction.go:49	fba00cb82b8afe02 | Account sent to transaction queue successfully	{"X-Request-Id": "fba00cb82b8afe02"}
+2025-09-22T19:02:48.481Z	[34mINFO[0m	in/account.go:80	fba00cb82b8afe02 | Successfully created Account	{"X-Request-Id": "fba00cb82b8afe02"}
+VERSION: [31mv2.1.1[0m
+ENVIRONMENT NAME: [31m(development)[0m
+2025-09-22T19:02:56.625Z	[34mINFO[0m	app/main.go:20	Log level is (debug)
+2025-09-22T19:02:56.625Z	[34mINFO[0m	app/main.go:20	Logger is (*zap.SugaredLogger) 
+
+2025-09-22T19:02:56.625Z	[33mWARN[0m	opentelemetry/otel.go:138	Telemetry turned off ⚠️ 
+2025-09-22T19:02:56.625Z	[34mINFO[0m	redis/redis.go:68	Connecting to Redis/Valkey...
+2025-09-22T19:02:56.626Z	[34mINFO[0m	redis/redis.go:132	Connected to Redis/Valkey in STANDALONE mode ✅ 
+
+2025-09-22T19:02:56.626Z	[34mINFO[0m	postgres/postgres.go:39	Connecting to primary and replica databases...
+2025-09-22T19:02:56.634Z	[34mINFO[0m	postgres/postgres.go:101	No new migrations found. Skipping...
+2025-09-22T19:02:56.642Z	[34mINFO[0m	postgres/postgres.go:120	Connected to postgres ✅ 
+
+2025-09-22T19:02:56.642Z	[34mINFO[0m	mongo/mongo.go:23	Connecting to mongodb...
+2025-09-22T19:02:56.646Z	[34mINFO[0m	mongo/mongo.go:43	Connected to mongodb ✅ 
+
+2025-09-22T19:02:56.646Z	[34mINFO[0m	rabbitmq/rabbitmq.go:31	Connecting on rabbitmq...
+2025-09-22T19:02:56.653Z	[34mINFO[0m	rabbitmq/rabbitmq.go:55	Connected on rabbitmq ✅ 
+
+2025-09-22T19:02:56.653Z	[34mINFO[0m	commons/app.go:53	Starting 1 app(s)
+
+2025-09-22T19:02:56.653Z	[34mINFO[0m	commons/app.go:57	--
+2025-09-22T19:02:56.653Z	[34mINFO[0m	commons/app.go:58	Launcher: App [33m(Fiber Server)[0m starting
+
+2025-09-22T19:02:56.653Z	[34mINFO[0m	server/shutdown.go:140	Started 1 server(s)
+2025-09-22T19:02:56.653Z	[34mINFO[0m	server/shutdown.go:107	Starting HTTP server on :3000

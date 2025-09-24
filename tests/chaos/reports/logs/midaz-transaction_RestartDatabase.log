@@ -1,0 +1,5 @@
+--- midaz-transaction logs since 2025-09-22T16:02:41-03:00
+2025-09-22T19:02:41.946Z	[34mINFO[0m	http/withLogging.go:186	8f4e1e3eb00df385 | 172.217.162.177 - - http "GET /v1/organizations/019972ce-7e43-7b43-a64c-f54618fec7cc/ledgers/019972ce-7e67-76f7-9cea-515ff6ed4fc1/accounts/alias/cch-leVm/balances" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "8f4e1e3eb00df385"}
+2025-09-22T19:02:41.946Z	[34mINFO[0m	in/balance.go:359	8f4e1e3eb00df385 | Initiating retrieval of balances by alias	{"X-Request-Id": "8f4e1e3eb00df385"}
+2025-09-22T19:02:41.946Z	[34mINFO[0m	query/get-all-balances.go:86	8f4e1e3eb00df385 | Retrieving all balances by alias	{"X-Request-Id": "8f4e1e3eb00df385"}
+2025-09-22T19:02:41.946Z	[34mINFO[0m	in/balance.go:370	8f4e1e3eb00df385 | Successfully retrieved balances by alias	{"X-Request-Id": "8f4e1e3eb00df385"}

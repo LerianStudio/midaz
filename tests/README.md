@@ -30,8 +30,26 @@ Running:
 - Fuzz targets (examples): `go test -v ./tests/fuzzy -fuzz=Fuzz -run=^$ -fuzztime=5s`.
 - Chaos tests: `go test -v ./tests/chaos`.
 
+### Property test configuration
+- Control iterations with `MIDAZ_PROP_MAXCOUNT` (default `100`).
+- Scale input sizes with `MIDAZ_PROP_SCALE` (default `1.0`).
+- Reproduce failures with `MIDAZ_PROP_SEED` (int64). The harness logs the seed.
+
+### Nightly/Heavy test flags
+- `MIDAZ_TEST_HEAVY=true` or `MIDAZ_TEST_NIGHTLY=true` enables long/heavy tests (e.g., large pagination datasets).
+- Keep unset for normal CI to run a smaller, fast suite.
+
+### Test data generators
+- Use helpers in `github.com/LerianStudio/midaz/v3/tests/helpers`:
+  - `OrgPayloadRandom()`, `LedgerPayloadRandom()`, `AccountPayloadRandom(assetCode, type, prefix)`
+  - `InflowPayload(asset, value, alias)`, `OutflowPayload(pending, asset, value, alias)`
+  - `RandomAlias(prefix)`, `RandomCode(prefix, n)`
+
+### Fixture utilities
+- Load raw fixtures with replacements: `LoadFixtureRaw(path, replacements)`
+- Load parsed JSON fixtures: `LoadFixtureJSON(path, replacements)`
+
 Notes:
 
 - Many initial tests are placeholders with `t.Skip` to stage the structure; they will be implemented iteratively.
 - See `tests/helpers` and `tests/fixtures` for shared utilities and sample payloads.
-

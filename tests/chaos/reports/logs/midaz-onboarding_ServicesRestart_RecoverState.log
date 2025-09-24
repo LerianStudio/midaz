@@ -1,0 +1,45 @@
+--- midaz-onboarding logs since 2025-09-22T16:06:08-03:00
+2025-09-22T19:06:08.946Z	[34mINFO[0m	http/withLogging.go:186	a437986f3a43e4ed | 172.217.162.177 - - http "POST /v1/organizations" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"address":{"country":"US"},"legalDocument":"Hfik0A7ZzVku","legalName":"Srv Org Q8aXVY"}	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:08.946Z	[34mINFO[0m	in/organization.go:53	a437986f3a43e4ed | Request to create an organization with details: &mmodel.CreateOrganizationInput{LegalName:"Srv Org Q8aXVY", ParentOrganizationID:(*string)(nil), DoingBusinessAs:(*string)(nil), LegalDocument:"Hfik0A7ZzVku", Address:mmodel.Address{Line1:"", Line2:(*string)(nil), ZipCode:"", City:"", State:"", Country:"US"}, Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:08.946Z	[34mINFO[0m	command/create-organization.go:22	a437986f3a43e4ed | Trying to create organization: &{Srv Org Q8aXVY <nil> <nil> Hfik0A7ZzVku { <nil>    US} { <nil>} map[]}	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:08.947Z	[34mINFO[0m	command/create-metadata.go:14	a437986f3a43e4ed | Trying to create metadata for Organization: 019972d1-b0b2-79eb-9a87-98ecb9444fd6	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:08.949Z	[34mINFO[0m	in/organization.go:67	a437986f3a43e4ed | Successfully created organization: &{019972d1-b0b2-79eb-9a87-98ecb9444fd6 %!s(*string=<nil>) Srv Org Q8aXVY %!s(*string=<nil>) Hfik0A7ZzVku { %!s(*string=<nil>)    US} {ACTIVE %!s(*string=<nil>)} 2025-09-22 19:06:08.946645386 +0000 UTC m=+4.583089753 2025-09-22 19:06:08.946645428 +0000 UTC m=+4.583089795 <nil> map[]}	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:08.970Z	[34mINFO[0m	server/shutdown.go:148	Gracefully shutting down all servers...
+2025-09-22T19:06:08.970Z	[34mINFO[0m	server/shutdown.go:148	Shutting down HTTP server...
+2025-09-22T19:06:09.070Z	[34mINFO[0m	server/shutdown.go:148	Shutting down telemetry...
+2025-09-22T19:06:09.071Z	[34mINFO[0m	server/shutdown.go:148	Syncing logger...
+2025-09-22T19:06:09.071Z	[31mERROR[0m	server/shutdown.go:155	Failed to sync logger: sync /dev/stderr: invalid argument
+2025-09-22T19:06:09.071Z	[34mINFO[0m	server/shutdown.go:148	Graceful shutdown completed
+2025-09-22T19:06:09.071Z	[34mINFO[0m	commons/app.go:67	Launcher: App (Fiber Server) finished
+
+2025-09-22T19:06:09.071Z	[34mINFO[0m	commons/app.go:73	Launcher: Terminated
+VERSION: [31mv2.1.1[0m
+ENVIRONMENT NAME: [31m(development)[0m
+2025-09-22T19:06:09.762Z	[34mINFO[0m	app/main.go:20	Log level is (debug)
+2025-09-22T19:06:09.762Z	[34mINFO[0m	app/main.go:20	Logger is (*zap.SugaredLogger) 
+
+2025-09-22T19:06:09.762Z	[33mWARN[0m	opentelemetry/otel.go:138	Telemetry turned off ⚠️ 
+2025-09-22T19:06:09.762Z	[34mINFO[0m	redis/redis.go:68	Connecting to Redis/Valkey...
+2025-09-22T19:06:09.764Z	[34mINFO[0m	redis/redis.go:132	Connected to Redis/Valkey in STANDALONE mode ✅ 
+
+2025-09-22T19:06:09.764Z	[34mINFO[0m	postgres/postgres.go:39	Connecting to primary and replica databases...
+2025-09-22T19:06:09.771Z	[34mINFO[0m	postgres/postgres.go:101	No new migrations found. Skipping...
+2025-09-22T19:06:09.778Z	[34mINFO[0m	postgres/postgres.go:120	Connected to postgres ✅ 
+
+2025-09-22T19:06:09.778Z	[34mINFO[0m	mongo/mongo.go:23	Connecting to mongodb...
+2025-09-22T19:06:09.782Z	[34mINFO[0m	mongo/mongo.go:43	Connected to mongodb ✅ 
+
+2025-09-22T19:06:09.782Z	[34mINFO[0m	rabbitmq/rabbitmq.go:31	Connecting on rabbitmq...
+2025-09-22T19:06:09.786Z	[34mINFO[0m	rabbitmq/rabbitmq.go:55	Connected on rabbitmq ✅ 
+
+2025-09-22T19:06:09.786Z	[34mINFO[0m	commons/app.go:53	Starting 1 app(s)
+
+2025-09-22T19:06:09.786Z	[34mINFO[0m	commons/app.go:57	--
+2025-09-22T19:06:09.786Z	[34mINFO[0m	commons/app.go:58	Launcher: App [33m(Fiber Server)[0m starting
+
+2025-09-22T19:06:09.786Z	[34mINFO[0m	server/shutdown.go:140	Started 1 server(s)
+2025-09-22T19:06:09.786Z	[34mINFO[0m	server/shutdown.go:107	Starting HTTP server on :3000
+2025-09-22T19:06:14.769Z	[34mINFO[0m	http/withLogging.go:186	a437986f3a43e4ed | 172.217.162.177 - - http "GET /v1/organizations/019972d1-b0b2-79eb-9a87-98ecb9444fd6" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:14.769Z	[34mINFO[0m	in/organization.go:156	a437986f3a43e4ed | Initiating retrieval of Organization with ID: 019972d1-b0b2-79eb-9a87-98ecb9444fd6	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:14.769Z	[34mINFO[0m	query/get-id-organization.go:24	a437986f3a43e4ed | Retrieving organization for id: 019972d1-b0b2-79eb-9a87-98ecb9444fd6	{"X-Request-Id": "a437986f3a43e4ed"}
+2025-09-22T19:06:14.773Z	[34mINFO[0m	in/organization.go:167	a437986f3a43e4ed | Successfully retrieved Organization with ID: 019972d1-b0b2-79eb-9a87-98ecb9444fd6	{"X-Request-Id": "a437986f3a43e4ed"}

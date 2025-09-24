@@ -43,14 +43,20 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
 		t.Fatalf("asset: %v", err)
 	}
-	alias := "rb-" + h.RandString(4)
-	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
-	if err != nil || code != 201 {
-		t.Fatalf("create account: %d %s", code, string(body))
-	}
-	if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
-		t.Fatalf("enable default: %v", err)
-	}
+    alias := "rb-" + h.RandString(4)
+    code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
+    if err != nil || code != 201 {
+        t.Fatalf("create account: %d %s", code, string(body))
+    }
+    // Pre-check: ensure default balance exists by account ID before alias-based operations
+    var acc struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(body, &acc)
+    if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
+        t.Fatalf("ensure default ready: %v", err)
+    }
+    if err := h.EnableDefaultBalance(ctx, trans, org.ID, ledger.ID, alias, headers); err != nil {
+        t.Fatalf("enable default: %v", err)
+    }
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "10.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "10.00"}}}}}})
 	if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, decimal.RequireFromString("10.00"), 10*time.Second); err != nil {
 		t.Fatalf("seed wait: %v", err)

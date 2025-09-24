@@ -3,7 +3,7 @@ package property
 import (
     "math/rand"
     "testing"
-    "testing/quick"
+    h "github.com/LerianStudio/midaz/v3/tests/helpers"
 )
 
 // Property: For a transaction with a single asset, the sum of destination amounts equals the send value.
@@ -48,8 +48,5 @@ func TestProperty_ConservationOfValue_Model(t *testing.T) {
         if diff < 0 { diff = -diff }
         return diff < eps
     }
-    cfg := &quick.Config{MaxCount: 100}
-    if err := quick.Check(f, cfg); err != nil {
-        t.Fatalf("conservation property failed: %v", err)
-    }
+    h.CheckProp(t, f)
 }

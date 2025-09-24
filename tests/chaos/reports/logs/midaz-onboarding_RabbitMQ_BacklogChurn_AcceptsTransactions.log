@@ -1,0 +1,135 @@
+--- midaz-onboarding logs since 2025-09-22T16:05:02-03:00
+2025-09-22T19:05:02.229Z	[34mINFO[0m	http/withLogging.go:186	281db6936af4f92b | 172.217.162.177 - - http "GET /v1/organizations/019972d0-7ad0-77c9-ba86-0d6ea567f816" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "281db6936af4f92b"}
+2025-09-22T19:05:02.229Z	[34mINFO[0m	in/organization.go:156	281db6936af4f92b | Initiating retrieval of Organization with ID: 019972d0-7ad0-77c9-ba86-0d6ea567f816	{"X-Request-Id": "281db6936af4f92b"}
+2025-09-22T19:05:02.229Z	[34mINFO[0m	query/get-id-organization.go:24	281db6936af4f92b | Retrieving organization for id: 019972d0-7ad0-77c9-ba86-0d6ea567f816	{"X-Request-Id": "281db6936af4f92b"}
+2025-09-22T19:05:02.230Z	[34mINFO[0m	in/organization.go:167	281db6936af4f92b | Successfully retrieved Organization with ID: 019972d0-7ad0-77c9-ba86-0d6ea567f816	{"X-Request-Id": "281db6936af4f92b"}
+2025-09-22T19:05:02.381Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "POST /v1/organizations" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"address":{"country":"US"},"legalDocument":"5S9DoCwaVgvr","legalName":"RMQ Backlog F7Nhu"}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.381Z	[34mINFO[0m	in/organization.go:53	6f802b33766c607e | Request to create an organization with details: &mmodel.CreateOrganizationInput{LegalName:"RMQ Backlog F7Nhu", ParentOrganizationID:(*string)(nil), DoingBusinessAs:(*string)(nil), LegalDocument:"5S9DoCwaVgvr", Address:mmodel.Address{Line1:"", Line2:(*string)(nil), ZipCode:"", City:"", State:"", Country:"US"}, Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.381Z	[34mINFO[0m	command/create-organization.go:22	6f802b33766c607e | Trying to create organization: &{RMQ Backlog F7Nhu <nil> <nil> 5S9DoCwaVgvr { <nil>    US} { <nil>} map[]}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.390Z	[34mINFO[0m	command/create-metadata.go:14	6f802b33766c607e | Trying to create metadata for Organization: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.392Z	[34mINFO[0m	in/organization.go:67	6f802b33766c607e | Successfully created organization: &{019972d0-acad-75ef-9c29-b327129866e2 %!s(*string=<nil>) RMQ Backlog F7Nhu %!s(*string=<nil>) 5S9DoCwaVgvr { %!s(*string=<nil>)    US} {ACTIVE %!s(*string=<nil>)} 2025-09-22 19:05:02.381384841 +0000 UTC m=+125.768194558 2025-09-22 19:05:02.381384883 +0000 UTC m=+125.768194558 <nil> map[]}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.393Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "POST /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"name":"L-rb"}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.393Z	[34mINFO[0m	in/ledger.go:57	6f802b33766c607e | Request to create an ledger with details: &mmodel.CreateLedgerInput{Name:"L-rb", Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.393Z	[34mINFO[0m	command/create-ledger.go:21	6f802b33766c607e | Trying to create ledger: &{L-rb { <nil>} map[]}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.401Z	[34mINFO[0m	command/create-metadata.go:14	6f802b33766c607e | Trying to create metadata for Ledger: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.404Z	[34mINFO[0m	in/ledger.go:71	6f802b33766c607e | Successfully created ledger	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.405Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "POST /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"code":"USD","name":"US Dollar","type":"currency"}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.405Z	[34mINFO[0m	in/asset.go:56	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.405Z	[34mINFO[0m	in/asset.go:57	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.405Z	[34mINFO[0m	in/asset.go:60	6f802b33766c607e | Request to create a Asset with details: &mmodel.CreateAssetInput{Name:"US Dollar", Type:"currency", Code:"USD", Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Metadata:map[string]interface {}{}}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.405Z	[34mINFO[0m	command/create-asset.go:23	6f802b33766c607e | Trying to create asset: &{US Dollar currency USD { <nil>} map[]}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.413Z	[34mINFO[0m	command/create-metadata.go:14	6f802b33766c607e | Trying to create metadata for Asset: 019972d0-acc8-774a-b109-73a4b813b11d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.414Z	[34mINFO[0m	command/create-asset.go:133	6f802b33766c607e | Creating external account for asset: USD	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	command/create-asset.go:164	6f802b33766c607e | External account created for asset USD with alias @external/USD	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	command/create-asset.go:166	6f802b33766c607e | Sending external account to transaction queue...	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:52	6f802b33766c607e | Init sent message	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:102	6f802b33766c607e | Messages sent successfully to exchange: transaction.balance_create.exchange, key: transaction.balance_create.key	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	command/send-account-queue-transaction.go:49	6f802b33766c607e | Account sent to transaction queue successfully	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.417Z	[34mINFO[0m	in/asset.go:76	6f802b33766c607e | Successfully created Asset	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.418Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.418Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.418Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.418Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.418Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.419Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.570Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.722Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.722Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.722Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.722Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.722Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.723Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:02.875Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.027Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.179Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.179Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.180Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.180Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.180Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.180Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.334Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.334Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.334Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.334Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.334Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.335Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.487Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.488Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.488Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.488Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.488Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.488Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.640Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.793Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.793Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.793Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.793Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.793Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.794Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.946Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.946Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.946Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.946Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.946Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:03.948Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.102Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.102Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.102Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.102Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.102Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.104Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.257Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.257Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.257Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.257Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.257Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.259Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.413Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.413Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.413Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.413Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.413Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.414Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.568Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.719Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "GET /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/assets" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.719Z	[34mINFO[0m	in/asset.go:115	6f802b33766c607e | Initiating create of Asset with organization ID: 019972d0-acad-75ef-9c29-b327129866e2	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.719Z	[34mINFO[0m	in/asset.go:116	6f802b33766c607e | Initiating create of Asset with ledger ID: 019972d0-acb9-7b15-9dec-6219acaa9d1d	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.719Z	[34mINFO[0m	in/asset.go:159	6f802b33766c607e | Initiating retrieval of all Assets 	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.719Z	[34mINFO[0m	query/get-all-asset.go:25	6f802b33766c607e | Retrieving assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.720Z	[34mINFO[0m	in/asset.go:172	6f802b33766c607e | Successfully retrieved all Assets	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.721Z	[34mINFO[0m	http/withLogging.go:186	6f802b33766c607e | 172.217.162.177 - - http "POST /v1/organizations/019972d0-acad-75ef-9c29-b327129866e2/ledgers/019972d0-acb9-7b15-9dec-6219acaa9d1d/accounts" 0 0 - Go-http-client/1.1 - Go-http-client/1.1 {"alias":"rb-Q89f","assetCode":"USD","name":"A","type":"deposit"}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.722Z	[34mINFO[0m	in/account.go:55	6f802b33766c607e | Request to create a Account with details: &mmodel.CreateAccountInput{Name:"A", ParentAccountID:(*string)(nil), EntityID:(*string)(nil), AssetCode:"USD", PortfolioID:(*string)(nil), SegmentID:(*string)(nil), Status:mmodel.Status{Code:"", Description:(*string)(nil)}, Alias:(*string)(0x4000f3cc40), Type:"deposit", Metadata:map[string]interface {}{}}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.722Z	[34mINFO[0m	command/create-account.go:27	6f802b33766c607e | Trying to create account: &{A <nil> <nil> USD <nil> <nil> { <nil>} 0x4000f3cc40 deposit map[]}	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.722Z	[34mINFO[0m	command/create-account.go:183	6f802b33766c607e | Accounting validations are disabled	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.722Z	[33mWARN[0m	asset/asset.postgresql.go:164	6f802b33766c607e | Asset name or code duplicate found: <nil>	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.723Z	[34mINFO[0m	command/create-metadata.go:14	6f802b33766c607e | Trying to create metadata for Account: 019972d0-b5d2-7ccc-9cc3-703a3f6a8e3b	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.725Z	[34mINFO[0m	command/create-account.go:152	6f802b33766c607e | Sending account to transaction queue...	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.725Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:52	6f802b33766c607e | Init sent message	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.725Z	[34mINFO[0m	rabbitmq/producer.rabbitmq.go:102	6f802b33766c607e | Messages sent successfully to exchange: transaction.balance_create.exchange, key: transaction.balance_create.key	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.725Z	[34mINFO[0m	command/send-account-queue-transaction.go:49	6f802b33766c607e | Account sent to transaction queue successfully	{"X-Request-Id": "6f802b33766c607e"}
+2025-09-22T19:05:04.725Z	[34mINFO[0m	in/account.go:80	6f802b33766c607e | Successfully created Account	{"X-Request-Id": "6f802b33766c607e"}

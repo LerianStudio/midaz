@@ -1,0 +1,21 @@
+--- midaz-postgres-primary logs since 2025-09-22T16:02:41-03:00
+2025-09-22 19:02:42.015 UTC [1] LOG:  received fast shutdown request
+2025-09-22 19:02:42.017 UTC [1] LOG:  aborting any active transactions
+2025-09-22 19:02:42.017 UTC [99] FATAL:  terminating connection due to administrator command
+2025-09-22 19:02:42.017 UTC [63] FATAL:  terminating connection due to administrator command
+2025-09-22 19:02:42.017 UTC [62] FATAL:  terminating connection due to administrator command
+2025-09-22 19:02:42.018 UTC [98] FATAL:  terminating connection due to administrator command
+2025-09-22 19:02:42.019 UTC [1] LOG:  background worker "logical replication launcher" (PID 18) exited with exit code 1
+2025-09-22 19:02:42.021 UTC [13] LOG:  shutting down
+2025-09-22 19:02:42.037 UTC [13] LOG:  checkpoint starting: shutdown immediate
+2025-09-22 19:02:42.050 UTC [13] LOG:  checkpoint complete: wrote 27 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.002 s, total=0.019 s; sync files=27, longest=0.001 s, average=0.001 s; distance=127 kB, estimate=127 kB; lsn=0/464C0A8, redo lsn=0/464C0A8
+2025-09-22 19:02:42.060 UTC [1] LOG:  database system is shut down
+
+PostgreSQL Database directory appears to contain a database; Skipping initialization
+
+2025-09-22 19:02:42.437 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2025-09-22 19:02:42.437 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5701
+2025-09-22 19:02:42.437 UTC [1] LOG:  listening on IPv6 address "::", port 5701
+2025-09-22 19:02:42.439 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5701"
+2025-09-22 19:02:42.447 UTC [16] LOG:  database system was shut down at 2025-09-22 19:02:42 UTC
+2025-09-22 19:02:42.453 UTC [1] LOG:  database system is ready to accept connections
