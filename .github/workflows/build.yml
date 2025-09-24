@@ -133,7 +133,7 @@ jobs:
   update_gitops:
     needs: [build_and_publish]
     if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
-    runs-on: ubuntu-latest
+    runs-on: firmino-lxc-runners
     steps:
       - uses: actions/checkout@v4
         with:
