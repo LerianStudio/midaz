@@ -1,3 +1,18 @@
+## [v3.4.0-beta.5] - 2025-09-24
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.4...v3.4.0-beta.5)
+Contributors: Fred Amaral, lerian-studio
+
+### 🐛 Bug Fixes
+- **HTTP Module**: Fixed an issue with request/response body handling that could lead to memory leaks. This resolution enhances application stability by preventing resource exhaustion, ensuring consistent performance during prolonged operations.
+
+### ⚡ Performance
+- **HTTP Module**: Improved the handling of request and response bodies to boost performance and prevent memory leaks. This enhancement ensures smoother data exchanges and reduces resource consumption, providing a more efficient user experience.
+
+### 📚 Documentation
+- Updated the CHANGELOG to reflect recent changes and improvements, ensuring users have access to the latest information about updates and fixes. This helps maintain transparency and keeps users informed about the project's development progress.
+
+
 ## [v3.4.0-beta.4] - 2025-09-23
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.3...v3.4.0-beta.4)
