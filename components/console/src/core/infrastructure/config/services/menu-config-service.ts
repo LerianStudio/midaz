@@ -95,7 +95,9 @@ export class MenuConfigService implements MenuConfig {
       return {
         name: item.name,
         title: this.intl.formatMessage({ id: item.titleKey }),
-        host: process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_BASE_URL || 'http://localhost:8081',
+        host:
+          process.env.NEXT_PUBLIC_MIDAZ_CONSOLE_BASE_URL ||
+          'http://localhost:8081',
         route: item.route,
         icon: item.icon,
         hasLedgerDependencies: item.hasLedgerDependencies,
