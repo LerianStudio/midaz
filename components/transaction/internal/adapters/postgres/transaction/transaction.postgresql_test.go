@@ -697,6 +697,7 @@ func TestTransactionRepository_FindAll(t *testing.T) {
 
 	// Run test cases
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			repo := tc.setupRepo()
 			ctx := context.Background()
@@ -725,11 +726,12 @@ func TestTransactionRepository_FindAll(t *testing.T) {
 				assert.Equal(t, "", pagination.Next)
 				assert.Equal(t, "", pagination.Prev)
 
-				if tc.name == "successful retrieval of all transactions" {
+				switch name := tc.name; name {
+				case "successful retrieval of all transactions":
 					assert.Equal(t, 2, len(transactions))
 					assert.Equal(t, "Transaction 1", transactions[0].Description)
 					assert.Equal(t, "Transaction 2", transactions[1].Description)
-				} else if tc.name == "empty result" {
+				case "empty result":
 					assert.Equal(t, 0, len(transactions))
 				}
 			}

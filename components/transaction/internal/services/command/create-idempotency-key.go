@@ -23,9 +23,11 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 	logger.Infof("Trying to create or check idempotency key in redis")
 
-	if key == "" {
-		key = hash
-	}
+    // Only enforce idempotency when an explicit key is provided by the client.
+    // If no key is provided, allow multiple distinct requests even with similar payloads.
+    if key == "" {
+        return nil, nil
+    }
 
 	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
@@ -73,9 +75,9 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 
 	logger.Infof("Trying to set value on idempotency key in redis")
 
-	if key == "" {
-		key = hash
-	}
+    if key == "" {
+        return
+    }
 
 	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
