@@ -82,6 +82,16 @@ TEST_ONBOARDING_URL ?= http://localhost:3000
 TEST_TRANSACTION_URL ?= http://localhost:3001
 TEST_HEALTH_WAIT ?= 60
 TEST_FUZZTIME ?= 30s
+START_LOCAL_DOCKER ?= 0
+
+# Optional auth configuration (passed through to tests)
+TEST_AUTH_URL ?=
+TEST_AUTH_USERNAME ?=
+TEST_AUTH_PASSWORD ?=
+
+# Optional fuzz engine load controls
+TEST_PARALLEL ?=
+TEST_GOMAXPROCS ?=
 
 # macOS ld64 workaround: newer ld emits noisy LC_DYSYMTAB warnings when linking test binaries with -race.
 # If available, prefer Apple's classic linker to silence them.
@@ -107,6 +117,10 @@ define wait_for_services
 	  sleep 1; \
 	done; echo "[error] Services not healthy after $(TEST_HEALTH_WAIT)s"; exit 1'
 endef
+
+.PHONY: wait-for-services
+wait-for-services:
+	$(call wait_for_services)
 
 #-------------------------------------------------------
 # Help Command
@@ -187,6 +201,24 @@ help:
 	@echo "  make test-property               - Run property-based tests"
 	@echo ""
 	@echo ""
+	@echo "Test Parameters (env vars for test-* targets):"
+	@echo "  START_LOCAL_DOCKER            - 0|1 (default: $(START_LOCAL_DOCKER))"
+	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
+	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
+	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
+	@echo "  TEST_FUZZTIME                 - default: $(TEST_FUZZTIME)"
+	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
+	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
+	@sh -c 'if [ -n "$(TEST_AUTH_PASSWORD)" ]; then echo "  TEST_AUTH_PASSWORD            - [set]"; else echo "  TEST_AUTH_PASSWORD            - [unset]"; fi'
+	@echo "  TEST_PARALLEL                 - go test -parallel (default: $(TEST_PARALLEL))"
+	@echo "  TEST_GOMAXPROCS               - env GOMAXPROCS (default: $(TEST_GOMAXPROCS))"
+	@echo "  RETRY_ON_FAIL                 - 0|1 (default: $(RETRY_ON_FAIL))"
+	@echo ""
+	@echo "Target usage (which vars each target honors):"
+	@echo "  test-integration: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-fuzzy:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
+	@echo "  test-fuzz-engine: START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD, TEST_FUZZTIME, TEST_PARALLEL, TEST_GOMAXPROCS"
+	@echo "  test-chaos:       START_LOCAL_DOCKER, TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_URL, TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD"
 
 # ------------------------------------------------------
 # Test tooling configuration
@@ -247,24 +279,31 @@ test-unit:
 # Integration tests (Go) – spins up stack, runs tests/integration
 .PHONY: test-integration
 test-integration:
-	$(call print_title,Running Go integration tests (with Docker stack))
+	$(call print_title,Running Go integration tests)
+
+ifeq ($(START_LOCAL_DOCKER),1)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+endif
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/integration; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
+	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
+	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	  $(MAKE) up-backend; \
+	  $(MAKE) -s wait-for-services; \
+	else \
+	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
+	fi; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying integration tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
 	fi
 
 
@@ -304,70 +343,91 @@ test-property:
 # Chaos tests
 .PHONY: test-chaos
 test-chaos:
-	$(call print_title,Running chaos tests - requires Docker stack)
+	$(call print_title,Running chaos tests)
+
+ifeq ($(START_LOCAL_DOCKER),1)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+endif
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
+	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
+	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	  $(MAKE) up-backend; \
+	  $(MAKE) -s wait-for-services; \
+	else \
+	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
+	fi; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	fi
 
 # Fuzzy/robustness tests
 .PHONY: test-fuzzy
 test-fuzzy:
-	$(call print_title,Running fuzz/robustness tests - requires Docker stack)
+	$(call print_title,Running fuzz/robustness tests)
+
+ifeq ($(START_LOCAL_DOCKER),1)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+endif
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzzy; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
+	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
+	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	  $(MAKE) up-backend; \
+	  $(MAKE) -s wait-for-services; \
+	else \
+	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
+	fi; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying fuzzy tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	fi
 
 # Fuzz engine run (uses Go's built-in fuzzing). Adjust TEST_FUZZTIME to control duration.
 .PHONY: test-fuzz-engine
 test-fuzz-engine:
-	$(call print_title,Running Go fuzz engine on fuzzy tests - requires Docker stack)
+	$(call print_title,Running Go fuzz engine on fuzzy tests)
+
+ifeq ($(START_LOCAL_DOCKER),1)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
+endif
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz-engine; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
+	if [ "$(START_LOCAL_DOCKER)" = "1" ]; then \
+	  trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
+	  $(MAKE) up-backend; \
+	  $(MAKE) -s wait-for-services; \
+	else \
+	  echo "Skipping local backend startup (START_LOCAL_DOCKER=$(START_LOCAL_DOCKER))"; \
+	fi; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying fuzz engine once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) GOMAXPROCS=$(TEST_GOMAXPROCS) go test -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(if $(TEST_PARALLEL),-parallel $(TEST_PARALLEL),) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	fi
 
 # Security tests (run only when auth plugin enabled)
