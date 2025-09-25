@@ -1,3 +1,15 @@
+## [v3.4.0-beta.8] - 2025-09-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.7...v3.4.0-beta.8)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 📚 Documentation
+- **Updated CHANGELOG**: We've refreshed our changelog to accurately reflect the latest updates and improvements. This ensures you have easy access to information about new features, bug fixes, and enhancements, helping you stay informed and make the most of the software.
+
+### 🔧 Maintenance
+- **End-to-End Testing**: Comprehensive end-to-end tests were executed to validate the system's integrity and performance. This step is crucial for maintaining the reliability of the software, ensuring that all components work together smoothly after updates.
+
+
 ## [v3.4.0-beta.7] - 2025-09-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.6...v3.4.0-beta.7)
