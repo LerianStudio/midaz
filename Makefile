@@ -180,7 +180,7 @@ help:
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests (exclude ./tests/**)"
 	@echo "  make test-integration            - Run Go integration tests (brings up backend)"
-	@echo "  make test-e2e                    - Run Go E2E tests (brings up backend)"
+	@echo "  make test-e2e                    - Run Apidog E2E tests (brings up backend)"
 	@echo "  make test-fuzzy                  - Run fuzz/robustness tests (brings up backend)"
 	@echo "  make test-fuzz-engine            - Run go fuzz engine on fuzzy tests (brings up backend)"
 	@echo "  make test-chaos                  - Run chaos/resilience tests (brings up backend)"
@@ -269,32 +269,20 @@ test-integration:
 	fi
 
 
-# E2E tests (Go) – expects stack running; will bring it up if not
-.PHONY: test-e2e-go
-test-e2e-go:
-	$(call print_title,Running Go E2E tests (with Docker stack))
+# E2E tests (Apidog CLI) – brings up stack, runs Apidog JSON workflow, saves report
+.PHONY: test-e2e
+test-e2e:
+	$(call print_title,Running E2E tests with Apidog CLI (with Docker stack))
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying E2E tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	fi
-
-# Simple alias for the E2E suite
-.PHONY: test-e2e
-test-e2e: test-e2e-go
+	mkdir -p ./reports/e2e; \
+	echo "Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json"; \
+	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
+	npx --yes apidog-cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e
 
 # Combined Go integration + E2E tests
 .PHONY: test-integration-e2e
