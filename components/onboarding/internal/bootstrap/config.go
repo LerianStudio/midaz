@@ -55,6 +55,7 @@ type Config struct {
 	MongoDBUser                  string `env:"MONGO_USER"`
 	MongoDBPassword              string `env:"MONGO_PASSWORD"`
 	MongoDBPort                  string `env:"MONGO_PORT"`
+	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
 	RabbitURI                    string `env:"RABBITMQ_URI"`
@@ -134,11 +135,15 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
+	}
+
+	if cfg.MongoDBParameters != "" {
+		mongoSource += "?" + cfg.MongoDBParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
