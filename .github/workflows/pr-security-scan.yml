@@ -1,0 +1,29 @@
+name: "PR Security Scan"
+
+# This workflow runs security scans on pull requests
+# targeting develop, release-candidate, and main branches
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - release-candidate
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+jobs:
+  security-scan:
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@main
+    with:
+      runner_type: "ubuntu-latest"
+      filter_paths: |
+        components/onboarding
+        components/transaction
+        components/console
+      app_name_prefix: "midaz"
+      path_level: "2"
+      dockerhub_org: "lerianstudio"
