@@ -19,7 +19,7 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@main
     with:
       runner_type: "ubuntu-latest"
-      filter_paths: |
+      filter_paths: |-
         components/onboarding
         components/transaction
         components/console
