@@ -252,3 +252,9 @@ jobs:
           name: apidog-e2e-test-reports-${{ env.TAG_TYPE }}
           path: ./apidog-reports
           retention-days: 30
+
+      - name: Cleanup apidog-cli
+        if: always()
+        run: |
+          npm uninstall -g apidog-cli || true
+          rm -rf $(npm root -g)/apidog-cli || true
