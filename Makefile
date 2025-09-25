@@ -191,7 +191,8 @@ help:
 # ------------------------------------------------------
 # Test tooling configuration
 # ------------------------------------------------------
-JUNIT_DIR ?= ./reports/junit
+
+TEST_REPORTS_DIR ?= ./reports
 GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
 RETRY_ON_FAIL ?= 0
 
@@ -223,17 +224,17 @@ test:
 test-unit:
 	$(call print_title,Running Go unit tests (excluding ./tests/**))
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/unit; \
 	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/'); \
 	if [ -z "$$pkgs" ]; then \
 	  echo "No unit test packages found (outside ./tests)**"; \
 	else \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running unit tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(JUNIT_DIR)/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname --junitfile $(JUNIT_DIR)/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
@@ -249,15 +250,15 @@ test-integration:
 	$(call print_title,Running Go integration tests (with Docker stack))
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/integration; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying integration tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/integration/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
 	    else \
 	      exit 1; \
 	    fi; \
@@ -282,48 +283,16 @@ test-e2e:
 	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
 	npx --yes apidog-cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e
 
-# Combined Go integration + E2E tests
-.PHONY: test-integration-e2e
-test-integration-e2e:
-	$(call print_title,Running Go integration + E2E tests (with Docker stack))
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying integration tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying E2E tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	fi
-
 # Property tests (model-level)
 .PHONY: test-property
 test-property:
 	$(call print_title,Running property-based model tests)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/property; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  gotestsum --format testname --junitfile $(JUNIT_DIR)/property.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property || { \
+	  gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying property tests once..."; \
-	      gotestsum --format testname --junitfile $(JUNIT_DIR)/property-rerun.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
+	      gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/property/property-rerun.xml -- -v -race -failfast -timeout 120s -count=1 $(GO_TEST_LDFLAGS) ./tests/property; \
 	    else \
 	      exit 1; \
 	    fi; \
@@ -338,15 +307,15 @@ test-chaos:
 	$(call print_title,Running chaos tests - requires Docker stack)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
@@ -361,15 +330,15 @@ test-fuzzy:
 	$(call print_title,Running fuzz/robustness tests - requires Docker stack)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzzy; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/fuzzy.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying fuzzy tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/fuzzy-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzzy/fuzzy-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	    else \
 	      exit 1; \
 	    fi; \
@@ -384,15 +353,15 @@ test-fuzz-engine:
 	$(call print_title,Running Go fuzz engine on fuzzy tests - requires Docker stack)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
+	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz-engine; \
 	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
 	$(MAKE) up-backend; \
 	$(call wait_for_services); \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
+	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying fuzz engine once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
+	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/fuzz-engine/fuzz-engine-rerun.xml -- -v -race -fuzz=Fuzz -run=^$$ -fuzztime=$(TEST_FUZZTIME) $(GO_TEST_LDFLAGS) ./tests/fuzzy; \
 	    else \
 	      exit 1; \
 	    fi; \
