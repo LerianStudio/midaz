@@ -1,3 +1,21 @@
+## [v3.4.0-beta.7] - 2025-09-25
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.6...v3.4.0-beta.7)
+Contributors: Clara Tersi, Gabriel Ferreira, lerian-studio
+
+### 🔄 Changes
+- **Testing/Configuration**: We've transitioned to using the Apidog CLI for end-to-end (E2E) tests. This change improves test reliability and simplifies the setup process, ensuring developers can achieve consistent and accurate test results with less effort.
+
+### 🗑️ Removed
+- **Testing**: Outdated E2E tests have been removed to prevent confusion and maintain an efficient codebase. This cleanup ensures that developers work with the most relevant and up-to-date test cases.
+
+### 📚 Documentation
+- The CHANGELOG has been updated to provide clear and current information about recent project changes, helping users and developers stay informed about the latest updates.
+
+### 🔧 Maintenance
+- **Build/Configuration**: We've configured the uninstallation of the Apidog CLI after E2E tests to maintain a clean testing environment. This ensures that no residual configurations interfere with subsequent test runs, promoting a consistent and isolated testing process.
+
+
 ## [v3.4.0-beta.6] - 2025-09-24
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.5...v3.4.0-beta.6)
