@@ -191,8 +191,7 @@ help:
 # ------------------------------------------------------
 # Test tooling configuration
 # ------------------------------------------------------
-JUNIT_DIR ?= ./reports/junit
-# Common reports directory for all suites (except e2e for now)
+
 TEST_REPORTS_DIR ?= ./reports
 GOTESTSUM := $(shell command -v gotestsum 2>/dev/null)
 RETRY_ON_FAIL ?= 0
@@ -283,38 +282,6 @@ test-e2e:
 	echo "Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json"; \
 	npx --yes @apidog/cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e || \
 	npx --yes apidog-cli@latest run ./tests/e2e/local.apidog-cli.json -r html,cli --out-dir ./reports/e2e
-
-# Combined Go integration + E2E tests
-.PHONY: test-integration-e2e
-test-integration-e2e:
-	$(call print_title,Running Go integration + E2E tests (with Docker stack))
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
-	@set -e; mkdir -p $(JUNIT_DIR); \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
-	$(call wait_for_services); \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying integration tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/integration-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying E2E tests once..."; \
-	      ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) gotestsum --format testname --junitfile $(JUNIT_DIR)/e2e-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/integration; \
-	  ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) go test -v -race -count=1 $(GO_TEST_LDFLAGS) ./tests/e2e; \
-	fi
 
 # Property tests (model-level)
 .PHONY: test-property
