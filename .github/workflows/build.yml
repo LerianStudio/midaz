@@ -204,9 +204,9 @@ jobs:
     if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@main
     with:
-      test_scenario_id: ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }}
       auto_detect_environment: true
     secrets:
+      test_scenario_id: ${{ secrets.MIDAZ_APIDOG_TEST_SCENARIO_ID }}
       apidog_access_token: ${{ secrets.APIDOG_ACCESS_TOKEN }}
       dev_environment_id: ${{ secrets.MIDAZ_APIDOG_DEV_ENVIRONMENT_ID }}
       stg_environment_id: ${{ secrets.MIDAZ_APIDOG_STG_ENVIRONMENT_ID }}
