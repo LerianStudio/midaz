@@ -162,6 +162,8 @@
     "cookie": "^0.7.0",
     "lodash.set": "^4.3.2",
     "@types/react": "19.1.6",
-    "@types/react-dom": "19.1.5"
+    "@types/react-dom": "19.1.5",
+    "tar-fs": "^3.1.1",
+    "tmp": "^0.2.4"
   }
 }
