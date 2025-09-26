@@ -1,3 +1,25 @@
+## [v3.4.0-beta.10] - 2025-09-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.9...v3.4.0-beta.10)
+Contributors: Clara Tersi, Gabriel Ferreira, paulo
+
+### 🐛 Bug Fixes
+- **Security & Dependency Management**: Updated `tar-fs` to address a security vulnerability and integrated Trivy scans into the pull request process. This ensures dependencies are secure and vulnerabilities are caught early, enhancing overall project security.
+- **Configuration Management**: Corrected versioning in the Midaz repository and updated documentation, ensuring accurate version tracking for more reliable deployments.
+- **Backend Configuration**: Resolved configuration issues by removing unnecessary console middleware settings, improving backend stability.
+- **Database Operations**: Added `BalanceKey` to transaction operations retrieval, ensuring complete and accurate data handling in financial transactions.
+
+### 🔄 Changes
+- **Testing Enhancements**: Introduced a `RunTestsWithAuth` helper function and integrated authentication into the testing framework. This streamlines test processes and ensures comprehensive coverage of authentication workflows.
+- **Test Configuration**: Refactored test configurations into a dedicated `mk/tests.mk` file, improving organization and maintainability of test scripts.
+
+### 📚 Documentation
+- Updated documentation to reflect recent changes in configuration and versioning, ensuring developers and users have access to current and accurate information.
+
+### 🔧 Maintenance
+- **Code Organization**: Refactored code to improve structure and readability, particularly in authentication and test components, facilitating easier future development and maintenance.
+
+
 ## [v3.4.0-beta.8] - 2025-09-25
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.7...v3.4.0-beta.8)
