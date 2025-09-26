@@ -1,3 +1,19 @@
+## [v3.4.0-beta.11] - 2025-09-26
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.10...v3.4.0-beta.11)
+Contributors: Gabriel Ferreira, lerian-studio
+
+### 🔄 Changes
+- **Testing and Build Process**: We've improved our end-to-end testing workflow by integrating a shared workflow approach. This enhancement ensures consistency across build, frontend, and test environments, leading to more reliable test outcomes and faster development cycles.
+- **Artifact Management**: A new pattern-based approach for downloading tags in the artifact management step has been implemented. This change simplifies the deployment pipeline, making artifact handling more efficient and reducing potential errors.
+
+### 📚 Documentation
+- The CHANGELOG has been updated to reflect recent changes and improvements. This ensures that users have access to the latest information regarding updates and enhancements, helping developers and users stay informed.
+
+### 🔧 Maintenance
+- **Security and Configuration**: We've enhanced security by updating the test scenario configuration. The `test_scenario_id` is now a secret within the e2e testing step, protecting sensitive configuration details and contributing to a more secure testing environment.
+
+
 ## [v3.4.0-beta.10] - 2025-09-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.9...v3.4.0-beta.10)
