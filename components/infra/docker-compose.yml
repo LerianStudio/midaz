@@ -1,7 +1,7 @@
 services:
   midaz-mongodb:
     container_name: midaz-mongodb
-    image: mongo:latest
+    image: mongo:8
     env_file:
       - .env
     restart: always
@@ -27,7 +27,7 @@ services:
     container_name: midaz-mongodb-init
     env_file:
       - .env
-    image: mongo:latest
+    image: mongo:8
     depends_on:
       - midaz-mongodb
     volumes:
@@ -38,7 +38,7 @@ services:
 
   midaz-valkey:
     container_name: midaz-valkey
-    image: valkey/valkey:latest
+    image: valkey/valkey:8
     restart: always
     env_file:
       - .env
@@ -64,7 +64,7 @@ services:
 
   midaz-postgres-primary:
     container_name: midaz-postgres-primary
-    image: postgres:latest
+    image: postgres:17
     restart: always
     user: ${USER_EXECUTE_COMMAND}
     healthcheck:
@@ -97,7 +97,7 @@ services:
 
   midaz-postgres-replica:
     container_name: midaz-postgres-replica
-    image: postgres:latest
+    image: postgres:17
     restart: always
     user: ${USER_EXECUTE_COMMAND}
     ports:
