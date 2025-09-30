@@ -39,7 +39,10 @@ func TestIntegration_EventsAsync_Sanity(t *testing.T) {
 		t.Fatalf("create USD asset: %v", err)
 	}
 	alias := fmt.Sprintf("ev-%s", h.RandString(5))
-	_, _, _ = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
+	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "A", "assetCode": "USD", "type": "deposit", "alias": alias})
+	if err != nil || code != 201 {
+		t.Fatalf("create account: code=%d err=%v body=%s", code, err, string(body))
+	}
 
 	// Sanity inflow; if async enabled, service must still respond 201.
 	code, body, err = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": "1.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "1.00"}}}}}})
