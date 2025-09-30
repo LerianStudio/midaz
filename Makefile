@@ -2,6 +2,9 @@
 # Coordinates all component Makefiles and provides centralized commands.
 # Midaz Project Management.
 
+# Default target - this must be first to ensure 'make' without arguments runs help
+.DEFAULT_GOAL := help
+
 # Define the root directory of the project
 MIDAZ_ROOT := $(shell pwd)
 
@@ -25,20 +28,6 @@ define print_title
 	@echo "------------------------------------------"
 	@echo "   📝 $(1)  "
 	@echo "------------------------------------------"
-endef
-
-# Check if a command is available
-define check_command
-	@which $(1) > /dev/null || (echo "Error: $(1) is required but not installed. $(2)" && exit 1)
-endef
-
-# Check if environment files exist
-define check_env_files
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/.env.example" ] && [ ! -f "$$dir/.env" ]; then \
-			echo "Warning: $$dir/.env file is missing. Consider running 'make set-env'."; \
-		fi; \
-	done
 endef
 
 # Shell utility functions

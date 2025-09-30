@@ -1,0 +1,1045 @@
+
+------------------------------------------
+   📝 Running E2E tests with Apidog CLI (with Docker stack)  
+------------------------------------------
+
+------------------------------------------
+   📝 Starting backend services  
+------------------------------------------
+Starting infrastructure services first...
+
+-----------------------------------
+   📝 Starting all services in detached mode  
+-----------------------------------
+[ok] Services started successfully ✔️
+Starting backend components...
+Starting services in ./components/onboarding...
+
+------------------------
+   📝 Starting all services in detached mode  
+------------------------
+[ok] Services started successfully ✔️
+Starting services in ./components/transaction...
+
+------------------------
+   📝 Starting all services in detached mode  
+------------------------
+[ok] Services started successfully ✔️
+[ok] Backend services started successfully ✔️
+Waiting for services to become healthy...
+Services are up
+Running Apidog CLI via npx against tests/e2e/local.apidog-cli.json
+apidog
+
+Release Tests - Local
+
+❏ Release Tests - Local
+↳ Create an Organization ([Success] Create Organization)
+  POST http://127.0.0.1:3000/v1/organizations [201 Created, 677B, 24.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable organ
+  │ ization_id has been set to 01999b40-6faa-7224-bfa3-af7
+  │ 4b52fa177'
+  └
+  ✓  Validate Metadata
+  ✓  Validate Parent Organization
+
+↳ Create an Organization ([Success] Create Organization with Parent Id)
+  POST http://127.0.0.1:3000/v1/organizations [201 Created, 711B, 7.00ms]
+  ✓  Validate Metadata
+  ✓  Validate Parent Organization is not null
+  ✓  Validate Parent Organization is correct
+
+↳ Create an Organization ([0009] Organization - Missing Fields in Request)
+  POST http://127.0.0.1:3000/v1/organizations [400 Bad Request, 392B, 4.00ms]
+  ✓  legalDocument is present in the fields response
+  ✓  Error Code 0009
+
+↳ Create an Organization ([0032] Organization - Invalid Country Code)
+  POST http://127.0.0.1:3000/v1/organizations [400 Bad Request, 329B, 4.00ms]
+  ✓  Error Code 0032
+
+↳ Create an Organization ([0047] Organization - Bad Request)
+  POST http://127.0.0.1:3000/v1/organizations [400 Bad Request, 363B, 2.00ms]
+  ✓  Error Code 0047
+  ✓  legalName is present in the fields response
+
+↳ Create an Organization ([0053] Organization - Unexpected Fields)
+  POST http://127.0.0.1:3000/v1/organizations [400 Bad Request, 399B, 2.00ms]
+  ✓  invalidField is present in the fields response
+  ✓  Error Code 0053
+
+↳ Create an Organization ([0067] Organization - Metadata Nesting)
+  POST http://127.0.0.1:3000/v1/organizations [400 Bad Request, 306B, 3.00ms]
+  ✓  Error Code 0067
+
+↳ Create an Organization ([0039] Organization - Parent Not Found)
+  POST http://127.0.0.1:3000/v1/organizations [404 Not Found, 309B, 3.00ms]
+  ✓  Error Code 0039
+
+↳ List Organizations ([Success] List)
+  GET http://127.0.0.1:3000/v1/organizations [200 OK, 3.9KB, 40.00ms]
+  ✓  Validate Response Data Length 
+
+↳ List Organizations ([0080] List Org - Page Limit Exceeds )
+  GET http://127.0.0.1:3000/v1/organizations?limit=10000000&page=1 [400 Bad Request, 292B, 7.00ms]
+  ✓  Error Code 0080
+
+↳ List Organizations ([0081] List Org - Invalid Sort Order )
+  GET http://127.0.0.1:3000/v1/organizations?sort_order=invalid [400 Bad Request, 271B, 2.00ms]
+  ✓  Error Code 0081
+
+↳ List Organizations ([0083] List Org - Invalid Data Range )
+  GET http://127.0.0.1:3000/v1/organizations?start_date=2021-01-01 [400 Bad Request, 317B, 2.00ms]
+  ✓  Error Code 0083
+
+↳ Retrieve an Organization ([Success] Retrieve)
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [200 OK, 666B, 16.00ms]
+
+↳ Retrieve an Organization ([0007] Entity Not Found)
+  GET http://127.0.0.1:3000/v1/organizations/9f15cb25-8493-4d47-8c3c-9664b284bba9 [404 Not Found, 288B, 4.00ms]
+  ✓  Error Code 0007
+
+↳ Retrieve an Organization ([0065] Invalid Path Param)
+  GET http://127.0.0.1:3000/v1/organizations/invalid [400 Bad Request, 337B, 3.00ms]
+  ✓  Error Code 0065
+
+↳ Update an Organizations (Update an Organization)
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [200 OK, 677B, 78.00ms]
+
+↳ Update an Organizations ([0007] Entity Not Found)
+  PATCH http://127.0.0.1:3000/v1/organizations/12699614-e624-41e9-a559-7298f7e47976 [404 Not Found, 288B, 7.00ms]
+  ✓  Error Code 0007
+
+↳ Update an Organizations ([0039] Parent Org Not Found)
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [404 Not Found, 309B, 10.00ms]
+  ✓  Error Code 0039
+
+↳ Update an Organizations ([0047] Bad Request)
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [400 Bad Request, 430B, 8.00ms]
+  ✓  Error Code 0047
+
+↳ Update an Organizations ([0053] Unexpected Fields)
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [400 Bad Request, 230B, 2.00ms]
+  1. Error Code 0053
+  2. Response data differs from API specification
+
+↳ Update an Organizations ([0067] Metadata Nesting)
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [400 Bad Request, 302B, 2.00ms]
+  ✓  Error Code 0067
+
+↳ Delete an Organization ([0007] Entity Not Found)
+  DELETE http://127.0.0.1:3000/v1/organizations/62b633ef-b7b1-480d-86bc-dc552555bfe2 [404 Not Found, 288B, 6.00ms]
+  ✓  Error Code 0007
+
+↳ Delete an Organization ([0065] Invalid Path Param)
+  DELETE http://127.0.0.1:3000/v1/organizations/invalid [400 Bad Request, 337B, 4.00ms]
+  ✓  Error Code 0065
+
+↳ Delete an Organization ([Success] Delete)
+  DELETE http://127.0.0.1:3000/v1/organizations/01999b40-6faa-7224-bfa3-af74b52fa177 [204 No Content, 64B, 2.00ms]
+
+↳ Create an Organization ([Success] Create)
+  POST http://127.0.0.1:3000/v1/organizations [201 Created, 676B, 4.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable organ
+  │ ization_id has been set to 01999b40-728d-7419-b93d-bff
+  │ 23b2c27eb'
+  └
+  ✓  Validate Metadata
+  ✓  Validate Parent Organization
+
+↳ [Success] Create a Ledger
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [201 Created, 430B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable ledge
+  │ r_id has been set to 01999b40-72a5-76b5-b59f-91fc5952e
+  │ b97'
+  └
+
+↳ [0002] Ledger Name Conflict
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [409 Conflict, 363B, 3.00ms]
+  ✓  Error code is 0002
+
+↳ [0009] Missing Fields
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [400 Bad Request, 374B, 2.00ms]
+  ✓  Error code is 0009
+
+↳ [0038] Organization Not Found
+  POST http://127.0.0.1:3000/v1/organizations/696388c2-1ff8-429d-a8cc-224c04f89fa8/ledgers [404 Not Found, 288B, 5.00ms]
+  ✓  Error code is 0038
+
+↳ [0047] Bad Request
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [400 Bad Request, 353B, 1.00ms]
+  ✓  Error code is 0047
+
+↳ [0053] Unexpected Fields
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [400 Bad Request, 398B, 1.00ms]
+  ✓  Error code is 0053
+
+↳ [0067] Metadata Nesting
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [400 Bad Request, 302B, 2.00ms]
+  ✓  Error code is 0067
+
+↳ [Success] List Ledgers
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers [200 OK, 449B, 7.00ms]
+  ✓  Validate Response Data Length 
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [0080] Pagination Limit
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers?limit=1000 [400 Bad Request, 292B, 2.00ms]
+  ✓  Error code is 0080
+
+↳ [0081] Invalid Sort Order
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers?sort_order=capybara [400 Bad Request, 271B, 1.00ms]
+  ✓  Error code is 0081
+
+↳ [0083] Invalid Data Range
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers?start_date=2021-01-01 [400 Bad Request, 317B, 1.00ms]
+  ✓  Error code is 0083
+
+↳ [Success] Retrieve a Ledger
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [200 OK, 417B, 4.00ms]
+
+↳ [0007] Entity Not Found
+  GET http://127.0.0.1:3000/v1/organizations/c781079b-3095-4638-bbb4-ad8ab73e1a65/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [404 Not Found, 288B, 2.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [400 Bad Request, 350B, 2.00ms]
+  ✓  Error code is 0065
+
+↳ [Success] Update a Ledger
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [200 OK, 448B, 10.00ms]
+
+↳ [0047] Bad Request
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [400 Bad Request, 353B, 2.00ms]
+  ✓  Error code is 0047
+
+↳ [0065] Invalid Patch
+  PATCH http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [0007] Entity Not Found
+  PATCH http://127.0.0.1:3000/v1/organizations/5446fef1-0281-4188-9777-7eaab50bb729/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [404 Not Found, 288B, 2.00ms]
+  ✓  Error code is 0007
+
+↳ [0053] Unexpected Fields
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [400 Bad Request, 398B, 1.00ms]
+  ✓  Error code is 0053
+
+↳ [0067] Metadata Nesting
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [400 Bad Request, 302B, 2.00ms]
+  ✓  Error code is 0067
+
+↳ [0007] Entity Not Found
+  DELETE http://127.0.0.1:3000/v1/organizations/064abe23-c055-42c9-aba6-4b30a60ea2fe/ledgers/68ac7446-aa63-4c03-8e8b-ef893bbc0169 [404 Not Found, 288B, 1.00ms]
+  ✓  Erro code is 0007
+
+↳ [0065] Invalid Path
+  DELETE http://127.0.0.1:3000/v1/organizations/1234/ledgers/fb93abe1-52a2-46ff-9f7b-bda60765a892 [400 Bad Request, 350B, 2.00ms]
+  ✓  Error code is 0065
+
+↳ Delete a Ledger
+  DELETE http://127.0.0.1:3000/v1/organizations/01999b40-728d-7419-b93d-bff23b2c27eb/ledgers/01999b40-72a5-76b5-b59f-91fc5952eb97 [204 No Content, 64B, 3.00ms]
+
+↳ Create an Organization
+  POST http://127.0.0.1:3000/v1/organizations [201 Created, 633B, 6.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable organ
+  │ ization_id has been set to 01999b40-7434-78c0-bd44-6a4
+  │ 6ebcb51d4'
+  └
+
+↳ Create a Ledger
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers [201 Created, 454B, 6.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable ledge
+  │ r_id has been set to 01999b40-7449-75ba-a384-c21e0e38a
+  │ b7d'
+  └
+
+↳ [Success] Create an Asset - Currency
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [201 Created, 516B, 12.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable asset
+  │ _id has been set to 01999b40-745d-7bc8-bfd6-0d1ca37dba
+  │ d4'
+  └
+
+↳ [Success] Create an Asset - Crypto
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [201 Created, 506B, 6.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable asset
+  │ _id has been set to 01999b40-7475-78a0-a749-9b3153d88f
+  │ c5'
+  └
+
+↳ [0003] Duplicated Name
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [409 Conflict, 298B, 6.00ms]
+  ✓  Error code is 0003
+
+↳ [0003] Duplicated Code
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [409 Conflict, 298B, 6.00ms]
+  ✓  Error code is 0003
+
+↳ [0004] Code Uppercase
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 279B, 2.00ms]
+  ✓  Error code is 0004
+
+↳ [0005] Invalid Currecy Code
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 315B, 2.00ms]
+  ✓  Error code is 0005
+
+↳ [0033] Invalid Code Format
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 296B, 2.00ms]
+  ✓  Error code is 0033
+
+↳ [0009] Missing Fields
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 374B, 2.00ms]
+  ✓  Error code is 0009
+
+↳ [0040] Invalid Type
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 292B, 2.00ms]
+  ✓  Error code is 0040
+
+↳ [0047] Bad Request
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 353B, 2.00ms]
+  ✓  Error code is 0047
+
+↳ [0038] Org Not Found
+  POST http://127.0.0.1:3000/v1/organizations/b22a7c35-b38a-4330-a397-caf849e51300/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [404 Not Found, 288B, 5.00ms]
+  ✓  Error code is 0038
+
+↳ [0037] Ledger Not Found
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/c7b37731-d21f-4ebb-ab77-3595d0aae0b1/assets [404 Not Found, 270B, 6.00ms]
+  ✓  Error code is 0037
+
+↳ [0053] Unexpected Fields
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/4432cc9f-8a56-4ece-9ee7-8d14cfde7721/assets [400 Bad Request, 404B, 3.00ms]
+  ✓  Error code is 0053
+
+↳ [0067] Metadata Nesting
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 302B, 2.00ms]
+  ✓  Error code is 0067
+
+↳ [Success] List Assets
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [200 OK, 925B, 4.00ms]
+  ✓  Validate Response Data Length 
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code 0065
+
+↳ [0080] Pagination Limit
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets?limit=200 [400 Bad Request, 292B, 2.00ms]
+  ✓  Error code 0080
+
+↳ [0081] Invalid Sort Order
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets?sort_order=capybara [400 Bad Request, 271B, 2.00ms]
+  ✓  Error code 0081
+
+↳ [0083] Invalid Data Range
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets?start_date=2021-01-01 [400 Bad Request, 317B, 1.00ms]
+  ✓  Error code 0083
+
+↳ [Success] Retrieve an Asset
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [200 OK, 496B, 3.00ms]
+
+↳ [0007] Entity Not Found
+  GET http://127.0.0.1:3000/v1/organizations/c62e397f-4fe9-473f-8654-75dad271293b/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [404 Not Found, 288B, 1.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [Success] Update an Asset
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [200 OK, 517B, 10.00ms]
+
+↳ [0067] Metadata Nesting
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [400 Bad Request, 302B, 3.00ms]
+  ✓  Error code is 0067
+
+↳ [0007] Entity Not Found
+  PATCH http://127.0.0.1:3000/v1/organizations/794ab278-657d-48ab-9d3e-cbf4e14aef7d/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [404 Not Found, 288B, 3.00ms]
+  ✓  Error code is 0007
+
+↳ [0047] Bad Request
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [400 Bad Request, 353B, 7.00ms]
+  ✓  Error code is 0047
+
+↳ [0065] Invalid Path
+  PATCH http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [400 Bad Request, 350B, 2.00ms]
+  ✓  Error code is 0065
+
+↳ [0053] Unexpected fields
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [400 Bad Request, 404B, 2.00ms]
+  ✓  Error code is 0053
+
+↳ [0007] Delete an Asset
+  DELETE http://127.0.0.1:3000/v1/organizations/5451a13a-bc23-4cae-850d-daea15e98b69/ledgers/d32e6f66-cbf2-4491-ad72-f1e60b5587eb/assets/56129304-4122-485d-9449-11cefe723344 [404 Not Found, 288B, 4.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path
+  DELETE http://127.0.0.1:3000/v1/organizations/1234/ledgers/083a3d31-c830-4bd0-8ae1-57d7bdb70d9a/assets/90b1b8b4-a022-4596-a327-cfb6af3299e3 [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [Success] Delete an Asset
+  DELETE http://127.0.0.1:3000/v1/organizations/01999b40-7434-78c0-bd44-6a46ebcb51d4/ledgers/01999b40-7449-75ba-a384-c21e0e38ab7d/assets/01999b40-7475-78a0-a749-9b3153d88fc5 [204 No Content, 64B, 9.00ms]
+
+↳ Create an Organization
+  POST http://127.0.0.1:3000/v1/organizations [201 Created, 603B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable organ
+  │ ization_id has been set to 01999b40-76b9-782d-b168-806
+  │ 0dc54a153'
+  └
+
+↳ Create a Ledger
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers [201 Created, 456B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable ledge
+  │ r_id has been set to 01999b40-76cc-70e5-a4bc-7c12f3f59
+  │ 508'
+  └
+
+↳ Create an Asset
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/assets [201 Created, 517B, 7.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable asset
+  │ _id has been set to 01999b40-76de-7d95-830b-c8b516ce8a
+  │ 06'
+  └
+
+↳ Create a Segment
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/segments [201 Created, 508B, 9.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable segme
+  │ nt_id has been set to 01999b40-76f5-7614-89ae-1e56b502
+  │ 2fab'
+  └
+
+↳ Create a Portfolio
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/portfolios [201 Created, 512B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable portf
+  │ olio_id has been set to 01999b40-7706-72a8-b9e3-3870f6
+  │ ceee84'
+  └
+
+↳ [Success] Create an Account
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [201 Created, 692B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-771d-74c6-b41c-04041c01
+  │ fa43'
+  └
+
+↳ [0020] Alias Unavailable
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [409 Conflict, 268B, 4.00ms]
+  ✓  Error code is 0020
+
+↳ [0029] Invalid Parent Account
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 293B, 4.00ms]
+  ✓  Error code is 0029
+
+↳ [0034] Asset Code Not Found
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [404 Not Found, 273B, 3.00ms]
+  ✓  Error code is 0034
+
+↳ [0009] Missing Fields
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 384B, 2.00ms]
+  ✓  Error code is 0009
+
+↳ [0047] Bad Request
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 353B, 2.00ms]
+  ✓  Error code is 0047
+
+↳ [0067] Metadata Nesting
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 304B, 1.00ms]
+  ✓  Error code is 0067
+
+↳ [0053] Unexpected Field
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 404B, 2.00ms]
+  ✓  Error code is 0053
+
+↳ [0066] Invalid Type
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 209B, 1.00ms]
+  ✓  Error code is 0066
+
+↳ [Success] List Accounts
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [200 OK, 1.18KB, 5.00ms]
+  ✓  Validate Response Data Length 
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [0080] Pagination Limit
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts?limit=1000 [400 Bad Request, 292B, 2.00ms]
+  ✓  Error code is 0080
+
+↳ [0081] Invalid Sort Order
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts?sort_order=capybara [400 Bad Request, 271B, 2.00ms]
+  ✓  Error code is 0081
+
+↳ [0083] Invalid Date Range
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts?start_date=2021-01-01 [400 Bad Request, 317B, 1.00ms]
+  ✓  Error code is 0083
+
+↳ [Success] Retrieve an Account by Id
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [200 OK, 681B, 6.00ms]
+
+↳ [0007] Entity Not Found
+  GET http://127.0.0.1:3000/v1/organizations/f25e8478-9810-495a-87fa-8feca78499f8/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [404 Not Found, 288B, 2.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [400 Bad Request, 350B, 2.00ms]
+  ✓  Error code is 0065
+
+↳ [Success] Retrieve an Account by Alias
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/alias/test:001:brl [200 OK, 619B, 6.00ms]
+
+↳ [0065] Invalid Path
+  GET http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/alias/test:001:brl [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [0085] Alias Not Found
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/alias/test:999:brl [404 Not Found, 282B, 3.00ms]
+  ✓  Error code is 0085
+
+↳ [Success] Update an Account
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [200 OK, 681B, 14.00ms]
+
+↳ [0067] Metadata Nesting
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [400 Bad Request, 302B, 2.00ms]
+  ✓  Error code is 0067
+
+↳ [0007] Entity Not Found
+  PATCH http://127.0.0.1:3000/v1/organizations/32149b6a-fb5d-4cdb-888f-5e853bda95f4/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [404 Not Found, 288B, 2.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path
+  PATCH http://127.0.0.1:3000/v1/organizations/1234/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [400 Bad Request, 350B, 1.00ms]
+  ✓  Error code is 0065
+
+↳ [0047] Bad Request
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [400 Bad Request, 353B, 2.00ms]
+  ✓  Error code is 0047
+
+↳ [0053] Unexpected Field
+  PATCH http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [400 Bad Request, 404B, 2.00ms]
+  ✓  Error code is 0053
+
+↳ [0007] Entity Not Found
+  DELETE http://127.0.0.1:3000/v1/organizations/314e3987-91e9-42ad-b664-8c236a308ce9/ledgers/c4101888-0c35-4327-8825-8cde5f6e622c/accounts/aff1bcda-06f3-4591-a974-82a9f19f06bf [404 Not Found, 288B, 2.00ms]
+  ✓  Error code is 0007
+
+↳ [0065] Invalid Path 
+  DELETE http://127.0.0.1:3000/v1/organizations/1234/ledgers/e822c25e-7376-484e-b3a4-ee8c4d46eb80/accounts/035d7663-afd9-41da-b2e0-67ef41b14e00 [400 Bad Request, 350B, 2.00ms]
+  ✓  Error code is 0065
+
+↳ Delete an Account
+  DELETE http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-771d-74c6-b41c-04041c01fa43 [204 No Content, 64B, 3.00ms]
+
+↳ Create an Account 1
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [201 Created, 589B, 8.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-792c-7f27-95b5-11016b14
+  │ 67a8'
+  └
+
+↳ Create an Account 2
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [201 Created, 589B, 7.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-7945-7032-9244-76c771f6
+  │ 3c5d'
+  └
+
+↳ Create an Account 3
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [201 Created, 589B, 11.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-7960-7c73-a777-54df1058
+  │ 5250'
+  └
+
+↳ Create an Account 4
+  POST http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts [201 Created, 589B, 5.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-7977-773b-93a5-d24b748e
+  │ b43d'
+  └
+
+↳ Create a JSON Transaction - Amount 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.17KB, 47.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7995-711b-95f2-9a8b
+  │ 5e036e3c'
+  └
+
+↳ Create a JSON Transaction - Share 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.17KB, 31.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-79d4-7bf0-a5e4-d00c
+  │ c2e68b0e'
+  └
+
+↳ Create a JSON Transaction - Remaining 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.17KB, 14.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7a14-706c-a146-cbc8
+  │ 34ebacfb'
+  └
+
+↳ Create an Inflow Transaction - Amount
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/inflow [201 Created, 2.16KB, 11.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7a30-78cd-98bf-e3ad
+  │ b14a2ea9'
+  └
+
+↳ Create an Inflow Transaction - Share
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/inflow [201 Created, 2.16KB, 12.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7a4c-76d3-89e4-a5cb
+  │ 8817b97a'
+  └
+
+↳ Create an Inflow Transaction - Remaining
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/inflow [201 Created, 2.15KB, 25.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7a70-7780-b4bc-655b
+  │ 55c04bdb'
+  └
+
+↳ Create a JSON Transaction - Amount 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.16KB, 13.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7a98-751d-b8a9-c08a
+  │ 4bbe1390'
+  └
+
+↳ Create a JSON Transaction - Share 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.16KB, 12.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7ab4-7049-86c5-7293
+  │ 4eb9414c'
+  └
+
+↳ Create a JSON Transaction - Remaining 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.16KB, 11.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7acf-70f5-8600-be5e
+  │ 173052a4'
+  └
+
+↳ Create an Outflow Transaction - Amount
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/outflow [201 Created, 2.15KB, 35.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b02-7569-85f1-bf8d
+  │ b780175b'
+  └
+
+↳ Create an Outflow Transaction - Share
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/outflow [201 Created, 2.15KB, 9.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b1a-78f8-8564-7d1f
+  │ 134056ed'
+  └
+
+↳ Create an Outflow Transaction - Remaining
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/outflow [201 Created, 2.15KB, 8.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b32-70ef-aeaf-a2b6
+  │ fe1509be'
+  └
+
+↳ Create a JSON Transaction - Amount 1:1 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.16KB, 10.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b4c-76cb-9866-1e5c
+  │ b8733506'
+  └
+
+↳ Create a JSON Transaction - Amount 1:N
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.94KB, 11.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b65-7557-83c8-0b75
+  │ ccf3bb62'
+  └
+
+↳ Create a JSON Transaction - Share 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.17KB, 7.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7b7d-74be-bbfa-76b2
+  │ 24d57f92'
+  └
+
+↳ Create a JSON Transaction - Share 1:N
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.94KB, 12.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7ba1-7402-8c02-d4fc
+  │ d0ac1f34'
+  └
+
+↳ Create a JSON Transaction - Remaining 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.16KB, 7.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7bbb-7e26-84a4-bd94
+  │ 009a8044'
+  └
+
+↳ Create a JSON Transaction - Remaining 1:N
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.94KB, 10.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-7bd1-7b93-bc50-deb4
+  │ 7ed56c5d'
+  └
+
+↳ Create a JSON Transaction - Approved 1:1 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 2.56KB, 8.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+
+↳ Create a  Transaction to Commit - Pending 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 1.66KB, 9.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable pendi
+  │ ng_transaction_id has been set to 01999b40-7c03-7475-a
+  │ feb-f111dbc38f29'
+  └
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+
+↳ Commit a Pending Transaction 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-7c03-7475-afeb-f111dbc38f29/commit [201 Created, 2.57KB, 90.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+
+↳ Retrieve a Commited Transaction 1:1
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-7c03-7475-afeb-f111dbc38f29 [200 OK, 3.39KB, 78.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+  ✓  Validate Operation 2 Metadata
+
+↳ Create a Transaction to Cancel - Pending 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 1.66KB, 8.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable pendi
+  │ ng_transaction_id has been set to 01999b40-80d1-74f3-9
+  │ c51-c154422063a9'
+  └
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+
+↳ Cancel a Pending Transaction 1:1
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-80d1-74f3-9c51-c154422063a9/cancel [201 Created, 1.68KB, 60.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+
+↳ Retrieve a Canceled Transaction 1:1
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-80d1-74f3-9c51-c154422063a9 [200 OK, 2.47KB, 83.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+
+↳ Create a JSON Transaction - Approved 1:N 
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 4.4KB, 10.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable trans
+  │ action_id has been set to 01999b40-8582-7eb5-bb0a-7deb
+  │ 78477cd1'
+  └
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+  ✓  Validate Operation 2 Metadata
+  ✓  Validate Operation 3 Metadata
+
+↳ Retrieve a Approved Transaction 1:N
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-8582-7eb5-bb0a-7deb78477cd1 [200 OK, 4.33KB, 81.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+  ✓  Validate Operation 2 Metadata
+  ✓  Validate Operation 3 Metadata
+
+↳ Create a  Transaction to Commit - Pending 1:N
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/json [201 Created, 1.68KB, 9.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable pendi
+  │ ng_transaction_id has been set to 01999b40-89ec-7cda-8
+  │ b5c-4ef4e2711ec7'
+  └
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+
+↳ Commit a Pending Transaction 1:N
+  POST http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-89ec-7cda-8b5c-4ef4e2711ec7/commit [201 Created, 3.5KB, 61.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+  ✓  Validate Operation 2 Metadata
+
+↳ Retrieve a Commited Transaction 1:N
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions/01999b40-89ec-7cda-8b5c-4ef4e2711ec7 [200 OK, 4.31KB, 86.00ms]
+  ✓  Validate Transaction Status
+  ✓  Validate Source Accounts
+  ✓  Validate Destination Accounts
+  ✓  Validate Operation Data Length
+  ✓  Validate Asset Code 
+  ✓  Validate CREDIT operation quantity
+  ✓  Validate DEBIT operation quantity
+  ✓  Validate ON_HOLD operation quantity
+  ✓  Validate RELEASE operation quantity
+  ✓  Validate Transaction Metadata
+  ✓  Validate Operation 0 Metadata
+  ✓  Validate Operation 1 Metadata
+  ✓  Validate Operation 2 Metadata
+  ✓  Validate Operation 3 Metadata
+
+↳ List Transactions - Limit 5
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions?limit=5 [200 OK, 10.28KB, 138.00ms]
+  ✓  Validate Response Data Length 
+
+↳ List Transactions - Limit 10
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions?limit=10 [200 OK, 20.29KB, 210.00ms]
+  ✓  Validate Response Data Length 
+
+↳ List Transactions - Limit 15
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions?limit=15 [200 OK, 31.07KB, 265.00ms]
+  ✓  Validate Response Data Length 
+
+↳ List Transactions - Validations Limit 100
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/transactions?limit=100 [200 OK, 55.01KB, 370.00ms]
+  ✓  Validate Response Data Length 
+  ✓  Validate Transaction 01999b40-7995-711b-95f2-9a8b5e036e3c Status
+  ✓  Validate Transaction 01999b40-7995-711b-95f2-9a8b5e036e3c Data
+  ✓  Validate Transaction 01999b40-79d4-7bf0-a5e4-d00cc2e68b0e Status
+  ✓  Validate Transaction 01999b40-79d4-7bf0-a5e4-d00cc2e68b0e Data
+  ✓  Validate Transaction 01999b40-7a14-706c-a146-cbc834ebacfb Status
+  ✓  Validate Transaction 01999b40-7a14-706c-a146-cbc834ebacfb Data
+  ✓  Validate Transaction 01999b40-7a30-78cd-98bf-e3adb14a2ea9 Status
+  ✓  Validate Transaction 01999b40-7a30-78cd-98bf-e3adb14a2ea9 Data
+  ✓  Validate Transaction 01999b40-7a4c-76d3-89e4-a5cb8817b97a Status
+  ✓  Validate Transaction 01999b40-7a4c-76d3-89e4-a5cb8817b97a Data
+  ✓  Validate Transaction 01999b40-7a70-7780-b4bc-655b55c04bdb Status
+  ✓  Validate Transaction 01999b40-7a70-7780-b4bc-655b55c04bdb Data
+  ✓  Validate Transaction 01999b40-7a98-751d-b8a9-c08a4bbe1390 Status
+  ✓  Validate Transaction 01999b40-7a98-751d-b8a9-c08a4bbe1390 Data
+  ✓  Validate Transaction 01999b40-7ab4-7049-86c5-72934eb9414c Status
+  ✓  Validate Transaction 01999b40-7ab4-7049-86c5-72934eb9414c Data
+  ✓  Validate Transaction 01999b40-7acf-70f5-8600-be5e173052a4 Status
+  ✓  Validate Transaction 01999b40-7acf-70f5-8600-be5e173052a4 Data
+  ✓  Validate Transaction 01999b40-7b02-7569-85f1-bf8db780175b Status
+  ✓  Validate Transaction 01999b40-7b02-7569-85f1-bf8db780175b Data
+  ✓  Validate Transaction 01999b40-7b1a-78f8-8564-7d1f134056ed Status
+  ✓  Validate Transaction 01999b40-7b1a-78f8-8564-7d1f134056ed Data
+  ✓  Validate Transaction 01999b40-7b32-70ef-aeaf-a2b6fe1509be Status
+  ✓  Validate Transaction 01999b40-7b32-70ef-aeaf-a2b6fe1509be Data
+  ✓  Validate Transaction 01999b40-7b4c-76cb-9866-1e5cb8733506 Status
+  ✓  Validate Transaction 01999b40-7b4c-76cb-9866-1e5cb8733506 Data
+  ✓  Validate Transaction 01999b40-7b65-7557-83c8-0b75ccf3bb62 Status
+  ✓  Validate Transaction 01999b40-7b65-7557-83c8-0b75ccf3bb62 Data
+  ✓  Validate Transaction 01999b40-7b7d-74be-bbfa-76b224d57f92 Status
+  ✓  Validate Transaction 01999b40-7b7d-74be-bbfa-76b224d57f92 Data
+  ✓  Validate Transaction 01999b40-7ba1-7402-8c02-d4fcd0ac1f34 Status
+  ✓  Validate Transaction 01999b40-7ba1-7402-8c02-d4fcd0ac1f34 Data
+  ✓  Validate Transaction 01999b40-7bbb-7e26-84a4-bd94009a8044 Status
+  ✓  Validate Transaction 01999b40-7bbb-7e26-84a4-bd94009a8044 Data
+  ✓  Validate Transaction 01999b40-7bd1-7b93-bc50-deb47ed56c5d Status
+  ✓  Validate Transaction 01999b40-7bd1-7b93-bc50-deb47ed56c5d Data
+  ✓  Validate Transaction 01999b40-7bec-761b-a520-bbd528a2fcd7 Status
+  ✓  Validate Transaction 01999b40-7bec-761b-a520-bbd528a2fcd7 Data
+  ✓  Validate Transaction 01999b40-7c03-7475-afeb-f111dbc38f29 Status
+  ✓  Validate Transaction 01999b40-7c03-7475-afeb-f111dbc38f29 Data
+  ✓  Validate Transaction 01999b40-80d1-74f3-9c51-c154422063a9 Status
+  ✓  Validate Transaction 01999b40-8582-7eb5-bb0a-7deb78477cd1 Status
+  ✓  Validate Transaction 01999b40-8582-7eb5-bb0a-7deb78477cd1 Data
+  ✓  Validate Transaction 01999b40-89ec-7cda-8b5c-4ef4e2711ec7 Status
+  ✓  Validate Transaction 01999b40-89ec-7cda-8b5c-4ef4e2711ec7 Data
+
+↳ [0019] Account Ineligibility
+  POST http://127.0.0.1:3001/v1/organizations/01946120-0f45-7c5f-86a0-0ea7c59fdbd4/ledgers/01946123-14ea-7575-aa2a-addbd8457348/transactions/json [422 Unprocessable Entity, 356B, 4.00ms]
+  ✓  Response Code is 0019
+
+↳ [0073] Values Mismatch
+  POST http://127.0.0.1:3001/v1/organizations/01946120-0f45-7c5f-86a0-0ea7c59fdbd4/ledgers/01946123-14ea-7575-aa2a-addbd8457348/transactions/json [400 Bad Request, 352B, 2.00ms]
+  ✓  Response Code is 0073
+
+↳ Retrieve an Account by Alias
+  GET http://127.0.0.1:3000/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/alias/@account1_rt_BRL [200 OK, 578B, 6.00ms]
+  ┌
+  │ Processor 'The value of the Environment variable accou
+  │ nt_id has been set to 01999b40-792c-7f27-95b5-11016b14
+  │ 67a8'
+  └
+
+↳ List Account Operations
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-792c-7f27-95b5-11016b1467a8/operations?type [200 OK, 7.77KB, 18.00ms]
+  ✓  Validate Response Data Length 
+  ┌
+  │ Processor 'The value of the Environment variable opera
+  │ tion_id has been set to 01999b40-79a0-7ab0-9de4-1cbd3e
+  │ 389520'
+  └
+
+↳ Retrieve an Account Operation
+  GET http://127.0.0.1:3001/v1/organizations/01999b40-76b9-782d-b168-8060dc54a153/ledgers/01999b40-76cc-70e5-a4bc-7c12f3f59508/accounts/01999b40-792c-7f27-95b5-11016b1467a8/operations/01999b40-79a0-7ab0-9de4-1cbd3e389520 [200 OK, 879B, 16.00ms]
+
+[90m┌─────────────────────────[39m[90m┬─────────────────────────[39m[90m┬───────────────────────┐[39m
+[90m│[39m                         [90m│[39m                Executed [90m│[39m                Failed [90m│[39m
+[90m├─────────────────────────[39m[90m┼─────────────────────────[39m[90m┼───────────────────────┤[39m
+[90m│[39m              Iterations [90m│[39m                       1 [90m│[39m                     1 [90m│[39m
+[90m├─────────────────────────[39m[90m┼─────────────────────────[39m[90m┼───────────────────────┤[39m
+[90m│[39m           Http Requests [90m│[39m                     159 [90m│[39m                     1 [90m│[39m
+[90m├─────────────────────────[39m[90m┼─────────────────────────[39m[90m┼───────────────────────┤[39m
+[90m│[39m              Assertions [90m│[39m                     299 [90m│[39m                     1 [90m│[39m
+[90m├─────────────────────────┴─────────────────────────┴───────────────────────┤[39m
+[90m│[39m Duration: 9.37s                                                           [90m│[39m
+[90m├───────────────────────────────────────────────────────────────────────────┤[39m
+[90m│[39m Total Response Size: 231.86KB (approx)                                    [90m│[39m
+[90m├───────────────────────────────────────────────────────────────────────────┤[39m
+[90m│[39m Average Request Time: 15.59ms [min: 1.00ms, max: 370.00ms, s.d.: 42.89ms] [90m│[39m
+[90m└───────────────────────────────────────────────────────────────────────────┘[39m
+
+[31m  # [39m[31m Failure                                      [39m[31m Detail                                             [39m
+[90m    [39m[90m                                              [39m[90m                                                    [39m
+ 1.  AssertionError                                Error Code 0053                                    
+                                                   expected '0094' to deeply equal '0053'             
+                                                   at assertion:0 in test-script                      
+                                                   inside "undefined"                                 
+[90m    [39m[90m                                              [39m[90m                                                    [39m
+ 2.  Response data differs from API specification  Update an Organizations ([0053] Unexpected Fields) 
+                                                   data should have required property fields          
+Export of HTML report started
+Export of HTML report successful

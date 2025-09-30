@@ -130,9 +130,9 @@ func TestFuzz_Transactions_Amounts_And_Codes(t *testing.T) {
         if !inflow { path = "/v1/organizations/%s/ledgers/%s/transactions/outflow" }
         c, b, _ := trans.Request(ctx, "POST", fmt.Sprintf(path, org.ID, ledger.ID), headers, payload)
         if c >= 500 {
-            // Allow known overflow error (code 0097) only; others log and continue (robustness signal)
+            // Allow known overflow error (code 0097) only; fail on unexpected 5xx
             if !jsonContainsCode(b, "0097") {
-                t.Logf("server 5xx on fuzz txn val=%s inflow=%v body=%s", val, inflow, string(b))
+                t.Fatalf("unexpected server 5xx on fuzz txn val=%s inflow=%v code=%d body=%s", val, inflow, c, string(b))
             }
         }
     }

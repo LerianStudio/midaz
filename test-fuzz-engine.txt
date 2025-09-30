@@ -1,0 +1,44 @@
+
+------------------------------------------
+   📝 Running Go fuzz engine on fuzzy tests  
+------------------------------------------
+Skipping local backend startup (START_LOCAL_DOCKER=0)
+=== RUN   FuzzCreateOrganizationName
+fuzz: elapsed: 0s, gathering baseline coverage: 0/55 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 55/55 completed, now fuzzing with 16 workers
+fuzz: elapsed: 3s, execs: 3632 (1211/sec), new interesting: 3 (total: 58)
+fuzz: elapsed: 6s, execs: 5179 (516/sec), new interesting: 8 (total: 63)
+fuzz: elapsed: 9s, execs: 7081 (634/sec), new interesting: 9 (total: 64)
+fuzz: elapsed: 12s, execs: 14687 (2535/sec), new interesting: 11 (total: 66)
+fuzz: elapsed: 15s, execs: 18731 (1348/sec), new interesting: 12 (total: 67)
+fuzz: elapsed: 18s, execs: 29836 (3703/sec), new interesting: 14 (total: 69)
+fuzz: elapsed: 21s, execs: 32209 (791/sec), new interesting: 16 (total: 71)
+fuzz: elapsed: 24s, execs: 44910 (4227/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 27s, execs: 46522 (538/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 30s, execs: 50077 (1185/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 32s, execs: 50077 (0/sec), new interesting: 18 (total: 73)
+--- FAIL: FuzzCreateOrganizationName (32.04s)
+    context deadline exceeded
+FAIL tests/fuzzy.FuzzCreateOrganizationName (32.04s)
+exit status 1
+FAIL tests/fuzzy
+
+=== Failed
+=== FAIL: tests/fuzzy FuzzCreateOrganizationName (32.04s)
+=== RUN   FuzzCreateOrganizationName
+fuzz: elapsed: 0s, gathering baseline coverage: 0/55 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 55/55 completed, now fuzzing with 16 workers
+fuzz: elapsed: 3s, execs: 3632 (1211/sec), new interesting: 3 (total: 58)
+fuzz: elapsed: 6s, execs: 5179 (516/sec), new interesting: 8 (total: 63)
+fuzz: elapsed: 9s, execs: 7081 (634/sec), new interesting: 9 (total: 64)
+fuzz: elapsed: 12s, execs: 14687 (2535/sec), new interesting: 11 (total: 66)
+fuzz: elapsed: 15s, execs: 18731 (1348/sec), new interesting: 12 (total: 67)
+fuzz: elapsed: 18s, execs: 29836 (3703/sec), new interesting: 14 (total: 69)
+fuzz: elapsed: 21s, execs: 32209 (791/sec), new interesting: 16 (total: 71)
+fuzz: elapsed: 24s, execs: 44910 (4227/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 27s, execs: 46522 (538/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 30s, execs: 50077 (1185/sec), new interesting: 18 (total: 73)
+fuzz: elapsed: 32s, execs: 50077 (0/sec), new interesting: 18 (total: 73)
+    context deadline exceeded
+
+DONE 1 tests, 1 failure in 32.499s

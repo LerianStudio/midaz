@@ -1,0 +1,99 @@
+
+------------------------------------------
+   📝 Running Go integration tests  
+------------------------------------------
+Skipping local backend startup (START_LOCAL_DOCKER=0)
+PASS tests/integration.TestIntegration_Accounts_GetByAlias (0.05s)
+=== RUN   TestIntegration_Accounts_FilterByMetadata
+    accounts_filters_test.go:52: no accounts returned via metadata filter within timeout
+--- FAIL: TestIntegration_Accounts_FilterByMetadata (5.10s)
+FAIL tests/integration.TestIntegration_Accounts_FilterByMetadata (5.10s)
+PASS tests/integration.TestIntegration_Accounts_ListPagination (0.04s)
+SKIP tests/integration.TestBasicOnboardingTransactionFlow (0.00s)
+PASS tests/integration.TestIntegration_Cache_Consistency_BalancesByAccountID (0.04s)
+PASS tests/integration.TestIntegration_Cache_EventualConsistency_Sanity (0.18s)
+PASS tests/integration.TestDiagnostic_AssetsThenAccounts (0.02s)
+PASS tests/integration.TestDiagnostic_BurstConsistency (0.16s)
+=== RUN   TestDiagnostic_DSLvsJSONParity
+    diagnostic_dsl_vs_json_test.go:83: DSL status=422 replay=false body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+    diagnostic_dsl_vs_json_test.go:87: DSL rejected status=422 body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+--- FAIL: TestDiagnostic_DSLvsJSONParity (0.04s)
+FAIL tests/integration.TestDiagnostic_DSLvsJSONParity (0.04s)
+PASS tests/integration.TestDiagnostic_Revert500 (0.30s)
+SKIP tests/integration.TestIntegration_Organization_DuplicateLegalDocument_Conflict (0.00s)
+SKIP tests/integration.TestIntegration_Ledger_DuplicateNameOrCode_Conflict (0.00s)
+PASS tests/integration.TestIntegration_EventsAsync_Sanity (0.13s)
+PASS tests/integration.TestIntegration_GetByID_OrganizationLedgerAccount (0.04s)
+PASS tests/integration.TestIntegration_TransactionIdempotency_ReplayOrConflict (0.33s)
+PASS tests/integration.TestIntegration_TransactionIdempotency_ConflictOnDifferentPayload (0.19s)
+PASS tests/integration.TestIntegration_Idempotency_Outflow (0.34s)
+PASS tests/integration.TestIntegration_Idempotency_JSON (0.19s)
+=== RUN   TestIntegration_Idempotency_DSL
+    idempotency_variants_test.go:270: first dsl txn unexpected status: code=422 body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+--- FAIL: TestIntegration_Idempotency_DSL (0.03s)
+FAIL tests/integration.TestIntegration_Idempotency_DSL (0.03s)
+PASS tests/integration.TestIntegration_Lifecycle_CommitNonPending_Should400 (0.23s)
+PASS tests/integration.TestIntegration_Lifecycle_RevertNonApproved_Should400 (0.24s)
+PASS tests/integration.TestIntegration_TransactionLifecycle_PendingCommitCancelRevert (0.37s)
+PASS tests/integration.TestProperty_Live_Conservation_Small (0.19s)
+=== RUN   TestIntegration_MetadataFilters_Organizations
+    metadata_filters_test.go:41: organization not found via metadata filter within timeout
+--- FAIL: TestIntegration_MetadataFilters_Organizations (0.01s)
+FAIL tests/integration.TestIntegration_MetadataFilters_Organizations (0.01s)
+PASS tests/integration.TestIntegration_MetadataFilters_Ledgers (0.01s)
+PASS tests/integration.TestIntegration_NegativeCases (0.01s)
+PASS tests/integration.TestIntegration_Organizations_ListPagination (0.03s)
+PASS tests/integration.TestIntegration_OversizedFields_Should400 (0.01s)
+PASS tests/integration.TestIntegration_OversizedMetadata_Should400 (0.00s)
+PASS tests/integration.TestIntegration_CountEndpoints (0.03s)
+PASS tests/integration.TestIntegration_LedgersPaginationAndValidation (0.01s)
+PASS tests/integration.TestIntegration_Portfolio_UpdateAndGet (0.03s)
+PASS tests/integration.TestIntegration_Segment_UpdateAndGet (0.03s)
+PASS tests/integration.TestProperty_Monotonic_CountMetrics (0.03s)
+PASS tests/integration.TestProperty_Pagination_UnionStableNoDuplicates (0.04s)
+PASS tests/integration.TestIntegration_ReadReplicaAwareness_ReadsSucceedWithReplica (2.28s)
+SKIP tests/integration.TestIntegration_Security_UnauthorizedWithoutToken (0.00s)
+SKIP tests/integration.TestIntegration_Security_AuthorizedWithToken (0.00s)
+PASS tests/integration.TestSmoke_OnboardingHealthAndVersion (0.00s)
+PASS tests/integration.TestSmoke_TransactionHealthAndVersion (0.00s)
+PASS tests/integration.TestIntegration_Transaction_GetByID (0.26s)
+PASS tests/integration.TestIntegration_AccountAliasUniqueness_Conflict (0.04s)
+PASS tests/integration.TestIntegration_AccountsHeadCount (0.02s)
+PASS tests/integration.TestIntegration_OnboardingValidationErrors (0.00s)
+PASS tests/integration.TestIntegration_InvalidUUIDPathParam (0.00s)
+PASS tests/integration.TestIntegration_CoreOrgLedgerAccountAndTransactions (0.20s)
+PASS tests/integration.TestIntegration_ParallelContention_NoNegativeBalance (0.30s)
+PASS tests/integration.TestIntegration_BurstMixedOperations_DeterministicFinal (0.36s)
+FAIL tests/integration
+
+=== Skipped
+=== SKIP: tests/integration TestBasicOnboardingTransactionFlow (0.00s)
+    basic_flow_test.go:17: implementation pending: end-to-end basic flow
+
+=== SKIP: tests/integration TestIntegration_Organization_DuplicateLegalDocument_Conflict (0.00s)
+    duplicates_semantics_test.go:10: Semantics for duplicate legalDocument not confirmed; add when clarified (expect 409 or allow)
+
+=== SKIP: tests/integration TestIntegration_Ledger_DuplicateNameOrCode_Conflict (0.00s)
+    duplicates_semantics_test.go:14: Semantics for duplicate ledger name/code not confirmed; add when clarified (expect 409 or allow)
+
+=== SKIP: tests/integration TestIntegration_Security_UnauthorizedWithoutToken (0.00s)
+    security_authz_test.go:14: TEST_REQUIRE_AUTH not set; skipping authz checks
+
+=== SKIP: tests/integration TestIntegration_Security_AuthorizedWithToken (0.00s)
+    security_authz_test.go:30: TEST_REQUIRE_AUTH not set; skipping authz checks
+
+=== Failed
+=== FAIL: tests/integration TestIntegration_Accounts_FilterByMetadata (5.10s)
+    accounts_filters_test.go:52: no accounts returned via metadata filter within timeout
+
+=== FAIL: tests/integration TestDiagnostic_DSLvsJSONParity (0.04s)
+    diagnostic_dsl_vs_json_test.go:83: DSL status=422 replay=false body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+    diagnostic_dsl_vs_json_test.go:87: DSL rejected status=422 body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+
+=== FAIL: tests/integration TestIntegration_Idempotency_DSL (0.03s)
+    idempotency_variants_test.go:270: first dsl txn unexpected status: code=422 body={"code":"0019","message":"One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.","title":"Account Ineligibility Response"}
+
+=== FAIL: tests/integration TestIntegration_MetadataFilters_Organizations (0.01s)
+    metadata_filters_test.go:41: organization not found via metadata filter within timeout
+
+DONE 48 tests, 5 skipped, 4 failures in 11.729s

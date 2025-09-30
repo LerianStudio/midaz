@@ -15,6 +15,14 @@ func TestChaos_Startup_MissingReplica_NoPanic(t *testing.T) {
     shouldRunChaos(t)
 
     env := h.LoadEnvironment()
+
+    // Guarantee cleanup: restart replica and onboarding even if test fails
+    t.Cleanup(func() {
+        _ = h.DockerAction("start", "midaz-postgres-replica")
+        _ = h.DockerAction("start", "midaz-onboarding")
+        _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
+    })
+
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     headers := h.AuthHeaders(h.RandHex(8))
@@ -37,7 +45,4 @@ func TestChaos_Startup_MissingReplica_NoPanic(t *testing.T) {
     // Read should work
     code, _, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)
     if err != nil || code != 200 { t.Fatalf("get org after onboarding restart (no replica): %d err=%v", code, err) }
-
-    // Start replica back
-    _ = h.DockerAction("start", "midaz-postgres-replica")
 }

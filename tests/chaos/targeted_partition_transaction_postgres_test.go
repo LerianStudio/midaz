@@ -17,8 +17,15 @@ func TestChaos_TargetedPartition_TransactionVsPostgres(t *testing.T) {
     defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "TargetedPartition_TransactionVsPostgres")()
 
     env := h.LoadEnvironment()
-    _ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
-    _ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
+
+    // Verify services are healthy before starting test
+    if err := h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second); err != nil {
+        t.Fatalf("onboarding unhealthy before test start: %v", err)
+    }
+    if err := h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second); err != nil {
+        t.Fatalf("transaction unhealthy before test start: %v", err)
+    }
+
     ctx := context.Background()
     onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
     trans := h.NewHTTPClient(env.TransactionURL, env.HTTPTimeout)

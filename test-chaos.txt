@@ -1,0 +1,62 @@
+
+------------------------------------------
+   📝 Running chaos tests  
+------------------------------------------
+Skipping local backend startup (START_LOCAL_DOCKER=0)
+PASS tests/chaos.TestChaos_CacheFlush_RehydrateNoNegative (6.62s)
+PASS tests/chaos.TestChaos_RestartDatabase (10.62s)
+PASS tests/chaos.TestChaos_HardKillVsStop_ServicesDuringTraffic (17.80s)
+PASS tests/chaos.TestChaos_IdempotencyAcrossChaos_SingleNetEffect (21.00s)
+PASS tests/chaos.TestChaos_MongoDB_RestartGraceful (15.32s)
+PASS tests/chaos.TestChaos_NetworkDisruptions (8.29s)
+=== RUN   TestChaos_PostChaosIntegrity_MultiAccount
+    post_chaos_integrity_multiaccount_test.go:124: accepted sample saved: reports/logs/post_chaos_multiaccount_accepted_1759246535.log (totalAccepted=16)
+    post_chaos_integrity_multiaccount_test.go:125: A final mismatch: got=100 exp=104 err=timeout waiting for available sum; last=100 expected=104 (in=6 tr=5 out=3)
+--- FAIL: TestChaos_PostChaosIntegrity_MultiAccount (40.82s)
+FAIL tests/chaos.TestChaos_PostChaosIntegrity_MultiAccount (40.82s)
+=== RUN   TestChaos_PostgresRestart_DuringWrites
+    postgres_restart_writes_test.go:128: accepted sample saved: reports/logs/postgres_restart_writes_accepted_1759246569.log (totalAccepted=608)
+    postgres_restart_writes_test.go:129: final mismatch after restart: got=101 expected=566 err=timeout waiting for available sum; last=101 expected=566 (inSucc=358 outSucc=250)
+--- FAIL: TestChaos_PostgresRestart_DuringWrites (34.00s)
+FAIL tests/chaos.TestChaos_PostgresRestart_DuringWrites (34.00s)
+PASS tests/chaos.TestChaos_ProlongedPrimaryOutage_GracefulRecovery (17.18s)
+=== RUN   TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions
+    rabbitmq_backlog_churn_test.go:98: final wait after RMQ backlog/churn: timeout waiting for available sum; last=11 expected=448 (succ=438)
+--- FAIL: TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions (29.91s)
+FAIL tests/chaos.TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions (29.91s)
+PASS tests/chaos.TestChaos_RabbitMQ_Restart_WithEvents (7.43s)
+PASS tests/chaos.TestChaos_RedisRestart_ReadsRecover (10.53s)
+PASS tests/chaos.TestChaos_ReplicaFlapping_ReadsContinue (8.74s)
+PASS tests/chaos.TestChaos_ResourcePressure_NoCrashes (4.07s)
+PASS tests/chaos.TestChaos_RollingRestarts_UnderLoad_Idempotent (4.60s)
+PASS tests/chaos.TestChaos_ServicesRestart_RecoverState (15.29s)
+PASS tests/chaos.TestChaos_Soak_MixedTraffic_WithInjections (309.40s)
+=== RUN   TestChaos_Startup_MissingReplica_NoPanic
+    startup_missing_replica_test.go:42: onboarding not healthy after restart without replica: timeout waiting for http://localhost:3000/health: Get "http://localhost:3000/health": dial tcp [::1]:3000: connect: connection refused
+--- FAIL: TestChaos_Startup_MissingReplica_NoPanic (105.28s)
+FAIL tests/chaos.TestChaos_Startup_MissingReplica_NoPanic (105.28s)
+=== RUN   TestChaos_TargetedPartition_TransactionVsPostgres
+    targeted_partition_transaction_postgres_test.go:78: final wait after reconnect: timeout waiting for available sum; last=10 expected=11
+--- FAIL: TestChaos_TargetedPartition_TransactionVsPostgres (40.78s)
+FAIL tests/chaos.TestChaos_TargetedPartition_TransactionVsPostgres (40.78s)
+FAIL tests/chaos
+
+=== Failed
+=== FAIL: tests/chaos TestChaos_PostChaosIntegrity_MultiAccount (40.82s)
+    post_chaos_integrity_multiaccount_test.go:124: accepted sample saved: reports/logs/post_chaos_multiaccount_accepted_1759246535.log (totalAccepted=16)
+    post_chaos_integrity_multiaccount_test.go:125: A final mismatch: got=100 exp=104 err=timeout waiting for available sum; last=100 expected=104 (in=6 tr=5 out=3)
+
+=== FAIL: tests/chaos TestChaos_PostgresRestart_DuringWrites (34.00s)
+    postgres_restart_writes_test.go:128: accepted sample saved: reports/logs/postgres_restart_writes_accepted_1759246569.log (totalAccepted=608)
+    postgres_restart_writes_test.go:129: final mismatch after restart: got=101 expected=566 err=timeout waiting for available sum; last=101 expected=566 (inSucc=358 outSucc=250)
+
+=== FAIL: tests/chaos TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions (29.91s)
+    rabbitmq_backlog_churn_test.go:98: final wait after RMQ backlog/churn: timeout waiting for available sum; last=11 expected=448 (succ=438)
+
+=== FAIL: tests/chaos TestChaos_Startup_MissingReplica_NoPanic (105.28s)
+    startup_missing_replica_test.go:42: onboarding not healthy after restart without replica: timeout waiting for http://localhost:3000/health: Get "http://localhost:3000/health": dial tcp [::1]:3000: connect: connection refused
+
+=== FAIL: tests/chaos TestChaos_TargetedPartition_TransactionVsPostgres (40.78s)
+    targeted_partition_transaction_postgres_test.go:78: final wait after reconnect: timeout waiting for available sum; last=10 expected=11
+
+DONE 19 tests, 5 failures in 708.028s

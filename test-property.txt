@@ -1,0 +1,14 @@
+
+------------------------------------------
+   📝 Running property-based model tests  
+------------------------------------------
+PASS tests/property.TestProperty_ConservationOfValue_Model (0.00s)
+PASS tests/property.TestProperty_NonNegativeBalance_Model (0.03s)
+SKIP tests/property.TestPropertyStringRoundTrip (0.00s)
+PASS tests/property
+
+=== Skipped
+=== SKIP: tests/property TestPropertyStringRoundTrip (0.00s)
+    properties_test.go:12: implementation pending: replace with domain-specific properties
+
+DONE 3 tests, 1 skipped in 1.410s

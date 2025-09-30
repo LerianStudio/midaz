@@ -1,0 +1,28 @@
+
+------------------------------------------
+   📝 Running fuzz/robustness tests  
+------------------------------------------
+Skipping local backend startup (START_LOCAL_DOCKER=0)
+PASS tests/fuzzy.TestFuzz_Headers_MissingDuplicated_InvalidAuth (0.10s)
+PASS tests/fuzzy.TestFuzz_Organization_Fields (0.04s)
+PASS tests/fuzzy.TestFuzz_Accounts_AliasAndType (0.04s)
+=== RUN   TestFuzz_Transactions_Amounts_And_Codes
+    http_payload_fuzz_test.go:135: unexpected server 5xx on fuzz txn val=0.00 inflow=false code=500 body={"error":"Internal Server Error"}
+--- FAIL: TestFuzz_Transactions_Amounts_And_Codes (0.18s)
+FAIL tests/fuzzy.TestFuzz_Transactions_Amounts_And_Codes (0.18s)
+PASS tests/fuzzy.TestFuzz_Protocol_RapidFireAndRetries (0.76s)
+PASS tests/fuzzy.TestFuzz_Structural_OmittedUnknownInvalidJSONLarge (0.02s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/seed#0 (0.01s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/seed#1 (0.00s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/seed#2 (0.01s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/seed#3 (0.01s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/seed#4 (0.00s)
+PASS tests/fuzzy.FuzzCreateOrganizationName/390ca22614d4ce1a (0.00s)
+PASS tests/fuzzy.FuzzCreateOrganizationName (0.05s)
+FAIL tests/fuzzy
+
+=== Failed
+=== FAIL: tests/fuzzy TestFuzz_Transactions_Amounts_And_Codes (0.18s)
+    http_payload_fuzz_test.go:135: unexpected server 5xx on fuzz txn val=0.00 inflow=false code=500 body={"error":"Internal Server Error"}
+
+DONE 13 tests, 1 failure in 1.536s

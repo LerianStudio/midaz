@@ -54,10 +54,16 @@ func TestFuzz_Protocol_RapidFireAndRetries(t *testing.T) {
     rng := rand.New(rand.NewSource(time.Now().UnixNano()))
     for i := 0; i < 50; i++ {
         val := fmt.Sprintf("%d.00", rng.Intn(3)+1) // 1,2,3
+        var c int
+        var b []byte
         if rng.Intn(2) == 0 {
-            _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":val,"distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}})
+            c, b, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":val,"distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}})
         } else {
-            _, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":val,"source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}})
+            c, b, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset":"USD","value":val,"source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset":"USD","value": val}}}}}})
+        }
+        // Fail on server errors during rapid-fire (should handle gracefully, not crash)
+        if c >= 500 {
+            t.Fatalf("rapid-fire transaction returned 5xx: iter=%d val=%s code=%d body=%s", i, val, c, string(b))
         }
         time.Sleep(time.Duration(rng.Intn(20)) * time.Millisecond)
     }

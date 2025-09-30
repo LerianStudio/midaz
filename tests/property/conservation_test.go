@@ -4,50 +4,60 @@ import (
     "math/rand"
     "testing"
     "testing/quick"
+
+    "github.com/shopspring/decimal"
 )
 
 // Property: For a transaction with a single asset, the sum of destination amounts equals the send value.
-// This is a model-level property (no network calls).
+// Uses production decimal.Decimal type and deterministic randomness.
 func TestProperty_ConservationOfValue_Model(t *testing.T) {
-    f := func(n int) bool {
+    f := func(seed int64, destinations uint8) bool {
+        // P2 Fix: All randomness derived from seed parameter (deterministic)
+        rng := rand.New(rand.NewSource(seed))
+
+        n := int(destinations)
         if n <= 0 { n = 1 }
-        // bound n to avoid huge or negative sizes causing panics
         if n > 20 { n = 20 }
 
-        // Total amount to distribute (keep cents-like scale as before)
-        total := float64(rand.Intn(10000)+1) / 100.0
+        // P1 Partial Fix: Use production decimal.Decimal type for money arithmetic
+        totalCents := rng.Intn(10000) + 1
+        total := decimal.NewFromInt(int64(totalCents)).Div(decimal.NewFromInt(100))
 
-        // Generate random weights and normalize them so that parts sum to total
+        // Generate random weights and normalize
         weights := make([]float64, n)
         wsum := 0.0
         for i := 0; i < n; i++ {
-            w := rand.Float64()
+            w := rng.Float64()
             weights[i] = w
             wsum += w
         }
-        if wsum == 0 { // extremely unlikely, but guard against pathological RNG
+        if wsum == 0 {
             for i := 0; i < n; i++ { weights[i] = 1.0 }
             wsum = float64(n)
         }
 
-        parts := make([]float64, n)
-        assigned := 0.0
+        // Distribute using decimal.Decimal for precision (money arithmetic)
+        parts := make([]decimal.Decimal, n)
+        assigned := decimal.Zero
         for i := 0; i < n-1; i++ {
-            p := total * (weights[i] / wsum)
-            parts[i] = p
-            assigned += p
+            proportion := weights[i] / wsum
+            part := total.Mul(decimal.NewFromFloat(proportion))
+            parts[i] = part
+            assigned = assigned.Add(part)
         }
-        // Make last part the remainder to ensure exact conservation (up to FP epsilon)
-        parts[n-1] = total - assigned
+        // Last part gets remainder (ensures exact conservation)
+        parts[n-1] = total.Sub(assigned)
 
-        // Verify conservation with small FP tolerance
-        final := 0.0
-        for _, p := range parts { final += p }
-        const eps = 1e-6
-        diff := final - total
-        if diff < 0 { diff = -diff }
-        return diff < eps
+        // Verify conservation using decimal comparison
+        sum := decimal.Zero
+        for _, p := range parts {
+            sum = sum.Add(p)
+        }
+
+        // Property: sum of distributed parts must equal original total
+        return sum.Equal(total)
     }
+
     cfg := &quick.Config{MaxCount: 100}
     if err := quick.Check(f, cfg); err != nil {
         t.Fatalf("conservation property failed: %v", err)
