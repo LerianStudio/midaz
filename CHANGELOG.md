@@ -1,3 +1,27 @@
+## [v3.4.0-beta.15] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.14...v3.4.0-beta.15)
+Contributors: Clara Tersi
+
+### ✨ Features
+- **Enhanced Testing Framework**: We've introduced balance tracking and test isolation helpers for integration tests. This enhancement allows for more robust and independent test execution, improving the reliability and accuracy of test outcomes.
+
+### 🐛 Bug Fixes
+- **Improved Error Handling**: Fixed error handling in the EventsAsync integration test. This ensures errors are correctly captured and reported, leading to more accurate test diagnostics and reducing false positives.
+
+### 🔄 Changes
+- **Refactored Test Code**: The `events_async_test.go` file has been refactored for improved readability and structure. This change enhances maintainability, making it easier for developers to understand and modify test cases.
+
+### 🗑️ Removed
+- **Deprecated Test Cleanup**: Removed deprecated DSL idempotency test from integration tests. This cleanup reduces maintenance overhead and potential confusion by eliminating outdated tests.
+
+### 📚 Documentation
+- **Streamlined Documentation**: Removed obsolete integration tests and documentation, making it easier for developers to focus on current and relevant information.
+
+### 🔧 Maintenance
+- **Codebase Streamlining**: We've removed obsolete integration tests and documentation across the auth, docs, and testing components. This housekeeping task helps streamline the codebase, facilitating easier navigation and updates for developers.
+
+
 ## [v3.4.0-beta.13] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.12...v3.4.0-beta.13)
