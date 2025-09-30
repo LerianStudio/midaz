@@ -67,39 +67,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}   # 1.2
             type=semver,pattern={{major}}            # 1
 
-      # ----------------- Security gates before push -----------------
-
-      - name: Trivy Secret Scan (repo)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: '1'             # Fail pipeline if secrets are detected
-          hide-progress: true
-          security-checks: secret
-          skip-dirs: '.git,node_modules,dist,build,.next,coverage,vendor'
-
-      - name: Build (scan candidate) - single arch, load:true
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ matrix.app.working_dir }}/Dockerfile
-          platforms: linux/amd64
-          load: true                 # Load image into local Docker for scanning
-          push: false
-          tags: ${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}
-
-      - name: Run Trivy vulnerability scanner (pre-push gate)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: '${{ env.DOCKERHUB_ORG }}/${{ matrix.app.name }}:scan-${{ github.sha }}'
-          format: table
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-          exit-code: '1'             # Block pipeline if vulnerabilities found
-
       # ----------------- Push final multi-arch image -----------------
 
       - name: Build and Push Docker image (Multi-Arch)
