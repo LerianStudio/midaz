@@ -1,3 +1,19 @@
+## [v3.4.0-beta.13] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.12...v3.4.0-beta.13)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- **Security Workflow Optimization**: Removed Trivy security scans from the CI workflow to streamline build processes and focus on relevant security issues, reducing false positives and improving build reliability.
+- **Focused Security Assessments**: Introduced a `.trivyignore` file to exclude the disputed CVE-2025-57319 from security scans, ensuring reports concentrate on confirmed vulnerabilities for more accurate security evaluations.
+
+### 📚 Documentation
+- **Dockerfile Cleanup**: Updated Dockerfiles to enhance maintainability and minimize potential errors during builds, ensuring documentation is accurate and facilitating smoother onboarding for new users.
+
+### 🔧 Maintenance
+- **Changelog Update**: Revised the CHANGELOG to reflect recent updates and fixes, providing users with the latest information on the project's progress and enhancements.
+
+
 ## [v3.4.0-beta.12] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.11...v3.4.0-beta.12)
