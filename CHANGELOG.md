@@ -1,3 +1,18 @@
+## [v3.4.0-beta.16] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.15...v3.4.0-beta.16)
+Contributors: Augusto Alvarenga, lerian-studio
+
+### 🐛 Bug Fixes
+- **Backend Reliability**: Resolved an issue in the `MenuConfigService` by ensuring it now correctly uses the `MIDAZ_CONSOLE_BASE_PATH` environment variable. This fix prevents potential misconfigurations, leading to more reliable service access and correct routing.
+
+### 🔄 Changes
+- **Configuration Simplification**: The setup process has been streamlined by refining the `MIDAZ_CONSOLE_BASE_PATH` configuration in environment files. This change reduces complexity, making it easier for administrators to configure the system efficiently.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to accurately reflect recent changes, ensuring users are well-informed about system modifications and improvements.
+
+
 ## [v3.4.0-beta.15] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.14...v3.4.0-beta.15)
