@@ -1,3 +1,22 @@
+## [v3.4.0-beta.12] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.11...v3.4.0-beta.12)
+Contributors: Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- Updated version numbers in configuration files to v3.3.4, ensuring consistency and preventing deployment issues due to version mismatches.
+- Pinned image versions in documentation, maintaining deployment stability and avoiding unexpected changes from upstream updates.
+
+### ⚡ Performance
+- Added an index for account operations in the database, significantly improving query performance. Users will experience faster access to transaction history and account details, enhancing their interaction with the system.
+
+### 📚 Documentation
+- Updated the CHANGELOG to reflect recent changes and improvements, keeping all stakeholders informed and facilitating easier tracking of project progress.
+
+### 🔧 Maintenance
+- Improved release management processes by ensuring all updates are accurately documented, contributing to a more transparent and efficient development cycle.
+
+
 ## [v3.4.0-beta.11] - 2025-09-26
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.10...v3.4.0-beta.11)
