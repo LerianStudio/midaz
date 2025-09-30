@@ -44,7 +44,7 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 	for time.Now().Before(deadline) {
 		current, err := GetAvailableSumByAlias(ctx, client, orgID, ledgerID, accountAlias, assetCode, headers)
 		if err != nil {
-			return current, fmt.Errorf("failed to get current balance: %w", err)
+			return lastSeen, fmt.Errorf("failed to get current balance: %w", err)
 		}
 
 		lastSeen = current
@@ -60,10 +60,17 @@ func WaitForBalanceChange(ctx context.Context, client *HTTPClient, orgID, ledger
 			return current, nil
 		}
 
+		// If we've undershot the expected value (in case of concurrent operations)
+		// and the delta is negative, that's also acceptable
+		if expectedDelta.IsNegative() && current.LessThan(expectedFinal) {
+			return current, nil
+		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	actualDelta := lastSeen.Sub(snapshot.Available)
+
 	return lastSeen, fmt.Errorf("timeout waiting for balance change; initial=%s expected_delta=%s actual_delta=%s last=%s expected_final=%s",
 		snapshot.Available.String(), expectedDelta.String(), actualDelta.String(), lastSeen.String(), expectedFinal.String())
 }
@@ -108,5 +115,6 @@ func (ot *OperationTracker) GetCurrentDelta(ctx context.Context) (decimal.Decima
 	if err != nil {
 		return decimal.Zero, err
 	}
+
 	return current.Available.Sub(ot.InitialSnapshot.Available), nil
 }

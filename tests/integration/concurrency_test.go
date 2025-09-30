@@ -157,8 +157,8 @@ func TestIntegration_ParallelContention_NoNegativeBalance(t *testing.T) {
 	// Expected = 500 - 40*5 + 20*3 = 500 - 200 + 60 = 360
 	// So delta from initial = 360
 	expectedDelta := seedAmount.
-		Sub(decimal.NewFromInt(int64(outSucc * 5))).
-		Add(decimal.NewFromInt(int64(inSucc * 3)))
+		Sub(decimal.NewFromInt(int64(outSucc)).Mul(decimal.NewFromInt(5))).
+		Add(decimal.NewFromInt(int64(inSucc)).Mul(decimal.NewFromInt(3)))
 
 	// Verify balance changed by expected delta
 	got, err := tracker.VerifyDelta(ctx, expectedDelta, 15*time.Second)
