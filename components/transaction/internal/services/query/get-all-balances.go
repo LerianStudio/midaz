@@ -61,6 +61,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 
 			balances[i].Available = cachedBalance.Available
 			balances[i].OnHold = cachedBalance.OnHold
+			balances[i].Version = cachedBalance.Version
 		}
 	}
 
