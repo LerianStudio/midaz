@@ -12,8 +12,8 @@ import (
 // whose amounts never exceed current balance, the balance never becomes negative.
 // Uses production decimal type and deterministic RNG.
 func TestProperty_NonNegativeBalance_Model(t *testing.T) {
-	rng := rand.New(rand.NewSource(4242))
 	f := func(steps int) bool {
+		rng := rand.New(rand.NewSource(4242))
 		if steps <= 0 {
 			steps = 1
 		}

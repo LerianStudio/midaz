@@ -1,5 +1,4 @@
 package property
-package property
 
 import (
 	"context"
@@ -10,8 +9,8 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/shopspring/decimal"
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	"github.com/shopspring/decimal"
 )
 
 // Property: The sum of all operations for an account must equal its current balance.
@@ -28,14 +27,18 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 	if err != nil || code != 201 {
 		t.Fatalf("create org: code=%d err=%v", code, err)
 	}
-	var org struct{ ID string `json:"id"` }
+	var org struct {
+		ID string `json:"id"`
+	}
 	_ = json.Unmarshal(body, &org)
 
 	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L"})
 	if err != nil || code != 201 {
 		t.Fatalf("create ledger: code=%d err=%v", code, err)
 	}
-	var ledger struct{ ID string `json:"id"` }
+	var ledger struct {
+		ID string `json:"id"`
+	}
 	_ = json.Unmarshal(body, &ledger)
 
 	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
@@ -60,7 +63,9 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 			t.Logf("create account: code=%d", code)
 			return true
 		}
-		var acc struct{ ID string `json:"id"` }
+		var acc struct {
+			ID string `json:"id"`
+		}
 		_ = json.Unmarshal(body, &acc)
 
 		// Enable balance
@@ -94,7 +99,7 @@ func TestProperty_OperationsSum_API(t *testing.T) {
 					maxOut = 15
 				}
 				if maxOut > 0 {
-					outAmount := rng.Int63n(maxOut + 1)
+					outAmount := rng.Int63n(maxOut) + 1
 					outStr := fmt.Sprintf("%d.00", outAmount)
 
 					c, _, _ := trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/outflow", org.ID, ledger.ID), headers, map[string]any{"send": map[string]any{"asset": "USD", "value": outStr, "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": outStr}}}}}})
