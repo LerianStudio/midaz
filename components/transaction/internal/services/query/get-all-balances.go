@@ -12,13 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetAllBalances methods responsible to get all balances from a database.
+// This method is used to get all balances from a database and return them in a cursor pagination format.
+// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances")
 	defer span.End()
-
-	logger.Infof("Retrieving all balances")
 
 	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
@@ -48,13 +49,13 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		logger.Warnf("Failed to get balance cache values on redis: %v", err)
 	}
 
-	for i, b := range balances {
-		cachedBalanceKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
-		if data, ok := balanceCacheValues[cachedBalanceKey]; ok {
+	for i := range balances {
+		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
 			cachedBalance := mmodel.BalanceRedis{}
 
 			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
 				logger.Warnf("Error unmarshalling balance cache value: %v", err)
+
 				continue
 			}
 
