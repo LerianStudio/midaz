@@ -1,3 +1,19 @@
+## [v3.4.0-beta.17] - 2025-10-02
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.16...v3.4.0-beta.17)
+Contributors: Clara Tersi, lerian-studio
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect the latest changes and improvements, ensuring users have access to the most current information about the project's development.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Regular updates to documentation ensure that users are always informed about the latest developments and improvements, enhancing overall user experience through transparency.
+
+### ✨ Improvements
+- **Testing Framework Enhancements**: We've improved our property testing capabilities, making tests more robust and reliable. This helps in identifying potential issues early, providing a more stable experience for users.
+- **Consistent Testing Outcomes**: Introduced a random number seeding mechanism to ensure tests are repeatable and predictable. This change aids developers in debugging by providing consistent test results.
+
+
 ## [v3.4.0-beta.16] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.15...v3.4.0-beta.16)
