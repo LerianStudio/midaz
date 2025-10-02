@@ -26,14 +26,15 @@ func randString(n int) string {
 
 func TestFuzz_Organization_Fields(t *testing.T) {
 	shouldRun(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	env := h.LoadEnvironment()
 	ctx := context.Background()
 	onboard := h.NewHTTPClient(env.OnboardingURL, env.HTTPTimeout)
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	for i := 0; i < 30; i++ {
-		nameLen := rand.Intn(400)
-		docLen := rand.Intn(400)
+		nameLen := rng.Intn(400)
+		docLen := rng.Intn(400)
 		payload := h.OrgPayload(randString(nameLen), randString(docLen))
 		code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, payload)
 		if err != nil {
@@ -75,12 +76,13 @@ func TestFuzz_Accounts_AliasAndType(t *testing.T) {
 	}
 
 	// Try random aliases/types
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < 40; i++ {
-		aliasLen := rand.Intn(150)
+		aliasLen := rng.Intn(150)
 		alias := randString(aliasLen)
 		// Randomly include forbidden substring to trigger 400
 		typ := "deposit"
-		if rand.Intn(5) == 0 {
+		if rng.Intn(5) == 0 {
 			typ = "external"
 		}
 		payload := map[string]any{"name": "A", "assetCode": "USD", "type": typ, "alias": alias}
