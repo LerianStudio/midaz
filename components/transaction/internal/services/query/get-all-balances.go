@@ -8,7 +8,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -44,34 +43,10 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if balance != nil {
-		balanceIDs := make([]string, len(balance))
-		for i, b := range balance {
-			balanceIDs[i] = b.ID
-		}
+	if len(balance) == 0 {
+		libOpentelemetry.HandleSpanEvent(&span, "No balances found")
 
-		metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), balanceIDs)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
-
-			logger.Warnf("Error getting metadata on mongodb operation: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		metadataMap := make(map[string]map[string]any, len(metadata))
-
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
-
-		for i := range balance {
-			if data, ok := metadataMap[balance[i].ID]; ok {
-				balance[i].Metadata = data
-			}
-		}
+		return nil, libHTTP.CursorPagination{}, nil
 	}
 
 	return balance, cur, nil
