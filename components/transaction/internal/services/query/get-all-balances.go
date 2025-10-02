@@ -19,7 +19,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 
 	logger.Infof("Retrieving all balances")
 
-	balance, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
 		logger.Errorf("Error getting balances on repo: %v", err)
 
@@ -28,13 +28,13 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if len(balance) == 0 {
+	if len(balances) == 0 {
 		libOpentelemetry.HandleSpanEvent(&span, "No balances found")
 
 		return nil, libHTTP.CursorPagination{}, nil
 	}
 
-	return balance, cur, nil
+	return balances, cur, nil
 }
 
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
