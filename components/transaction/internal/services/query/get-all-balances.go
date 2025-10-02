@@ -2,15 +2,10 @@ package query
 
 import (
 	"context"
-	"errors"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
@@ -27,16 +22,6 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	balance, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
 		logger.Errorf("Error getting balances on repo: %v", err)
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
-
-			logger.Warnf("Error getting balances on repo: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
 
