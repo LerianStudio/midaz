@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -32,6 +33,34 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		libOpentelemetry.HandleSpanEvent(&span, "No balances found")
 
 		return nil, libHTTP.CursorPagination{}, nil
+	}
+
+	balanceCacheKeys := make([]string, len(balances))
+
+	for i, b := range balances {
+		balanceCacheKeys[i] = libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+	}
+
+	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache values on redis", err)
+
+		logger.Warnf("Failed to get balance cache values on redis: %v", err)
+	}
+
+	for i, b := range balances {
+		cachedBalanceKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+		if data, ok := balanceCacheValues[cachedBalanceKey]; ok {
+			cachedBalance := mmodel.BalanceRedis{}
+
+			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+				logger.Warnf("Error unmarshalling balance cache value: %v", err)
+				continue
+			}
+
+			balances[i].Available = cachedBalance.Available
+			balances[i].OnHold = cachedBalance.OnHold
+		}
 	}
 
 	return balances, cur, nil
