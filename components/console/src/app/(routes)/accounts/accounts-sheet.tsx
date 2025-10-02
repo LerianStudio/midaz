@@ -225,7 +225,11 @@ export const AccountSheet = ({
 
   return (
     <React.Fragment>
-      <Sheet onOpenChange={onOpenChange} {...others}>
+      <Sheet
+        onOpenChange={onOpenChange}
+        {...others}
+        data-testid="account-sheet"
+      >
         <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
           {mode === 'create' && (
             <SheetHeader>

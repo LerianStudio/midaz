@@ -73,3 +73,7 @@ protocol-assets/
 .mcp.json
 .lerian-config.json
 .backups
+
+
+# protocol backups
+/components/console/.protocol-backups

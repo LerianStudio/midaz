@@ -91,3 +91,6 @@ postman/backups
 .windsurfrules
 cert/
 .mcp.json
+
+# protocol backups
+/components/console/.protocol-backups

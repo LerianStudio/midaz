@@ -168,13 +168,14 @@ export const LedgersSheet = ({
                 <TabsTrigger
                   value="details"
                   className="focus:ring-0 focus:outline-hidden"
+                  data-testid="details-tab"
                 >
                   {intl.formatMessage({
                     id: 'ledgers.sheet.tabs.details',
                     defaultMessage: 'Ledger Details'
                   })}
                 </TabsTrigger>
-                <TabsTrigger value="metadata">
+                <TabsTrigger value="metadata" data-testid="metadata-tab">
                   {intl.formatMessage({
                     id: 'common.metadata',
                     defaultMessage: 'Metadata'

@@ -20,7 +20,10 @@ export const Pagination = ({
   const intl = useIntl()
 
   return (
-    <div className="flex items-center justify-end space-x-2">
+    <div
+      className="flex items-center justify-end space-x-2"
+      data-testid="pagination"
+    >
       <Button
         variant="outline"
         size="sm"

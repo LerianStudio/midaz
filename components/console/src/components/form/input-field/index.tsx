@@ -29,6 +29,7 @@ export type InputFieldProps = {
   textArea?: boolean
   required?: boolean
   defaultValue?: string
+  testId?: string
   onChange?: (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => void
@@ -47,6 +48,7 @@ export const InputField = ({
   maxHeight,
   textArea,
   defaultValue,
+  testId,
   onChange,
   ...others
 }: InputFieldProps) => {
@@ -73,6 +75,7 @@ export const InputField = ({
                 minHeight={minHeight}
                 maxHeight={maxHeight}
                 defaultValue={defaultValue}
+                data-testid={testId}
                 {...field}
                 onChange={(e) => {
                   field.onChange(e)
@@ -85,6 +88,7 @@ export const InputField = ({
                 type={type}
                 placeholder={placeholder}
                 readOnly={readOnly}
+                data-testid={testId}
                 {...field}
               />
             )}

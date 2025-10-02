@@ -104,12 +104,19 @@ const AssetRow: React.FC<AssetRowProps> = ({
       <TableCell align="center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className="h-auto w-max p-2">
+            <Button
+              variant="secondary"
+              className="h-auto w-max p-2"
+              data-testid="actions"
+            >
               <MoreVertical size={16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(asset.original)}>
+            <DropdownMenuItem
+              onClick={() => handleEdit(asset.original)}
+              data-testid="edit"
+            >
               {intl.formatMessage({
                 id: `common.details`,
                 defaultMessage: 'Details'
@@ -117,6 +124,7 @@ const AssetRow: React.FC<AssetRowProps> = ({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              data-testid="delete"
               onClick={() =>
                 handleDialogOpen(
                   asset.original.id || '',
