@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -26,21 +25,6 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		logger.Errorf("Error getting balance: %v", err)
 
 		return nil, err
-	}
-
-	if balance != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), balanceID.String())
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb balance", err)
-
-			logger.Errorf("Error get metadata on mongodb balance: %v", err)
-
-			return nil, err
-		}
-
-		if metadata != nil {
-			balance.Metadata = metadata.Data
-		}
 	}
 
 	return balance, nil
