@@ -78,6 +78,7 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(100)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(10)))
+		assert.Equal(t, int64(0), res[0].Version)
 	})
 
 	t.Run("Success_with_cache_overlay", func(t *testing.T) {
@@ -112,6 +113,7 @@ func TestGetAllBalances(t *testing.T) {
 		cached := mmodel.BalanceRedis{
 			Available: decimal.NewFromInt(999),
 			OnHold:    decimal.NewFromInt(777),
+			Version:   5,
 		}
 		data, _ := json.Marshal(cached)
 
@@ -128,6 +130,7 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(777)))
+		assert.Equal(t, int64(5), res[0].Version)
 	})
 
 	t.Run("Redis_error_should_not_fail", func(t *testing.T) {
@@ -173,6 +176,7 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(5)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(6)))
+		assert.Equal(t, int64(0), res[0].Version)
 	})
 
 	t.Run("Invalid_cache_payload_skips_overlay", func(t *testing.T) {
@@ -218,6 +222,7 @@ func TestGetAllBalances(t *testing.T) {
 		// Should keep DB values because cache unmarshalling fails
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(50)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(7)))
+		assert.Equal(t, int64(0), res[0].Version)
 	})
 
 	t.Run("Cache_decimal_values_as_strings", func(t *testing.T) {
@@ -249,7 +254,7 @@ func TestGetAllBalances(t *testing.T) {
 			Times(1)
 
 		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
-		cachedJSON := `{"available":"123.4500","onHold":"0.5500"}`
+		cachedJSON := `{"available":"123.4500","onHold":"0.5500","version":12}`
 
 		mockRedisRepo.
 			EXPECT().
@@ -266,6 +271,7 @@ func TestGetAllBalances(t *testing.T) {
 		wantHold, _ := decimal.NewFromString("0.5500")
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
+		assert.Equal(t, int64(12), res[0].Version)
 	})
 
 	t.Run("Ignore_unrelated_cache_keys", func(t *testing.T) {
@@ -297,9 +303,9 @@ func TestGetAllBalances(t *testing.T) {
 			Times(1)
 
 		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
-		requested := mmodel.BalanceRedis{Available: decimal.NewFromInt(777), OnHold: decimal.NewFromInt(333)}
+		requested := mmodel.BalanceRedis{Available: decimal.NewFromInt(777), OnHold: decimal.NewFromInt(333), Version: 42}
 		reqData, _ := json.Marshal(requested)
-		unrelated := mmodel.BalanceRedis{Available: decimal.NewFromInt(9999), OnHold: decimal.NewFromInt(9999)}
+		unrelated := mmodel.BalanceRedis{Available: decimal.NewFromInt(9999), OnHold: decimal.NewFromInt(9999), Version: 999}
 		unrelData, _ := json.Marshal(unrelated)
 
 		redisMap := map[string]string{
@@ -320,6 +326,7 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(777)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(333)))
+		assert.Equal(t, int64(42), res[0].Version)
 	})
 
 	t.Run("Mixed_valid_and_invalid_cache_entries", func(t *testing.T) {
@@ -361,7 +368,7 @@ func TestGetAllBalances(t *testing.T) {
 		k1 := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b1.Alias+"#"+b1.Key)
 		k2 := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b2.Alias+"#"+b2.Key)
 
-		valid := mmodel.BalanceRedis{Available: decimal.NewFromInt(111), OnHold: decimal.NewFromInt(9)}
+		valid := mmodel.BalanceRedis{Available: decimal.NewFromInt(111), OnHold: decimal.NewFromInt(9), Version: 7}
 		validJSON, _ := json.Marshal(valid)
 
 		mockRedisRepo.
@@ -378,9 +385,11 @@ func TestGetAllBalances(t *testing.T) {
 		// b1 overlaid
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(111)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(9)))
+		assert.Equal(t, int64(7), res[0].Version)
 		// b2 unchanged due to invalid cache value
 		assert.True(t, res[1].Available.Equal(decimal.NewFromInt(20)))
 		assert.True(t, res[1].OnHold.Equal(decimal.NewFromInt(3)))
+		assert.Equal(t, int64(0), res[1].Version)
 	})
 
 	// Same alias with two keys; overlay should only apply to the matching alias#key
@@ -423,7 +432,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		kDefault := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bDefault.Alias+"#"+bDefault.Key)
 		kExtra := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bExtra.Alias+"#"+bExtra.Key)
-		overlay := mmodel.BalanceRedis{Available: decimal.NewFromInt(42), OnHold: decimal.Zero}
+		overlay := mmodel.BalanceRedis{Available: decimal.NewFromInt(42), OnHold: decimal.Zero, Version: 99}
 		overlayJSON, _ := json.Marshal(overlay)
 
 		mockRedisRepo.
@@ -440,9 +449,11 @@ func TestGetAllBalances(t *testing.T) {
 		// default overlaid
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(42)))
 		assert.True(t, res[0].OnHold.Equal(decimal.Zero))
+		assert.Equal(t, int64(99), res[0].Version)
 		// key-1 unchanged (no cache entry)
 		assert.True(t, res[1].Available.Equal(decimal.Zero))
 		assert.True(t, res[1].OnHold.Equal(decimal.Zero))
+		assert.Equal(t, int64(0), res[1].Version)
 	})
 
 	// Partial overlay where one cache entry is missing entirely
@@ -484,7 +495,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		kA := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bA.Alias+"#"+bA.Key)
 		kB := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bB.Alias+"#"+bB.Key)
-		overlayA := mmodel.BalanceRedis{Available: decimal.NewFromInt(77), OnHold: decimal.Zero}
+		overlayA := mmodel.BalanceRedis{Available: decimal.NewFromInt(77), OnHold: decimal.Zero, Version: 71}
 		overlayAJSON, _ := json.Marshal(overlayA)
 
 		mockRedisRepo.
@@ -501,8 +512,10 @@ func TestGetAllBalances(t *testing.T) {
 		// aliasA overlaid, aliasB unchanged
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(77)))
 		assert.True(t, res[0].OnHold.Equal(decimal.Zero))
+		assert.Equal(t, int64(71), res[0].Version)
 		assert.True(t, res[1].Available.Equal(decimal.Zero))
 		assert.True(t, res[1].OnHold.Equal(decimal.Zero))
+		assert.Equal(t, int64(0), res[1].Version)
 	})
 
 	t.Run("Very_large_decimal_magnitudes_strings", func(t *testing.T) {
@@ -536,7 +549,7 @@ func TestGetAllBalances(t *testing.T) {
 		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
 		largeAvail := "123456789012345678901234567890.123456789012345678901234567890"
 		largeHold := "987654321098765432109876543210.987654321098765432109876543210"
-		cachedJSON := fmt.Sprintf(`{"available":"%s","onHold":"%s"}`, largeAvail, largeHold)
+		cachedJSON := fmt.Sprintf(`{"available":"%s","onHold":"%s","version":77}`, largeAvail, largeHold)
 
 		mockRedisRepo.
 			EXPECT().
@@ -553,6 +566,7 @@ func TestGetAllBalances(t *testing.T) {
 		wantHold, _ := decimal.NewFromString(largeHold)
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
+		assert.Equal(t, int64(77), res[0].Version)
 	})
 
 	t.Run("Context_cancellation_propagates_and_skips_overlay", func(t *testing.T) {
@@ -614,7 +628,7 @@ func TestGetAllBalances(t *testing.T) {
 			Times(1)
 
 		key := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
-		cachedJSON := `{"available":123.45,"onHold":0.55}`
+		cachedJSON := `{"available":123.45,"onHold":0.55,"version":2}`
 
 		mockRedisRepo.
 			EXPECT().
@@ -631,6 +645,7 @@ func TestGetAllBalances(t *testing.T) {
 		wantHold, _ := decimal.NewFromString("0.55")
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
+		assert.Equal(t, int64(2), res[0].Version)
 	})
 
 	t.Run("Large_batch_MGet_overlay_all", func(t *testing.T) {
@@ -663,7 +678,7 @@ func TestGetAllBalances(t *testing.T) {
 			balances = append(balances, b)
 			k := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
 			keys = append(keys, k)
-			cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(int64(i)), OnHold: decimal.NewFromInt(int64(i % 7))}
+			cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(int64(i)), OnHold: decimal.NewFromInt(int64(i % 7)), Version: int64(i)}
 			data, _ := json.Marshal(cached)
 			redisMap[k] = string(data)
 		}
@@ -692,6 +707,7 @@ func TestGetAllBalances(t *testing.T) {
 			wantHold := decimal.NewFromInt(int64(idx % 7))
 			assert.True(t, res[idx].Available.Equal(wantAvail))
 			assert.True(t, res[idx].OnHold.Equal(wantHold))
+			assert.Equal(t, int64(idx), res[idx].Version)
 		}
 
 		check(0)

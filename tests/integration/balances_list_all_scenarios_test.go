@@ -69,6 +69,7 @@ func TestIntegration_GetAllBalances_FullCacheOverlay(t *testing.T) {
 				Items []struct {
 					Alias, Key, AssetCode string
 					Available, OnHold     decimal.Decimal
+					Version               int64 `json:"version"`
 				} `json:"items"`
 			}
 			if json.Unmarshal(b, &resp) == nil {
@@ -148,6 +149,7 @@ func TestIntegration_GetAllBalances_VeryLargePrecisionOverlay(t *testing.T) {
 				Items []struct {
 					Alias, Key, AssetCode string
 					Available             decimal.Decimal
+					Version               int64 `json:"version"`
 				} `json:"items"`
 			}
 			if json.Unmarshal(b, &resp) == nil {
