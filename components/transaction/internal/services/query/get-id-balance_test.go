@@ -3,17 +3,14 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 )
 
@@ -92,28 +89,12 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 		UpdatedAt:      now,
 	}
 
-	// Create an ObjectID for the metadata
-	objectID, _ := primitive.ObjectIDFromHex("507f1f77bcf86cd799439011")
-
-	metadata := &mongodb.Metadata{
-		ID:         objectID,
-		EntityID:   id.String(),
-		EntityName: reflect.TypeOf(mmodel.Balance{}).Name(),
-		Data: mongodb.JSON{
-			"custom_field": "custom_value",
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
 	// Create mocks
 	balanceRepo := balance.NewMockRepository(ctrl)
-	metadataRepo := mongodb.NewMockRepository(ctrl)
 
 	// Create use case with mocks
 	uc := UseCase{
-		BalanceRepo:  balanceRepo,
-		MetadataRepo: metadataRepo,
+		BalanceRepo: balanceRepo,
 	}
 
 	// Test cases
@@ -124,51 +105,11 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 		expectedError  error
 	}{
 		{
-			name: "success_with_metadata",
+			name: "success",
 			setupMocks: func() {
-				// Setup BalanceRepo mock
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, id).
 					Return(balanceData, nil)
-
-				// Setup MetadataRepo mock
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.Balance{}).Name(), id.String()).
-					Return(metadata, nil)
-			},
-			expectedResult: &mmodel.Balance{
-				ID:             id.String(),
-				OrganizationID: orgID.String(),
-				LedgerID:       ledgerID.String(),
-				AccountID:      accountID.String(),
-				Alias:          "@user1",
-				AssetCode:      "USD",
-				Available:      decimal.NewFromFloat(1000),
-				OnHold:         decimal.NewFromFloat(200),
-				Version:        1,
-				AccountType:    "checking",
-				AllowSending:   true,
-				AllowReceiving: true,
-				CreatedAt:      now,
-				UpdatedAt:      now,
-				Metadata: map[string]interface{}{
-					"custom_field": "custom_value",
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "success_without_metadata",
-			setupMocks: func() {
-				// Setup BalanceRepo mock
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, id).
-					Return(balanceData, nil)
-
-				// Setup MetadataRepo mock
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.Balance{}).Name(), id.String()).
-					Return(nil, nil)
 			},
 			expectedResult: balanceData,
 			expectedError:  nil,
@@ -176,29 +117,12 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 		{
 			name: "error_finding_balance",
 			setupMocks: func() {
-				// Setup BalanceRepo mock with error
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, id).
 					Return(nil, errors.New("database error"))
 			},
 			expectedResult: nil,
 			expectedError:  errors.New("database error"),
-		},
-		{
-			name: "error_finding_metadata",
-			setupMocks: func() {
-				// Setup BalanceRepo mock
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, id).
-					Return(balanceData, nil)
-
-				// Setup MetadataRepo mock with error
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), reflect.TypeOf(mmodel.Balance{}).Name(), id.String()).
-					Return(nil, errors.New("metadata error"))
-			},
-			expectedResult: nil,
-			expectedError:  errors.New("metadata error"),
 		},
 	}
 
