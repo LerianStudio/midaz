@@ -173,8 +173,10 @@ func (c *HTTPClient) RequestFullWithRetry(ctx context.Context, method, path stri
 		if err == nil && code != 429 && code != 502 && code != 503 && code != 504 {
 			return code, b, hdr, nil
 		}
-		// back off
-		time.Sleep(time.Duration(1<<i) * baseBackoff)
+		// back off only if another retry will be attempted
+		if i < attempts-1 {
+			time.Sleep(time.Duration(1<<i) * baseBackoff)
+		}
 	}
 
 	return lastCode, lastBody, lastHdr, lastErr
