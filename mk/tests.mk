@@ -79,10 +79,10 @@ test:
 # Test Suite Aliases
 #-------------------------------------------------------
 
-# Unit tests (exclude ./tests/** packages)
+# Unit tests
 .PHONY: test-unit
 test-unit:
-	$(call print_title,Running Go unit tests (excluding ./tests/**))
+	$(call print_title,Running Go unit tests)
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/unit; \
 	pkgs=$$(go list ./... | awk '!/\/tests($|\/)/'); \
@@ -91,17 +91,39 @@ test-unit:
 	else \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running unit tests with gotestsum"; \
-	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs || { \
+	    gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
+	        gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/unit/unit-rerun.xml -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) $$pkgs; \
+	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit/coverage.out $$pkgs; \
 	  fi; \
+	fi
+
+.PHONY: coverage-unit
+coverage-unit: test-unit
+	$(call print_title,Generate and open unit test coverage report)
+	@set -e; \
+	if [ -f $(TEST_REPORTS_DIR)/unit/coverage.out ]; then \
+	  go tool cover -html=$(TEST_REPORTS_DIR)/unit/coverage.out -o $(TEST_REPORTS_DIR)/unit/coverage.html; \
+	  echo "Coverage report generated at $(TEST_REPORTS_DIR)/unit/coverage.html"; \
+	  if command -v open >/dev/null 2>&1; then \
+	    open $(TEST_REPORTS_DIR)/unit/coverage.html; \
+	  elif command -v xdg-open >/dev/null 2>&1; then \
+	    xdg-open $(TEST_REPORTS_DIR)/unit/coverage.html; \
+	  else \
+	    echo "Open the file manually: $(TEST_REPORTS_DIR)/unit/coverage.html"; \
+	  fi; \
+	  echo "----------------------------------------"; \
+	  go tool cover -func=$(TEST_REPORTS_DIR)/unit/coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
+	  echo "----------------------------------------"; \
+	else \
+	  echo "coverage.out not found at $(TEST_REPORTS_DIR)/unit/coverage.out"; \
+	  exit 1; \
 	fi
 
 # Integration tests (Go) – spins up stack, runs tests/integration

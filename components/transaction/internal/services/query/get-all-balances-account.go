@@ -2,28 +2,24 @@ package query
 
 import (
 	"context"
-	"errors"
-	"reflect"
+	"encoding/json"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 )
 
+// GetAllBalancesByAccountID methods responsible to get all balances by account id from a database.
+// This method is used to get all balances by account id from a database and return them in a cursor pagination format.
+// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
 func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
 	defer span.End()
-
-	logger.Infof("Retrieving all balances by account")
 
 	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
@@ -31,41 +27,41 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances on repo", err)
-
-			logger.Warnf("Error getting balances on repo: %v", err)
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if balance != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), filter)
-		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+	if len(balance) == 0 {
+		libOpentelemetry.HandleSpanEvent(&span, "No balances found")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+		return balance, cur, nil
+	}
 
-			logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+	balanceCacheKeys := make([]string, len(balance))
 
-			return nil, libHTTP.CursorPagination{}, err
-		}
+	for i, b := range balance {
+		balanceCacheKeys[i] = libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+	}
 
-		metadataMap := make(map[string]map[string]any, len(metadata))
+	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache values on redis", err)
 
-		for _, meta := range metadata {
-			metadataMap[meta.EntityID] = meta.Data
-		}
+		logger.Warnf("Failed to get balance cache values on redis: %v", err)
+	}
 
-		for i := range balance {
-			if data, ok := metadataMap[balance[i].ID]; ok {
-				balance[i].Metadata = data
+	for i := range balance {
+		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
+			cachedBalance := mmodel.BalanceRedis{}
+
+			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+				logger.Warnf("Error unmarshalling balance cache value: %v", err)
+
+				continue
 			}
+
+			balance[i].Available = cachedBalance.Available
+			balance[i].OnHold = cachedBalance.OnHold
+			balance[i].Version = cachedBalance.Version
 		}
 	}
 

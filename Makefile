@@ -11,6 +11,7 @@ MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 CONSOLE_DIR := ./components/console
+TESTS_DIR := ./tests
 
 # Define component groups for easier management
 BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
@@ -263,6 +264,23 @@ lint:
 			echo "No Go files found in $$dir, skipping linting"; \
 		fi; \
 	done
+	@echo "Checking for Go files in $(TESTS_DIR)..."
+	@if [ -d "$(TESTS_DIR)" ]; then \
+		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
+			echo "Linting in $(TESTS_DIR)..."; \
+			if ! command -v golangci-lint >/dev/null 2>&1; then \
+				echo "golangci-lint not found, installing..."; \
+				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			else \
+				echo "golangci-lint already installed ✔️"; \
+			fi; \
+			(cd $(TESTS_DIR) && golangci-lint run --fix ./... --verbose) || exit 1; \
+		else \
+			echo "No Go files found in $(TESTS_DIR), skipping linting"; \
+		fi; \
+	else \
+		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
+	fi
 	@echo "[ok] Linting completed successfully"
 
 .PHONY: format
