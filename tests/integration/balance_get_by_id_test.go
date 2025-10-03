@@ -133,7 +133,6 @@ func TestIntegration_Balance_GetByID_NoCacheAndOverlay(t *testing.T) {
 
 	// Poll GET by ID until available reflects overlay or timeout
 	deadline := time.Now().Add(10 * time.Second)
-	var last decimal.Decimal
 	for {
 		code, body, err = trans.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/balances/%s", org.ID, ledger.ID, balanceID), headers, nil)
 		if err == nil && code == 200 {
@@ -141,13 +140,12 @@ func TestIntegration_Balance_GetByID_NoCacheAndOverlay(t *testing.T) {
 				Available decimal.Decimal `json:"available"`
 			}
 			_ = json.Unmarshal(body, &got)
-			last = got.Available
 			if got.Available.GreaterThan(decimal.Zero) {
 				break
 			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("timeout waiting overlay; last available=%s body=%s", last.String(), string(body))
+			t.Fatalf("timeout waiting overlay; last attempt code=%d err=%v body=%s", code, err, string(body))
 		}
 		time.Sleep(150 * time.Millisecond)
 	}

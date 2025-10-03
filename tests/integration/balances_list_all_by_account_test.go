@@ -207,9 +207,14 @@ func TestIntegration_GetAllBalancesByAccount_FilteringByDate(t *testing.T) {
 		var page struct {
 			Items []map[string]any `json:"items"`
 		}
-		_ = json.Unmarshal(b, &page)
+		if err := json.Unmarshal(b, &page); err != nil {
+			t.Fatalf("parse past page: %v body=%s", err, string(b))
+		}
+		if page.Items == nil {
+			t.Fatalf("expected items field in response for past-only window, got none: body=%s", string(b))
+		}
 		if len(page.Items) != 0 {
-			t.Fatalf("expected 0 items for past-only window, got %d", len(page.Items))
+			t.Fatalf("expected 0 items for past-only window, got %d body=%s", len(page.Items), string(b))
 		}
 	}
 

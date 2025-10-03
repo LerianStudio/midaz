@@ -161,4 +161,26 @@ func TestIntegration_Transactions_PendingCommitThenRevert_Succeeds(t *testing.T)
 	if err != nil || (code != 200 && code != 201) {
 		t.Fatalf("revert expected 200/201 got %d body=%s err=%v", code, string(body), err)
 	}
+
+	// Verify functional outcome: balance restored to initial 10.00
+	revertDeadline := time.Now().Add(5 * time.Second)
+	if dl, ok := t.Deadline(); ok {
+		if d := time.Until(dl) / 2; d < 5*time.Second {
+			revertDeadline = time.Now().Add(d)
+		}
+	}
+	var last decimal.Decimal
+	for {
+		cur, e := h.GetAvailableSumByAlias(ctx, trans, orgID, ledgerID, alias, "USD", headers)
+		if e == nil {
+			last = cur
+			if cur.Equal(decimal.RequireFromString("10.00")) {
+				break
+			}
+		}
+		if time.Now().After(revertDeadline) {
+			t.Fatalf("revert did not restore balance; want=10.00 got=%s", last.String())
+		}
+		time.Sleep(75 * time.Millisecond)
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	h "github.com/LerianStudio/midaz/v3/tests/helpers"
+	"github.com/shopspring/decimal"
 )
 
 // commit on non-pending (e.g., approved/created) should return 400/422
@@ -147,9 +148,21 @@ func TestIntegration_Transactions_RevertOnNonApproved_Should4xx(t *testing.T) {
 
 	seed := map[string]any{"code": iso.UniqueTransactionCode("SEED"), "send": map[string]any{"asset": "USD", "value": "2.00", "distribute": map[string]any{"to": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "2.00"}}}}}}
 	_, _, _ = trans.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/transactions/inflow", org.ID, ledger.ID), headers, seed)
-	waitUntil := time.Now().Add(3 * time.Second)
-	for time.Now().Before(waitUntil) {
-		time.Sleep(50 * time.Millisecond)
+	waitUntil := time.Now().Add(5 * time.Second)
+	if dl, ok := t.Deadline(); ok {
+		if d := time.Until(dl) / 2; d < 5*time.Second {
+			waitUntil = time.Now().Add(d)
+		}
+	}
+	for {
+		cur, e := h.GetAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers)
+		if e == nil && cur.Equal(decimal.RequireFromString("2.00")) {
+			break
+		}
+		if time.Now().After(waitUntil) {
+			t.Fatalf("seed not observed; want=2.00")
+		}
+		time.Sleep(75 * time.Millisecond)
 	}
 
 	out := map[string]any{"code": iso.UniqueTransactionCode("OUT-PENDING"), "pending": true, "send": map[string]any{"asset": "USD", "value": "1.00", "source": map[string]any{"from": []map[string]any{{"accountAlias": alias, "amount": map[string]any{"asset": "USD", "value": "1.00"}}}}}}

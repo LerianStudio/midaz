@@ -136,9 +136,14 @@ func TestIntegration_Transactions_Lifecycle_PendingCommitCancelRevert(t *testing
 	if err != nil || code != 201 {
 		t.Fatalf("commit: code=%d err=%v body=%s", code, err, string(body))
 	}
-	_ = json.Unmarshal(body, &tx)
-	if tx.Status.Code != "APPROVED" {
-		t.Fatalf("expected APPROVED after commit, got %s", tx.Status.Code)
+	var txCommitResp struct {
+		Status struct {
+			Code string `json:"code"`
+		} `json:"status"`
+	}
+	_ = json.Unmarshal(body, &txCommitResp)
+	if txCommitResp.Status.Code != "APPROVED" {
+		t.Fatalf("expected APPROVED after commit, got %s", txCommitResp.Status.Code)
 	}
 
 	afterCommit := sumAvail()
