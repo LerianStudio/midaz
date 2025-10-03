@@ -6,7 +6,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -20,305 +19,221 @@ import (
 )
 
 func TestGetBalanceByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	t.Parallel()
+	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	balanceRes := &mmodel.Balance{
-		ID:             ID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-	}
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	uc := UseCase{
-		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
-	}
+		bal := &mmodel.Balance{
+			ID:             id.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      libCommons.GenerateUUIDv7().String(),
+			Alias:          "@user1",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(1000),
+			OnHold:         decimal.NewFromInt(200),
+			Version:        1,
+			AccountType:    "checking",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(balanceRes, nil).
-		Times(1)
-	res, err := uc.BalanceRepo.Find(context.TODO(), organizationID, ledgerID, ID)
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	assert.Equal(t, balanceRes, res)
-	assert.Nil(t, err)
-}
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
 
-func TestGetBalanceIDError(t *testing.T) {
-	errMSG := "err to get balance on database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(bal, nil)
 
-	uc := UseCase{
-		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
-	}
+		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), bal.Alias+"#"+bal.Key)
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, ID).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.BalanceRepo.Find(context.TODO(), organizationID, ledgerID, ID)
+		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", nil)
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
-}
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-func TestGetBalanceByIDUseCase(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		assert.NoError(t, err)
+		assert.Equal(t, bal, out)
+	})
+	t.Run("RedisOverlayApplied", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	now := time.Now()
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	balanceData := &mmodel.Balance{
-		ID:             id.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		AccountID:      accountID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-		AssetCode:      "USD",
-		Available:      decimal.NewFromFloat(1000),
-		OnHold:         decimal.NewFromFloat(200),
-		Version:        1,
-		AccountType:    "checking",
-		AllowSending:   true,
-		AllowReceiving: true,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+		base := &mmodel.Balance{
+			ID:             id.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      libCommons.GenerateUUIDv7().String(),
+			Alias:          "@alice",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.RequireFromString("0"),
+			OnHold:         decimal.RequireFromString("0"),
+			Version:        1,
+		}
 
-	// Create mocks
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	// Create use case with mocks
-	uc := UseCase{
-		BalanceRepo: balanceRepo,
-		RedisRepo:   redisRepo,
-	}
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
 
-	// Test cases
-	tests := []struct {
-		name           string
-		setupMocks     func()
-		expectedResult *mmodel.Balance
-		expectedError  error
-	}{
-		{
-			name: "success",
-			setupMocks: func() {
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, id).
-					Return(balanceData, nil)
-				// No cache present
-				internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), balanceData.Alias+"#"+balanceData.Key)
-				redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", nil)
-			},
-			expectedResult: balanceData,
-			expectedError:  nil,
-		},
-		{
-			name: "error_finding_balance",
-			setupMocks: func() {
-				balanceRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, id).
-					Return(nil, errors.New("database error"))
-				// Redis must NOT be called when DB fails
-			},
-			expectedResult: nil,
-			expectedError:  errors.New("database error"),
-		},
-	}
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup mocks for this test case
-			tc.setupMocks()
+		cached := mmodel.BalanceRedis{
+			ID:             id.String(),
+			Alias:          base.Alias,
+			AccountID:      base.AccountID,
+			AssetCode:      "USD",
+			Available:      decimal.RequireFromString("123.45"),
+			OnHold:         decimal.RequireFromString("6.78"),
+			Version:        9,
+			AccountType:    "checking",
+			AllowSending:   1,
+			AllowReceiving: 1,
+		}
 
-			// Call the method being tested
-			result, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
+		b, _ := json.Marshal(cached)
 
-			// Assert results
-			if tc.expectedError != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tc.expectedError.Error(), err.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
 
-			assert.Equal(t, tc.expectedResult, result)
-		})
-	}
-}
+		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(string(b), nil)
 
-func TestGetBalanceByID_RedisOverlayApplied(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		assert.NoError(t, err)
+		assert.Equal(t, decimal.RequireFromString("123.45"), out.Available)
+		assert.Equal(t, decimal.RequireFromString("6.78"), out.OnHold)
+		assert.Equal(t, int64(9), out.Version)
+	})
+	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	balFromDB := &mmodel.Balance{
-		ID:             id.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		AccountID:      libCommons.GenerateUUIDv7().String(),
-		Alias:          "@alice",
-		Key:            "default",
-		AssetCode:      "USD",
-		Available:      decimal.RequireFromString("0"),
-		OnHold:         decimal.RequireFromString("0"),
-		Version:        1,
-	}
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
+		base := &mmodel.Balance{
+			ID:             id.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      libCommons.GenerateUUIDv7().String(),
+			Alias:          "@bob",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.RequireFromString("10"),
+			OnHold:         decimal.RequireFromString("1"),
+			Version:        2,
+		}
 
-	uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(balFromDB, nil)
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
 
-	cached := mmodel.BalanceRedis{
-		ID:             id.String(),
-		Alias:          balFromDB.Alias,
-		AccountID:      balFromDB.AccountID,
-		AssetCode:      "USD",
-		Available:      decimal.RequireFromString("123.45"),
-		OnHold:         decimal.RequireFromString("6.78"),
-		Version:        9,
-		AccountType:    "checking",
-		AllowSending:   1,
-		AllowReceiving: 1,
-	}
-	b, _ := json.Marshal(cached)
-	internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), balFromDB.Alias+"#"+balFromDB.Key)
-	redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(string(b), nil)
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 
-	out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-	assert.NoError(t, err)
-	assert.Equal(t, decimal.RequireFromString("123.45"), out.Available)
-	assert.Equal(t, decimal.RequireFromString("6.78"), out.OnHold)
-	assert.Equal(t, int64(9), out.Version)
-}
+		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
 
-func TestGetBalanceByID_RedisErrorSkipsOverlay(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", errors.New("redis down"))
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-	balFromDB := &mmodel.Balance{
-		ID:             id.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		AccountID:      libCommons.GenerateUUIDv7().String(),
-		Alias:          "@bob",
-		Key:            "default",
-		AssetCode:      "USD",
-		Available:      decimal.RequireFromString("10"),
-		OnHold:         decimal.RequireFromString("1"),
-		Version:        2,
-	}
+		assert.NoError(t, err)
+		assert.True(t, out.Available.Equal(decimal.RequireFromString("10")))
+		assert.True(t, out.OnHold.Equal(decimal.RequireFromString("1")))
+		assert.Equal(t, int64(2), out.Version)
+	})
+	t.Run("InvalidCachePayloadSkipsOverlay", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(balFromDB, nil)
-	internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), balFromDB.Alias+"#"+balFromDB.Key)
-	redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("", errors.New("redis down"))
+		base := &mmodel.Balance{
+			ID:             id.String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      libCommons.GenerateUUIDv7().String(),
+			Alias:          "@carol",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.RequireFromString("5"),
+			OnHold:         decimal.RequireFromString("0"),
+			Version:        1,
+		}
 
-	out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-	assert.NoError(t, err)
-	assert.True(t, out.Available.Equal(decimal.RequireFromString("10")))
-	assert.True(t, out.OnHold.Equal(decimal.RequireFromString("1")))
-	assert.Equal(t, int64(2), out.Version)
-}
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-func TestGetBalanceByID_InvalidCacheSkipsOverlay(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 
-	balFromDB := &mmodel.Balance{
-		ID:             id.String(),
-		OrganizationID: orgID.String(),
-		LedgerID:       ledgerID.String(),
-		AccountID:      libCommons.GenerateUUIDv7().String(),
-		Alias:          "@carol",
-		Key:            "default",
-		AssetCode:      "USD",
-		Available:      decimal.RequireFromString("5"),
-		OnHold:         decimal.RequireFromString("0"),
-		Version:        1,
-	}
+		internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), base.Alias+"#"+base.Key)
 
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+		redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("{not-json}", nil)
 
-	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(balFromDB, nil)
-	internalKey := libCommons.BalanceInternalKey(orgID.String(), ledgerID.String(), balFromDB.Alias+"#"+balFromDB.Key)
-	redisRepo.EXPECT().Get(gomock.Any(), internalKey).Return("{not-json}", nil)
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-	out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-	assert.NoError(t, err)
-	assert.True(t, out.Available.Equal(decimal.RequireFromString("5")))
-	assert.True(t, out.OnHold.Equal(decimal.RequireFromString("0")))
-	assert.Equal(t, int64(1), out.Version)
-}
+		assert.NoError(t, err)
+		assert.True(t, out.Available.Equal(decimal.RequireFromString("5")))
+		assert.True(t, out.OnHold.Equal(decimal.RequireFromString("0")))
+		assert.Equal(t, int64(1), out.Version)
+	})
+	t.Run("NotFoundReturnsError", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-func TestGetBalanceByID_NotFoundReturnsError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
 
-	notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, notFoundErr)
+		notFoundErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-	out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-	assert.Error(t, err)
-	var nf pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &nf))
-	assert.Nil(t, out)
-}
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, notFoundErr)
 
-func TestGetBalanceByID_RepoErrorPreventsRedisCall(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+		assert.Error(t, err)
+		var nf pkg.EntityNotFoundError
+		assert.True(t, errors.As(err, &nf))
+		assert.Nil(t, out)
+	})
+	t.Run("RepoErrorPreventsRedisCall", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	balanceRepo := balance.NewMockRepository(ctrl)
-	redisRepo := redis.NewMockRedisRepository(ctrl)
-	uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
 
-	balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, context.Canceled)
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-	assert.Error(t, err)
-	assert.Nil(t, out)
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, context.Canceled)
+
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
+
+		assert.Error(t, err)
+		assert.Nil(t, out)
+	})
 }
