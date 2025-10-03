@@ -60,6 +60,30 @@ func TestGetBalanceByID(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, bal, out)
 	})
+
+	t.Run("RepoReturnsNilBalance", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		id := libCommons.GenerateUUIDv7()
+		orgID := libCommons.GenerateUUIDv7()
+		ledgerID := libCommons.GenerateUUIDv7()
+
+		balanceRepo := balance.NewMockRepository(ctrl)
+		redisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := UseCase{BalanceRepo: balanceRepo, RedisRepo: redisRepo}
+
+		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(nil, nil)
+
+		// Ensure Redis is not called when balance is nil
+		redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Times(0)
+
+		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
+
+		assert.NoError(t, err)
+		assert.Nil(t, out)
+	})
 	t.Run("RedisOverlayApplied", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

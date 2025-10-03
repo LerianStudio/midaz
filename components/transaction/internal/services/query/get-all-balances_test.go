@@ -983,6 +983,36 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		assert.Equal(t, int64(0), res[0].Version)
 	})
 
+	t.Run("NoBalancesFoundForAlias", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			BalanceRepo: mockBalanceRepo,
+			RedisRepo:   mockRedisRepo,
+		}
+
+		mockBalanceRepo.
+			EXPECT().
+			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
+			Return([]*mmodel.Balance{}, nil).
+			Times(1)
+
+		// Ensure no Redis overlay is attempted when no balances are found
+		mockRedisRepo.
+			EXPECT().
+			MGet(gomock.Any(), gomock.Any()).
+			Times(0)
+
+		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
+
+		assert.NoError(t, err)
+		assert.Nil(t, res)
+	})
+
 	t.Run("MultipleKeysPartialOverlay", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
