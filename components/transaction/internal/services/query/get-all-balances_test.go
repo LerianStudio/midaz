@@ -759,6 +759,12 @@ func TestGetAllBalances(t *testing.T) {
 			Return([]*mmodel.Balance{}, mockCur, nil).
 			Times(1)
 
+		// Ensure no Redis overlay is attempted when no balances are found
+		mockRedisRepo.
+			EXPECT().
+			MGet(gomock.Any(), gomock.Any()).
+			Times(0)
+
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.NoError(t, err)
