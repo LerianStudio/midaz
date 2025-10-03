@@ -27,6 +27,7 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
 
 	// Poll until asset appears in listing to avoid race with subsequent account creation
 	deadline := time.Now().Add(12 * time.Second)
+
 	for {
 		c, b, e := client.Request(ctx, "GET", "/v1/organizations/"+orgID+"/ledgers/"+ledgerID+"/assets", headers, nil)
 		if e == nil && c == 200 {
@@ -35,23 +36,29 @@ func CreateUSDAsset(ctx context.Context, client *HTTPClient, orgID, ledgerID str
 					Code string `json:"code"`
 				} `json:"items"`
 			}
+
 			_ = json.Unmarshal(b, &list)
 			found := false
+
 			for _, it := range list.Items {
 				if it.Code == "USD" {
 					found = true
 					break
 				}
 			}
+
 			if found {
 				break
 			}
 		}
+
 		if time.Now().After(deadline) {
 			break
 		}
+
 		time.Sleep(150 * time.Millisecond)
 	}
+
 	return nil
 }
 
@@ -73,6 +80,7 @@ func SetupInflowTransaction(ctx context.Context, trans *HTTPClient, orgID, ledge
 
 	path := "/v1/organizations/" + orgID + "/ledgers/" + ledgerID + "/transactions/inflow"
 	code, body, err := trans.Request(ctx, "POST", path, headers, payload)
+
 	return code, body, err
 }
 

@@ -100,8 +100,8 @@ func WaitForHTTP200(fullURL string, timeout time.Duration) error {
 
 	for {
 		req, _ := http.NewRequest(http.MethodGet, fullURL, nil)
-		resp, err := client.Do(req)
 
+		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
