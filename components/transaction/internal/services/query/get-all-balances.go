@@ -85,5 +85,39 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
+	if len(balances) == 0 {
+		libOpentelemetry.HandleSpanEvent(&span, "No balances found for alias")
+
+		return nil, nil
+	}
+
+	balanceCacheKeys := make([]string, len(balances))
+	for i, b := range balances {
+		balanceCacheKeys[i] = libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), b.Alias+"#"+b.Key)
+	}
+
+	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache values on redis (alias)", err)
+
+		logger.Warnf("Failed to get balance cache values on redis (alias): %v", err)
+	}
+
+	for i := range balances {
+		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
+			cachedBalance := mmodel.BalanceRedis{}
+
+			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+				logger.Warnf("Error unmarshalling balance cache value (alias): %v", err)
+
+				continue
+			}
+
+			balances[i].Available = cachedBalance.Available
+			balances[i].OnHold = cachedBalance.OnHold
+			balances[i].Version = cachedBalance.Version
+		}
+	}
+
 	return balances, nil
 }
