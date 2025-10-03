@@ -81,7 +81,9 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		var nf pkg.EntityNotFoundError
+		assert.True(t, errors.As(err, &nf))
 		assert.Nil(t, out)
 	})
 	t.Run("RedisOverlayApplied", func(t *testing.T) {

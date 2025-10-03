@@ -36,7 +36,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 		logger.Warnf("Balance not found")
 
-		return nil, nil
+		return nil, err
 	}
 
 	// Overlay amounts from Redis cache when available to ensure freshest values
