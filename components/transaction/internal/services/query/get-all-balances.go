@@ -68,6 +68,9 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	return balances, cur, nil
 }
 
+// GetAllBalancesByAlias methods responsible to get all balances from a database by alias.
+// This method is used to get all balances from a database by alias and return them in a slice.
+// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
