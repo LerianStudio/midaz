@@ -1,3 +1,28 @@
+## [v3.4.0-beta.18] - 2025-10-07
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.17...v3.4.0-beta.18)
+Contributors: Clara Tersi, lerian-studio
+
+### ✨ Features
+- **Enhanced Balance Retrieval Performance:** Implemented Redis caching for balance retrieval functions, significantly reducing load times and improving user experience by providing quicker access to balance information.
+- **Versioning in Balance Data:** Added versioning to balance retrieval processes, ensuring users receive accurate and traceable balance information.
+
+### 🐛 Bug Fixes
+- **Improved Error Handling:** Resolved issues where requests for non-existent balances could cause application crashes. Users will now receive more informative responses, enhancing reliability.
+- **Consistent Balance Data Presentation:** Fixed issues with version inclusion in balance retrieval, ensuring users receive consistent and accurate balance data.
+
+### ⚡ Performance
+- **Faster Balance Queries:** The introduction of Redis caching reduces database query load, leading to faster balance retrieval times for users.
+
+### 📚 Documentation
+- **API Method Documentation:** Added comprehensive documentation for the `GetAllBalancesByAlias` method, aiding developers in understanding and utilizing this API functionality effectively.
+
+### 🔧 Maintenance
+- **Code Quality Improvements:** Introduced linting support and coverage reporting for test files, enhancing code maintainability.
+- **Dependency Updates:** Updated `go.sum` to remove deprecated dependencies and include newer versions, ensuring continued compatibility and security.
+- **Code Refactoring:** Streamlined transaction logic by removing unused metadata retrieval and correcting variable names, reducing potential errors and improving code readability.
+
+
 ## [v3.4.0-beta.17] - 2025-10-02
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.16...v3.4.0-beta.17)
