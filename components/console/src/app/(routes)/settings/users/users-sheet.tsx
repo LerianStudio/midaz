@@ -29,10 +29,8 @@ export const UsersSheet = ({
   const { isReadOnly } = useFormPermissions('users')
 
   return (
-    <Sheet onOpenChange={onOpenChange} {...others}   data-testid="ledgers-sheet">
-      <SheetContent
-        className="flex flex-col justify-between"
-      >
+    <Sheet onOpenChange={onOpenChange} {...others} data-testid="ledgers-sheet">
+      <SheetContent className="flex flex-col justify-between">
         <div className="flex grow flex-col">
           {mode === 'create' && (
             <SheetHeader className="mb-8">

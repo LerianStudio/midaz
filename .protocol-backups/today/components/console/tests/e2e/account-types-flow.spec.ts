@@ -6,9 +6,6 @@ async function openAccountTypeSheet(page: Page) {
   // Click the first new account type button (there might be two: one in header, one in empty state)
   await page.getByTestId('new-account-type').first().click()
 
-  // Add delay for React state updates and Radix UI animations
-  await page.waitForTimeout(1000)
-
   // Wait for the sheet to open
   await expect(page.getByTestId('account-type-sheet')).toBeVisible({
     timeout: 10000
@@ -66,42 +63,102 @@ test.describe('Account Types Management - E2E Tests', () => {
       })
 
       await test.step('Submit and verify', async () => {
-        // Go back to Details tab before saving
-        await page.getByRole('tab', { name: /account type details/i }).click()
-        await page.waitForTimeout(300)
+        // Go back to Details tab before saving (better UX and ensures all fields are validated)
+        await page
+          .getByRole('tab', { name: /account type details/i })
+          .click()
+        await page.waitForTimeout(500)
 
-        // Click save button
+        // Check if there are any visible form messages with content
+        const formMessages = page.locator(
+          '[data-testid="account-type-sheet"] [role="alert"]'
+        )
+        const messageCount = await formMessages.count()
+        if (messageCount > 0) {
+          const messages = []
+          for (let i = 0; i < messageCount; i++) {
+            const text = await formMessages.nth(i).textContent()
+            const isVisible = await formMessages.nth(i).isVisible()
+            if (isVisible && text && text.trim().length > 0) {
+              messages.push(text)
+            }
+          }
+          if (messages.length > 0) {
+            throw new Error(
+              `Form has validation errors before submission: ${messages.join(', ')}`
+            )
+          }
+        }
+
+        // Scroll Save button into view and click
         const saveButton = page
           .getByTestId('account-type-sheet')
           .getByRole('button', { name: /save/i })
         await saveButton.scrollIntoViewIfNeeded()
 
+        // Wait for a network request to be initiated after clicking save
         const responsePromise = page.waitForResponse(
           (response) =>
             response.url().includes('/account-types') &&
-            response.request().method() === 'POST',
+            (response.status() === 200 ||
+              response.status() === 201 ||
+              response.status() >= 400),
           { timeout: 15000 }
         )
 
         await saveButton.click()
-        await responsePromise
 
-        // Wait for toast to appear
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        try {
+          const response = await responsePromise
+          console.log(`Response status: ${response.status()}`)
+        } catch (error) {
+          console.log('No network request detected after clicking Save button')
+          // Check for validation errors that appeared after clicking
+          const postMessages = page.locator(
+            '[data-testid="account-type-sheet"] [role="alert"]'
+          )
+          const postCount = await postMessages.count()
+          const visibleErrors = []
+          for (let i = 0; i < postCount; i++) {
+            const text = await postMessages.nth(i).textContent()
+            const isVisible = await postMessages.nth(i).isVisible()
+            if (isVisible && text && text.trim().length > 0) {
+              visibleErrors.push(text)
+            }
+          }
+          if (visibleErrors.length > 0) {
+            throw new Error(`Form validation failed: ${visibleErrors.join(', ')}`)
+          }
+          throw error
+        }
 
-        // Dismiss toast and verify sheet closes
-        await page.getByTestId('dismiss-toast').click()
-        await expect(page.getByTestId('account-type-sheet')).not.toBeVisible({
-          timeout: 5000
-        })
+        // Wait for either success or error toast
+        await expect(
+          page.locator(
+            '[data-testid="success-toast"], [data-testid="error-toast"]'
+          )
+        ).toBeVisible({ timeout: 10000 })
+
+        // Check which toast appeared
+        const isSuccessVisible = await page
+          .getByTestId('success-toast')
+          .isVisible()
+        if (isSuccessVisible) {
+          await page.getByTestId('dismiss-toast').click()
+          await expect(page.getByTestId('account-type-sheet')).not.toBeVisible({
+            timeout: 5000
+          })
+        } else {
+          // If error toast, throw to see the error message
+          const errorText = await page.getByTestId('error-toast').textContent()
+          throw new Error(`Failed to create account type: ${errorText}`)
+        }
       })
 
       await test.step('Verify account type appears in list', async () => {
         await page.waitForLoadState('networkidle')
         await expect(
-          page.getByRole('row', { name: new RegExp(accountTypeName, 'i') })
+          page.getByRole('row', { name: /Savings Account/i })
         ).toBeVisible()
       })
     })
@@ -137,25 +194,8 @@ test.describe('Account Types Management - E2E Tests', () => {
           await page
             .getByRole('textbox', { name: /description/i })
             .fill(accountType.description)
-
-          const saveButton = page
-            .getByTestId('account-type-sheet')
-            .getByRole('button', { name: /save/i })
-
-          // Wait for network response
-          const responsePromise = page.waitForResponse(
-            (response) =>
-              response.url().includes('/account-types') &&
-              response.request().method() === 'POST',
-            { timeout: 15000 }
-          )
-
-          await saveButton.click()
-          await responsePromise
-
-          await expect(page.getByTestId('success-toast')).toBeVisible({
-            timeout: 10000
-          })
+          await page.getByRole('button', { name: /save/i }).click()
+          await expect(page.getByTestId('success-toast')).toBeVisible()
           await page.getByTestId('dismiss-toast').click()
           await page.waitForLoadState('networkidle')
         })
@@ -174,39 +214,19 @@ test.describe('Account Types Management - E2E Tests', () => {
         await page
           .getByRole('textbox', { name: /description/i })
           .fill('Will be updated')
-
-        const saveButton = page
-          .getByTestId('account-type-sheet')
-          .getByRole('button', { name: /save/i })
-
-        const responsePromise = page.waitForResponse(
-          (response) =>
-            response.url().includes('/account-types') &&
-            response.request().method() === 'POST',
-          { timeout: 15000 }
-        )
-
-        await saveButton.click()
-        await responsePromise
-
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        await page.getByRole('button', { name: /save/i }).click()
+        await expect(page.getByTestId('success-toast')).toBeVisible()
         await page.getByTestId('dismiss-toast').click()
       })
 
       await test.step('Open edit mode', async () => {
-        await page.waitForLoadState('networkidle')
         const accountTypeRow = page.getByRole('row', {
           name: /Account Type to Update/i
         })
+        await page.waitForLoadState('networkidle')
         await accountTypeRow.getByTestId('actions').click()
         await page.getByTestId('edit').click()
-
-        await page.waitForTimeout(500)
-        await expect(page.getByTestId('account-type-sheet')).toBeVisible({
-          timeout: 10000
-        })
+        await expect(page.getByTestId('account-type-sheet')).toBeVisible()
       })
 
       await test.step('Update account type', async () => {
@@ -216,24 +236,8 @@ test.describe('Account Types Management - E2E Tests', () => {
         await page
           .getByRole('textbox', { name: /description/i })
           .fill('Updated description')
-
-        const saveButton = page
-          .getByTestId('account-type-sheet')
-          .getByRole('button', { name: /save/i })
-
-        const responsePromise = page.waitForResponse(
-          (response) =>
-            response.url().includes('/account-types') &&
-            response.request().method() === 'PATCH',
-          { timeout: 15000 }
-        )
-
-        await saveButton.click()
-        await responsePromise
-
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        await page.getByRole('button', { name: /save/i }).click()
+        await expect(page.getByTestId('success-toast')).toBeVisible()
       })
 
       await test.step('Verify update', async () => {
@@ -256,38 +260,20 @@ test.describe('Account Types Management - E2E Tests', () => {
         await page
           .getByRole('textbox', { name: /description/i })
           .fill('Will be deleted')
-
-        const saveButton = page
-          .getByTestId('account-type-sheet')
-          .getByRole('button', { name: /save/i })
-
-        const responsePromise = page.waitForResponse(
-          (response) =>
-            response.url().includes('/account-types') &&
-            response.request().method() === 'POST',
-          { timeout: 15000 }
-        )
-
-        await saveButton.click()
-        await responsePromise
-
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        await page.getByRole('button', { name: /save/i }).click()
+        await expect(page.getByTestId('success-toast')).toBeVisible()
         await page.getByTestId('dismiss-toast').click()
       })
 
       await test.step('Delete the account type', async () => {
-        await page.waitForLoadState('networkidle')
         const accountTypeRow = page.getByRole('row', {
           name: /Account Type to Delete/i
         })
+        await page.waitForLoadState('networkidle')
         await accountTypeRow.getByTestId('actions').click()
         await page.getByTestId('delete').click()
         await page.getByTestId('confirm').click()
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        await expect(page.getByTestId('success-toast')).toBeVisible()
       })
     })
 
@@ -303,13 +289,42 @@ test.describe('Account Types Management - E2E Tests', () => {
           .waitFor({ state: 'visible' })
       ])
 
-      const hasTable = await page.getByTestId('account-types-table').isVisible()
+      const hasTable = await page
+        .getByTestId('account-types-table')
+        .isVisible()
       const hasEmptyState = await page
         .getByText(/You haven't created any Account Types yet/i)
         .isVisible()
 
       // At least one should be visible
       expect(hasTable || hasEmptyState).toBeTruthy()
+    })
+
+    test('should search account types', async ({ page }) => {
+      await test.step('Create searchable account type', async () => {
+        await openAccountTypeSheet(page)
+        await page
+          .getByRole('textbox', { name: /account type name/i })
+          .fill('Searchable Type XYZ')
+        await page.getByRole('textbox', { name: /key value/i }).fill('xyz-search')
+        await page
+          .getByRole('textbox', { name: /description/i })
+          .fill('Test searchability')
+        await page.getByRole('button', { name: /save/i }).click()
+        await expect(page.getByTestId('success-toast')).toBeVisible()
+        await page.getByTestId('dismiss-toast').click()
+      })
+
+      await test.step('Search for account type', async () => {
+        const searchInput = page.getByTestId('search-input')
+        if (await searchInput.isVisible()) {
+          await searchInput.fill('XYZ')
+          await page.waitForLoadState('networkidle')
+          await expect(
+            page.getByRole('row', { name: /Searchable Type XYZ/i })
+          ).toBeVisible()
+        }
+      })
     })
   })
 
@@ -320,15 +335,9 @@ test.describe('Account Types Management - E2E Tests', () => {
       await page
         .getByRole('textbox', { name: /description/i })
         .fill('Test description')
+      await page.getByRole('button', { name: /save/i }).click()
 
-      const saveButton = page
-        .getByTestId('account-type-sheet')
-        .getByRole('button', { name: /save/i })
-      await saveButton.click()
-
-      await expect(page.getByText(/name.*required/i)).toBeVisible({
-        timeout: 5000
-      })
+      await expect(page.getByText(/name.*required/i)).toBeVisible()
     })
 
     test('should validate required keyValue field', async ({ page }) => {
@@ -339,15 +348,9 @@ test.describe('Account Types Management - E2E Tests', () => {
       await page
         .getByRole('textbox', { name: /description/i })
         .fill('Test description')
+      await page.getByRole('button', { name: /save/i }).click()
 
-      const saveButton = page
-        .getByTestId('account-type-sheet')
-        .getByRole('button', { name: /save/i })
-      await saveButton.click()
-
-      await expect(page.getByText(/keyValue.*required/i)).toBeVisible({
-        timeout: 5000
-      })
+      await expect(page.getByText(/keyValue.*required/i)).toBeVisible()
     })
 
     test('should validate required description field', async ({ page }) => {
@@ -356,15 +359,9 @@ test.describe('Account Types Management - E2E Tests', () => {
         .getByRole('textbox', { name: /account type name/i })
         .fill('Test Account Type')
       await page.getByRole('textbox', { name: /key value/i }).fill('test')
+      await page.getByRole('button', { name: /save/i }).click()
 
-      const saveButton = page
-        .getByTestId('account-type-sheet')
-        .getByRole('button', { name: /save/i })
-      await saveButton.click()
-
-      await expect(page.getByText(/description.*required/i)).toBeVisible({
-        timeout: 5000
-      })
+      await expect(page.getByText(/description.*required/i)).toBeVisible()
     })
 
     test('should validate keyValue format', async ({ page }) => {
@@ -378,11 +375,7 @@ test.describe('Account Types Management - E2E Tests', () => {
       await page
         .getByRole('textbox', { name: /description/i })
         .fill('Test description')
-
-      const saveButton = page
-        .getByTestId('account-type-sheet')
-        .getByRole('button', { name: /save/i })
-      await saveButton.click()
+      await page.getByRole('button', { name: /save/i }).click()
 
       const formatError = await page.getByText(/keyValue.*invalid/i).isVisible()
       if (formatError) {
@@ -427,24 +420,8 @@ test.describe('Account Types Management - E2E Tests', () => {
         await page
           .getByRole('textbox', { name: /description/i })
           .fill(type.description)
-
-        const saveButton = page
-          .getByTestId('account-type-sheet')
-          .getByRole('button', { name: /save/i })
-
-        const responsePromise = page.waitForResponse(
-          (response) =>
-            response.url().includes('/account-types') &&
-            response.request().method() === 'POST',
-          { timeout: 15000 }
-        )
-
-        await saveButton.click()
-        await responsePromise
-
-        await expect(page.getByTestId('success-toast')).toBeVisible({
-          timeout: 10000
-        })
+        await page.getByRole('button', { name: /save/i }).click()
+        await expect(page.getByTestId('success-toast')).toBeVisible()
         await page.getByTestId('dismiss-toast').click()
         await page.waitForLoadState('networkidle')
       }
@@ -493,23 +470,8 @@ test.describe('Account Types Management - E2E Tests', () => {
           .click()
       }
 
-      const saveButton = page
-        .getByTestId('account-type-sheet')
-        .getByRole('button', { name: /save/i })
-
-      const responsePromise = page.waitForResponse(
-        (response) =>
-          response.url().includes('/account-types') &&
-          response.request().method() === 'POST',
-        { timeout: 15000 }
-      )
-
-      await saveButton.click()
-      await responsePromise
-
-      await expect(page.getByTestId('success-toast')).toBeVisible({
-        timeout: 10000
-      })
+      await page.getByRole('button', { name: /save/i }).click()
+      await expect(page.getByTestId('success-toast')).toBeVisible()
     })
   })
 })

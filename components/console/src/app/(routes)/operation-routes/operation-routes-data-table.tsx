@@ -155,12 +155,17 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
         <TableCell className="w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="h-auto w-max p-2">
+              <Button
+                variant="secondary"
+                className="h-auto w-max p-2"
+                data-testid="actions"
+              >
                 <MoreVertical size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                data-testid="edit"
                 onClick={() =>
                   handleEdit({
                     ...operationRoute.original,
@@ -174,6 +179,7 @@ const OperationRoutesRow: React.FC<OperationRoutesRowProps> = ({
                 })}
               </DropdownMenuItem>
               <DropdownMenuItem
+                data-testid="delete"
                 onClick={() =>
                   onDelete(operationRoute.original.id, operationRoute.original)
                 }
@@ -232,7 +238,7 @@ export const OperationRoutesDataTable: React.FC<
               defaultMessage: "You haven't created any Operation Routes yet."
             })}
           >
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} data-testid="new-operation-route">
               {intl.formatMessage({
                 id: 'operationRoutes.sheet.create.title',
                 defaultMessage: 'New Operation Route'
@@ -241,7 +247,7 @@ export const OperationRoutesDataTable: React.FC<
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="operation-routes-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>

@@ -74,6 +74,17 @@ export const PortfolioSheet = ({
           variant: 'success'
         })
         form.reset()
+      },
+      onError: (error: any) => {
+        toast({
+          description:
+            error?.message ||
+            intl.formatMessage({
+              id: 'error.portfolios.create',
+              defaultMessage: 'Failed to create portfolio'
+            }),
+          variant: 'destructive'
+        })
       }
     })
 
@@ -91,6 +102,17 @@ export const PortfolioSheet = ({
             defaultMessage: 'Portfolio changes saved successfully'
           }),
           variant: 'success'
+        })
+      },
+      onError: (error: any) => {
+        toast({
+          description:
+            error?.message ||
+            intl.formatMessage({
+              id: 'error.portfolios.update',
+              defaultMessage: 'Failed to update portfolio'
+            }),
+          variant: 'destructive'
         })
       }
     })
@@ -113,7 +135,10 @@ export const PortfolioSheet = ({
   return (
     <React.Fragment>
       <Sheet onOpenChange={onOpenChange} {...others}>
-        <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          data-testid="portfolio-sheet"
+        >
           {mode === 'create' && (
             <SheetHeader>
               <SheetTitle>

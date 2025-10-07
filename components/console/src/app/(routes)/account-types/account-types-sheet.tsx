@@ -140,7 +140,10 @@ export const AccountTypesSheet = ({
   return (
     <React.Fragment>
       <Sheet onOpenChange={onOpenChange} {...others}>
-        <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          data-testid="account-type-sheet"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           {mode === 'create' && (
             <SheetHeader>
               <SheetTitle>

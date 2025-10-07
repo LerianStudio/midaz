@@ -77,7 +77,8 @@ type AccountTypesRowProps = {
 
 const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
   accountType,
-  handleEdit
+  handleEdit,
+  onDelete
 }) => {
   const intl = useIntl()
 
@@ -101,12 +102,17 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
         <TableCell className="w-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="h-auto w-max p-2">
+              <Button
+                variant="secondary"
+                className="h-auto w-max p-2"
+                data-testid="actions"
+              >
                 <MoreVertical size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                data-testid="edit"
                 onClick={() =>
                   handleEdit({
                     ...accountType.original,
@@ -117,6 +123,17 @@ const AccountTypeRow: React.FC<AccountTypesRowProps> = ({
                 {intl.formatMessage({
                   id: 'common.details',
                   defaultMessage: 'Details'
+                })}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="delete"
+                onClick={() =>
+                  onDelete(accountType.original.id, accountType.original)
+                }
+              >
+                {intl.formatMessage({
+                  id: 'common.delete',
+                  defaultMessage: 'Delete'
                 })}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -165,7 +182,7 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
               defaultMessage: "You haven't created any Account Types yet."
             })}
           >
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} data-testid="new-account-type">
               {intl.formatMessage({
                 id: 'accountTypes.sheet.create.title',
                 defaultMessage: 'New Account Type'
@@ -174,7 +191,7 @@ export const AccountTypesDataTable: React.FC<AccountTypesDataTableProps> = ({
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="account-types-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>

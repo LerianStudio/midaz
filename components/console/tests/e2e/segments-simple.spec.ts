@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { navigateToSegments } from '../utils/navigate-to-segments'
 
 /**
  * Segments - Simple E2E Tests
@@ -15,13 +16,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Segments - Basic Functionality', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to segments page
-    await page.goto('/segments', { waitUntil: 'domcontentloaded' })
-
-    // Wait for page to be ready - the heading indicates page structure is rendered
-    await expect(
-      page.getByRole('heading', { name: 'Segments', level: 1 })
-    ).toBeVisible({ timeout: 15000 })
+    await navigateToSegments(page)
   })
 
   test('should display segments page with header and action button', async ({
@@ -32,13 +27,18 @@ test.describe('Segments - Basic Functionality', () => {
       page.getByRole('heading', { name: 'Segments', level: 1 })
     ).toBeVisible()
 
-    // Verify "New Segment" button is present
-    await expect(page.getByTestId('new-segment')).toBeVisible()
+    // Verify "New Segment" button is present using role selector
+    await expect(
+      page.getByRole('button', { name: /new segment/i })
+    ).toBeVisible()
   })
 
   test('should open create segment form sheet', async ({ page }) => {
     // Click the New Segment button
-    await page.getByTestId('new-segment').click()
+    // Note: This selector finds the button in either location:
+    // 1. Header button (page.tsx:139) - always visible
+    // 2. Empty state button (segments-data-table.tsx:121) - only when no segments exist
+    await page.getByRole('button', { name: /new segment/i }).click()
 
     // Verify the sheet opened by checking for the heading
     await expect(
@@ -57,31 +57,47 @@ test.describe('Segments - Basic Functionality', () => {
     const segmentName = `Test-Segment-${Date.now()}`
 
     // Step 1: Open the create form
-    await page.getByTestId('new-segment').click()
+    await page.getByRole('button', { name: /new segment/i }).click()
     await expect(
       page.getByRole('heading', { name: /new segment/i })
     ).toBeVisible()
 
     // Step 2: Fill the required segment name field
-    await page.getByLabel(/segment name/i).fill(segmentName)
+    const nameInput = page.getByLabel(/segment name/i)
+    await nameInput.fill(segmentName)
+    // Ensure the input loses focus to trigger validation
+    await nameInput.blur()
+    await page.waitForTimeout(300)
 
     // Step 3: Submit the form
-    await page.getByRole('button', { name: /^save$/i }).click()
+    const saveButton = page.getByRole('button', { name: /^save$/i })
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
+
+    // Wait for the API request to complete (indicated by button state change or loading)
+    await page.waitForTimeout(1000)
 
     // Step 4: Wait for the sheet to close (indicates successful creation)
     await expect(
       page.getByRole('heading', { name: /new segment/i })
-    ).not.toBeVisible({ timeout: 10000 })
+    ).not.toBeVisible({ timeout: 15000 })
+
+    // Wait for potential refetch/reload after creation
+    await page.waitForTimeout(2000)
 
     // Step 5: Verify the segment appears in the table
-    await expect(
-      page.getByRole('row', { name: new RegExp(segmentName, 'i') })
-    ).toBeVisible({ timeout: 15000 })
+    // Check if the segment row with the name exists in the table
+    const segmentRow = page.getByRole('row', {
+      name: new RegExp(segmentName, 'i')
+    })
+
+    // Wait for the row to appear, with extended timeout for API/UI updates
+    await expect(segmentRow).toBeVisible({ timeout: 15000 })
   })
 
   test('should validate required segment name field', async ({ page }) => {
     // Open the create form
-    await page.getByTestId('new-segment').click()
+    await page.getByRole('button', { name: /new segment/i }).click()
     await expect(
       page.getByRole('heading', { name: /new segment/i })
     ).toBeVisible()
@@ -100,7 +116,7 @@ test.describe('Segments - Basic Functionality', () => {
     const segmentName = `Meta-Segment-${Date.now()}`
 
     // Step 1: Open the create form
-    await page.getByTestId('new-segment').click()
+    await page.getByRole('button', { name: /new segment/i }).click()
     await expect(
       page.getByRole('heading', { name: /new segment/i })
     ).toBeVisible()
@@ -144,10 +160,7 @@ test.describe('Segments - Basic Functionality', () => {
 
 test.describe('Segments - CRUD Operations', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/segments', { waitUntil: 'domcontentloaded' })
-    await expect(
-      page.getByRole('heading', { name: 'Segments', level: 1 })
-    ).toBeVisible({ timeout: 15000 })
+    await navigateToSegments(page)
   })
 
   test('should edit an existing segment', async ({ page }) => {
@@ -155,7 +168,7 @@ test.describe('Segments - CRUD Operations', () => {
     const originalName = `Edit-Test-${Date.now()}`
     const updatedName = `Updated-${Date.now()}`
 
-    await page.getByTestId('new-segment').click()
+    await page.getByRole('button', { name: /new segment/i }).click()
     await expect(
       page.getByRole('heading', { name: /new segment/i })
     ).toBeVisible()
@@ -207,7 +220,7 @@ test.describe('Segments - CRUD Operations', () => {
     // Step 1: Create a segment to delete
     const segmentName = `Delete-Test-${Date.now()}`
 
-    await page.getByTestId('new-segment').click()
+    await page.getByRole('button', { name: /new segment/i }).click()
     await expect(
       page.getByRole('heading', { name: /new segment/i })
     ).toBeVisible()

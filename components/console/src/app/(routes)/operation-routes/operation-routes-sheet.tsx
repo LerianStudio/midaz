@@ -207,7 +207,10 @@ export const OperationRoutesSheet = ({
   return (
     <React.Fragment>
       <Sheet onOpenChange={onOpenChange} {...others}>
-        <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          data-testid="operation-route-sheet"
+        >
           {mode === 'create' && (
             <SheetHeader>
               <SheetTitle>

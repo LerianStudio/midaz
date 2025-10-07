@@ -157,6 +157,7 @@ export default function Page() {
       <PageHeader.Root>
         <PageHeader.Wrapper>
           <PageHeader.InfoTitle
+            data-testid="title"
             title={intl.formatMessage({
               id: 'common.accountTypes',
               defaultMessage: 'Account Types'

@@ -43,16 +43,11 @@ const Page = () => {
     data: assets,
     refetch,
     isLoading
-  } = useListAssets(
-    {
-      organizationId: currentOrganization.id!,
-      ledgerId: currentLedger.id,
-      ...(searchValues as any)
-    },
-    {
-      enabled: hasRequiredContext
-    }
-  )
+  } = useListAssets({
+    organizationId: currentOrganization.id!,
+    ledgerId: currentLedger.id,
+    ...(searchValues as any)
+  })
 
   const { mutate: deleteMutate, isPending: deletePending } = useDeleteAsset({
     organizationId: currentOrganization.id!,

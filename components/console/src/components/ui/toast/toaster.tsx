@@ -21,7 +21,11 @@ export function Toaster() {
             key={id}
             {...props}
             data-testid={
-              props.variant === 'success' ? 'success-toast' : 'toast'
+              props.variant === 'success'
+                ? 'success-toast'
+                : props.variant === 'destructive'
+                  ? 'error-toast'
+                  : 'toast'
             }
           >
             <div className="grid gap-1">

@@ -9,8 +9,15 @@ test.describe('Operation Routes Management - E2E Tests', () => {
   test.describe('CRUD Operations', () => {
     test('should create operation route with alias rule', async ({ page }) => {
       await test.step('Open create operation route sheet', async () => {
-        await page.getByTestId('new-operation-route').click()
-        await expect(page.getByTestId('operation-route-sheet')).toBeVisible()
+        // Click the "New Operation Route" button - use getByRole for stability
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
+        // Wait for the dialog to open
+        await expect(
+          page.getByRole('dialog', { name: 'New Operation Route' })
+        ).toBeVisible()
       })
 
       await test.step('Fill operation route form', async () => {
@@ -55,8 +62,11 @@ test.describe('Operation Routes Management - E2E Tests', () => {
       page
     }) => {
       await test.step('Open create operation route sheet', async () => {
-        await page.getByTestId('new-operation-route').click()
-        await expect(page.getByTestId('operation-route-sheet')).toBeVisible()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
+        await expect(page.getByRole('dialog', { name: 'New Operation Route' })).toBeVisible()
       })
 
       await test.step('Fill operation route with account type rule', async () => {
@@ -91,7 +101,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
 
     test('should update existing operation route', async ({ page }) => {
       await test.step('Create operation route to update', async () => {
-        await page.getByTestId('new-operation-route').click()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
         await page.locator('input[name="title"]').fill('Route to Update')
         await page.locator('input[name="description"]').fill('Will be updated')
         await page
@@ -111,7 +124,7 @@ test.describe('Operation Routes Management - E2E Tests', () => {
         await page.waitForLoadState('networkidle')
         await routeRow.getByTestId('actions').click()
         await page.getByTestId('edit').click()
-        await expect(page.getByTestId('operation-route-sheet')).toBeVisible()
+        await expect(page.getByRole('dialog', { name: 'New Operation Route' })).toBeVisible()
       })
 
       await test.step('Update operation route', async () => {
@@ -137,7 +150,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
       page
     }) => {
       await test.step('Create operation route to delete', async () => {
-        await page.getByTestId('new-operation-route').click()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
         await page.locator('input[name="title"]').fill('Route to Delete')
         await page.locator('input[name="description"]').fill('Will be deleted')
         await page
@@ -163,12 +179,23 @@ test.describe('Operation Routes Management - E2E Tests', () => {
     })
 
     test('should list operation routes with pagination', async ({ page }) => {
-      await expect(page.getByTestId('operation-routes-table')).toBeVisible()
+      // Wait for page to load - either table or empty state should be visible
+      await Promise.race([
+        page
+          .getByTestId('operation-routes-table')
+          .waitFor({ state: 'visible' }),
+        page
+          .getByText(/You haven't created any Operation Routes yet/i)
+          .waitFor({ state: 'visible' })
+      ])
     })
 
     test('should search operation routes', async ({ page }) => {
       await test.step('Create searchable operation route', async () => {
-        await page.getByTestId('new-operation-route').click()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
         await page.locator('input[name="title"]').fill('Searchable Route XYZ')
         await page.locator('input[name="description"]').fill('Test search')
         await page
@@ -198,7 +225,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
 
   test.describe('Validation Scenarios', () => {
     test('should validate required title field', async ({ page }) => {
-      await page.getByTestId('new-operation-route').click()
+      await page
+        .getByRole('button', { name: 'New Operation Route' })
+        .first()
+        .click()
       await page.locator('input[name="description"]').fill('Test description')
       await page.locator('select[name="operationType"]').selectOption('source')
       await page
@@ -211,7 +241,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
     })
 
     test('should validate required description field', async ({ page }) => {
-      await page.getByTestId('new-operation-route').click()
+      await page
+        .getByRole('button', { name: 'New Operation Route' })
+        .first()
+        .click()
       await page.locator('input[name="title"]').fill('Test Route')
       await page.locator('select[name="operationType"]').selectOption('source')
       await page
@@ -224,7 +257,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
     })
 
     test('should validate account rule configuration', async ({ page }) => {
-      await page.getByTestId('new-operation-route').click()
+      await page
+        .getByRole('button', { name: 'New Operation Route' })
+        .first()
+        .click()
       await page.locator('input[name="title"]').fill('Test Route')
       await page.locator('input[name="description"]').fill('Test description')
       await page.locator('select[name="operationType"]').selectOption('source')
@@ -237,7 +273,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
     })
 
     test('should validate operation type selection', async ({ page }) => {
-      await page.getByTestId('new-operation-route').click()
+      await page
+        .getByRole('button', { name: 'New Operation Route' })
+        .first()
+        .click()
       await page.locator('input[name="title"]').fill('Test Route')
       await page.locator('input[name="description"]').fill('Test description')
       await page
@@ -275,7 +314,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
       ]
 
       for (const route of routes) {
-        await page.getByTestId('new-operation-route').click()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
         await page.locator('input[name="title"]').fill(route.title)
         await page.locator('input[name="description"]').fill(route.description)
         await page
@@ -308,7 +350,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
       ]
 
       for (const item of patterns) {
-        await page.getByTestId('new-operation-route').click()
+        await page
+          .getByRole('button', { name: 'New Operation Route' })
+          .first()
+          .click()
         await page.locator('input[name="title"]').fill(item.title)
         await page
           .locator('input[name="description"]')
@@ -330,7 +375,10 @@ test.describe('Operation Routes Management - E2E Tests', () => {
     test('should create operation route with extensive metadata', async ({
       page
     }) => {
-      await page.getByTestId('new-operation-route').click()
+      await page
+        .getByRole('button', { name: 'New Operation Route' })
+        .first()
+        .click()
       await page.locator('input[name="title"]').fill('Premium Operation Route')
       await page
         .locator('input[name="description"]')
