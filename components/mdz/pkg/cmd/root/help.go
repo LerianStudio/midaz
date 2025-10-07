@@ -1,3 +1,5 @@
+// Package root provides the root command and help system for the MDZ CLI.
+// This file contains custom help formatting functionality.
 package root
 
 import (
@@ -10,13 +12,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// helpEntry represents a section in the help output.
 type helpEntry struct {
-	Title string
-	Body  string
+	Title string // Section title (e.g., "DESCRIPTION", "EXAMPLES")
+	Body  string // Section content
 }
 
-// help displays help for the current command, including description, synopsis,
-// available commands, subcommands, examples and flag options.
+// help displays custom formatted help for commands.
+//
+// This method creates a user-friendly help display with:
+//   - Version information
+//   - Description and synopsis
+//   - Available commands and subcommands
+//   - Usage examples
+//   - Flag options (local and global)
+//   - Command suggestions for invalid commands
+//
+// Parameters:
+//   - command: Cobra command to display help for
+//   - args: Command arguments
 func (f *factoryRoot) help(command *cobra.Command, args []string) {
 	if isRootCmd(command.Parent()) && len(args) >= 2 && args[1] != "--help" && args[1] != "-h" {
 		nestedSuggestFunc(command, args[1])
@@ -30,7 +44,11 @@ func (f *factoryRoot) help(command *cobra.Command, args []string) {
 	f.outputHelp(helpEntries, command)
 }
 
-// collectCommands collects base commands and subcommands
+// collectCommands collects and categorizes commands for help display.
+//
+// Returns:
+//   - []string: Base commands (direct children of root)
+//   - []string: Subcommands (children of other commands)
 func (f *factoryRoot) collectCommands(command *cobra.Command) ([]string, []string) {
 	var (
 		baseCommands   []string
@@ -58,7 +76,7 @@ func (f *factoryRoot) collectCommands(command *cobra.Command) ([]string, []strin
 	return baseCommands, subcmdCommands
 }
 
-// collectExamples collects help examples
+// collectExamples extracts usage examples from command.
 func (f *factoryRoot) collectExamples(command *cobra.Command) []string {
 	var examples []string
 
@@ -69,7 +87,7 @@ func (f *factoryRoot) collectExamples(command *cobra.Command) []string {
 	return examples
 }
 
-// buildHelpEntries builds the help entries
+// buildHelpEntries constructs help sections for display.
 func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, subcmdCommands, examples []string) []helpEntry {
 	var helpEntries []helpEntry
 
@@ -143,7 +161,7 @@ func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, sub
 	return helpEntries
 }
 
-// outputHelp shows help entries
+// outputHelp renders help entries to output stream.
 func (f *factoryRoot) outputHelp(helpEntries []helpEntry, command *cobra.Command) {
 	out := command.OutOrStdout()
 
@@ -160,9 +178,15 @@ func (f *factoryRoot) outputHelp(helpEntries []helpEntry, command *cobra.Command
 	}
 }
 
-// nestedSuggestFunc suggests corrections when an invalid command is supplied.
-// If “help” is the argument, it suggests “--help”. Otherwise, it calculates suggestions
-// based on the minimum distance between the supplied command and the available commands.
+// nestedSuggestFunc suggests corrections for invalid commands.
+//
+// This function provides helpful suggestions when users type invalid commands:
+//   - For "help": Suggests "--help" flag
+//   - For other invalid commands: Uses Levenshtein distance to suggest similar commands
+//
+// Parameters:
+//   - command: Cobra command context
+//   - arg: Invalid argument supplied by user
 func nestedSuggestFunc(command *cobra.Command, arg string) {
 	command.Printf("unknown command %q for %q\n", arg, command.CommandPath())
 
@@ -189,19 +213,36 @@ func nestedSuggestFunc(command *cobra.Command, arg string) {
 	command.Print("\n")
 }
 
-// isRootCmd checks if the command is the root command
-// root if it doesn't have a parent command (HasParent returns false)
+// isRootCmd checks if a command is the root command.
+//
+// Returns true if the command has no parent (is the root "mdz" command).
 func isRootCmd(command *cobra.Command) bool {
 	return command != nil && !command.HasParent()
 }
 
-// rpad adds spacing to the right of a string up to the size specified in padding.
+// rpad adds right padding to a string for alignment.
+//
+// Parameters:
+//   - s: String to pad
+//   - padding: Total width including string
+//
+// Returns:
+//   - string: Right-padded string
 func rpad(s string, padding int) string {
 	template := fmt.Sprintf("%%-%ds ", padding)
 	return fmt.Sprintf(template, s)
 }
 
-// dedent removes the smallest pkg indentation from all lines in a string.
+// dedent removes common leading whitespace from all lines.
+//
+// This function normalizes indentation by removing the minimum indentation
+// level found across all non-empty lines.
+//
+// Parameters:
+//   - s: Multi-line string to dedent
+//
+// Returns:
+//   - string: Dedented string
 func dedent(s string) string {
 	lines := strings.Split(s, "\n")
 	minIndent := -1
@@ -229,7 +270,14 @@ func dedent(s string) string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
-// Indent Adds an indentation level to all lines of a string
+// Indent adds indentation to all lines of a string.
+//
+// Parameters:
+//   - s: Multi-line string to indent
+//   - indent: Indentation string to prepend to each line
+//
+// Returns:
+//   - string: Indented string
 func Indent(s, indent string) string {
 	lineRE := regexp.MustCompile(`(?m)^`)
 

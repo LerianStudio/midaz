@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -15,7 +18,42 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CreateOperation creates a new operation based on transaction id and persisting data in the repository.
+// CreateOperation creates operations for a transaction based on DSL send/distribute specifications.
+//
+// This method implements the operation creation use case, which:
+// 1. Extracts source (from) and destination (to) specifications from DSL
+// 2. Matches specifications to balances by account alias or ID
+// 3. Validates each operation (amount, balance availability)
+// 4. Determines operation type (DEBIT for source, CREDIT for destination)
+// 5. Calculates balance after operation
+// 6. Creates operation records in PostgreSQL
+// 7. Creates metadata for each operation
+// 8. Returns operations via channel (async pattern)
+//
+// Operation Types:
+//   - DEBIT: Source operations (money leaving account)
+//   - CREDIT: Destination operations (money entering account)
+//
+// The method uses channels for async communication:
+//   - result channel: Returns created operations
+//   - err channel: Returns any errors encountered
+//
+// Business Rules:
+//   - Each from/to specification creates one operation
+//   - Operations must balance (total debits = total credits)
+//   - Balance validation ensures sufficient funds
+//   - Description defaults to transaction description if not specified
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - balances: Array of account balances involved in transaction
+//   - transactionID: UUID of the parent transaction
+//   - dsl: lib-commons Transaction with send/distribute specifications
+//   - validate: Validation responses from lib-commons
+//   - result: Channel to return created operations
+//   - err: Channel to return errors
+//
+// OpenTelemetry: Creates span "command.create_operation"
 func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *libTransaction.Transaction, validate libTransaction.Responses, result chan []*operation.Operation, err chan error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -117,7 +155,21 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	result <- operations
 }
 
-// CreateMetadata func that create metadata into operations
+// CreateMetadata creates metadata for an operation in MongoDB.
+//
+// This helper function validates and persists operation metadata. It:
+// 1. Validates metadata key and value lengths (max 100 chars per key)
+// 2. Creates metadata document in MongoDB
+// 3. Attaches metadata to the operation object
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - logger: Logger instance for error reporting
+//   - metadata: Key-value metadata map (nil if no metadata)
+//   - o: Operation to attach metadata to
+//
+// Returns:
+//   - error: nil on success, validation or creation error
 func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {

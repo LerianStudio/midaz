@@ -1,3 +1,7 @@
+// Package organization provides CLI commands for managing organizations.
+//
+// This package implements the "mdz organization" command group with subcommands
+// for create, list, describe, update, and delete operations.
 package organization
 
 import (
@@ -7,10 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryOrganization wraps the factory for organization commands.
 type factoryOrganization struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all organization subcommands.
 func (f *factoryOrganization) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdOrganizationCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdOrganizationList(newInjectFacList(f.factory)))
@@ -19,6 +25,9 @@ func (f *factoryOrganization) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdOrganizationDelete(newInjectFacDelete(f.factory)))
 }
 
+// NewCmdOrganization creates the "organization" command with all subcommands.
+//
+// Returns a Cobra command configured with create, list, describe, update, and delete subcommands.
 func NewCmdOrganization(f *factory.Factory) *cobra.Command {
 	fOrg := factoryOrganization{
 		factory: f,

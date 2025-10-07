@@ -1,3 +1,5 @@
+// Package rabbitmq provides RabbitMQ adapter implementations for the transaction service.
+// This file contains producer (message publishing) functionality.
 package rabbitmq
 
 import (
@@ -14,8 +16,10 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// ProducerRepository provides an interface for Producer related to rabbitmq.
-// // It defines methods for sending messages to a queue.
+// ProducerRepository provides an interface for RabbitMQ producer operations.
+//
+// This interface defines methods for publishing messages to RabbitMQ exchanges
+// with automatic retry logic and health checking.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool

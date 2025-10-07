@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains segment-related REST operations.
 package rest
 
 import (
@@ -11,10 +13,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// segment implements the Segment repository interface via REST API.
 type segment struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new segment via REST API.
 func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {

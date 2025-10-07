@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains asset rate (exchange rate) HTTP handlers.
 package in
 
 import (
@@ -13,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// AssetRateHandler struct contains a cqrs use case for managing asset rate.
+// AssetRateHandler handles HTTP requests for asset rate (exchange rate) operations.
 type AssetRateHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

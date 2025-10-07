@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// ListAccountsByAlias get Accounts from the repository by given alias.
+// ListAccountsByAlias retrieves multiple accounts by their aliases.
+//
+// Batch retrieves accounts from PostgreSQL by their aliases. Does NOT enrich with metadata (performance optimization).
+// Used for transaction processing where multiple accounts need to be fetched by alias.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - aliases: Array of account aliases to retrieve
+//
+// Returns:
+//   - []*mmodel.Account: Array of found accounts (without metadata)
+//   - error: Business error if query fails
+//
+// Possible Errors:
+//   - ErrFailedToRetrieveAccountsByAliases: None of the aliases were found or query failed
+//
+// OpenTelemetry: Creates span "query.ListAccountsByAlias"
 func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

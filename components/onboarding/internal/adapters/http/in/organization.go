@@ -1,3 +1,8 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+//
+// This package implements the HTTP adapter layer (inbound port) in hexagonal architecture.
+// Handlers receive HTTP requests, validate them, call business logic (use cases), and
+// return HTTP responses. All handlers follow Swagger/OpenAPI documentation standards.
 package in
 
 import (
@@ -19,7 +24,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// OrganizationHandler struct contains an organization use case for managing organization related operations.
+// OrganizationHandler handles HTTP requests for organization operations.
+//
+// This handler provides CRUD operations for organizations using the CQRS pattern,
+// delegating to command and query use cases.
 type OrganizationHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

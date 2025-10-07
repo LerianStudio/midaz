@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -16,7 +19,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataOperationRoutes fetch all Operation Routes from the repository filtered by metadata
+// GetAllMetadataOperationRoutes retrieves operation routes filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches operation routes
+// from PostgreSQL. Returns only routes that match metadata filters.
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters with metadata filters
+//
+// Returns:
+//   - []*mmodel.OperationRoute: Array of operation routes with metadata
+//   - libHTTP.CursorPagination: Pagination cursor info
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_metadata_operation_routes"
 func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.OperationRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

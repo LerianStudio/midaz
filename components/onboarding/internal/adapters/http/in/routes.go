@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains the HTTP router configuration and route definitions.
 package in
 
 import (
@@ -13,10 +15,50 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const midazName = "midaz"
-const routingName = "routing"
+const (
+	// midazName is the service name for authorization checks.
+	midazName = "midaz"
+	// routingName is the service name for routing-related authorization.
+	routingName = "routing"
+)
 
-// NewRouter register NewRouter routes to the Server.
+// NewRouter creates and configures the Fiber HTTP router for the onboarding service.
+//
+// This function sets up the complete HTTP routing configuration including:
+//   - Fiber app with custom error handler
+//   - OpenTelemetry middleware for tracing
+//   - CORS middleware for cross-origin requests
+//   - HTTP logging middleware
+//   - All RESTful API routes for entities (organizations, ledgers, accounts, etc.)
+//   - Authentication middleware for all routes
+//   - UUID path parameter validation
+//   - Request body validation and decoding
+//   - Health and version endpoints
+//   - Swagger documentation endpoint
+//
+// Route Organization:
+//   - Organizations: /v1/organizations
+//   - Ledgers: /v1/organizations/:organization_id/ledgers
+//   - Assets: /v1/organizations/:organization_id/ledgers/:ledger_id/assets
+//   - Portfolios: /v1/organizations/:organization_id/ledgers/:ledger_id/portfolios
+//   - Segments: /v1/organizations/:organization_id/ledgers/:ledger_id/segments
+//   - Accounts: /v1/organizations/:organization_id/ledgers/:ledger_id/accounts
+//   - Account Types: /v1/organizations/:organization_id/ledgers/:ledger_id/account-types
+//
+// Parameters:
+//   - lg: Logger instance
+//   - tl: OpenTelemetry telemetry instance
+//   - auth: Authentication client for JWT validation
+//   - ah: Account handler
+//   - ph: Portfolio handler
+//   - lh: Ledger handler
+//   - ih: Asset handler
+//   - oh: Organization handler
+//   - sh: Segment handler
+//   - ath: Account type handler
+//
+// Returns:
+//   - *fiber.App: Configured Fiber application ready to serve HTTP requests
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,

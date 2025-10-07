@@ -1,3 +1,5 @@
+// Package assetrate provides PostgreSQL repository implementation for AssetRate entities.
+// This file contains the repository implementation for CRUD operations on asset rates.
 package assetrate
 
 import (
@@ -21,8 +23,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// Repository provides an interface for asset_rate template entities.
-// It defines methods for creating, finding, and updating asset rates.
+// Repository provides an interface for asset rate entity persistence operations.
+//
+// This interface defines all data access methods for the AssetRate entity. Asset rates
+// define exchange rates between different assets for multi-currency transactions.
+//
+// The interface supports:
+//   - Create and Update operations (upsert pattern)
+//   - Currency pair lookup (FindByCurrencyPair)
+//   - External ID lookup (FindByExternalID)
+//   - Batch queries by asset codes (FindAllByAssetCodes)
+//   - Cursor pagination for large result sets
 type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)

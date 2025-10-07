@@ -1,9 +1,11 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
 	"context"
 	"errors"
-
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -15,7 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// CountSegments returns the number of segments for the specified organization and ledger.
+// CountSegments returns the total count of active segments for a ledger.
+//
+// Counts total segments in PostgreSQL for the given organization and ledger. Excludes soft-deleted segments.
+// Used for X-Total-Count header and pagination metadata.
+//
+// Returns: Total count of active segments, or error if query fails
+// OpenTelemetry: Creates span "query.count_segments"
 func (uc *UseCase) CountSegments(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,5 @@
+// Package transaction provides PostgreSQL repository implementation for Transaction entities.
+// This file contains the repository implementation for CRUD operations on transactions.
 package transaction
 
 import (

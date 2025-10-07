@@ -1,3 +1,7 @@
+// Package tui provides terminal user interface components for the MDZ CLI.
+//
+// This package uses the Bubble Tea framework to create interactive terminal
+// interfaces for user input, including text input, password input, and selection menus.
 package tui
 
 import (
@@ -8,10 +12,33 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Input prompts the user for text input with an interactive interface.
+//
+// This function creates a Bubble Tea text input interface with:
+//   - Custom prompt message
+//   - Character limit (256 chars)
+//   - Empty value validation
+//   - Ctrl+C/Esc to cancel
+//   - Enter to submit
+//
+// Parameters:
+//   - message: Prompt message to display
+//
+// Returns:
+//   - string: User input value
+//   - error: Error if input is empty or program fails
 func Input(message string) (string, error) {
 	return runInput(initialInputModel(message))
 }
 
+// runInput runs the Bubble Tea program for text input.
+//
+// Parameters:
+//   - m: Initial model (inputModel)
+//
+// Returns:
+//   - string: User input value
+//   - error: Error if program fails or input is empty
 func runInput(m tea.Model) (string, error) {
 	p := tea.NewProgram(m)
 
@@ -31,12 +58,20 @@ func runInput(m tea.Model) (string, error) {
 	return "", nil
 }
 
+// inputModel represents the Bubble Tea model for text input.
 type inputModel struct {
-	textInput textinput.Model
-	message   string
-	inputDone bool
+	textInput textinput.Model // Text input component
+	message   string          // Prompt message
+	inputDone bool            // Whether input is complete
 }
 
+// initialInputModel creates a new inputModel with default configuration.
+//
+// Parameters:
+//   - message: Prompt message to display
+//
+// Returns:
+//   - inputModel: Initialized input model
 func initialInputModel(message string) inputModel {
 	ti := textinput.New()
 	ti.Placeholder = "..."
@@ -47,10 +82,12 @@ func initialInputModel(message string) inputModel {
 	return inputModel{textInput: ti, message: message}
 }
 
+// Init initializes the input model (Bubble Tea interface).
 func (m inputModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
+// Update handles input events and updates the model (Bubble Tea interface).
 func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -70,6 +107,7 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// View renders the input interface (Bubble Tea interface).
 func (m inputModel) View() string {
 	return fmt.Sprintf("%s %s\n", m.message, m.textInput.View())
 }

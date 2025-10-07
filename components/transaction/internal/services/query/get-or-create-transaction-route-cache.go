@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -11,10 +14,33 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// GetOrCreateTransactionRouteCache retrieves a transaction route cache from Redis or database with fallback.
-// If the transaction route cache exists in Redis, it returns the cached data as TransactionRouteCache.
-// If not found in cache, it fetches the transaction route from database and creates the cache for future use.
-// The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
+// GetOrCreateTransactionRouteCache retrieves transaction route cache from Redis with database fallback.
+//
+// This method implements cache-aside pattern for transaction route caching:
+// 1. Checks Redis cache for transaction route (msgpack format)
+// 2. If found: Deserializes and returns cached data
+// 3. If not found: Fetches from PostgreSQL, creates cache, returns data
+//
+// Cache Strategy:
+//   - Persistent cache (no TTL) - routes rarely change
+//   - Msgpack binary format for efficiency
+//   - Cache-aside pattern (lazy loading)
+//   - Automatic cache creation on miss
+//
+// The cache structure pre-categorizes operation routes by type (source/destination)
+// for fast lookup during transaction processing.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionRouteID: UUID of the transaction route
+//
+// Returns:
+//   - mmodel.TransactionRouteCache: Cached route data with operation routes by type
+//   - error: Error if not found or cache operation fails
+//
+// OpenTelemetry: Creates span "command.get_or_create_transaction_route_cache"
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

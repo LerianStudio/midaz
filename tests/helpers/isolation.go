@@ -1,3 +1,5 @@
+// Package helpers provides test utilities and helper functions for integration tests.
+// This file contains test isolation utilities for ensuring test independence.
 package helpers
 
 import (

@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// CountLedgers returns the total count of ledgers for a specific organization
+// CountLedgers returns the total count of active ledgers for an organization.
+//
+// Counts total ledgers in PostgreSQL for the given organization. Excludes soft-deleted ledgers.
+// Used for X-Total-Count header and pagination metadata.
+//
+// Returns: Total count of active ledgers, or error if query fails
+// OpenTelemetry: Creates span "query.count_ledgers"
 func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,34 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataOrganizations fetch all Organizations from the repository
+// GetAllMetadataOrganizations retrieves organizations filtered by metadata criteria.
+//
+// This is a metadata-first query that:
+// 1. Queries MongoDB for organizations matching metadata filters
+// 2. Extracts entity IDs from metadata results
+// 3. Fetches corresponding organizations from PostgreSQL
+// 4. Merges metadata into organization objects
+//
+// Use Case: Searching organizations by custom metadata fields (e.g., industry, region)
+//
+// Query Flow: MongoDB → PostgreSQL (filter by metadata first, then fetch entities)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - filter: Query parameters including metadata filters (e.g., metadata.industry=Finance)
+//
+// Returns:
+//   - []*mmodel.Organization: Array of organizations matching metadata criteria
+//   - error: Business error if query fails
+//
+// Example:
+//
+//	filter := http.QueryHeader{
+//	    Metadata: &bson.M{"industry": "Financial Services"},
+//	}
+//	orgs, err := useCase.GetAllMetadataOrganizations(ctx, filter)
+//
+// OpenTelemetry: Creates span "query.get_all_metadata_organizations"
 func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

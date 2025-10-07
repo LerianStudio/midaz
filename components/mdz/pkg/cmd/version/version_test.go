@@ -1,3 +1,6 @@
+// Package version implements CLI commands for version management.
+// This file contains the version_test command implementation.
+
 package version
 
 import (

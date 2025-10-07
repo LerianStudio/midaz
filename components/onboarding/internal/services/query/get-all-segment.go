@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllSegments fetch all Segment from the repository
+// GetAllSegments retrieves a paginated list of segments with metadata.
+//
+// Fetches segments from PostgreSQL with pagination, then enriches with MongoDB metadata.
+// Returns empty array if no segments found (not an error). Excludes soft-deleted segments.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (pagination, sorting, date range)
+//
+// Returns:
+//   - []*mmodel.Segment: Array of segments with metadata
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_segments"
 func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

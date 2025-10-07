@@ -1,3 +1,5 @@
+// Package bootstrap provides application initialization and dependency injection for the onboarding service.
+// This file defines the HTTP server configuration and lifecycle management.
 package bootstrap
 
 import (
@@ -8,20 +10,41 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Server represents the http server for Ledger service.
+// Server represents the HTTP server for the onboarding service.
+//
+// This struct encapsulates the Fiber web application with its configuration,
+// logger, and telemetry components. It provides lifecycle management methods
+// for starting and stopping the server.
 type Server struct {
-	app           *fiber.App
-	serverAddress string
-	logger        libLog.Logger
-	telemetry     libOpentelemetry.Telemetry
+	app           *fiber.App                 // Fiber web application
+	serverAddress string                     // Server listen address (e.g., ":3000")
+	logger        libLog.Logger              // Structured logger
+	telemetry     libOpentelemetry.Telemetry // OpenTelemetry tracer and metrics
 }
 
-// ServerAddress returns is a convenience method to return the server address.
+// ServerAddress returns the configured server listen address.
+//
+// This is a convenience method for accessing the server address configuration.
+//
+// Returns:
+//   - string: Server address (e.g., ":3000", "0.0.0.0:8080")
 func (s *Server) ServerAddress() string {
 	return s.serverAddress
 }
 
-// NewServer creates an instance of Server.
+// NewServer creates a new HTTP server instance with the provided configuration.
+//
+// This constructor initializes the server with all necessary components for
+// handling HTTP requests, logging, and telemetry.
+//
+// Parameters:
+//   - cfg: Application configuration
+//   - app: Configured Fiber application with routes and middleware
+//   - logger: Structured logger instance
+//   - telemetry: OpenTelemetry instance for tracing
+//
+// Returns:
+//   - *Server: Initialized server ready to run
 func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *Server {
 	return &Server{
 		app:           app,
@@ -31,7 +54,27 @@ func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *lib
 	}
 }
 
-// Run runs the server.
+// Run starts the HTTP server with graceful shutdown support.
+//
+// This method starts the Fiber HTTP server and configures graceful shutdown handling.
+// The server will:
+//   - Listen on the configured address
+//   - Handle incoming HTTP requests
+//   - Respond to shutdown signals (SIGTERM, SIGINT)
+//   - Clean up resources on shutdown
+//   - Close telemetry connections
+//
+// Graceful Shutdown:
+//   - Waits for in-flight requests to complete
+//   - Closes database connections
+//   - Flushes telemetry data
+//   - Closes RabbitMQ connections
+//
+// Parameters:
+//   - l: Launcher instance (unused in current implementation)
+//
+// Returns:
+//   - error: Always returns nil (errors are handled by lib-commons)
 func (s *Server) Run(l *libCommons.Launcher) error {
 	libCommonsServer.NewServerManager(nil, &s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).

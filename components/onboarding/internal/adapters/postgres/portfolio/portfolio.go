@@ -1,3 +1,8 @@
+// Package portfolio provides the repository implementation for portfolio entity persistence.
+//
+// This package implements the Repository pattern for the Portfolio entity, providing
+// PostgreSQL-based data access. Portfolios group related accounts for organizational
+// and reporting purposes.
 package portfolio
 
 import (
@@ -8,7 +13,10 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
+// PortfolioPostgreSQLModel represents the PostgreSQL database model for portfolios.
+//
+// Portfolios provide logical grouping of accounts within a ledger for organizational
+// purposes (e.g., grouping accounts by department, project, or customer).
 type PortfolioPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -23,7 +31,7 @@ type PortfolioPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an PortfolioPostgreSQLModel to entity.Portfolio
+// ToEntity converts a PostgreSQL model to a domain Portfolio entity.
 func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -50,7 +58,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 	return portfolio
 }
 
-// FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
+// FromEntity converts a domain Portfolio entity to a PostgreSQL model.
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 	*t = PortfolioPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

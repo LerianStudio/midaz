@@ -1,3 +1,9 @@
+// Package login provides the CLI login command for authentication.
+//
+// This package implements the "mdz login" command with support for:
+//   - Username/password authentication
+//   - Browser-based OAuth flow
+//   - Token storage in configuration file
 package login
 
 import (
@@ -15,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryLogin wraps dependencies for the login command.
 type factoryLogin struct {
 	factory   *factory.Factory
 	username  string
@@ -25,6 +32,7 @@ type factoryLogin struct {
 	tuiSelect func(message string, options []string) (string, error)
 }
 
+// validateCredentials validates username and password are not empty.
 func validateCredentials(username, password string) error {
 	if len(username) == 0 {
 		return errors.New("username must not be empty")
@@ -37,6 +45,7 @@ func validateCredentials(username, password string) error {
 	return nil
 }
 
+// runE executes the login command logic.
 func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("username") && cmd.Flags().Changed("password") {
 		if err := validateCredentials(l.username, l.password); err != nil {
@@ -80,6 +89,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// execMethodLogin executes the selected login method (browser or terminal).
 func (l *factoryLogin) execMethodLogin(answer string) error {
 	switch {
 	case strings.Contains(answer, "browser"):
@@ -106,6 +116,9 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 	return errors.New("invalid login method")
 }
 
+// NewCmdLogin creates the "login" command.
+//
+// Returns a Cobra command configured for authentication with username/password flags.
 func NewCmdLogin(f *factory.Factory) *cobra.Command {
 	fVersion := factoryLogin{
 		factory:   f,

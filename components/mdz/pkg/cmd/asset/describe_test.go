@@ -1,3 +1,6 @@
+// Package asset implements CLI commands for asset management.
+// This file contains the describe_test command implementation.
+
 package asset
 
 import (

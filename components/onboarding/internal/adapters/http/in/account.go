@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains account-related HTTP handlers.
 package in
 
 import (
@@ -16,7 +18,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// AccountHandler struct contains an account use case for managing account related operations.
+// AccountHandler handles HTTP requests for account operations.
+//
+// This handler provides CRUD operations for accounts using the CQRS pattern.
 type AccountHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains segment-related HTTP handlers.
 package in
 
 import (
@@ -16,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// SegmentHandler struct contains a segment use case for managing segment related operations.
+// SegmentHandler handles HTTP requests for segment operations using the CQRS pattern.
 type SegmentHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

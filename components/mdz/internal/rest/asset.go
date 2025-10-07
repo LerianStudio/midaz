@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains asset-related REST operations.
 package rest
 
 import (
@@ -11,10 +13,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// asset implements the Asset repository interface via REST API.
 type asset struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new asset via REST API.
 func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {

@@ -1,3 +1,5 @@
+// Package helpers provides test utilities and helper functions for integration tests.
+// This file contains test setup and teardown utilities.
 package helpers
 
 import (

@@ -1,3 +1,8 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+//
+// This package implements repository interfaces defined in the domain layer,
+// providing concrete HTTP-based data access to the Midaz API. It handles
+// HTTP request construction, authentication, error handling, and response parsing.
 package rest
 
 import (
@@ -11,10 +16,29 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// organization implements the repository.Organization interface using REST API calls.
+//
+// This struct provides HTTP-based organization operations, handling request construction,
+// authentication, and response parsing.
 type organization struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new organization via the REST API.
+//
+// This method:
+// 1. Marshals input to JSON
+// 2. Creates POST request to /v1/organizations
+// 3. Adds authentication header
+// 4. Sends request and validates response
+// 5. Decodes and returns created organization
+//
+// Parameters:
+//   - inp: Organization creation input
+//
+// Returns:
+//   - *mmodel.Organization: Created organization
+//   - error: HTTP or parsing error
 func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {

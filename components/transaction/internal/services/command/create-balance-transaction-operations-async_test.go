@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (

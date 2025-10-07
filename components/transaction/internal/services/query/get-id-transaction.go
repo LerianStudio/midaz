@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -10,7 +13,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetTransactionByID gets data in the repository.
+// GetTransactionByID retrieves a single transaction by ID with metadata.
+//
+// Fetches transaction from PostgreSQL and enriches with MongoDB metadata.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the transaction to retrieve
+//
+// Returns:
+//   - *transaction.Transaction: Transaction with metadata
+//   - error: Business error if not found or query fails
+//
+// OpenTelemetry: Creates span "query.get_transaction_by_id"
 func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -46,7 +63,22 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	return tran, nil
 }
 
-// GetTransactionWithOperationsByID gets data in the repository.
+// GetTransactionWithOperationsByID retrieves a transaction with its operations and metadata.
+//
+// Fetches transaction with operations from PostgreSQL and enriches with MongoDB metadata.
+// This is more efficient than separate queries for transaction and operations.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the transaction to retrieve
+//
+// Returns:
+//   - *transaction.Transaction: Transaction with operations and metadata
+//   - error: Business error if not found or query fails
+//
+// OpenTelemetry: Creates span "query.get_transaction_and_operations_by_id"
 func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

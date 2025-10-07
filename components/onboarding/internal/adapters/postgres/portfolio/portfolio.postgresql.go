@@ -1,3 +1,5 @@
+// Package portfolio provides PostgreSQL repository implementation for Portfolio entities.
+// This file contains the repository implementation for CRUD operations on portfolios.
 package portfolio
 
 import (
@@ -24,8 +26,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to portfolio entities.
-// It defines methods for creating, finding, updating, and deleting portfolios in the database.
+// Repository provides an interface for portfolio entity persistence operations.
+//
+// This interface defines all data access methods for the Portfolio entity. Portfolios
+// group related accounts for organizational and reporting purposes.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Entity ID lookup (FindByIDEntity)
+//   - Batch operations (ListByIDs)
+//   - Soft delete support
+//   - Pagination and counting
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)
@@ -252,7 +263,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}
@@ -367,7 +378,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&portfolio.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		logger.Errorf("Failed to scan rows: %v", err)
+			logger.Errorf("Failed to scan rows: %v", err)
 
 			return nil, err
 		}
@@ -538,7 +549,7 @@ func (r *PortfolioPostgreSQLRepository) Count(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.count_portfolios")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

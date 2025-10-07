@@ -1,3 +1,6 @@
+// Package login implements CLI commands for login management.
+// This file contains the login_test command implementation.
+
 package login
 
 import (

@@ -1,3 +1,6 @@
+// Package version implements CLI commands for version management.
+// This file contains the version command implementation.
+
 package version
 
 import (
@@ -18,6 +21,9 @@ func (f *factoryVersion) runE(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+// NewCmdVersion creates the "version" command.
+//
+// Returns a Cobra command that displays the CLI version.
 func NewCmdVersion(f *factory.Factory) *cobra.Command {
 	fVersion := factoryVersion{
 		factory: f,

@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains operation (debit/credit/hold/release) HTTP handlers.
 package in
 
 import (
@@ -13,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// OperationHandler struct contains a cqrs use case for managing operations.
+// OperationHandler handles HTTP requests for operation (debit/credit/hold/release) queries.
 type OperationHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

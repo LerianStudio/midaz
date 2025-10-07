@@ -1,3 +1,5 @@
+// Package command implements write operations (commands) for the onboarding service.
+// This file contains the CreateOrganization command implementation.
 package command
 
 import (
@@ -12,7 +14,57 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CreateOrganization creates a new organization persists data in the repository.
+// CreateOrganization creates a new organization and persists it to the repository.
+//
+// This method implements the create organization use case, which:
+// 1. Validates the country code in the address (ISO 3166-1 alpha-2)
+// 2. Sets default status to ACTIVE if not provided
+// 3. Creates the organization in PostgreSQL
+// 4. Creates associated metadata in MongoDB
+// 5. Returns the complete organization with metadata
+//
+// Business Rules:
+//   - Country code must be valid ISO 3166-1 alpha-2 format (2 letters)
+//   - Status defaults to ACTIVE if not provided or empty
+//   - Parent organization ID is optional (for hierarchical organizations)
+//   - Legal name and legal document are required (validated at HTTP layer)
+//
+// Data Storage:
+//   - Primary data: PostgreSQL (organizations table)
+//   - Metadata: MongoDB (flexible key-value storage)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - coi: Create organization input with all required and optional fields
+//
+// Returns:
+//   - *mmodel.Organization: Created organization with metadata
+//   - error: Business error if validation fails, database error if persistence fails
+//
+// Possible Errors:
+//   - ErrInvalidCountryCode: Country code is not valid ISO 3166-1 alpha-2
+//   - ErrParentOrganizationIDNotFound: Parent organization does not exist
+//   - Database errors: Connection failures, constraint violations
+//
+// Example:
+//
+//	input := &mmodel.CreateOrganizationInput{
+//	    LegalName:     "Acme Corp",
+//	    LegalDocument: "12345678901234",
+//	    Address: mmodel.Address{
+//	        Country: "US",
+//	        // ... other fields
+//	    },
+//	}
+//	org, err := useCase.CreateOrganization(ctx, input)
+//	if err != nil {
+//	    return nil, err
+//	}
+//
+// OpenTelemetry:
+//   - Creates span "command.create_organization"
+//   - Creates sub-span "command.create_organization.validate_address"
+//   - Records errors as span events
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

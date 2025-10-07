@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains ledger-related REST operations.
 package rest
 
 import (
@@ -11,10 +13,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// ledger implements the Ledger repository interface via REST API.
 type ledger struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new ledger via REST API.
 func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {

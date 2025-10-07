@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataSegments fetch all Segments from the repository
+// GetAllMetadataSegments retrieves segments filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches segments from PostgreSQL.
+// Use case: Finding segments by custom metadata fields (e.g., metadata.region=EMEA).
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// OpenTelemetry: Creates span "query.get_all_metadata_segments"
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

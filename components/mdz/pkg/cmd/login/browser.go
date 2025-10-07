@@ -1,3 +1,5 @@
+// Package login provides the CLI login command for authentication.
+// This file contains browser-based OAuth login functionality.
 package login
 
 import (
@@ -13,19 +15,31 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/mdz/pkg/output"
 )
 
+// Package-level variables for managing the OAuth callback server lifecycle.
 var (
 	srvCallBackCtx    context.Context
 	srvCallBackCancel context.CancelFunc
 )
 
+// initializeContext creates a cancellable context for the OAuth callback server.
 func initializeContext() {
 	srvCallBackCtx, srvCallBackCancel = context.WithCancel(context.Background())
 }
 
+// browser holds error state for browser-based login.
 type browser struct {
 	Err error
 }
 
+// browserLogin implements OAuth authorization code flow with browser.
+//
+// This method:
+// 1. Constructs OAuth authorization URL
+// 2. Opens user's default browser
+// 3. Starts local HTTP server on :9000 for OAuth callback
+// 4. Waits for callback with authorization code
+// 5. Exchanges code for access token
+// 6. Shuts down server gracefully
 func (l *factoryLogin) browserLogin() {
 	clientID := "9670e0ca55a29a466d31"
 	redirectURI := "http://localhost:9000/callback"
@@ -72,7 +86,18 @@ func (l *factoryLogin) browserLogin() {
 	}
 }
 
-// openBrowser to open the browser in the operating system
+// openBrowser opens the default browser to the OAuth authorization URL.
+//
+// This function detects the operating system and uses the appropriate command:
+//   - Linux: xdg-open
+//   - Windows: rundll32
+//   - macOS: open
+//
+// Parameters:
+//   - u: URL to open in browser
+//
+// Returns:
+//   - error: Error if browser cannot be opened or OS is unsupported
 func (l *factoryLogin) openBrowser(u string) error {
 	var err error
 
@@ -96,7 +121,18 @@ func (l *factoryLogin) openBrowser(u string) error {
 	return nil
 }
 
-// callbackHandler handles the callback and exchanges the code for the token
+// callbackHandler handles the OAuth callback and exchanges authorization code for token.
+//
+// This HTTP handler:
+// 1. Extracts authorization code from query parameters
+// 2. Exchanges code for access token via REST API
+// 3. Stores token in factoryLogin
+// 4. Returns success HTML page to browser
+// 5. Signals server shutdown
+//
+// Parameters:
+//   - w: HTTP response writer
+//   - r: HTTP request with authorization code
 func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 

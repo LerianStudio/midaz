@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -17,7 +20,26 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetAllAccountType fetch all Account Types from the repository
+// GetAllAccountType retrieves a paginated list of account types with metadata using cursor pagination.
+//
+// Fetches account types from PostgreSQL with cursor-based pagination, then enriches with MongoDB metadata.
+// Uses cursor pagination for better performance with large datasets. Returns empty array if no types found.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (cursor pagination, sorting, metadata filters)
+//
+// Returns:
+//   - []*mmodel.AccountType: Array of account types with metadata
+//   - libHTTP.CursorPagination: Cursor pagination info (next cursor, has more)
+//   - error: Business error if query fails
+//
+// Possible Errors:
+//   - ErrNoAccountTypesFound: Database error occurred
+//
+// OpenTelemetry: Creates span "query.get_all_account_type"
 func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

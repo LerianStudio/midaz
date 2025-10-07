@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains asset-related HTTP handlers.
 package in
 
 import (
@@ -16,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// AssetHandler struct contains a cqrs use case for managing asset in related operations.
+// AssetHandler handles HTTP requests for asset operations using the CQRS pattern.
 type AssetHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

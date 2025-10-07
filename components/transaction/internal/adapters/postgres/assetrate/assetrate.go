@@ -1,3 +1,8 @@
+// Package assetrate provides the repository implementation for asset rate entity persistence.
+//
+// This package implements the Repository pattern for the AssetRate entity, providing
+// PostgreSQL-based data access. Asset rates define exchange rates between different
+// assets (currencies, cryptocurrencies, commodities) for multi-currency transactions.
 package assetrate
 
 import (
@@ -6,7 +11,14 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 )
 
-// AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database
+// AssetRatePostgreSQLModel represents the PostgreSQL database model for asset rates.
+//
+// This model stores currency conversion rates with:
+//   - From and to asset codes (currency pair)
+//   - Rate and scale for precise conversion
+//   - TTL for rate expiration
+//   - Source tracking for rate origin
+//   - External ID for third-party integration
 //
 // @Description Database model for storing asset rate information in PostgreSQL
 type AssetRatePostgreSQLModel struct {

@@ -1,8 +1,87 @@
+// Package mmodel provides domain model definitions for the Midaz ledger system.
+//
+// This package contains all the data structures (models) that represent the core business
+// entities in the Midaz platform. These models are used for:
+//   - API request/response payloads (with JSON serialization)
+//   - Database entity representations
+//   - Internal data transfer between layers
+//   - OpenAPI/Swagger documentation generation
+//
+// Model Hierarchy:
+//
+// The Midaz platform follows a hierarchical structure:
+//
+//	Organization (top level)
+//	  └── Ledger
+//	      ├── Asset (currencies, cryptocurrencies, commodities)
+//	      ├── Portfolio (grouping of accounts)
+//	      ├── Segment (logical divisions)
+//	      ├── Account (financial buckets)
+//	      │   └── Balance (asset holdings with available/on-hold amounts)
+//	      ├── AccountType (account classification)
+//	      ├── OperationRoute (transaction routing rules)
+//	      └── TransactionRoute (transaction flow definitions)
+//
+// Key Concepts:
+//
+//   - Organizations: Top-level entities representing companies or business units
+//   - Ledgers: Financial record-keeping systems within organizations
+//   - Assets: Types of value (USD, BTC, stocks, etc.)
+//   - Accounts: Individual financial entities (bank accounts, cards, expense categories)
+//   - Balances: Amount of specific assets held in accounts
+//   - Portfolios: Collections of accounts grouped for business purposes
+//   - Segments: Logical divisions for organizing accounts
+//   - Routes: Define how transactions flow through the system
+//
+// Model Types:
+//
+//   - Input Models: Used for create/update operations (e.g., CreateAccountInput, UpdateAccountInput)
+//   - Entity Models: Complete representations with all fields (e.g., Account, Ledger)
+//   - Collection Models: Paginated lists of entities (e.g., Accounts, Ledgers)
+//   - Response Models: Swagger response wrappers (e.g., AccountResponse, AccountErrorResponse)
+//
+// All models include:
+//   - JSON struct tags for serialization
+//   - Validation tags for input validation
+//   - Swagger annotations for API documentation
+//   - Example values for documentation
+//
+// Metadata Support:
+//
+// Most entities support a flexible metadata field (map[string]any) that allows clients
+// to extend entities with custom key-value pairs. Metadata has validation constraints:
+//   - Keys: max 100 characters
+//   - Values: max 2000 characters
+//   - No nested objects allowed
+//
+// Status Management:
+//
+// Entities use a Status struct with standardized codes:
+//   - ACTIVE: Entity is operational
+//   - INACTIVE: Entity is disabled but not deleted
+//   - PENDING: Entity is awaiting activation
+//   - SUSPENDED: Entity is temporarily disabled
+//   - DELETED: Entity is soft-deleted
+//
+// Soft Deletion:
+//
+// Most entities support soft deletion via the DeletedAt timestamp field.
+// Soft-deleted entities remain in the database but are excluded from normal queries.
+//
+// Pagination:
+//
+// Collection models (Accounts, Ledgers, etc.) include pagination metadata:
+//   - Page: Current page number (1-indexed)
+//   - Limit: Maximum items per page (1-100)
+//   - Items: Array of entity records
+//
+// The X-Total-Count header provides the total count across all pages.
 package mmodel
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreateAccountInput is a struct designed to encapsulate request create payload data.
@@ -233,9 +312,24 @@ type Account struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name Account
 
-// IDtoUUID converts the account's string ID to a UUID object
+// IDtoUUID converts the account's string ID to a UUID object.
 //
-// Returns the UUID representation of the account's ID
+// This method parses the account's ID field (which is stored as a string in UUID format)
+// and returns it as a uuid.UUID type. This is useful when working with libraries or
+// functions that require UUID types rather than strings.
+//
+// Returns:
+//   - uuid.UUID: The parsed UUID representation of the account's ID
+//
+// Panics:
+//   - If the ID is not a valid UUID format, this method will panic via uuid.MustParse.
+//     In production code, ensure the ID is always a valid UUID before calling this method.
+//
+// Example:
+//
+//	account := &Account{ID: "123e4567-e89b-12d3-a456-426614174000"}
+//	accountUUID := account.IDtoUUID()
+//	// accountUUID can now be used with UUID-typed parameters
 func (a *Account) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(a.ID)
 }

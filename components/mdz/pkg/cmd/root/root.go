@@ -1,3 +1,7 @@
+// Package root provides the root command for the MDZ CLI.
+//
+// This package creates the main "mdz" command and registers all subcommands.
+// It handles global flags, configuration loading, and command initialization.
 package root
 
 import (
@@ -20,10 +24,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryRoot wraps the factory for the root command.
 type factoryRoot struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all subcommands to the root command.
+//
+// This method adds all entity management commands:
+//   - version: Display CLI version
+//   - login: Authenticate with Midaz
+//   - organization: Manage organizations
+//   - ledger: Manage ledgers
+//   - asset: Manage assets
+//   - portfolio: Manage portfolios
+//   - segment: Manage segments
+//   - account: Manage accounts
+//   - configure: Configure API endpoints
 func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(version.NewCmdVersion(f.factory))
 	cmd.AddCommand(login.NewCmdLogin(f.factory))
@@ -36,11 +53,30 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 
+// setFlags configures global flags for the root command.
+//
+// This method adds:
+//   - --no-color: Disable colored output (persistent flag)
+//   - -h, --help: Display help information
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&f.factory.NoColor, "no-color", false, "Changes the output format passing the json value to the flag")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
+// persistentPreRunE loads configuration before running any command.
+//
+// This hook:
+// 1. Skips configuration loading for commands that don't need it (completion, version)
+// 2. Reads saved configuration from ~/.config/mdz/mdz.toml
+// 3. Loads token and API endpoints into factory
+// 4. Returns error if configuration is missing (prompts user to login)
+//
+// Parameters:
+//   - cmd: Cobra command being executed
+//   - _: Command arguments (unused)
+//
+// Returns:
+//   - error: Error if configuration cannot be loaded
 func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 	name := cmd.Name()
 
@@ -81,6 +117,22 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// NewCmdRoot creates the root "mdz" command with all subcommands.
+//
+// This function:
+// 1. Creates factoryRoot wrapper
+// 2. Configures root Cobra command with metadata
+// 3. Sets up I/O streams
+// 4. Configures help and version templates
+// 5. Registers all subcommands
+// 6. Sets up global flags
+// 7. Configures persistent pre-run hook for config loading
+//
+// Parameters:
+//   - f: Factory with dependencies
+//
+// Returns:
+//   - *cobra.Command: Configured root command ready to execute
 func NewCmdRoot(f *factory.Factory) *cobra.Command {
 	fRoot := factoryRoot{
 		factory: f,

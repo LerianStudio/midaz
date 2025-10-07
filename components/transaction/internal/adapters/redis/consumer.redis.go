@@ -1,3 +1,11 @@
+// Package redis provides Redis adapter implementations for the transaction service.
+//
+// This package implements Redis-based operations for:
+//   - Balance locking and caching (hot path optimization)
+//   - Transaction queue management (backup and recovery)
+//   - Idempotency key tracking
+//   - Transaction route caching
+//   - Lua script execution for atomic operations
 package redis
 
 import (
@@ -20,13 +28,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// addSubLua is a Lua script for atomic add/subtract operations on Redis.
+//
 //go:embed scripts/add_sub.lua
 var addSubLua string
 
+// TransactionBackupQueue is the Redis key for the transaction backup queue.
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
-// RedisRepository provides an interface for redis.
-// It defines methods for setting, getting keys, and incrementing values.
+// RedisRepository provides an interface for Redis operations.
+//
+// This interface defines Redis operations used by the transaction service for
+// caching, locking, queue management, and idempotency tracking.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)

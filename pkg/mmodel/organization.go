@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains Organization-related models and input/output structures.
 package mmodel
 
 import "time"
@@ -239,9 +241,33 @@ type Address struct {
 	Country string `json:"country" example:"US" minLength:"2" maxLength:"2"` // According to ISO 3166-1 alpha-2
 } // @name Address
 
-// IsEmpty method determines if an Address is empty or nil in all fields
+// IsEmpty determines if an Address has no data in any of its fields.
 //
-// Returns true if all fields of the address are empty or nil, false otherwise
+// This method checks whether all address fields are empty or nil, which is useful for
+// validation logic to determine if an address was provided or should be considered missing.
+//
+// An address is considered empty if:
+//   - Line1 is an empty string
+//   - Line2 is nil
+//   - ZipCode is an empty string
+//   - City is an empty string
+//   - State is an empty string
+//   - Country is an empty string
+//
+// Returns:
+//   - true if all fields are empty/nil, false if any field has a value
+//
+// Example:
+//
+//	emptyAddr := Address{}
+//	if emptyAddr.IsEmpty() {
+//	    // Skip address validation
+//	}
+//
+//	partialAddr := Address{City: "New York"}
+//	if !partialAddr.IsEmpty() {
+//	    // Validate address fields
+//	}
 func (a Address) IsEmpty() bool {
 	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
 }

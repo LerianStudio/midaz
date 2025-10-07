@@ -1,3 +1,6 @@
+// Package configure implements CLI commands for configure management.
+// This file contains the configure command implementation.
+
 package configure
 
 import (
@@ -27,6 +30,7 @@ type flagsConfigure struct {
 	JSONFile     string
 }
 
+// runE executes the configure command logic.
 func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	sett, err := f.read()
 	if err != nil {
@@ -110,6 +114,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// setFlags configures command-line flags for the configure command.
 func (f *factoryConfigure) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.ClientID, "client-id", "", "Unique client identifier used for authentication.")
 	cmd.Flags().StringVar(&f.ClientSecret, "client-secret", "", "Secret key used to validate the client's identity.")
@@ -118,6 +123,7 @@ func (f *factoryConfigure) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
+// NewInjectFacConfigure creates a factoryConfigure with dependencies.
 func NewInjectFacConfigure(f *factory.Factory) *factoryConfigure {
 	return &factoryConfigure{
 		factory:  f,
@@ -127,6 +133,9 @@ func NewInjectFacConfigure(f *factory.Factory) *factoryConfigure {
 	}
 }
 
+// NewCmdConfigure creates the "configure" command.
+//
+// Returns a Cobra command configured for setting API credentials and endpoints.
 func NewCmdConfigure(f *factoryConfigure) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "configure",

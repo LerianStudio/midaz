@@ -1,3 +1,6 @@
+// Package organization implements CLI commands for organization management.
+// This file contains the list command implementation.
+
 package organization
 
 import (

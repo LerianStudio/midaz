@@ -1,3 +1,6 @@
+// Package transaction provides data models and structures.
+// This file contains model definitions.
+
 package transaction
 
 import (

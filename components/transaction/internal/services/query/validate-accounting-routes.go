@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -16,7 +19,33 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidateAccountingRules validates the accounting rules for the given operations
+// ValidateAccountingRules validates operations against transaction route rules.
+//
+// This method implements transaction route validation, which ensures operations comply
+// with configured routing rules. It:
+// 1. Checks if validation is enabled for this org:ledger pair (TRANSACTION_ROUTE_VALIDATION env)
+// 2. Validates transaction route ID is provided
+// 3. Retrieves transaction route cache from Redis
+// 4. Validates operation count matches route count (source and destination)
+// 5. Validates each operation against its route's account rules
+//
+// Accounting Route Validation:
+//   - Enabled per org:ledger via TRANSACTION_ROUTE_VALIDATION env variable
+//   - Format: "orgID:ledgerID,orgID2:ledgerID2"
+//   - Validates account alias or account type matches route rules
+//   - Ensures correct number of source and destination operations
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - operations: Array of balance operations to validate
+//   - validate: Validation responses with route IDs
+//
+// Returns:
+//   - error: nil if valid, business error if validation fails
+//
+// OpenTelemetry: Creates span "usecase.validate_accounting_rules"
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *libTransaction.Responses) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -74,7 +103,28 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
 }
 
-// validateAccountRules validates each operation against its corresponding route rule
+// validateAccountRules validates each operation against its corresponding route rule.
+//
+// This helper function iterates through all operations and validates that each one
+// matches the account rule defined in its operation route. It:
+// 1. Determines if operation is source or destination
+// 2. Looks up the operation route in cache
+// 3. Validates operation against the route's account rule
+//
+// Account Rule Types:
+//   - alias: Exact alias match
+//   - account_type: Account type must be in allowed list
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - transactionRouteCache: Cached transaction route with operation routes
+//   - validate: Validation responses with route mappings
+//   - operations: Array of balance operations to validate
+//
+// Returns:
+//   - error: nil if all operations valid, business error if any validation fails
+//
+// OpenTelemetry: Creates span "usecase.validate_account_rules"
 func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *libTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -130,7 +180,30 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 	return nil
 }
 
-// validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
+// validateSingleOperationRule validates a single operation against an account rule.
+//
+// This function checks if an operation's account matches the rule defined in the
+// operation route. It supports two rule types:
+//
+// 1. Alias Rule: Exact alias match
+//   - ValidIf contains expected alias string
+//   - Operation alias must match exactly
+//
+// 2. Account Type Rule: Account type must be in allowed list
+//   - ValidIf contains array of allowed account types
+//   - Operation's account type must be in the list
+//
+// Parameters:
+//   - op: Balance operation to validate
+//   - account: Account rule from operation route
+//
+// Returns:
+//   - error: nil if valid, business error if validation fails
+//
+// Possible Errors:
+//   - ErrInvalidAccountingRoute: Invalid rule configuration
+//   - ErrAccountingAliasValidationFailed: Alias doesn't match
+//   - ErrAccountingAccountTypeValidationFailed: Account type not allowed
 func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
 	case constant.AccountRuleTypeAlias:
@@ -174,7 +247,16 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 	return nil
 }
 
-// uniqueValues counts the number of unique values in a map
+// uniqueValues counts the number of unique operation route IDs in a map.
+//
+// This helper function counts distinct operation route IDs to validate that the
+// correct number of routes are being used in a transaction.
+//
+// Parameters:
+//   - m: Map of alias to operation route ID
+//
+// Returns:
+//   - int: Number of unique operation route IDs
 func uniqueValues(m map[string]string) int {
 	if len(m) == 0 {
 		return 0
@@ -192,7 +274,16 @@ func uniqueValues(m map[string]string) int {
 	return len(seen)
 }
 
-// extractStringSlice helper function to handle []string and []any conversion
+// extractStringSlice converts interface{} to []string for account type validation.
+//
+// This helper function handles type conversion for ValidIf values, which can be
+// either []string or []any depending on JSON unmarshaling.
+//
+// Parameters:
+//   - value: ValidIf value (expected to be string array)
+//
+// Returns:
+//   - []string: Converted string slice, or nil if conversion fails
 func extractStringSlice(value any) []string {
 	switch v := value.(type) {
 	case []string:

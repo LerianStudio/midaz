@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -23,7 +26,38 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
+// CreateBalanceTransactionOperationsAsync processes queued transaction data (balances, transaction, operations).
+//
+// This method is the worker function that processes transaction queue messages. It:
+// 1. Unmarshals TransactionQueue from msgpack format
+// 2. Updates account balances (unless transaction is NOTED status)
+// 3. Creates or updates the transaction record
+// 4. Creates transaction metadata
+// 5. Creates all operation records
+// 6. Creates operation metadata
+// 7. Publishes transaction events (async)
+// 8. Removes transaction from Redis queue (async)
+//
+// Processing Flow:
+//   - For APPROVED/CANCELED: Update balances, create transaction, create operations
+//   - For NOTED: Skip balance updates, create transaction, create operations
+//   - For PENDING: Update to APPROVED, create operations
+//
+// Idempotency:
+//   - Handles duplicate transaction creation (unique violation)
+//   - Handles duplicate operation creation (unique violation)
+//   - Updates transaction status if already exists
+//
+// Async Cleanup:
+//   - Publishes transaction events in goroutine (fire-and-forget)
+//   - Removes from Redis queue in goroutine (fire-and-forget)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - data: Queue message with transaction data
+//
+// Returns:
+//   - error: nil on success, error if processing fails
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -123,7 +157,36 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
-// CreateOrUpdateTransaction func that is responsible to create or update a transaction.
+// CreateOrUpdateTransaction creates or updates a transaction with idempotent handling.
+//
+// This helper function implements transaction creation with duplicate handling:
+// 1. Attempts to create transaction
+// 2. If unique violation (transaction already exists):
+//   - For PENDING transactions: Updates status to APPROVED/CANCELED
+//   - For other statuses: Logs and continues (idempotent)
+//
+// 3. Returns the transaction
+//
+// Status Handling:
+//   - CREATED: Changes to APPROVED (validation complete)
+//   - PENDING: Stores DSL body, updates status later
+//
+// Idempotency:
+//   - Unique violation on ID means transaction already processed
+//   - Updates status if needed (PENDING → APPROVED/CANCELED)
+//   - Logs duplicate creation attempts
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - logger: Logger instance
+//   - tracer: Tracer instance
+//   - t: TransactionQueue with transaction data
+//
+// Returns:
+//   - *transaction.Transaction: Created or existing transaction
+//   - error: Database error if creation/update fails
+//
+// OpenTelemetry: Creates span "command.create_balance_transaction_operations.create_transaction"
 func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionQueue) (*transaction.Transaction, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
@@ -174,7 +237,20 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	return tran, nil
 }
 
-// CreateMetadataAsync func that create metadata into operations
+// CreateMetadataAsync creates metadata for transactions or operations in MongoDB.
+//
+// This helper function validates and persists metadata during async processing.
+// It's similar to CreateMetadata but designed for the async worker context.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - logger: Logger instance
+//   - metadata: Key-value metadata map (nil if no metadata)
+//   - ID: Entity UUID
+//   - collection: Entity type (Transaction, Operation)
+//
+// Returns:
+//   - error: nil on success, validation or creation error
 func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
@@ -201,7 +277,19 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
-// CreateBTOSync func that create balance transaction operations synchronously
+// CreateBTOSync is a wrapper that processes BTO data synchronously.
+//
+// This method calls CreateBalanceTransactionOperationsAsync (despite the name, it runs sync
+// when called directly). It's used as an entry point for sync processing.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - data: Queue message with transaction data
+//
+// Returns:
+//   - error: nil on success, error if processing fails
+//
+// OpenTelemetry: Creates span "command.create_balance_transaction_operations.create_bto_sync"
 func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -218,7 +306,17 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	return nil
 }
 
-// RemoveTransactionFromRedisQueue func that remove transaction from redis queue
+// RemoveTransactionFromRedisQueue removes a processed transaction from the Redis queue.
+//
+// This cleanup function removes transaction data from Redis after successful processing.
+// It's called asynchronously (in a goroutine) and errors are logged but not returned.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - logger: Logger instance
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the transaction to remove
 func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
@@ -229,7 +327,33 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	}
 }
 
-// SendTransactionToRedisQueue func that send transaction to redis queue
+// SendTransactionToRedisQueue stores transaction data in Redis for tracking and recovery.
+//
+// This method stores transaction processing state in Redis for:
+//   - Monitoring pending transactions
+//   - Recovery after failures
+//   - Debugging transaction processing
+//   - Tracking transaction lifecycle
+//
+// The stored data includes:
+//   - Request ID for correlation
+//   - Transaction IDs (organization, ledger, transaction)
+//   - Parsed DSL specification
+//   - Validation responses
+//   - Transaction status and date
+//   - TTL timestamp
+//
+// Errors are logged but not returned (fire-and-forget pattern).
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the transaction
+//   - parserDSL: Parsed DSL transaction specification
+//   - validate: Validation responses
+//   - transactionStatus: Current transaction status
+//   - transactionDate: Transaction creation date
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())

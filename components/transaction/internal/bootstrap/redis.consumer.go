@@ -1,3 +1,5 @@
+// Package bootstrap provides application initialization and dependency injection for the transaction service.
+// This file defines the Redis queue consumer component for processing stale transactions.
 package bootstrap
 
 import (
@@ -19,15 +21,44 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-const CronTimeToRun = 30 * time.Minute
-const MessageTimeOfLife = 30
-const MaxWorkers = 100
+const (
+	// CronTimeToRun defines how often the Redis queue consumer checks for stale messages.
+	CronTimeToRun = 30 * time.Minute
 
+	// MessageTimeOfLife defines the age threshold (in minutes) for processing messages.
+	// Messages older than this are considered stale and will be processed.
+	MessageTimeOfLife = 30
+
+	// MaxWorkers defines the maximum number of concurrent workers for processing messages.
+	MaxWorkers = 100
+)
+
+// RedisQueueConsumer processes stale transaction messages from Redis queue.
+//
+// This component implements a cron-based consumer that:
+//   - Runs every 30 minutes (CronTimeToRun)
+//   - Reads all messages from Redis queue
+//   - Processes messages older than 30 minutes (MessageTimeOfLife)
+//   - Skips recent messages (still being processed by primary flow)
+//   - Uses worker pool (MaxWorkers) for parallel processing
+//
+// Purpose:
+//   - Recovery mechanism for transactions stuck in Redis
+//   - Processes transactions that failed to complete in primary flow
+//   - Ensures eventual consistency for all transactions
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
 	TransactionHandler in.TransactionHandler
 }
 
+// NewRedisQueueConsumer creates a new Redis queue consumer instance.
+//
+// Parameters:
+//   - logger: Logger instance
+//   - handler: Transaction handler with business logic
+//
+// Returns:
+//   - *RedisQueueConsumer: Configured consumer ready to run
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
 		Logger:             logger,
@@ -35,6 +66,21 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 	}
 }
 
+// Run starts the Redis queue consumer with cron-based processing.
+//
+// This method:
+// 1. Sets up signal handling for graceful shutdown
+// 2. Creates ticker for periodic processing (every 30 minutes)
+// 3. Processes messages on each tick
+// 4. Shuts down gracefully on SIGTERM/SIGINT
+//
+// The consumer runs indefinitely until shutdown signal is received.
+//
+// Parameters:
+//   - _: Launcher instance (unused)
+//
+// Returns:
+//   - error: nil on graceful shutdown
 func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -56,6 +102,27 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
+// readMessagesAndProcess reads stale messages from Redis and processes them concurrently.
+//
+// This method implements the core processing logic:
+// 1. Reads all messages from Redis queue
+// 2. Filters messages older than MessageTimeOfLife (30 minutes)
+// 3. Processes eligible messages using worker pool (MaxWorkers)
+// 4. Skips recent messages (still in primary processing flow)
+// 5. Handles graceful shutdown (stops processing on context cancellation)
+//
+// Worker Pool:
+//   - Semaphore channel limits concurrent workers to MaxWorkers
+//   - Each message processed in separate goroutine
+//   - WaitGroup ensures all workers complete before returning
+//
+// Message Age Filtering:
+//   - Messages < 30 minutes old: Skipped (primary flow still processing)
+//   - Messages >= 30 minutes old: Processed (recovery mechanism)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//
 //nolint:dogsled
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)

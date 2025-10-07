@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -10,7 +13,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetRateByExternalID gets data in the repository.
+// GetAssetRateByExternalID retrieves an asset rate by external ID with metadata.
+//
+// Fetches asset rate from PostgreSQL using external ID (for integration with external systems),
+// then enriches with MongoDB metadata.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - externalID: External system's ID for the asset rate
+//
+// Returns:
+//   - *assetrate.AssetRate: Asset rate with metadata
+//   - error: Error if not found or query fails
+//
+// OpenTelemetry: Creates span "query.get_asset_rate_by_external_id"
 func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

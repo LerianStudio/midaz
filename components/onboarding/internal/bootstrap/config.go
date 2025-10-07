@@ -1,3 +1,16 @@
+// Package bootstrap provides application initialization and dependency injection for the onboarding service.
+//
+// This package implements the application bootstrap layer, which:
+//   - Loads configuration from environment variables
+//   - Initializes all infrastructure dependencies (PostgreSQL, MongoDB, RabbitMQ, Redis)
+//   - Creates repository instances
+//   - Wires up use cases with repositories (dependency injection)
+//   - Creates HTTP handlers
+//   - Configures middleware (auth, telemetry, logging)
+//   - Starts the HTTP server
+//
+// The bootstrap follows the dependency injection pattern, creating all dependencies
+// in the correct order and passing them to the components that need them.
 package bootstrap
 
 import (
@@ -28,9 +41,22 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 )
 
+// ApplicationName is the service identifier used for logging, tracing, and monitoring.
 const ApplicationName = "onboarding"
 
-// Config is the top level configuration struct for the entire application.
+// Config is the top-level configuration struct for the onboarding service.
+//
+// This struct contains all environment-based configuration values loaded at startup.
+// It uses struct tags to map environment variables to fields.
+//
+// Configuration Categories:
+//   - Server: HTTP server address
+//   - PostgreSQL: Primary and replica database connections
+//   - MongoDB: Metadata storage configuration
+//   - RabbitMQ: Message queue configuration
+//   - Redis: Caching and idempotency configuration
+//   - OpenTelemetry: Observability and tracing
+//   - Authentication: JWT/Casdoor integration
 type Config struct {
 	EnvName                      string `env:"ENV_NAME"`
 	LogLevel                     string `env:"LOG_LEVEL"`
@@ -98,7 +124,34 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 }
 
-// InitServers initiate http and grpc servers.
+// InitServers initializes the onboarding service with all dependencies.
+//
+// This function is the main bootstrap entry point that:
+// 1. Loads configuration from environment variables
+// 2. Initializes logger and telemetry
+// 3. Creates database connections (PostgreSQL, MongoDB, Redis)
+// 4. Creates RabbitMQ connection
+// 5. Initializes all repositories
+// 6. Wires up use cases (command and query)
+// 7. Creates HTTP handlers
+// 8. Configures authentication middleware
+// 9. Sets up HTTP router
+// 10. Returns the configured service ready to run
+//
+// Dependency Injection Flow:
+//
+//	Config → Connections → Repositories → Use Cases → Handlers → Router → Server
+//
+// The function panics on critical failures (database connections, configuration errors)
+// as the service cannot function without these dependencies.
+//
+// Returns:
+//   - *Service: Fully initialized service ready to run
+//
+// Panics:
+//   - If configuration loading fails
+//   - If database connections fail
+//   - If RabbitMQ connection fails
 func InitServers() *Service {
 	cfg := &Config{}
 

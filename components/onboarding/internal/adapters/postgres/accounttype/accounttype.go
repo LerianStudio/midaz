@@ -1,3 +1,8 @@
+// Package accounttype provides the repository implementation for account type entity persistence.
+//
+// This package implements the Repository pattern for the AccountType entity, providing
+// PostgreSQL-based data access. Account types classify accounts for accounting validation
+// and reporting purposes (e.g., asset, liability, equity, revenue, expense).
 package accounttype
 
 import (
@@ -8,7 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// AccountTypePostgreSQLModel represents the database model for account types
+// AccountTypePostgreSQLModel represents the PostgreSQL database model for account types.
+//
+// Account types provide classification for accounts, enabling accounting validation
+// rules and structured financial reporting.
 type AccountTypePostgreSQLModel struct {
 	ID             uuid.UUID    `db:"id"`
 	OrganizationID uuid.UUID    `db:"organization_id"`
@@ -21,7 +29,7 @@ type AccountTypePostgreSQLModel struct {
 	DeletedAt      sql.NullTime `db:"deleted_at"`
 }
 
-// ToEntity converts the database model to a domain model
+// ToEntity converts a PostgreSQL model to a domain AccountType entity.
 func (m *AccountTypePostgreSQLModel) ToEntity() *mmodel.AccountType {
 	e := &mmodel.AccountType{
 		ID:             m.ID,
@@ -41,7 +49,7 @@ func (m *AccountTypePostgreSQLModel) ToEntity() *mmodel.AccountType {
 	return e
 }
 
-// FromEntity converts a domain model to the database model
+// FromEntity converts a domain AccountType entity to a PostgreSQL model.
 func (m *AccountTypePostgreSQLModel) FromEntity(accountType *mmodel.AccountType) {
 	m.ID = accountType.ID
 	m.OrganizationID = accountType.OrganizationID

@@ -1,3 +1,8 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+//
+// This package implements the HTTP adapter layer (inbound port) in hexagonal architecture.
+// Handlers receive HTTP requests, validate them, call business logic (use cases), and
+// return HTTP responses. All handlers follow Swagger/OpenAPI documentation standards.
 package in
 
 import (
@@ -30,7 +35,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// TransactionHandler struct that handle transaction
+// TransactionHandler handles HTTP requests for transaction operations.
+//
+// This handler provides transaction processing endpoints supporting both JSON and DSL formats,
+// using the CQRS pattern for command and query operations.
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

@@ -1,3 +1,6 @@
+// Package mongodb provides data models and structures.
+// This file contains model definitions.
+
 package mongodb
 
 import (

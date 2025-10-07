@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains error-related models.
 package mmodel
 
 // Error represents a standardized API error response format

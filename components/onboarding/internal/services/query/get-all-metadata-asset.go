@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataAssets fetch all Assets from the repository
+// GetAllMetadataAssets retrieves assets filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches assets from PostgreSQL.
+// Use case: Finding assets by custom metadata fields (e.g., metadata.category=cryptocurrency).
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// OpenTelemetry: Creates span "query.get_all_metadata_assets"
 func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -10,7 +13,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetParentByTransactionID gets data in the repository.
+// GetParentByTransactionID retrieves a parent transaction by parent ID with metadata.
+//
+// Fetches transaction from PostgreSQL using parent_transaction_id, then enriches with
+// MongoDB metadata. Used for retrieving the original transaction when querying child transactions.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - parentID: UUID of the parent transaction
+//
+// Returns:
+//   - *transaction.Transaction: Parent transaction with metadata
+//   - error: Error if not found or query fails
+//
+// OpenTelemetry: Creates span "query.get_parent_by_transaction_id"
 func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

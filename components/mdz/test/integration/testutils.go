@@ -1,3 +1,6 @@
+// Package integration provides integration test utilities for the MDZ CLI.
+// This file contains test helper functions and utilities.
+
 //go:build integration
 // +build integration
 

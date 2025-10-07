@@ -1,3 +1,11 @@
+// Package rabbitmq provides RabbitMQ adapter implementations for the transaction service.
+//
+// This package implements message queue operations for:
+//   - Async transaction processing (BTO queue)
+//   - Account creation events (balance initialization)
+//   - Multi-queue consumer management
+//   - Automatic retry with exponential backoff
+//   - Channel recovery and connection resilience
 package rabbitmq
 
 import (
@@ -14,8 +22,10 @@ import (
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 
-// ConsumerRepository provides an interface for Consumer related to rabbitmq.
-// It defines methods for registering queues and running consumers.
+// ConsumerRepository provides an interface for RabbitMQ consumer operations.
+//
+// This interface defines methods for registering queue handlers and running
+// multi-queue consumers with configurable workers and prefetch counts.
 type ConsumerRepository interface {
 	Register(queueName string, handler QueueHandlerFunc)
 	RunConsumers() error

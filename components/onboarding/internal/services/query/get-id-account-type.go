@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountTypeByID get an Account Type from the repository by given id.
+// GetAccountTypeByID retrieves a single account type by ID with metadata.
+//
+// Fetches the account type from PostgreSQL by ID, then enriches with MongoDB metadata.
+// Excludes soft-deleted account types.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the account type to retrieve
+//
+// Returns:
+//   - *mmodel.AccountType: Account type with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrAccountTypeNotFound: Account type doesn't exist or is deleted
+//
+// OpenTelemetry: Creates span "query.get_account_type_by_id"
 func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

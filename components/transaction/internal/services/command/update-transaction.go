@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,7 +17,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransaction update a transaction from the repository by given id.
+// UpdateTransaction updates an existing transaction in the repository.
+//
+// This method updates transaction description and metadata. Only provided fields are updated.
+//
+// Business Rules:
+//   - Only description and metadata can be updated
+//   - Transaction status, amount, and operations cannot be changed
+//   - Metadata is merged with existing (RFC 7396 JSON Merge Patch)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the transaction to update
+//   - uti: Update input with description and metadata
+//
+// Returns:
+//   - *transaction.Transaction: Updated transaction with merged metadata
+//   - error: Business error if transaction not found or update fails
+//
+// OpenTelemetry: Creates span "command.update_transaction"
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -58,7 +81,25 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	return transUpdated, nil
 }
 
-// UpdateTransactionStatus update a status transaction from the repository by given id.
+// UpdateTransactionStatus updates the status of a transaction.
+//
+// This method is used internally to change transaction status during processing.
+// It updates only the status field, leaving other fields unchanged.
+//
+// Transaction Status Flow:
+//   - CREATED → APPROVED (after validation)
+//   - CREATED → CANCELED (if validation fails)
+//   - PENDING → APPROVED (after async processing)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - tran: Transaction with updated status
+//
+// Returns:
+//   - *transaction.Transaction: Updated transaction
+//   - error: Business error if transaction not found or update fails
+//
+// OpenTelemetry: Creates span "command.update_transaction_status"
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

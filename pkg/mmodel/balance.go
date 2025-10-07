@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains Balance-related models and conversion utilities.
 package mmodel
 
 import (
@@ -137,7 +139,18 @@ type UpdateBalance struct {
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
 } // @name UpdateBalance
 
-// IDtoUUID is a func that convert UUID string to uuid.UUID
+// IDtoUUID converts the balance's string ID to a UUID object.
+//
+// This method parses the balance's ID field (which is stored as a string in UUID format)
+// and returns it as a uuid.UUID type. This is useful when working with libraries or
+// functions that require UUID types rather than strings.
+//
+// Returns:
+//   - uuid.UUID: The parsed UUID representation of the balance's ID
+//
+// Panics:
+//   - If the ID is not a valid UUID format, this method will panic via uuid.MustParse.
+//     In production code, ensure the ID is always a valid UUID before calling this method.
 func (b *Balance) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(b.ID)
 }
@@ -200,7 +213,25 @@ type BalanceRedis struct {
 	AllowReceiving int `json:"allowReceiving"`
 }
 
-// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
+// ConvertBalancesToLibBalances converts a slice of Balance pointers to lib-commons Balance format.
+//
+// This function transforms Midaz balance models into the standardized balance format used by
+// the lib-commons transaction library. This conversion is necessary when passing balance data
+// to the transaction processing engine.
+//
+// The function handles nil balances gracefully by skipping them in the output.
+//
+// Parameters:
+//   - balances: Slice of Balance pointers to convert (nil entries are skipped)
+//
+// Returns:
+//   - []*libTransaction.Balance: Slice of converted balances in lib-commons format
+//
+// Example:
+//
+//	midazBalances := []*Balance{balance1, balance2, nil, balance3}
+//	libBalances := ConvertBalancesToLibBalances(midazBalances)
+//	// Returns 3 balances (nil entry skipped)
 func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
 	out := make([]*libTransaction.Balance, 0, len(balances))
 
@@ -213,7 +244,25 @@ func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance
 	return out
 }
 
-// ConvertBalanceOperationsToLibBalances is a func that convert []*BalanceOperation to []*libTransaction.Balance
+// ConvertBalanceOperationsToLibBalances extracts and converts balances from balance operations.
+//
+// This function takes a slice of BalanceOperation structs and extracts their embedded Balance
+// objects, converting them to the lib-commons Balance format. This is used during transaction
+// processing when operations need to be validated or executed.
+//
+// Parameters:
+//   - operations: Slice of BalanceOperation structs containing balances to extract
+//
+// Returns:
+//   - []*libTransaction.Balance: Slice of converted balances from the operations
+//
+// Example:
+//
+//	operations := []BalanceOperation{
+//	    {Balance: balance1, Amount: amount1},
+//	    {Balance: balance2, Amount: amount2},
+//	}
+//	libBalances := ConvertBalanceOperationsToLibBalances(operations)
 func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*libTransaction.Balance {
 	out := make([]*libTransaction.Balance, 0, len(operations))
 	for _, op := range operations {
@@ -223,7 +272,27 @@ func ConvertBalanceOperationsToLibBalances(operations []BalanceOperation) []*lib
 	return out
 }
 
-// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
+// ConvertToLibBalance converts this Balance to the lib-commons Balance format.
+//
+// This method creates a new libTransaction.Balance instance with all fields copied from
+// the current Balance. This conversion is required when passing balance data to the
+// transaction processing engine, which uses the standardized lib-commons format.
+//
+// All fields are copied by value except for maps and slices, which are copied by reference.
+// The DeletedAt pointer is preserved as-is.
+//
+// Returns:
+//   - *libTransaction.Balance: A new balance instance in lib-commons format
+//
+// Example:
+//
+//	midazBalance := &Balance{
+//	    ID: "123",
+//	    Available: decimal.NewFromInt(1000),
+//	    OnHold: decimal.NewFromInt(200),
+//	}
+//	libBalance := midazBalance.ConvertToLibBalance()
+//	// libBalance can now be used with lib-commons transaction functions
 func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 	return &libTransaction.Balance{
 		ID:             b.ID,
@@ -246,7 +315,28 @@ func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
 	}
 }
 
-// UnmarshalJSON is a custom unmarshal function for BalanceRedis
+// UnmarshalJSON is a custom JSON unmarshaller for BalanceRedis that handles decimal fields.
+//
+// This method provides special handling for the Available and OnHold decimal fields, which
+// can be represented in JSON as strings, numbers, or json.Number types. The method converts
+// all these representations to shopspring/decimal.Decimal for precise financial calculations.
+//
+// Supported input formats for decimal fields:
+//   - float64: Directly converted to decimal
+//   - string: Parsed as decimal string (e.g., "1000.50")
+//   - json.Number: Parsed as int64 or float64, then converted to decimal
+//
+// Parameters:
+//   - data: JSON byte array to unmarshal
+//
+// Returns:
+//   - error: nil on success, error if parsing fails
+//
+// Example JSON inputs:
+//
+//	{"available": 1000.50, "onHold": 200}           // float64
+//	{"available": "1000.50", "onHold": "200.00"}    // string
+//	{"available": 1000, "onHold": 200}              // json.Number as int
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	type Alias BalanceRedis
 

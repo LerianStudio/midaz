@@ -1,3 +1,5 @@
+// Package operation provides PostgreSQL repository implementation for Operation entities.
+// This file contains the repository implementation for CRUD operations on operations.
 package operation
 
 import (
@@ -22,8 +24,18 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to operation template entities.
-// It defines methods for creating, retrieving, updating, and deleting operation templates.
+// Repository provides an interface for operation entity persistence operations.
+//
+// This interface defines all data access methods for the Operation entity. Operations
+// represent individual debits, credits, holds, and releases in transactions.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Transaction-based queries (FindAll by transaction)
+//   - Account-based queries (FindAllByAccount, FindByAccount)
+//   - Batch operations (ListByIDs)
+//   - Operation type filtering
+//   - Cursor pagination for large result sets
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)

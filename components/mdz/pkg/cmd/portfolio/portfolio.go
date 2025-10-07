@@ -1,3 +1,7 @@
+// Package portfolio provides CLI commands for managing portfolios.
+//
+// This package implements the "mdz portfolio" command group with subcommands
+// for create, list, describe, update, and delete operations.
 package portfolio
 
 import (
@@ -7,10 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryPortfolio wraps the factory for portfolio commands.
 type factoryPortfolio struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all portfolio subcommands.
 func (f *factoryPortfolio) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdPortfolioCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdPortfolioList(newInjectFacList(f.factory)))
@@ -19,6 +25,9 @@ func (f *factoryPortfolio) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdPortfolioDelete(newInjectFacDelete(f.factory)))
 }
 
+// NewCmdPortfolio creates the "portfolio" command with all subcommands.
+//
+// Returns a Cobra command configured with create, list, describe, update, and delete subcommands.
 func NewCmdPortfolio(f *factory.Factory) *cobra.Command {
 	fOrg := factoryPortfolio{
 		factory: f,

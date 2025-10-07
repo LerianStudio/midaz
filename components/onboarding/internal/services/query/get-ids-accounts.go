@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,45 @@ import (
 	"github.com/google/uuid"
 )
 
-// ListAccountsByIDs get Accounts from the repository by given ids.
+// ListAccountsByIDs retrieves multiple accounts by their IDs.
+//
+// This method implements a batch get accounts query use case, which:
+// 1. Fetches multiple accounts from PostgreSQL by their IDs
+// 2. Returns accounts without metadata enrichment (optimization)
+//
+// Use Cases:
+//   - Batch account retrieval for transaction processing
+//   - Validating multiple account IDs exist
+//   - Performance-optimized queries (skips metadata fetch)
+//
+// Behavior:
+//   - Returns only accounts that exist
+//   - Excludes soft-deleted accounts
+//   - Does NOT enrich with metadata (performance optimization)
+//   - Order of results may not match input ID order
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - ids: Array of account UUIDs to retrieve
+//
+// Returns:
+//   - []*mmodel.Account: Array of found accounts (without metadata)
+//   - error: Business error if query fails
+//
+// Possible Errors:
+//   - ErrIDsNotFoundForAccounts: None of the IDs were found
+//   - Database errors: Connection failures
+//
+// Example:
+//
+//	ids := []uuid.UUID{id1, id2, id3}
+//	accounts, err := useCase.ListAccountsByIDs(ctx, orgID, ledgerID, ids)
+//	// Returns accounts that exist (may be fewer than requested)
+//
+// OpenTelemetry:
+//   - Creates span "query.ListAccountsByIDs"
 func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

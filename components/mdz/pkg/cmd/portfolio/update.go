@@ -1,3 +1,6 @@
+// Package portfolio implements CLI commands for portfolio management.
+// This file contains the update command implementation.
+
 package portfolio
 
 import (

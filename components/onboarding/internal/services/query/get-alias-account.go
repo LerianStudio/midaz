@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,42 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountByAlias get an Account from the repository by given alias (including soft-deleted ones).
+// GetAccountByAlias retrieves a single account by alias with metadata.
+//
+// This method implements the get account by alias query use case, which:
+// 1. Fetches the account from PostgreSQL by alias
+// 2. Fetches associated metadata from MongoDB
+// 3. Merges metadata into the account object
+// 4. Returns the enriched account
+//
+// Special Behavior:
+//   - Includes soft-deleted accounts (unlike GetAccountByID)
+//   - This is intentional for alias uniqueness validation
+//   - Used during account creation to check if alias is available
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - portfolioID: Optional portfolio ID filter
+//   - alias: Account alias to search for (e.g., "@corporate_checking")
+//
+// Returns:
+//   - *mmodel.Account: Account with metadata (may be soft-deleted)
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrAccountAliasNotFound: No account with this alias exists
+//
+// Example:
+//
+//	account, err := useCase.GetAccountByAlias(ctx, orgID, ledgerID, nil, "@corporate_checking")
+//	if err != nil {
+//	    // Alias is available
+//	}
+//
+// OpenTelemetry:
+//   - Creates span "query.get_account_by_alias"
 func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

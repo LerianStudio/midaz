@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,53 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-// GetAllOrganizations fetch all Organizations from the repository
+// GetAllOrganizations retrieves a paginated list of organizations with metadata.
+//
+// This method implements the list organizations query use case, which:
+// 1. Fetches organizations from PostgreSQL with pagination
+// 2. Fetches metadata for all organizations from MongoDB
+// 3. Merges metadata into organization objects
+// 4. Returns enriched organizations
+//
+// Query Features:
+//   - Pagination: Supports limit and page parameters
+//   - Sorting: Supports sort order (asc/desc)
+//   - Date filtering: Supports start_date and end_date
+//   - Metadata enrichment: Automatically fetches and merges metadata
+//
+// Behavior:
+//   - Returns empty array if no organizations found (not an error)
+//   - Metadata is optional (organizations without metadata are still returned)
+//   - Soft-deleted organizations are excluded (WHERE deleted_at IS NULL)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - filter: Query parameters including pagination, sorting, and date range
+//
+// Returns:
+//   - []*mmodel.Organization: Array of organizations with metadata
+//   - error: Business error if query fails
+//
+// Possible Errors:
+//   - ErrNoOrganizationsFound: No organizations match the query (only on database error)
+//   - Database errors: Connection failures
+//
+// Example:
+//
+//	filter := http.QueryHeader{
+//	    Limit:     50,
+//	    Page:      1,
+//	    SortOrder: "desc",
+//	}
+//	organizations, err := useCase.GetAllOrganizations(ctx, filter)
+//	if err != nil {
+//	    return nil, err
+//	}
+//	// Returns organizations with metadata merged
+//
+// OpenTelemetry:
+//   - Creates span "query.get_all_organizations"
+//   - Records errors as span events
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

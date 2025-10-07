@@ -1,3 +1,5 @@
+// Package helpers provides test utilities and helper functions for integration tests.
+// This file contains random data generation utilities for test data.
 package helpers
 
 import (

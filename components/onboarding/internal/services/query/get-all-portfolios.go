@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllPortfolio fetch all Portfolio from the repository
+// GetAllPortfolio retrieves a paginated list of portfolios with metadata.
+//
+// Fetches portfolios from PostgreSQL with pagination, then enriches with MongoDB metadata.
+// Returns empty array if no portfolios found (not an error). Excludes soft-deleted portfolios.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (pagination, sorting, date range)
+//
+// Returns:
+//   - []*mmodel.Portfolio: Array of portfolios with metadata
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_portfolio"
 func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

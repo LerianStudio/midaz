@@ -1,3 +1,5 @@
+// Package helpers provides test utilities and helper functions for integration tests.
+// This file contains balance assertion and verification utilities.
 package helpers
 
 import (

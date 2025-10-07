@@ -1,3 +1,8 @@
+// Package setting provides configuration persistence for the MDZ CLI.
+//
+// This package manages CLI configuration storage in the user's home directory,
+// including authentication tokens, API endpoints, and credentials. Configuration
+// is stored in TOML format at ~/.config/mdz/mdz.toml.
 package setting
 
 import (
@@ -10,13 +15,23 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// Setting represents the CLI configuration structure.
+//
+// This struct holds all persistent configuration including:
+//   - Token: Authentication token
+//   - Env: Environment configuration (API URLs, credentials)
 type Setting struct {
-	Token string
+	Token string // OAuth access token
 	environment.Env
 }
 
-// getPathSetting returns the path of the configuration directory of ~/.config/mdz/.
-// this is the path where some cli configs will be persisted
+// getPathSetting returns the path to the CLI configuration directory.
+//
+// Returns the path ~/.config/mdz/ where CLI configuration is stored.
+//
+// Returns:
+//   - string: Configuration directory path
+//   - error: Error if home directory cannot be determined
 func getPathSetting() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -27,7 +42,19 @@ func getPathSetting() (string, error) {
 	return filepath.Join(homeDir, ".config", "mdz"), nil
 }
 
-// Save saves the b file in the ~/.config/mdz/mdz.toml directory, creating the directory if necessary.
+// Save persists CLI configuration to ~/.config/mdz/mdz.toml.
+//
+// This function:
+// 1. Marshals Setting to TOML format
+// 2. Creates ~/.config/mdz/ directory if it doesn't exist
+// 3. Writes configuration to mdz.toml file
+// 4. Sets file permissions to 0600 (user read/write only)
+//
+// Parameters:
+//   - sett: Setting to save
+//
+// Returns:
+//   - error: Error if marshalling or writing fails
 func Save(sett Setting) error {
 	b, err := toml.Marshal(sett)
 	if err != nil {
@@ -40,14 +67,14 @@ func Save(sett Setting) error {
 	}
 
 	// Create the directory if it doesn't exist
-	err = os.MkdirAll(dir, 0750)
+	err = os.MkdirAll(dir, 0o750)
 	if err != nil {
 		return err
 	}
 
 	filePath := filepath.Join(dir, "mdz.toml")
 
-	err = os.WriteFile(filePath, b, 0600)
+	err = os.WriteFile(filePath, b, 0o600)
 	if err != nil {
 		return err
 	}
@@ -55,7 +82,17 @@ func Save(sett Setting) error {
 	return nil
 }
 
-// Read loads the configuration TOML file and deserializes it to the struct Setting.
+// Read loads CLI configuration from ~/.config/mdz/mdz.toml.
+//
+// This function:
+// 1. Creates configuration directory if it doesn't exist
+// 2. Creates empty configuration file if it doesn't exist
+// 3. Reads and unmarshals TOML configuration
+// 4. Returns Setting struct
+//
+// Returns:
+//   - *Setting: Loaded configuration
+//   - error: Error if reading or parsing fails
 func Read() (*Setting, error) {
 	dir, err := getPathSetting()
 	if err != nil {
@@ -65,7 +102,7 @@ func Read() (*Setting, error) {
 	dir = filepath.Clean(dir)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err := os.MkdirAll(dir, 0750)
+		err := os.MkdirAll(dir, 0o750)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create directory %s: %v", dir, err)
 		}
@@ -77,7 +114,7 @@ func Read() (*Setting, error) {
 	dir = filepath.Clean(dir)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err := os.WriteFile(dir, []byte(""), 0600)
+		err := os.WriteFile(dir, []byte(""), 0o600)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create file %s: %v", dir, err)
 		}

@@ -1,3 +1,7 @@
+// Package account provides CLI commands for managing accounts.
+//
+// This package implements the "mdz account" command group with subcommands
+// for create, list, describe, update, and delete operations.
 package account
 
 import (
@@ -7,10 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryAccount wraps the factory for account commands.
 type factoryAccount struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all account subcommands.
 func (f *factoryAccount) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAccountCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdAccountList(newInjectFacList(f.factory)))
@@ -19,6 +25,9 @@ func (f *factoryAccount) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAccountDelete(newInjectFacDelete(f.factory)))
 }
 
+// NewCmdAccount creates the "account" command with all subcommands.
+//
+// Returns a Cobra command configured with create, list, describe, update, and delete subcommands.
 func NewCmdAccount(f *factory.Factory) *cobra.Command {
 	fAccount := factoryAccount{
 		factory: f,

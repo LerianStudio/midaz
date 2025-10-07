@@ -1,3 +1,5 @@
+// Package http provides HTTP utilities and helpers for the Midaz ledger system.
+// This file contains error handling utilities for converting domain errors to HTTP responses.
 package http
 
 import (
@@ -9,7 +11,40 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// WithError returns an error with the given status code and message.
+// WithError converts domain errors to appropriate HTTP responses.
+//
+// This function is the central error handling mechanism for HTTP handlers. It performs
+// type assertion on the error to determine its type, then calls the appropriate response
+// function with the correct HTTP status code.
+//
+// Error Type to HTTP Status Code Mapping:
+//   - pkg.EntityNotFoundError       -> 404 Not Found
+//   - pkg.EntityConflictError       -> 409 Conflict
+//   - pkg.ValidationError           -> 400 Bad Request
+//   - pkg.UnprocessableOperationError -> 422 Unprocessable Entity
+//   - pkg.UnauthorizedError         -> 401 Unauthorized
+//   - pkg.ForbiddenError            -> 403 Forbidden
+//   - pkg.ValidationKnownFieldsError -> 400 Bad Request
+//   - pkg.ValidationUnknownFieldsError -> 400 Bad Request
+//   - pkg.ResponseError             -> Variable (based on error code)
+//   - pkg.InternalServerError       -> 500 Internal Server Error
+//   - libCommons.Response           -> Variable (based on error code)
+//   - Unknown errors                -> 500 Internal Server Error
+//
+// Parameters:
+//   - c: Fiber context for the HTTP request
+//   - err: The domain error to be converted to an HTTP response
+//
+// Returns:
+//   - error: Fiber error (typically nil as response is sent)
+//
+// Example Usage:
+//
+//	account, err := service.GetAccount(id)
+//	if err != nil {
+//	    return http.WithError(c, err)
+//	}
+//	return http.OK(c, account)
 func WithError(c *fiber.Ctx, err error) error {
 	switch e := err.(type) {
 	case pkg.EntityNotFoundError:

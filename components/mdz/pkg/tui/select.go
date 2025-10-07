@@ -1,3 +1,5 @@
+// Package tui provides terminal user interface components for the MDZ CLI.
+// This file contains selection menu functionality.
 package tui
 
 import (
@@ -6,6 +8,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Select prompts the user to select an option from a list.
+//
+// This function creates a Bubble Tea selection menu with:
+//   - Custom prompt message
+//   - List of options to choose from
+//   - Arrow key navigation
+//   - Ctrl+C/Esc to cancel
+//   - Enter to select
+//
+// Parameters:
+//   - message: Prompt message to display
+//   - options: List of options to choose from
+//
+// Returns:
+//   - string: Selected option
+//   - error: Error if no option selected or program fails
 func Select(message string, options []string) (string, error) {
 	model := initialSelectModel(message, options)
 	p := tea.NewProgram(model)
@@ -29,6 +47,14 @@ type selectModel struct {
 	message  string   // Custom message
 }
 
+// initialSelectModel creates a new selectModel with default configuration.
+//
+// Parameters:
+//   - message: Prompt message to display
+//   - choices: List of options
+//
+// Returns:
+//   - selectModel: Initialized select model
 func initialSelectModel(message string, choices []string) selectModel {
 	return selectModel{
 		choices: choices,
@@ -37,10 +63,12 @@ func initialSelectModel(message string, choices []string) selectModel {
 	}
 }
 
+// Init initializes the select model (Bubble Tea interface).
 func (m selectModel) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles input events and updates the model (Bubble Tea interface).
 func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -64,6 +92,7 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the selection menu interface (Bubble Tea interface).
 func (m selectModel) View() string {
 	s := m.message + "\n\n"
 

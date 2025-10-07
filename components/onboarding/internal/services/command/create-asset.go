@@ -1,3 +1,5 @@
+// Package command implements write operations (commands) for the onboarding service.
+// This file contains the CreateAsset command implementation.
 package command
 
 import (
@@ -13,7 +15,80 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateAsset creates a new asset persists data in the repository.
+// CreateAsset creates a new asset and automatically creates an associated external account.
+//
+// This method implements the create asset use case, which:
+// 1. Validates RabbitMQ health (required for sending external account to transaction service)
+// 2. Sets default status to ACTIVE if not provided
+// 3. Validates asset type (currency, crypto, commodities, others)
+// 4. Validates asset code format (alphanumeric, uppercase, at least one letter)
+// 5. Validates currency code compliance (ISO 4217) if type is "currency"
+// 6. Checks for duplicate asset name or code
+// 7. Creates the asset in PostgreSQL
+// 8. Creates associated metadata in MongoDB
+// 9. Creates an external account for the asset (if not already exists)
+// 10. Sends external account to transaction service queue
+// 11. Returns the complete asset with metadata
+//
+// Business Rules:
+//   - Asset codes must be uppercase and alphanumeric with at least one letter
+//   - Currency type assets must comply with ISO 4217 standard
+//   - Asset name and code must be unique within a ledger
+//   - Status defaults to ACTIVE if not provided
+//   - External account is automatically created with alias "@external/{CODE}"
+//   - External account has type "external" and status "external"
+//   - RabbitMQ must be healthy (external accounts need to be sent to transaction service)
+//
+// External Account:
+//   - Automatically created for each asset
+//   - Alias: "@external/{ASSET_CODE}" (e.g., "@external/USD")
+//   - Name: "External {ASSET_CODE}" (e.g., "External USD")
+//   - Type: "external"
+//   - Used for transactions with external systems
+//   - Only created once (checked before creation)
+//
+// Data Storage:
+//   - Primary data: PostgreSQL (assets table, accounts table)
+//   - Metadata: MongoDB (flexible key-value storage)
+//   - Queue: RabbitMQ (external account creation event)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization that owns this asset
+//   - ledgerID: UUID of the ledger that contains this asset
+//   - cii: Create asset input with name, type, code, status, and metadata
+//
+// Returns:
+//   - *mmodel.Asset: Created asset with metadata
+//   - error: Business error if validation fails, database error if persistence fails
+//
+// Possible Errors:
+//   - ErrMessageBrokerUnavailable: RabbitMQ is not healthy
+//   - ErrInvalidType: Asset type is not valid
+//   - ErrInvalidCodeFormat: Code format is invalid
+//   - ErrCodeUppercaseRequirement: Code is not uppercase
+//   - ErrCurrencyCodeStandardCompliance: Currency code doesn't comply with ISO 4217
+//   - ErrAssetNameOrCodeDuplicate: Asset with same name or code already exists
+//   - Database errors: Connection failures, constraint violations
+//
+// Example:
+//
+//	input := &mmodel.CreateAssetInput{
+//	    Name: "US Dollar",
+//	    Type: "currency",
+//	    Code: "USD",
+//	    Status: mmodel.Status{Code: "ACTIVE"},
+//	}
+//	asset, err := useCase.CreateAsset(ctx, orgID, ledgerID, input)
+//	if err != nil {
+//	    return nil, err
+//	}
+//	// External account "@external/USD" is automatically created
+//
+// OpenTelemetry:
+//   - Creates span "command.create_asset"
+//   - Records errors as span events
+//   - Tracks validation and creation steps
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

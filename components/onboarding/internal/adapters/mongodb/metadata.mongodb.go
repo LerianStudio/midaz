@@ -1,3 +1,5 @@
+// Package mongodb provides MongoDB adapter implementations for the onboarding service.
+// This file contains the repository implementation for metadata storage.
 package mongodb
 
 import (
@@ -17,26 +19,83 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Repository provides an interface for operations related on mongodb a metadata entities.
-// It is used to create, find, update and delete metadata entities.
+// Repository provides an interface for metadata entity persistence operations in MongoDB.
+//
+// This interface defines the contract for metadata data access, following the Repository
+// pattern. It abstracts MongoDB operations from the business logic layer.
+//
+// Collection Names:
+//   - Each entity type has its own collection (e.g., "organization", "account", "ledger")
+//   - Collection names are passed as parameters for flexibility
+//
+// All methods:
+//   - Accept context for tracing, logging, and cancellation
+//   - Use entity_id (UUID) as the primary lookup key
+//   - Support flexible metadata queries
 //
 //go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
+	// Create inserts new metadata for an entity.
+	// Creates a new document with entity_id, entity_name, and metadata fields.
 	Create(ctx context.Context, collection string, metadata *Metadata) error
+
+	// FindList retrieves metadata documents with optional filtering.
+	// Supports metadata-based queries and pagination when UseMetadata is true.
+	// Returns empty array if no documents found (not an error).
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
+
+	// FindByEntity retrieves metadata for a single entity by entity_id.
+	// Returns nil (not error) if metadata doesn't exist.
+	// Used to check if metadata exists before operations.
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
+
+	// FindByEntityIDs retrieves metadata for multiple entities by their entity_ids.
+	// Used for batch metadata enrichment of entity lists.
+	// Returns only metadata that exists (may be fewer than requested).
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
+
+	// Update modifies metadata for an entity using upsert semantics.
+	// Creates the document if it doesn't exist (upsert: true).
+	// Merges provided metadata with existing metadata.
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
+
+	// Delete removes metadata for an entity.
+	// Does not return error if metadata doesn't exist (idempotent).
 	Delete(ctx context.Context, collection, id string) error
 }
 
-// MetadataMongoDBRepository is a MongoDD-specific implementation of the MetadataRepository.
+// MetadataMongoDBRepository is a MongoDB implementation of the Repository interface.
+//
+// This struct provides concrete MongoDB-based persistence for entity metadata.
+// It uses MongoDB's flexible document model to store schema-less metadata.
+//
+// Features:
+//   - Upsert semantics for updates (creates if doesn't exist)
+//   - Flexible querying by metadata fields
+//   - Batch operations for performance
+//   - OpenTelemetry tracing for all operations
+//   - Structured logging with context
 type MetadataMongoDBRepository struct {
-	connection *libMongo.MongoConnection
-	Database   string
+	connection *libMongo.MongoConnection // MongoDB connection pool
+	Database   string                    // Database name
 }
 
-// NewMetadataMongoDBRepository returns a new instance of MetadataMongoDBLRepository using the given MongoDB connection.
+// NewMetadataMongoDBRepository creates a new MongoDB metadata repository instance.
+//
+// This constructor initializes the repository with a MongoDB connection and verifies
+// connectivity by attempting to get the database handle. If the connection fails,
+// it panics to prevent the application from starting with a broken database connection.
+//
+// Parameters:
+//   - mc: MongoDB connection from lib-commons
+//
+// Returns:
+//   - *MetadataMongoDBRepository: Initialized repository
+//
+// Panics:
+//   - If MongoDB connection cannot be established
+//
+// Note: Panicking in constructors is acceptable for critical dependencies.
 func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDBRepository {
 	r := &MetadataMongoDBRepository{
 		connection: mc,
@@ -49,7 +108,22 @@ func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDB
 	return r
 }
 
-// Create inserts a new metadata entity into mongodb.
+// Create inserts new metadata for an entity into MongoDB.
+//
+// This method creates a new metadata document with the entity's UUID as the lookup key.
+// The collection name determines which entity type the metadata belongs to.
+//
+// Collection names are lowercased automatically for consistency.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type, e.g., "Organization", "Account")
+//   - metadata: Metadata to insert
+//
+// Returns:
+//   - error: Database error if insertion fails
+//
+// OpenTelemetry: Creates span "mongodb.create_metadata"
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -92,7 +166,24 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	return nil
 }
 
-// FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
+// FindList retrieves metadata documents with optional filtering and pagination.
+//
+// This method supports two query modes:
+// 1. Metadata-based filtering: When UseMetadata is true, queries by metadata fields with pagination
+// 2. All documents: When UseMetadata is false, returns all documents (no pagination)
+//
+// The filter.Metadata field contains BSON query conditions for metadata-based searches.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type)
+//   - filter: Query parameters including metadata filters and pagination
+//
+// Returns:
+//   - []*Metadata: Array of metadata documents (empty if none found)
+//   - error: Database error if query fails
+//
+// OpenTelemetry: Creates span "mongodb.find_list"
 func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -170,7 +261,21 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	return metadata, nil
 }
 
-// FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
+// FindByEntity retrieves metadata for a single entity by entity_id.
+//
+// This method returns nil (not an error) if the metadata document doesn't exist.
+// This behavior allows callers to distinguish between "no metadata" and "query failed".
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type)
+//   - id: Entity UUID to look up
+//
+// Returns:
+//   - *Metadata: Metadata document, or nil if not found
+//   - error: Database error if query fails (not returned for "not found")
+//
+// OpenTelemetry: Creates span "mongodb.find_by_entity"
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -209,7 +314,26 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 	return record.ToEntity(), nil
 }
 
-// FindByEntityIDs retrieves metadata from the mongodb using a list of entity_ids.
+// FindByEntityIDs retrieves metadata for multiple entities by their entity_ids.
+//
+// This method uses MongoDB's $in operator for efficient batch retrieval.
+// It returns only metadata that exists (may be fewer documents than requested IDs).
+// Returns empty array if entityIDs is empty (optimization to avoid query).
+//
+// Use Cases:
+//   - Batch metadata enrichment for list queries
+//   - Fetching metadata for multiple entities in one query
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type)
+//   - entityIDs: Array of entity UUIDs to retrieve metadata for
+//
+// Returns:
+//   - []*Metadata: Array of found metadata (may be fewer than requested)
+//   - error: Database error if query fails
+//
+// OpenTelemetry: Creates span "mongodb.find_by_entity_ids"
 func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -285,7 +409,27 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 	return metadata, nil
 }
 
-// Update an metadata entity into mongodb.
+// Update modifies metadata for an entity using upsert semantics.
+//
+// This method uses MongoDB's upsert option to create the document if it doesn't exist.
+// The update operation:
+// 1. Sets the metadata field to the provided map (replaces existing metadata)
+// 2. Updates the updated_at timestamp
+// 3. Creates the document if entity_id doesn't exist (upsert: true)
+//
+// Note: This replaces the entire metadata map, not merging. Merging is done at the
+// service layer before calling this method.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type)
+//   - id: Entity UUID
+//   - metadata: Complete metadata map to set
+//
+// Returns:
+//   - error: Database error if update fails
+//
+// OpenTelemetry: Creates span "mongodb.update_metadata"
 func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -336,7 +480,20 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	return nil
 }
 
-// Delete an metadata entity into mongodb.
+// Delete removes metadata for an entity from MongoDB.
+//
+// This method performs a hard delete (physically removes the document).
+// It's idempotent - doesn't return an error if the document doesn't exist.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - collection: Collection name (entity type)
+//   - id: Entity UUID
+//
+// Returns:
+//   - error: Database error if deletion fails (not returned for "not found")
+//
+// OpenTelemetry: Creates span "mongodb.delete_metadata"
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

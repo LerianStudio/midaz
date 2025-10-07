@@ -1,3 +1,8 @@
+// Package transactionroute provides the repository implementation for transaction route entity persistence.
+//
+// This package implements the Repository pattern for the TransactionRoute entity, providing
+// PostgreSQL-based data access. Transaction routes define how transactions flow through
+// the system by combining multiple operation routes (source and destination rules).
 package transactionroute
 
 import (
@@ -8,7 +13,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// TransactionRoutePostgreSQLModel represents the database model for transaction routes
+// TransactionRoutePostgreSQLModel represents the PostgreSQL database model for transaction routes.
+//
+// This model stores transaction routing rules with:
+//   - Title and description
+//   - Associated operation routes (many-to-many relationship)
+//   - Soft delete support
 type TransactionRoutePostgreSQLModel struct {
 	ID             uuid.UUID    `db:"id"`
 	OrganizationID uuid.UUID    `db:"organization_id"`
@@ -20,7 +30,13 @@ type TransactionRoutePostgreSQLModel struct {
 	DeletedAt      sql.NullTime `db:"deleted_at"`
 }
 
-// ToEntity converts the database model to a domain model
+// ToEntity converts a PostgreSQL model to a domain TransactionRoute entity.
+//
+// Transforms database representation to business logic representation,
+// handling DeletedAt conversion.
+//
+// Returns:
+//   - *mmodel.TransactionRoute: Domain model with all fields populated
 func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 	e := &mmodel.TransactionRoute{
 		ID:             m.ID,
@@ -39,7 +55,16 @@ func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 	return e
 }
 
-// FromEntity converts a domain model to the database model
+// FromEntity converts a domain TransactionRoute entity to a PostgreSQL model.
+//
+// Transforms business logic representation to database representation,
+// handling DeletedAt conversion.
+//
+// Parameters:
+//   - transactionRoute: Domain model to convert
+//
+// Side Effects:
+//   - Modifies the receiver (*m) in place
 func (m *TransactionRoutePostgreSQLModel) FromEntity(transactionRoute *mmodel.TransactionRoute) {
 	m.ID = transactionRoute.ID
 	m.OrganizationID = transactionRoute.OrganizationID

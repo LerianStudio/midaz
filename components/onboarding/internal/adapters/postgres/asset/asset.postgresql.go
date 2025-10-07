@@ -1,3 +1,5 @@
+// Package asset provides PostgreSQL repository implementation for Asset entities.
+// This file contains the repository implementation for CRUD operations on assets.
 package asset
 
 import (
@@ -24,8 +26,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to asset entities.
-// It defines methods for creating, finding, updating, and deleting assets in the database.
+// Repository provides an interface for asset entity persistence operations.
+//
+// This interface defines all data access methods for the Asset entity. Assets represent
+// currencies, cryptocurrencies, commodities, or other value types tracked in the ledger.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Name and code uniqueness validation
+//   - Batch operations (ListByIDs)
+//   - Soft delete support
+//   - Pagination and counting
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
@@ -498,7 +509,7 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 	ctx, span := tracer.Start(ctx, "postgres.count_assets")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

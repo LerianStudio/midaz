@@ -1,3 +1,8 @@
+// Package balance provides the repository implementation for balance entity persistence.
+//
+// This package implements the Repository pattern for the Balance entity, providing
+// PostgreSQL-based data access. Balances track available and on-hold amounts for
+// accounts, supporting double-entry accounting and optimistic locking.
 package balance
 
 import (
@@ -9,7 +14,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// BalancePostgreSQLModel represents the entity Balance into SQL context in Database
+// BalancePostgreSQLModel represents the PostgreSQL database model for balances.
+//
+// This model stores account balance information with:
+//   - Available and on-hold amounts (decimal precision)
+//   - Version number for optimistic locking
+//   - Balance key for multiple balances per account
+//   - Allow flags for transaction control
+//   - Soft delete support
 type BalancePostgreSQLModel struct {
 	ID             string
 	OrganizationID string
@@ -29,7 +41,17 @@ type BalancePostgreSQLModel struct {
 	DeletedAt      sql.NullTime
 }
 
-// FromEntity converts a request entity Balance to BalancePostgreSQLModel
+// FromEntity converts a domain Balance entity to a PostgreSQL model.
+//
+// Transforms business logic representation to database representation,
+// handling key defaulting and DeletedAt conversion.
+//
+// Parameters:
+//   - balance: Domain model to convert
+//
+// Side Effects:
+//   - Modifies the receiver (*b) in place
+//   - Defaults key to "default" if empty
 func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	*b = BalancePostgreSQLModel{
 		ID:             balance.ID,
@@ -60,7 +82,12 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	}
 }
 
-// ToEntity converts an BalancePostgreSQLModel to a response entity Balance
+// ToEntity converts a PostgreSQL model to a domain Balance entity.
+//
+// Transforms database representation to business logic representation.
+//
+// Returns:
+//   - *mmodel.Balance: Domain model with all fields populated
 func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 	balance := &mmodel.Balance{
 		ID:             b.ID,

@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the onboarding service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,7 +17,63 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAccount update an account from the repository by given id.
+// UpdateAccount updates an existing account in the repository.
+//
+// This method implements the update account use case, which:
+// 1. Fetches the existing account to validate it exists
+// 2. Prevents updates to external accounts (system-managed)
+// 3. Updates the account in PostgreSQL
+// 4. Updates associated metadata in MongoDB using merge semantics
+// 5. Returns the updated account with merged metadata
+//
+// Business Rules:
+//   - External accounts cannot be updated (type "external")
+//   - Only provided fields are updated (partial updates supported)
+//   - Account type cannot be changed (immutable, enforced at HTTP layer)
+//   - Asset code cannot be changed (immutable, enforced at HTTP layer)
+//   - Alias cannot be changed (immutable, enforced at HTTP layer)
+//   - Portfolio and segment can be changed
+//   - Status can be updated
+//
+// Update Behavior:
+//   - Empty strings in input are treated as "clear the field"
+//   - Nil pointers in input mean "don't update this field"
+//   - Metadata is merged with existing metadata (RFC 7396)
+//
+// Data Storage:
+//   - Primary data: PostgreSQL (accounts table)
+//   - Metadata: MongoDB (merged with existing)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - portfolioID: Optional portfolio ID filter
+//   - id: UUID of the account to update
+//   - uai: Update account input with fields to update
+//
+// Returns:
+//   - *mmodel.Account: Updated account with merged metadata
+//   - error: Business error if validation fails, database error if persistence fails
+//
+// Possible Errors:
+//   - ErrAccountIDNotFound: Account doesn't exist
+//   - ErrForbiddenExternalAccountManipulation: Attempting to update external account
+//   - ErrPortfolioIDNotFound: New portfolio doesn't exist
+//   - ErrSegmentIDNotFound: New segment doesn't exist
+//   - Database errors: Connection failures, constraint violations
+//
+// Example:
+//
+//	input := &mmodel.UpdateAccountInput{
+//	    Name:   "Updated Account Name",
+//	    Status: mmodel.Status{Code: "INACTIVE"},
+//	}
+//	account, err := useCase.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input)
+//
+// OpenTelemetry:
+//   - Creates span "command.update_account"
+//   - Records errors as span events
 func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

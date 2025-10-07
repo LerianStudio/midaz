@@ -1,3 +1,5 @@
+// Package http provides HTTP utilities for the Midaz platform.
+// This file contains request body decoding, validation, and middleware functionality.
 package http
 
 import (
@@ -22,24 +24,85 @@ import (
 	"gopkg.in/go-playground/validator.v9"
 )
 
-// DecodeHandlerFunc is a handler which works with withBody decorator.
-// It receives a struct which was decoded by withBody decorator before.
-// Ex: json -> withBody -> DecodeHandlerFunc.
+// Package http provides HTTP utilities and helpers for the Midaz ledger system.
+// This file contains request body decoding, validation, and middleware utilities.
+
+// DecodeHandlerFunc is a handler function that receives a decoded and validated request body.
+//
+// This handler type is used with the WithBody and WithDecode decorators. The decorator
+// handles JSON decoding, validation, and unknown field detection before calling this handler.
+//
+// The flow is: Raw JSON -> Decode -> Validate -> DecodeHandlerFunc
+//
+// Parameters:
+//   - p: Decoded and validated request payload struct
+//   - c: Fiber context for the HTTP request
+//
+// Returns:
+//   - error: Handler error (use http.WithError for domain errors)
+//
+// Example:
+//
+//	func createAccountHandler(p any, c *fiber.Ctx) error {
+//	    input := p.(*mmodel.CreateAccountInput)
+//	    account, err := service.CreateAccount(input)
+//	    if err != nil {
+//	        return http.WithError(c, err)
+//	    }
+//	    return http.Created(c, account)
+//	}
 type DecodeHandlerFunc func(p any, c *fiber.Ctx) error
 
-// PayloadContextValue is a wrapper type used to keep Context.Locals safe.
+// PayloadContextValue is a type-safe key for storing payloads in Fiber context.
+//
+// This wrapper type prevents key collisions in the context.Locals map by providing
+// a distinct type for payload keys.
 type PayloadContextValue string
 
-// ConstructorFunc representing a constructor of any type.
+// ConstructorFunc is a function that creates a new instance of a request payload struct.
+//
+// This function type is used with WithDecode to create new instances of payload structs
+// for each request. Using a constructor function allows for initialization logic beyond
+// simple struct instantiation.
+//
+// Returns:
+//   - any: A new instance of the payload struct (typically a pointer)
+//
+// Example:
+//
+//	func newCreateAccountInput() any {
+//	    return &mmodel.CreateAccountInput{
+//	        Status: mmodel.Status{Code: "ACTIVE"}, // Default status
+//	    }
+//	}
 type ConstructorFunc func() any
 
-// decoderHandler decodes payload coming from requests.
+// decoderHandler is an internal handler that decodes and validates request bodies.
+//
+// This struct wraps a DecodeHandlerFunc and provides the decoding, validation, and
+// unknown field detection logic. It's used internally by WithBody and WithDecode.
 type decoderHandler struct {
-	handler      DecodeHandlerFunc
-	constructor  ConstructorFunc
-	structSource any
+	handler      DecodeHandlerFunc // The wrapped handler to call after decoding
+	constructor  ConstructorFunc   // Optional constructor for creating payload instances
+	structSource any               // Optional struct source for reflection-based instantiation
 }
 
+// newOfType creates a new instance of a type using reflection.
+//
+// This function takes a pointer to a struct and creates a new instance of the same type.
+// It's used internally by the decoderHandler when no constructor function is provided.
+//
+// Parameters:
+//   - s: Pointer to a struct (e.g., &mmodel.CreateAccountInput{})
+//
+// Returns:
+//   - any: A new pointer to an instance of the same type
+//
+// Example:
+//
+//	source := &mmodel.CreateAccountInput{}
+//	newInstance := newOfType(source)
+//	// newInstance is a new *mmodel.CreateAccountInput
 func newOfType(s any) any {
 	t := reflect.TypeOf(s)
 	v := reflect.New(t.Elem())
@@ -47,8 +110,42 @@ func newOfType(s any) any {
 	return v.Interface()
 }
 
-// FiberHandlerFunc is a method on the decoderHandler struct. It decodes the incoming request's body to a Go struct,
-// validates it, checks for any extraneous fields not defined in the struct, and finally calls the wrapped handler function.
+// FiberHandlerFunc decodes, validates, and processes an HTTP request body.
+//
+// This method is the core of the request body handling pipeline. It performs the following steps:
+// 1. Creates a new instance of the payload struct (via constructor or reflection)
+// 2. Unmarshals the JSON request body into the struct
+// 3. Detects unknown fields (fields in JSON but not in struct)
+// 4. Validates the struct using validation tags
+// 5. Parses metadata according to RFC 7396 JSON Merge Patch
+// 6. Calls the wrapped handler with the decoded and validated payload
+//
+// Unknown Field Detection:
+//   - Compares original JSON with re-marshaled struct to find extra fields
+//   - Returns 400 Bad Request with ValidationUnknownFieldsError if found
+//
+// Validation:
+//   - Uses go-playground/validator for struct validation
+//   - Returns 400 Bad Request with ValidationKnownFieldsError if validation fails
+//
+// Parameters:
+//   - c: Fiber context for the HTTP request
+//
+// Returns:
+//   - error: Handler error (validation errors are converted to HTTP responses)
+//
+// Example Flow:
+//
+//	// Client sends: {"name": "Account", "extra": "field"}
+//	// 1. Decodes to CreateAccountInput
+//	// 2. Detects "extra" as unknown field
+//	// 3. Returns 400 with ValidationUnknownFieldsError
+//
+//	// Client sends: {"name": "Account"}
+//	// 1. Decodes successfully
+//	// 2. No unknown fields
+//	// 3. Validates (name is required, passes)
+//	// 4. Calls wrapped handler with decoded payload
 func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	var s any
 
@@ -97,7 +194,33 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	return d.handler(s, c)
 }
 
-// WithDecode wraps a handler function, providing it with a struct instance created using the provided constructor function.
+// WithDecode creates a Fiber handler that decodes and validates request bodies using a constructor.
+//
+// This function wraps a DecodeHandlerFunc with request body decoding and validation logic.
+// It uses the provided constructor function to create new payload instances for each request.
+//
+// Use WithDecode when:
+//   - You need custom initialization logic for payload structs
+//   - You want to set default values before decoding
+//   - You need to inject dependencies into the payload
+//
+// Parameters:
+//   - c: Constructor function that creates new payload instances
+//   - h: Handler function that processes the decoded payload
+//
+// Returns:
+//   - fiber.Handler: A Fiber handler that can be used in route definitions
+//
+// Example:
+//
+//	func newCreateAccountInput() any {
+//	    return &mmodel.CreateAccountInput{
+//	        Status: mmodel.Status{Code: "ACTIVE"}, // Default status
+//	    }
+//	}
+//
+//	app.Post("/accounts",
+//	    http.WithDecode(newCreateAccountInput, createAccountHandler))
 func WithDecode(c ConstructorFunc, h DecodeHandlerFunc) fiber.Handler {
 	d := &decoderHandler{
 		handler:     h,
@@ -107,7 +230,32 @@ func WithDecode(c ConstructorFunc, h DecodeHandlerFunc) fiber.Handler {
 	return d.FiberHandlerFunc
 }
 
-// WithBody wraps a handler function, providing it with an instance of the specified struct.
+// WithBody creates a Fiber handler that decodes and validates request bodies using reflection.
+//
+// This function wraps a DecodeHandlerFunc with request body decoding and validation logic.
+// It uses reflection to create new instances of the provided struct type for each request.
+//
+// Use WithBody when:
+//   - You don't need custom initialization logic
+//   - The payload struct can be instantiated with zero values
+//   - You want simpler, more concise code
+//
+// Parameters:
+//   - s: Pointer to a struct instance (used as a type template)
+//   - h: Handler function that processes the decoded payload
+//
+// Returns:
+//   - fiber.Handler: A Fiber handler that can be used in route definitions
+//
+// Example:
+//
+//	app.Post("/accounts",
+//	    http.WithBody(&mmodel.CreateAccountInput{}, createAccountHandler))
+//
+//	func createAccountHandler(p any, c *fiber.Ctx) error {
+//	    input := p.(*mmodel.CreateAccountInput)
+//	    // Process input...
+//	}
 func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 	d := &decoderHandler{
 		handler:      h,
@@ -117,7 +265,32 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 	return d.FiberHandlerFunc
 }
 
-// SetBodyInContext is a higher-order function that wraps a Fiber handler, injecting the decoded body into the request context.
+// SetBodyInContext creates a DecodeHandlerFunc that stores the payload in context.
+//
+// This higher-order function wraps a standard Fiber handler, allowing it to be used
+// with WithBody or WithDecode. The decoded payload is stored in the context under the
+// "payload" key and can be retrieved later using GetPayloadFromContext.
+//
+// This is useful when you want to use standard Fiber handlers that don't accept the
+// decoded payload as a parameter.
+//
+// Parameters:
+//   - handler: Standard Fiber handler to wrap
+//
+// Returns:
+//   - DecodeHandlerFunc: A handler that stores payload in context before calling the wrapped handler
+//
+// Example:
+//
+//	func standardHandler(c *fiber.Ctx) error {
+//	    payload := http.GetPayloadFromContext(c)
+//	    input := payload.(*mmodel.CreateAccountInput)
+//	    // Process input...
+//	}
+//
+//	app.Post("/accounts",
+//	    http.WithBody(&mmodel.CreateAccountInput{},
+//	        http.SetBodyInContext(standardHandler)))
 func SetBodyInContext(handler fiber.Handler) DecodeHandlerFunc {
 	return func(s any, c *fiber.Ctx) error {
 		c.Locals(string(PayloadContextValue("payload")), s)
@@ -126,13 +299,65 @@ func SetBodyInContext(handler fiber.Handler) DecodeHandlerFunc {
 }
 
 // GetPayloadFromContext retrieves the decoded request payload from the Fiber context.
+//
+// This function retrieves the payload that was stored by SetBodyInContext. The payload
+// must be type-asserted to the expected type before use.
+//
+// Parameters:
+//   - c: Fiber context containing the stored payload
+//
+// Returns:
+//   - any: The decoded payload (must be type-asserted)
+//
+// Example:
+//
+//	func handler(c *fiber.Ctx) error {
+//	    payload := http.GetPayloadFromContext(c)
+//	    if payload == nil {
+//	        return http.BadRequest(c, "No payload found")
+//	    }
+//	    input := payload.(*mmodel.CreateAccountInput)
+//	    // Process input...
+//	}
 func GetPayloadFromContext(c *fiber.Ctx) any {
 	return c.Locals(string(PayloadContextValue("payload")))
 }
 
-// ValidateStruct validates a struct against defined validation rules, using the validator package.
+// ValidateStruct validates a struct using go-playground/validator with custom validation rules.
+//
+// This function performs comprehensive struct validation including:
+//   - Standard validation tags (required, max, min, uuid, etc.)
+//   - Custom Midaz validation rules (metadata constraints, alias format, etc.)
+//   - Null byte detection in string fields (security)
+//
+// Custom Validation Rules:
+//   - keymax: Maximum length for metadata keys
+//   - valuemax: Maximum length for metadata values
+//   - nonested: Prevents nested objects in metadata
+//   - singletransactiontype: Ensures only one transaction type per entry
+//   - prohibitedexternalaccountprefix: Prevents @external/ prefix in aliases
+//   - invalidstrings: Prevents specific strings (e.g., "external" in type field)
+//   - invalidaliascharacters: Validates alias character set
+//   - invalidaccounttype: Validates account type format
+//   - nowhitespaces: Prevents whitespace in certain fields
+//
+// Parameters:
+//   - s: Struct to validate (typically a pointer to an input model)
+//
+// Returns:
+//   - error: Validation error with field-level details, or nil if valid
+//
+// Example:
+//
+//	input := &mmodel.CreateAccountInput{
+//	    Name: "Account",
+//	    AssetCode: "USD",
+//	}
+//	if err := http.ValidateStruct(input); err != nil {
+//	    return http.BadRequest(c, err)
+//	}
 func ValidateStruct(s any) error {
-    v, trans := newValidator()
+	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
 	if k == reflect.Ptr {
@@ -143,43 +368,74 @@ func ValidateStruct(s any) error {
 		return nil
 	}
 
-    err := v.Struct(s)
-    if err != nil {
-        for _, fieldError := range err.(validator.ValidationErrors) {
-            switch fieldError.Tag() {
-                case "keymax":
-                    return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-                case "valuemax":
-                    return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-                case "nonested":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
-                case "singletransactiontype":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
-                case "invalidstrings":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
-                case "invalidaliascharacters":
-                    return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
-                case "invalidaccounttype":
-                    return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
-            }
-        }
+	err := v.Struct(s)
+	if err != nil {
+		for _, fieldError := range err.(validator.ValidationErrors) {
+			switch fieldError.Tag() {
+			case "keymax":
+				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+			case "valuemax":
+				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+			case "nonested":
+				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+			case "singletransactiontype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
+			case "invalidstrings":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaliascharacters":
+				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
+			case "invalidaccounttype":
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+			}
+		}
 
-        errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
 
-        return &errPtr
-    }
+		return &errPtr
+	}
 
-    // Generic null-byte validation across all string fields in the payload
-    if violations := validateNoNullBytes(s); len(violations) > 0 {
-        return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
-    }
+	// Generic null-byte validation across all string fields in the payload
+	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+	}
 
-    return nil
+	return nil
 }
 
-// ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
-// entityName is a snake_case string used to identify id name, for example the "organization" entity name will result in "app.request.organization_id"
-// otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id"
+// ParseUUIDPathParameters creates a middleware that parses and validates UUID path parameters.
+//
+// This middleware automatically validates that path parameters defined in constant.UUIDPathParameters
+// are valid UUIDs. It also adds the parameters to OpenTelemetry span attributes for tracing.
+//
+// The middleware:
+// 1. Iterates through all path parameters
+// 2. Checks if the parameter name is in constant.UUIDPathParameters
+// 3. Validates the parameter value is a valid UUID
+// 4. Stores the parsed UUID in context.Locals for use by handlers
+// 5. Adds the parameter to OpenTelemetry span attributes
+//
+// Parameters:
+//   - entityName: Snake_case entity name for span attributes (e.g., "organization", "account")
+//     This is used to create span attribute names like "app.request.organization_id"
+//
+// Returns:
+//   - fiber.Handler: Middleware function that can be used in route definitions
+//
+// Example:
+//
+//	app.Get("/v1/organizations/:organization_id/ledgers/:id",
+//	    http.ParseUUIDPathParameters("ledger"),
+//	    getLedgerHandler)
+//
+//	func getLedgerHandler(c *fiber.Ctx) error {
+//	    orgID := c.Locals("organization_id").(uuid.UUID)
+//	    ledgerID := c.Locals("id").(uuid.UUID)
+//	    // Use parsed UUIDs...
+//	}
+//
+// Error Handling:
+//   - Returns 400 Bad Request with ErrInvalidPathParameter if UUID is invalid
+//   - Includes the parameter name in the error message
 func ParseUUIDPathParameters(entityName string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		for param, value := range c.AllParams() {
@@ -420,7 +676,7 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
 }
@@ -498,55 +754,121 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 	return result
 }
 
-// validateNoNullBytes walks through the struct payload and ensures no string value contains a null byte (\x00).
-// Returns a map of invalid field names to error messages when violations are found.
+// validateNoNullBytes recursively checks for null bytes in string fields (security validation).
+//
+// This function walks through the entire struct (including nested structs, slices, and pointers)
+// and validates that no string field contains a null byte (\x00). Null bytes can cause issues
+// with C-based libraries, database drivers, and can be used in injection attacks.
+//
+// The function uses reflection to traverse:
+//   - Pointers (follows to pointed value)
+//   - Structs (checks all exported fields)
+//   - Slices/Arrays (checks all elements)
+//   - Strings (validates no \x00 present)
+//
+// Parameters:
+//   - s: Struct to validate (any type)
+//
+// Returns:
+//   - pkg.FieldValidations: Map of field names to error messages (nil if no violations)
+//
+// Example:
+//
+//	input := &mmodel.CreateAccountInput{
+//	    Name: "Account\x00WithNull",
+//	}
+//	violations := validateNoNullBytes(input)
+//	// Returns: {"name": "name cannot contain null byte (\\x00)"}
+//
+// Security Note:
+//   - This validation prevents null byte injection attacks
+//   - Protects against issues with PostgreSQL and other databases
+//   - Ensures data integrity in C-based libraries
 func validateNoNullBytes(s any) pkg.FieldValidations {
-    out := make(pkg.FieldValidations)
+	out := make(pkg.FieldValidations)
 
-    var walk func(rv reflect.Value, jsonPath string)
-    walk = func(rv reflect.Value, jsonPath string) {
-        if !rv.IsValid() {
-            return
-        }
+	var walk func(rv reflect.Value, jsonPath string)
+	walk = func(rv reflect.Value, jsonPath string) {
+		if !rv.IsValid() {
+			return
+		}
 
-        switch rv.Kind() {
-        case reflect.Ptr:
-            if rv.IsNil() { return }
-            walk(rv.Elem(), jsonPath)
-        case reflect.Struct:
-            rt := rv.Type()
-            for i := 0; i < rv.NumField(); i++ {
-                f := rt.Field(i)
-                // Skip unexported
-                if f.PkgPath != "" { continue }
-                tag := f.Tag.Get("json")
-                name := strings.Split(tag, ",")[0]
-                if name == "-" { continue }
-                if name == "" { name = f.Name }
-                walk(rv.Field(i), name)
-            }
-        case reflect.Slice, reflect.Array:
-            for i := 0; i < rv.Len(); i++ {
-                walk(rv.Index(i), jsonPath)
-            }
-        case reflect.String:
-            if strings.ContainsRune(rv.String(), '\x00') {
-                key := jsonPath
-                if key == "" { key = "value" }
-                out[key] = key + " cannot contain null byte (\\x00)"
-            }
-        default:
-            // primitives: no-op
-        }
-    }
+		switch rv.Kind() {
+		case reflect.Ptr:
+			if rv.IsNil() {
+				return
+			}
+			walk(rv.Elem(), jsonPath)
+		case reflect.Struct:
+			rt := rv.Type()
+			for i := 0; i < rv.NumField(); i++ {
+				f := rt.Field(i)
+				// Skip unexported
+				if f.PkgPath != "" {
+					continue
+				}
+				tag := f.Tag.Get("json")
+				name := strings.Split(tag, ",")[0]
+				if name == "-" {
+					continue
+				}
+				if name == "" {
+					name = f.Name
+				}
+				walk(rv.Field(i), name)
+			}
+		case reflect.Slice, reflect.Array:
+			for i := 0; i < rv.Len(); i++ {
+				walk(rv.Index(i), jsonPath)
+			}
+		case reflect.String:
+			if strings.ContainsRune(rv.String(), '\x00') {
+				key := jsonPath
+				if key == "" {
+					key = "value"
+				}
+				out[key] = key + " cannot contain null byte (\\x00)"
+			}
+		default:
+			// primitives: no-op
+		}
+	}
 
-    rv := reflect.ValueOf(s)
-    walk(rv, "")
-    if len(out) == 0 { return nil }
-    return out
+	rv := reflect.ValueOf(s)
+	walk(rv, "")
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
-// parseMetadata For compliance with RFC7396 JSON Merge Patch
+// parseMetadata handles metadata field parsing according to RFC 7396 JSON Merge Patch.
+//
+// This function implements special handling for the metadata field to support JSON Merge Patch
+// semantics. If the metadata field is not present in the original JSON, it's initialized to
+// an empty map rather than nil. This allows distinguishing between:
+//   - Metadata not provided (empty map)
+//   - Metadata explicitly set to null (nil)
+//
+// RFC 7396 JSON Merge Patch allows:
+//   - Omitting a field: no change
+//   - Setting a field to null: delete the field
+//   - Setting a field to a value: update the field
+//
+// Parameters:
+//   - s: Decoded struct (must be a pointer to a struct with a Metadata field)
+//   - originalMap: Original JSON as a map
+//
+// Example:
+//
+//	// Request: {"name": "Account"}
+//	// After parseMetadata: input.Metadata = map[string]any{}
+//
+//	// Request: {"name": "Account", "metadata": null}
+//	// After parseMetadata: input.Metadata = nil
+//
+//	// Request: {"name": "Account", "metadata": {"key": "value"}}
+//	// After parseMetadata: input.Metadata = map[string]any{"key": "value"}
 func parseMetadata(s any, originalMap map[string]any) {
 	val := reflect.ValueOf(s)
 	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
@@ -565,7 +887,33 @@ func parseMetadata(s any, originalMap map[string]any) {
 	}
 }
 
-// FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
+// FindUnknownFields identifies fields in the original JSON that are not in the struct definition.
+//
+// This function performs a deep comparison between the original JSON (as a map) and the
+// re-marshaled struct (as a map) to detect fields that were present in the JSON but not
+// defined in the struct. This is used to enforce strict API contracts and prevent clients
+// from sending unexpected data.
+//
+// The function handles:
+//   - Nested maps (recursively checks nested objects)
+//   - Arrays (compares array elements)
+//   - Decimal values (special handling for numeric strings)
+//   - Type mismatches (detects when JSON type differs from struct type)
+//   - Zero values (ignores numeric zeros that weren't in original JSON)
+//
+// Parameters:
+//   - original: Map representation of the original JSON request body
+//   - marshaled: Map representation of the struct after unmarshaling and re-marshaling
+//
+// Returns:
+//   - map[string]any: Map of unknown fields (empty if no unknown fields found)
+//
+// Example:
+//
+//	original := map[string]any{"name": "Account", "extra": "field"}
+//	marshaled := map[string]any{"name": "Account"}
+//	unknown := FindUnknownFields(original, marshaled)
+//	// Returns: {"extra": "field"}
 //
 //nolint:gocognit
 func FindUnknownFields(original, marshaled map[string]any) map[string]any {

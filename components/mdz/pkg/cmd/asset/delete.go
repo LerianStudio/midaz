@@ -1,3 +1,6 @@
+// Package asset implements CLI commands for asset management.
+// This file contains the delete command implementation.
+
 package asset
 
 import (

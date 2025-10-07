@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllLedgers fetch all Ledgers from the repository
+// GetAllLedgers retrieves a paginated list of ledgers with metadata.
+//
+// Fetches ledgers from PostgreSQL with pagination, then enriches with MongoDB metadata.
+// Returns empty array if no ledgers found (not an error). Excludes soft-deleted ledgers.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - filter: Query parameters (pagination, sorting, date range)
+//
+// Returns:
+//   - []*mmodel.Ledger: Array of ledgers with metadata
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_ledgers"
 func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

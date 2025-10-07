@@ -1,3 +1,7 @@
+// Package asset provides CLI commands for managing assets.
+//
+// This package implements the "mdz asset" command group with subcommands
+// for create, list, describe, update, and delete operations.
 package asset
 
 import (
@@ -7,10 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factoryAsset wraps the factory for asset commands.
 type factoryAsset struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all asset subcommands.
 func (f *factoryAsset) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAssetCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdAssetList(newInjectFacList(f.factory)))
@@ -19,6 +25,9 @@ func (f *factoryAsset) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAssetDelete(newInjectFacDelete(f.factory)))
 }
 
+// NewCmdAsset creates the "asset" command with all subcommands.
+//
+// Returns a Cobra command configured with create, list, describe, update, and delete subcommands.
 func NewCmdAsset(f *factory.Factory) *cobra.Command {
 	fAsset := factoryAsset{
 		factory: f,

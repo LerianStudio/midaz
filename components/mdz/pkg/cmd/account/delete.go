@@ -1,3 +1,6 @@
+// Package account implements CLI commands for account management.
+// This file contains the delete command implementation.
+
 package account
 
 import (

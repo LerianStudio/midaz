@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains Swagger configuration middleware.
 package in
 
 import (
@@ -8,7 +10,24 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// WithSwaggerEnvConfig sets the Swagger configuration for the API documentation from environment variables if they are set.
+// WithSwaggerEnvConfig creates middleware that configures Swagger from environment variables.
+//
+// This middleware dynamically configures Swagger API documentation based on environment
+// variables, allowing different Swagger configurations for different deployment environments
+// (development, staging, production) without code changes.
+//
+// Supported Environment Variables:
+//   - SWAGGER_TITLE: API title
+//   - SWAGGER_DESCRIPTION: API description
+//   - SWAGGER_VERSION: API version
+//   - SWAGGER_HOST: API host (validated for proper format)
+//   - SWAGGER_BASE_PATH: API base path
+//   - SWAGGER_LEFT_DELIM: Template left delimiter
+//   - SWAGGER_RIGHT_DELIM: Template right delimiter
+//   - SWAGGER_SCHEMES: API schemes (http, https)
+//
+// Returns:
+//   - fiber.Handler: Middleware that configures Swagger before serving docs
 func WithSwaggerEnvConfig() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		envVars := map[string]*string{

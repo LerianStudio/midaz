@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,39 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
+// GetAccountByIDWithDeleted retrieves an account by ID including soft-deleted accounts.
+//
+// This method is similar to GetAccountByID but includes soft-deleted accounts in the results.
+// Used for administrative purposes, audit queries, or when checking historical data.
+//
+// Special Behavior:
+//   - Includes accounts with DeletedAt set (soft-deleted)
+//   - Still enriches with metadata
+//   - Used for validation and audit purposes
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - portfolioID: Optional portfolio ID filter
+//   - id: UUID of the account to retrieve
+//
+// Returns:
+//   - *mmodel.Account: Account with metadata (may be soft-deleted)
+//   - error: Business error if not found or query fails
+//
+// Example:
+//
+//	// Check if account exists even if deleted
+//	account, err := useCase.GetAccountByIDWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+//	if err != nil {
+//	    // Account never existed
+//	}
+//	if account.DeletedAt != nil {
+//	    // Account was deleted
+//	}
+//
+// OpenTelemetry: Creates span "query.get_account_by_id_with_deleted"
 func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

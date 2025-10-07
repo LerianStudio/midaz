@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetLedgerByID Get a ledger from the repository by given id.
+// GetLedgerByID retrieves a single ledger by ID with metadata.
+//
+// This method implements the get ledger query use case, which:
+// 1. Fetches the ledger from PostgreSQL by ID
+// 2. Fetches associated metadata from MongoDB
+// 3. Merges metadata into the ledger object
+// 4. Returns the enriched ledger
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization (used for scoping)
+//   - id: UUID of the ledger to retrieve
+//
+// Returns:
+//   - *mmodel.Ledger: Ledger with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrLedgerIDNotFound: Ledger doesn't exist or is deleted
+//
+// OpenTelemetry:
+//   - Creates span "query.get_ledger_by_id"
 func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

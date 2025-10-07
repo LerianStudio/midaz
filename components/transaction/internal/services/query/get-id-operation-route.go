@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,8 +17,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOperationRouteByID retrieves an operation route by its ID.
-// It returns the operation route if found, otherwise it returns an error.
+// GetOperationRouteByID retrieves an operation route by ID with metadata.
+//
+// Fetches operation route from PostgreSQL and enriches with MongoDB metadata.
+// Operation routes define account selection rules for transaction routing.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - portfolioID: Portfolio ID (unused in current implementation)
+//   - id: UUID of the operation route to retrieve
+//
+// Returns:
+//   - *mmodel.OperationRoute: Operation route with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrOperationRouteNotFound: Operation route doesn't exist
+//
+// OpenTelemetry: Creates span "query.get_operation_route_by_id"
 func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

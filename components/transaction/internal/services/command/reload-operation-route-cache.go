@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -8,8 +11,34 @@ import (
 	"github.com/google/uuid"
 )
 
-// ReloadOperationRouteCache reloads the cache for all transaction routes associated with the given operation route.
-// It retrieves all transaction routes linked to the operation route and recreates their cache entries.
+// ReloadOperationRouteCache refreshes caches for all transaction routes using an operation route.
+//
+// This method implements cache refresh when an operation route is modified:
+// 1. Finds all transaction routes that reference the operation route
+// 2. Fetches each transaction route with updated operation route data
+// 3. Recreates cache for each transaction route
+// 4. Continues on errors (best-effort refresh)
+//
+// Use Cases:
+//   - Operation route is updated (account rules changed)
+//   - Operation route relationships change
+//   - Ensures transaction route caches reflect latest operation route data
+//
+// Error Handling:
+//   - Logs warnings for individual failures
+//   - Continues processing remaining routes
+//   - Returns nil even if some routes fail (best-effort)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the operation route that was modified
+//
+// Returns:
+//   - error: nil on success (even with partial failures), error if finding route IDs fails
+//
+// OpenTelemetry: Creates span "command.reload_operation_route_cache"
 func (uc *UseCase) ReloadOperationRouteCache(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

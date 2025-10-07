@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains Portfolio-related models and input/output structures.
 package mmodel
 
 import "time"

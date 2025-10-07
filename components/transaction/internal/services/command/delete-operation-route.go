@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,7 +17,34 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteOperationRouteByID is a method that deletes Operation Route information.
+// DeleteOperationRouteByID soft-deletes an operation route with relationship validation.
+//
+// This method implements the delete operation route use case with safety checks:
+// 1. Checks if operation route is linked to any transaction routes
+// 2. Returns error if links exist (cannot delete referenced operation routes)
+// 3. Performs soft delete if no links exist
+// 4. Operation route remains in database for audit purposes
+//
+// Business Rules:
+//   - Operation route cannot be deleted if referenced by transaction routes
+//   - This prevents breaking transaction routing logic
+//   - Must remove from transaction routes first
+//   - Soft delete sets deleted_at timestamp
+//
+// Safety Check:
+//   - Queries junction table for transaction route relationships
+//   - Returns ErrOperationRouteLinkedToTransactionRoutes if links found
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the operation route to delete
+//
+// Returns:
+//   - error: nil on success, business error if linked or deletion fails
+//
+// OpenTelemetry: Creates span "command.delete_operation_route_by_id"
 func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

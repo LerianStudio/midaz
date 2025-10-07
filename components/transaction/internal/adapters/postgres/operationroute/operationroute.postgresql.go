@@ -1,3 +1,5 @@
+// Package operationroute provides PostgreSQL repository implementation for OperationRoute entities.
+// This file contains the repository implementation for CRUD operations on operation routes.
 package operationroute
 
 import (

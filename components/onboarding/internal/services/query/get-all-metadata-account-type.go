@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -16,7 +19,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
+// GetAllMetadataAccountType retrieves account types filtered by metadata criteria with cursor pagination.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches account types from PostgreSQL.
+// Use case: Finding account types by custom metadata fields (e.g., metadata.category=balance_sheet).
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// Returns: Account types with cursor pagination info (note: cursor is empty in current implementation)
+// OpenTelemetry: Creates span "query.get_all_metadata_account_type"
 func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

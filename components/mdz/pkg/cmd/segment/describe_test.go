@@ -1,3 +1,6 @@
+// Package segment implements CLI commands for segment management.
+// This file contains the describe_test command implementation.
+
 package segment
 
 import (

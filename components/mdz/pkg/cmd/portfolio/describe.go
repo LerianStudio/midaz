@@ -1,3 +1,6 @@
+// Package portfolio implements CLI commands for portfolio management.
+// This file contains the describe command implementation.
+
 package portfolio
 
 import (

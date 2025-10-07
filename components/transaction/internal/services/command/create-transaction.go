@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,7 +17,35 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateTransaction creates a new transaction persisting data in the repository.
+// CreateTransaction creates a new transaction and persists it to the repository.
+//
+// This method implements the create transaction use case, which:
+// 1. Generates a UUIDv7 for the transaction ID
+// 2. Sets status to APPROVED (transactions are pre-validated)
+// 3. Extracts transaction details from lib-commons Transaction struct
+// 4. Persists transaction to PostgreSQL
+// 5. Creates associated metadata in MongoDB
+// 6. Returns the complete transaction with metadata
+//
+// Business Rules:
+//   - Transactions are created in APPROVED status (validation happens before this)
+//   - Parent transaction ID is optional (for multi-step transactions)
+//   - Amount and asset code are extracted from the send specification
+//   - Chart of accounts group name is required
+//   - Metadata is optional (max 100 characters per key)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of parent transaction (uuid.Nil if none)
+//   - t: lib-commons Transaction struct with send/distribute specifications
+//
+// Returns:
+//   - *transaction.Transaction: Created transaction with metadata
+//   - error: Business error if creation fails
+//
+// OpenTelemetry: Creates span "command.create_transaction"
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

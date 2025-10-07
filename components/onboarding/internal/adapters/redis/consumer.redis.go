@@ -1,3 +1,7 @@
+// Package redis provides Redis adapter implementations for the onboarding service.
+//
+// This package implements Redis-based operations for caching and key-value storage,
+// supporting the onboarding service's performance optimization needs.
 package redis
 
 import (
@@ -9,8 +13,10 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 )
 
-// RedisRepository provides an interface for redis.
-// It is used to set, get and delete keys in redis.
+// RedisRepository provides an interface for Redis operations.
+//
+// This interface defines basic Redis operations used by the onboarding service
+// for caching and temporary data storage.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	Get(ctx context.Context, key string) error

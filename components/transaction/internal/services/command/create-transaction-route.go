@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,8 +17,41 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateTransactionRoute creates a new transaction route.
-// It returns the created transaction route and an error if the operation fails.
+// CreateTransactionRoute creates a new transaction route with associated operation routes.
+//
+// This method implements the create transaction route use case, which:
+// 1. Generates UUIDv7 for the transaction route ID
+// 2. Validates that all referenced operation routes exist
+// 3. Validates that operation routes include both source and destination types
+// 4. Creates the transaction route in PostgreSQL
+// 5. Associates operation routes with the transaction route
+// 6. Creates metadata in MongoDB
+// 7. Returns the complete transaction route
+//
+// Business Rules:
+//   - Transaction route must reference at least one source operation route
+//   - Transaction route must reference at least one destination operation route
+//   - All referenced operation routes must exist
+//   - Title and description are required
+//   - Code is optional (for programmatic reference)
+//
+// Transaction Routes:
+//   - Define how transactions flow through the system
+//   - Specify which accounts can be sources and destinations
+//   - Enable automated transaction routing based on rules
+//   - Support complex routing logic (account type, alias patterns)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - payload: Transaction route input with title, description, operation routes
+//
+// Returns:
+//   - *mmodel.TransactionRoute: Created transaction route with metadata
+//   - error: Business error if validation or creation fails
+//
+// OpenTelemetry: Creates span "command.create_transaction_route"
 func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -102,8 +138,21 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both source and destination types.
-// Returns an error if either source or destination type is missing.
+// validateOperationRouteTypes validates that operation routes include both source and destination.
+//
+// This function ensures transaction routes have complete routing rules by checking:
+//   - At least one operation route with type "source" exists
+//   - At least one operation route with type "destination" exists
+//
+// Business Rule:
+//   - Transaction routes must define both where money comes from (source) and
+//     where it goes to (destination) to enable proper transaction routing
+//
+// Parameters:
+//   - operationRoutes: Array of operation routes to validate
+//
+// Returns:
+//   - error: ErrMissingOperationRoutes if source or destination is missing, nil if valid
 func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
 	hasSource := false
 	hasDestination := false

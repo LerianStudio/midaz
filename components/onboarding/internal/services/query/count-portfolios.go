@@ -1,9 +1,11 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
 	"context"
 	"errors"
-
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -15,7 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// CountPortfolios returns the number of portfolios for the specified organization and ledger.
+// CountPortfolios returns the total count of active portfolios for a ledger.
+//
+// Counts total portfolios in PostgreSQL for the given organization and ledger. Excludes soft-deleted portfolios.
+// Used for X-Total-Count header and pagination metadata.
+//
+// Returns: Total count of active portfolios, or error if query fails
+// OpenTelemetry: Creates span "query.count_portfolios"
 func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

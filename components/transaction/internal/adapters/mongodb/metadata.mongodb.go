@@ -1,3 +1,5 @@
+// Package mongodb provides MongoDB adapter implementations for the transaction service.
+// This file contains the repository implementation for metadata storage.
 package mongodb
 
 import (

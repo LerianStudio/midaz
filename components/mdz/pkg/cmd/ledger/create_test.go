@@ -1,3 +1,6 @@
+// Package ledger implements CLI commands for ledger management.
+// This file contains the create_test command implementation.
+
 package ledger
 
 import (

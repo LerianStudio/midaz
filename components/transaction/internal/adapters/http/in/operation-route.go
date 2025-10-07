@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains operation route HTTP handlers.
 package in
 
 import (
@@ -19,7 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// OperationRouteHandler is a struct that contains the command and query use cases.
+// OperationRouteHandler handles HTTP requests for operation route (account selection rules) operations.
 type OperationRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

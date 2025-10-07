@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataLedgers fetch all Ledgers from the repository
+// GetAllMetadataLedgers retrieves ledgers filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches ledgers from PostgreSQL.
+// Use case: Finding ledgers by custom metadata fields (e.g., metadata.department=Treasury).
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// OpenTelemetry: Creates span "query.get_all_metadata_ledgers"
 func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

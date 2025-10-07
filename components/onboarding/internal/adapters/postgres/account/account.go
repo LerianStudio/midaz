@@ -1,3 +1,8 @@
+// Package account provides the repository implementation for account entity persistence.
+//
+// This package implements the Repository pattern for the Account entity, providing
+// PostgreSQL-based data access with support for hierarchical accounts, asset tracking,
+// and portfolio/segment organization.
 package account
 
 import (
@@ -8,7 +13,19 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AccountPostgreSQLModel represents the entity Account into SQL context in Database
+// AccountPostgreSQLModel represents the PostgreSQL database model for accounts.
+//
+// This model maps to the "account" table and provides the database representation
+// of account entities. Accounts are the fundamental units in the ledger system where
+// balances are tracked.
+//
+// Key Features:
+//   - Hierarchical structure (parent-child relationships via ParentAccountID)
+//   - Asset-specific (each account holds one asset type)
+//   - Optional portfolio and segment grouping
+//   - Soft delete support (DeletedAt)
+//   - Status tracking with description
+//   - Unique alias for account identification
 type AccountPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -29,7 +46,16 @@ type AccountPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an AccountPostgreSQLModel to a response entity Account
+// ToEntity converts a PostgreSQL model to a domain Account entity.
+//
+// This method transforms the database representation into the business logic representation,
+// handling:
+//   - Status decomposition (code + description → Status struct)
+//   - DeletedAt conversion (sql.NullTime → *time.Time)
+//   - All field mappings
+//
+// Returns:
+//   - *mmodel.Account: Domain model with all fields populated
 func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -62,7 +88,21 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	return acc
 }
 
-// FromEntity converts a request entity Account to AccountPostgreSQLModel
+// FromEntity converts a domain Account entity to a PostgreSQL model.
+//
+// This method transforms the business logic representation into the database representation,
+// handling:
+//   - UUID generation (UUIDv7 if ID not provided)
+//   - Status composition (Status struct → code + description fields)
+//   - DeletedAt conversion (*time.Time → sql.NullTime)
+//   - Portfolio ID handling (only set if not nil/empty)
+//
+// Parameters:
+//   - account: Domain model to convert
+//
+// Side Effects:
+//   - Modifies the receiver (*t) in place
+//   - Generates new UUIDv7 if account.ID is empty
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if account.ID != "" {

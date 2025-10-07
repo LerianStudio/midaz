@@ -1,3 +1,8 @@
+// Package asset provides the repository implementation for asset entity persistence.
+//
+// This package implements the Repository pattern for the Asset entity, providing
+// PostgreSQL-based data access. Assets represent currencies, cryptocurrencies,
+// commodities, or other value types tracked in the ledger.
 package asset
 
 import (
@@ -8,7 +13,17 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AssetPostgreSQLModel represents the entity Asset into SQL context in Database
+// AssetPostgreSQLModel represents the PostgreSQL database model for assets.
+//
+// This model maps to the "asset" table and provides the database representation
+// of asset entities. Assets define what types of value can be held in accounts.
+//
+// Key Features:
+//   - Type classification (currency, crypto, commodities, others)
+//   - Unique code within ledger (e.g., USD, BTC, GOLD)
+//   - Status tracking with description
+//   - Soft delete support (DeletedAt)
+//   - Automatic external account creation
 type AssetPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -24,7 +39,13 @@ type AssetPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an AssetPostgreSQLModel to entity response Asset
+// ToEntity converts a PostgreSQL model to a domain Asset entity.
+//
+// Transforms database representation to business logic representation,
+// handling status decomposition and DeletedAt conversion.
+//
+// Returns:
+//   - *mmodel.Asset: Domain model with all fields populated
 func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -51,7 +72,17 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 	return asset
 }
 
-// FromEntity converts a request entity Asset to AssetPostgreSQLModel
+// FromEntity converts a domain Asset entity to a PostgreSQL model.
+//
+// Transforms business logic representation to database representation,
+// handling UUID generation, status composition, and DeletedAt conversion.
+//
+// Parameters:
+//   - asset: Domain model to convert
+//
+// Side Effects:
+//   - Modifies the receiver (*t) in place
+//   - Generates new UUIDv7 for ID field
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 	*t = AssetPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

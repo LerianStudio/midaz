@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains ledger-related HTTP handlers.
 package in
 
 import (
@@ -19,7 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// LedgerHandler struct contains a ledger use case for managing ledger related operations.
+// LedgerHandler handles HTTP requests for ledger operations using the CQRS pattern.
 type LedgerHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

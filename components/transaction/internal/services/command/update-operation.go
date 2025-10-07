@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,7 +17,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateOperation update an operation from the repository by given id.
+// UpdateOperation updates an existing operation in the repository.
+//
+// This method updates operation description and metadata. Only provided fields are updated.
+//
+// Business Rules:
+//   - Only description and metadata can be updated
+//   - Operation type, amount, and balance cannot be changed (immutable)
+//   - Metadata is merged with existing (RFC 7396 JSON Merge Patch)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionID: UUID of the parent transaction
+//   - operationID: UUID of the operation to update
+//   - uoi: Update input with description and metadata
+//
+// Returns:
+//   - *operation.Operation: Updated operation with merged metadata
+//   - error: Business error if operation not found or update fails
+//
+// OpenTelemetry: Creates span "command.update_operation"
 func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

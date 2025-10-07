@@ -1,3 +1,11 @@
+// Package main is the entry point for the Midaz onboarding service.
+//
+// The onboarding service is responsible for managing the lifecycle of organizations,
+// ledgers, accounts, assets, portfolios, segments, and account types. It provides
+// RESTful APIs for creating, reading, updating, and deleting these entities.
+//
+// The service follows hexagonal architecture with CQRS pattern, using PostgreSQL
+// for entity storage, MongoDB for metadata, and RabbitMQ for async messaging.
 package main
 
 import (
@@ -15,6 +23,14 @@ import (
 // @license.url	http://www.apache.org/licenses/LICENSE-2.0.html
 // @host			localhost:3000
 // @BasePath		/
+
+// main is the entry point for the onboarding service.
+//
+// This function:
+// 1. Initializes local environment configuration
+// 2. Calls InitServers to initialize all dependencies
+// 3. Starts the HTTP server with graceful shutdown
+// 4. Blocks until shutdown signal is received
 func main() {
 	libCommons.InitLocalEnvConfig()
 	bootstrap.InitServers().Run()

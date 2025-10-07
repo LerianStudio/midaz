@@ -1,3 +1,7 @@
+// Package segment provides CLI commands for managing segments.
+//
+// This package implements the "mdz segment" command group with subcommands
+// for create, list, describe, update, and delete operations.
 package segment
 
 import (
@@ -7,10 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// factorySegment wraps the factory for segment commands.
 type factorySegment struct {
 	factory *factory.Factory
 }
 
+// setCmds registers all segment subcommands.
 func (f *factorySegment) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdSegmentCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdSegmentList(newInjectFacList(f.factory)))
@@ -19,6 +25,9 @@ func (f *factorySegment) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdSegmentDelete(newInjectFacDelete(f.factory)))
 }
 
+// NewCmdSegment creates the "segment" command with all subcommands.
+//
+// Returns a Cobra command configured with create, list, describe, update, and delete subcommands.
 func NewCmdSegment(f *factory.Factory) *cobra.Command {
 	fOrg := factorySegment{
 		factory: f,

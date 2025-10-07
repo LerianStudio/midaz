@@ -1,3 +1,8 @@
+// Package operation provides the repository implementation for operation entity persistence.
+//
+// This package implements the Repository pattern for the Operation entity, providing
+// PostgreSQL-based data access. Operations represent individual debits, credits, holds,
+// and releases that make up a transaction in the double-entry accounting system.
 package operation
 
 import (
@@ -8,7 +13,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
+// OperationPostgreSQLModel represents the PostgreSQL database model for operations.
+//
+// This model stores individual operation records (debits, credits, holds, releases) with:
+//   - Balance snapshots before and after operation
+//   - Amount and asset code
+//   - Account and balance references
+//   - Chart of accounts mapping
+//   - Soft delete support
 //
 // @Description Database model for storing operation information in PostgreSQL
 type OperationPostgreSQLModel struct {

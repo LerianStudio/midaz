@@ -1,3 +1,5 @@
+// Package balance provides PostgreSQL repository implementation for Balance entities.
+// This file contains the repository implementation for CRUD operations on balances.
 package balance
 
 import (
@@ -23,8 +25,18 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to balance template entities.
-// It defines methods for creating, finding, listing, updating, and deleting balance templates.
+// Repository provides an interface for balance entity persistence operations.
+//
+// This interface defines all data access methods for the Balance entity. Balances track
+// available and on-hold amounts for accounts with optimistic locking support.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Batch operations (ListByAccountIDs, ListByAliases, BalancesUpdate)
+//   - Key-based lookup (FindByAccountIDAndKey)
+//   - Account-based queries (ListAllByAccountID)
+//   - Cursor pagination for large result sets
+//   - Optimistic locking via version numbers
 //
 //go:generate mockgen --destination=balance.postgresql_mock.go --package=balance . Repository
 type Repository interface {

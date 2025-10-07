@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,29 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetPortfolioByID get a Portfolio from the repository by given id.
+// GetPortfolioByID retrieves a single portfolio by ID with metadata.
+//
+// This method implements the get portfolio query use case, which:
+// 1. Fetches the portfolio from PostgreSQL by ID
+// 2. Fetches associated metadata from MongoDB
+// 3. Merges metadata into the portfolio object
+// 4. Returns the enriched portfolio
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the portfolio to retrieve
+//
+// Returns:
+//   - *mmodel.Portfolio: Portfolio with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrPortfolioIDNotFound: Portfolio doesn't exist or is deleted
+//
+// OpenTelemetry:
+//   - Creates span "query.get_portfolio_by_id"
 func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

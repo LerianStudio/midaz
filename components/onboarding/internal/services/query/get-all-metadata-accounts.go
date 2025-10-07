@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,40 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataAccounts fetch all Accounts from the repository
+// GetAllMetadataAccounts retrieves accounts filtered by metadata criteria.
+//
+// This is a metadata-first query that:
+// 1. Queries MongoDB for accounts matching metadata filters
+// 2. Extracts entity IDs from metadata results
+// 3. Fetches corresponding accounts from PostgreSQL
+// 4. Merges metadata into account objects
+//
+// Use Case: Searching accounts by custom metadata fields (e.g., department, cost_center)
+//
+// Query Flow (Reverse of normal):
+//   - Normal: PostgreSQL → MongoDB (fetch then enrich)
+//   - Metadata: MongoDB → PostgreSQL (filter then fetch)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - portfolioID: Optional portfolio ID filter
+//   - filter: Query parameters including metadata filters (e.g., metadata.department=Sales)
+//
+// Returns:
+//   - []*mmodel.Account: Array of accounts matching metadata criteria
+//   - error: Business error if query fails
+//
+// Example:
+//
+//	filter := http.QueryHeader{
+//	    Metadata: &bson.M{"department": "Finance"},
+//	}
+//	accounts, err := useCase.GetAllMetadataAccounts(ctx, orgID, ledgerID, nil, filter)
+//	// Returns only accounts with metadata.department = "Finance"
+//
+// OpenTelemetry: Creates span "query.get_all_metadata_accounts"
 func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

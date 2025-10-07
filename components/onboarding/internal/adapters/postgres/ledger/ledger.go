@@ -1,3 +1,8 @@
+// Package ledger provides the repository implementation for ledger entity persistence.
+//
+// This package implements the Repository pattern for the Ledger entity, providing
+// PostgreSQL-based data access. Ledgers are the top-level containers within an
+// organization that group assets, accounts, and transactions.
 package ledger
 
 import (
@@ -8,7 +13,16 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
+// LedgerPostgreSQLModel represents the PostgreSQL database model for ledgers.
+//
+// This model maps to the "ledger" table and provides the database representation
+// of ledger entities. Ledgers organize all financial data within an organization.
+//
+// Key Features:
+//   - Organization scoping (one ledger belongs to one organization)
+//   - Status tracking with description
+//   - Soft delete support (DeletedAt)
+//   - Unique name within organization
 type LedgerPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -21,7 +35,13 @@ type LedgerPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an LedgerPostgreSQLModel to entity.Ledger
+// ToEntity converts a PostgreSQL model to a domain Ledger entity.
+//
+// Transforms database representation to business logic representation,
+// handling status decomposition and DeletedAt conversion.
+//
+// Returns:
+//   - *mmodel.Ledger: Domain model with all fields populated
 func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -46,7 +66,17 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 	return ledger
 }
 
-// FromEntity converts an entity.Ledger to LedgerPostgreSQLModel
+// FromEntity converts a domain Ledger entity to a PostgreSQL model.
+//
+// Transforms business logic representation to database representation,
+// handling UUID generation, status composition, and DeletedAt conversion.
+//
+// Parameters:
+//   - ledger: Domain model to convert
+//
+// Side Effects:
+//   - Modifies the receiver (*t) in place
+//   - Generates new UUIDv7 for ID field
 func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 	*t = LedgerPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

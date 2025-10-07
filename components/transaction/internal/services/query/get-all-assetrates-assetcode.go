@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -13,7 +16,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
+// GetAllAssetRatesByAssetCode retrieves asset rates for currency conversions with metadata.
+//
+// Fetches asset rates from PostgreSQL for a source asset to multiple target assets,
+// then enriches with MongoDB metadata. Used for multi-currency transaction processing.
+//
+// The method:
+// 1. Validates source asset code (alphanumeric, uppercase)
+// 2. Validates all target asset codes
+// 3. Fetches asset rates with cursor pagination
+// 4. Fetches metadata for all rates
+// 5. Merges metadata into rate objects
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - fromAssetCode: Source asset code (e.g., "USD")
+//   - filter: Query parameters with ToAssetCodes array (e.g., ["EUR", "GBP"])
+//
+// Returns:
+//   - []*assetrate.AssetRate: Array of asset rates with metadata
+//   - libHTTP.CursorPagination: Pagination cursor info
+//   - error: Business error if validation or query fails
+//
+// OpenTelemetry: Creates span "query.get_asset_rate_by_asset_codes"
 func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

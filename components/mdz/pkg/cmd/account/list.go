@@ -1,3 +1,6 @@
+// Package account implements CLI commands for account management.
+// This file contains the list command implementation.
+
 package account
 
 import (

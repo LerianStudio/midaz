@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,8 +17,40 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransactionRoute updates a transaction route by its ID.
-// It returns the updated transaction route and an error if the operation fails.
+// UpdateTransactionRoute updates an existing transaction route in the repository.
+//
+// This method updates transaction route properties and manages operation route relationships:
+// 1. Updates title and description
+// 2. Calculates operation routes to add/remove (if provided)
+// 3. Validates new operation route set (must have source and destination)
+// 4. Updates transaction route in PostgreSQL
+// 5. Updates metadata using merge semantics
+// 6. Returns updated transaction route
+//
+// Operation Route Management:
+//   - Compares existing vs new operation routes
+//   - Determines which relationships to add/remove
+//   - Validates that result includes both source and destination
+//   - Updates many-to-many relationship table
+//
+// Business Rules:
+//   - Title and description are optional (partial updates)
+//   - Operation routes are optional (if provided, must be complete set)
+//   - Must maintain at least one source and one destination route
+//   - Metadata is merged with existing
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the transaction route to update
+//   - input: Update input with title, description, operation routes, metadata
+//
+// Returns:
+//   - *mmodel.TransactionRoute: Updated transaction route with metadata
+//   - error: Business error if not found or validation fails
+//
+// OpenTelemetry: Creates span "command.update_transaction_route"
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -74,8 +109,37 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	return transactionRouteUpdated, nil
 }
 
-// handleOperationRouteUpdates processes operation route relationship updates by comparing existing vs new operation routes.
-// It returns arrays of operation route IDs to add and remove, or an error if validation fails.
+// handleOperationRouteUpdates calculates operation route relationship changes.
+//
+// This helper function compares existing operation routes with the new set to determine:
+// 1. Which operation routes to add (in new set but not in existing)
+// 2. Which operation routes to remove (in existing but not in new set)
+// 3. Validates that the new set includes both source and destination types
+//
+// The function:
+//   - Fetches current transaction route with operation routes
+//   - Fetches all referenced operation routes to validate they exist
+//   - Validates new set has both source and destination
+//   - Calculates diff (toAdd, toRemove)
+//
+// Validation:
+//   - Minimum 2 operation routes required (at least 1 source + 1 destination)
+//   - All referenced operation routes must exist
+//   - Must include both source and destination types
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - transactionRouteID: UUID of the transaction route being updated
+//   - newOperationRouteIDs: New set of operation route IDs
+//
+// Returns:
+//   - toAdd: Operation route IDs to add
+//   - toRemove: Operation route IDs to remove
+//   - err: Validation error if requirements not met
+//
+// OpenTelemetry: Creates span "command.handle_operation_route_updates"
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,5 @@
+// Package segment provides PostgreSQL repository implementation for Segment entities.
+// This file contains the repository implementation for CRUD operations on segments.
 package segment
 
 import (
@@ -24,8 +26,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to segment entities.
-// It defines methods for creating, finding, updating, and deleting segments in the database.
+// Repository provides an interface for segment entity persistence operations.
+//
+// This interface defines all data access methods for the Segment entity. Segments provide
+// logical divisions within a ledger for organizational and reporting purposes.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Name uniqueness validation
+//   - Batch operations (FindByIDs)
+//   - Soft delete support
+//   - Pagination and counting
 type Repository interface {
 	Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
@@ -497,7 +508,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.count_segments")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := p.connection.GetDB()
 	if err != nil {

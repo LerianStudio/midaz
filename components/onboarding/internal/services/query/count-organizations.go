@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -13,7 +16,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CountOrganizations returns the total count of organizations
+// CountOrganizations returns the total count of active organizations for pagination.
+//
+// Counts total organizations in PostgreSQL. Excludes soft-deleted organizations.
+// Used for X-Total-Count header and pagination metadata.
+//
+// Returns: Total count of active organizations, or error if query fails
+// OpenTelemetry: Creates span "query.count_organizations"
 func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

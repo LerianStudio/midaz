@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -14,6 +17,32 @@ import (
 	"github.com/google/uuid"
 )
 
+// UpdateOperationRoute updates an existing operation route in the repository.
+//
+// This method updates operation route properties:
+// 1. Updates title, description, code
+// 2. Updates account rules (rule_type, valid_if)
+// 3. Updates metadata using merge semantics
+// 4. Returns updated operation route
+//
+// Business Rules:
+//   - All fields are optional (partial updates)
+//   - Operation type cannot be changed (immutable)
+//   - Account rules can be updated
+//   - Metadata is merged with existing
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the operation route to update
+//   - input: Update input with title, description, code, account rules, metadata
+//
+// Returns:
+//   - *mmodel.OperationRoute: Updated operation route with metadata
+//   - error: Business error if not found or update fails
+//
+// OpenTelemetry: Creates span "command.update_operation_route"
 func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

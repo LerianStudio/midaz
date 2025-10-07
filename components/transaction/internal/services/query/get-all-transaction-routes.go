@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -17,7 +20,23 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GetAllTransactionRoutes fetch all Transaction Routes from the repository
+// GetAllTransactionRoutes retrieves a paginated list of transaction routes with metadata.
+//
+// Fetches transaction routes from PostgreSQL with cursor pagination, then enriches with
+// MongoDB metadata. Returns empty array if no routes found.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (cursor pagination, sorting, metadata filters)
+//
+// Returns:
+//   - []*mmodel.TransactionRoute: Array of transaction routes with metadata
+//   - libHTTP.CursorPagination: Pagination cursor info
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_transaction_routes"
 func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

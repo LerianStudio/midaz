@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the onboarding service.
+// This file contains portfolio-related HTTP handlers.
 package in
 
 import (
@@ -16,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// PortfolioHandler struct contains a portfolio use case for managing portfolio related operations.
+// PortfolioHandler handles HTTP requests for portfolio operations using the CQRS pattern.
 type PortfolioHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

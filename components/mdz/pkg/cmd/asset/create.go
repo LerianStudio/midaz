@@ -1,3 +1,6 @@
+// Package asset implements CLI commands for asset management.
+// This file contains the create command implementation.
+
 package asset
 
 import (

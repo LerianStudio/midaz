@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataPortfolios fetch all Portfolios from the repository
+// GetAllMetadataPortfolios retrieves portfolios filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches portfolios from PostgreSQL.
+// Use case: Finding portfolios by custom metadata fields (e.g., metadata.business_unit=Corporate).
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+// OpenTelemetry: Creates span "query.get_all_metadata_portfolios"
 func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

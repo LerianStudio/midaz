@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains TransactionRoute-related models for accounting rules.
 package mmodel
 
 import (
@@ -81,8 +83,36 @@ type AccountCache struct {
 	ValidIf  any    `json:"validIf"`
 }
 
-// ToCache converts the transaction route into a cache structure for Redis storage.
-// Returns a TransactionRouteCache struct with routes pre-categorized by type.
+// ToCache converts the transaction route into a cache-optimized structure for Redis storage.
+//
+// This method transforms a TransactionRoute into a TransactionRouteCache structure that is
+// optimized for fast lookup during transaction processing. The cache structure pre-categorizes
+// operation routes by their type (source/destination) and indexes them by ID for O(1) lookup.
+//
+// The cache structure is used during transaction validation to quickly verify that:
+//   - Transactions follow the defined routing rules
+//   - Accounts match the expected aliases or account types
+//   - Operation types (debit/credit) align with the route configuration
+//
+// Returns:
+//   - TransactionRouteCache: A cache-optimized structure with routes organized by type
+//
+// Cache Structure:
+//   - Source: Map of source operation route IDs to their cached data
+//   - Destination: Map of destination operation route IDs to their cached data
+//
+// Example:
+//
+//	transactionRoute := &TransactionRoute{
+//	    ID: uuid.New(),
+//	    OperationRoutes: []OperationRoute{
+//	        {ID: uuid1, OperationType: "source", Account: &AccountRule{...}},
+//	        {ID: uuid2, OperationType: "destination", Account: &AccountRule{...}},
+//	    },
+//	}
+//	cache := transactionRoute.ToCache()
+//	// cache.Source[uuid1.String()] contains the source route data
+//	// cache.Destination[uuid2.String()] contains the destination route data
 func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	cacheData := TransactionRouteCache{
 		Source:      make(map[string]OperationRouteCache),
@@ -113,12 +143,47 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	return cacheData
 }
 
-// FromMsgpack parses msgpack binary data into TransactionRouteCache
+// FromMsgpack deserializes msgpack binary data into this TransactionRouteCache.
+//
+// This method uses the msgpack format for efficient binary serialization when storing
+// transaction route cache data in Redis. Msgpack provides better performance and smaller
+// payload sizes compared to JSON, which is important for high-throughput transaction processing.
+//
+// Parameters:
+//   - data: Binary msgpack-encoded data to deserialize
+//
+// Returns:
+//   - error: nil on success, error if deserialization fails
+//
+// Example:
+//
+//	var cache TransactionRouteCache
+//	if err := cache.FromMsgpack(redisData); err != nil {
+//	    return fmt.Errorf("failed to deserialize cache: %w", err)
+//	}
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
 	return msgpack.Unmarshal(data, trcd)
 }
 
-// ToMsgpack converts TransactionRouteCache to msgpack binary data
+// ToMsgpack serializes this TransactionRouteCache to msgpack binary format.
+//
+// This method converts the cache structure to msgpack binary format for efficient storage
+// in Redis. Msgpack provides better performance and smaller payload sizes compared to JSON,
+// which is critical for high-throughput transaction processing where cache lookups happen
+// frequently.
+//
+// Returns:
+//   - []byte: Msgpack-encoded binary data
+//   - error: nil on success, error if serialization fails
+//
+// Example:
+//
+//	cache := transactionRoute.ToCache()
+//	data, err := cache.ToMsgpack()
+//	if err != nil {
+//	    return fmt.Errorf("failed to serialize cache: %w", err)
+//	}
+//	redis.Set(cacheKey, data, ttl)
 func (trcd TransactionRouteCache) ToMsgpack() ([]byte, error) {
 	return msgpack.Marshal(trcd)
 }

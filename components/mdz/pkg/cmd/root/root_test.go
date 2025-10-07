@@ -1,3 +1,6 @@
+// Package root implements CLI commands for root management.
+// This file contains the root_test command implementation.
+
 package root
 
 import (

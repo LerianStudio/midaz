@@ -1,3 +1,5 @@
+// Package helpers provides test utilities and helper functions for integration tests.
+// This file contains balance tracking utilities for verifying transaction correctness.
 package helpers
 
 import (

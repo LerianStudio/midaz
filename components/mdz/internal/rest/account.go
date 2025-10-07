@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains account-related REST operations.
 package rest
 
 import (
@@ -11,10 +13,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// account implements the Account repository interface via REST API.
 type account struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new account via REST API.
 func (r *account) Create(
 	organizationID, ledgerID string,
 	inp mmodel.CreateAccountInput,
@@ -96,7 +100,8 @@ func (r *account) Get(
 }
 
 func (r *account) GetByID(
-	organizationID, ledgerID, accountID string) (*mmodel.Account, error) {
+	organizationID, ledgerID, accountID string,
+) (*mmodel.Account, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
 

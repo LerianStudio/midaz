@@ -1,3 +1,8 @@
+// Package rabbitmq provides RabbitMQ integration for the onboarding service.
+//
+// This package implements message queue operations for asynchronous communication
+// between the onboarding service and the transaction service. It uses RabbitMQ
+// for reliable message delivery with retry logic and exponential backoff.
 package rabbitmq
 
 import (
@@ -14,19 +19,37 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// ProducerRepository provides an interface for Producer related to rabbitmq.
-// It is used to send messages to a queue.
+// ProducerRepository provides an interface for RabbitMQ message publishing operations.
+//
+// This interface defines methods for sending messages to RabbitMQ exchanges with
+// health checking capabilities. It abstracts RabbitMQ-specific implementation details.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error)
 	CheckRabbitMQHealth() bool
 }
 
-// ProducerRabbitMQRepository is a rabbitmq implementation of the producer
+// ProducerRabbitMQRepository is a RabbitMQ implementation of the ProducerRepository interface.
+//
+// This struct provides concrete RabbitMQ-based message publishing with automatic retry logic,
+// exponential backoff, and channel recovery. It ensures reliable message delivery even when
+// RabbitMQ connections are temporarily unavailable.
 type ProducerRabbitMQRepository struct {
 	conn *libRabbitmq.RabbitMQConnection
 }
 
-// NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
+// NewProducerRabbitMQ creates a new RabbitMQ producer repository instance.
+//
+// This constructor initializes the RabbitMQ connection and panics if the connection fails.
+// The panic is intentional as the service cannot function without message queue connectivity.
+//
+// Parameters:
+//   - c: RabbitMQ connection configuration
+//
+// Returns:
+//   - *ProducerRabbitMQRepository: Initialized producer
+//
+// Panics:
+//   - If RabbitMQ connection fails
 func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
 	prmq := &ProducerRabbitMQRepository{
 		conn: c,
@@ -40,12 +63,49 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 	return prmq
 }
 
-// CheckRabbitMQHealth checks the health of the rabbitmq connection.
+// CheckRabbitMQHealth checks the health status of the RabbitMQ connection.
+//
+// This method verifies that RabbitMQ is reachable and accepting connections.
+// It's used during service startup and health check endpoints.
+//
+// Returns:
+//   - bool: true if RabbitMQ is healthy, false otherwise
 func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	return prmq.conn.HealthCheck()
 }
 
-// ProducerDefault sends a message to a RabbitMQ queue for further processing.
+// ProducerDefault publishes a message to RabbitMQ with automatic retry and exponential backoff.
+//
+// This method implements reliable message publishing with:
+//   - Automatic retry on failure (up to MaxRetries attempts)
+//   - Exponential backoff with full jitter
+//   - Channel recovery on connection failures
+//   - Persistent message delivery mode
+//   - OpenTelemetry trace context propagation
+//
+// Retry Logic:
+//   - MaxRetries: 5 attempts
+//   - InitialBackoff: 500ms
+//   - MaxBackoff: 10s
+//   - BackoffFactor: 2.0 (exponential)
+//   - Jitter: Full jitter to prevent thundering herd
+//
+// Message Properties:
+//   - ContentType: application/json
+//   - DeliveryMode: Persistent (survives broker restarts)
+//   - Headers: Includes request ID and trace context
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - exchange: RabbitMQ exchange name
+//   - key: Routing key for message routing
+//   - queueMessage: Message payload to send
+//
+// Returns:
+//   - *string: nil (unused)
+//   - error: nil on success, error after all retries exhausted
+//
+// OpenTelemetry: Creates span "rabbitmq.producer.publish_message"
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

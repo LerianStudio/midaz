@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains transaction route HTTP handlers.
 package in
 
 import (
@@ -13,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// TransactionRouteHandler handles HTTP requests for transaction route operations.
 type TransactionRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

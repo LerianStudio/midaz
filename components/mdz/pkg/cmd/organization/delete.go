@@ -1,3 +1,6 @@
+// Package organization implements CLI commands for organization management.
+// This file contains the delete command implementation.
+
 package organization
 
 import (

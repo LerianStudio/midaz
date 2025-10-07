@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains utility functions for HTTP request handling and error formatting.
 package rest
 
 import (
@@ -10,15 +12,30 @@ import (
 	"strconv"
 )
 
-// APIError struct to represent the error received
+// APIError represents an error response from the Midaz API.
+//
+// This struct maps to the standard error format returned by Midaz services,
+// allowing the CLI to parse and display user-friendly error messages.
 type APIError struct {
-	Title   string            `json:"title"`
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
+	Title   string            `json:"title"`            // Error title
+	Code    string            `json:"code"`             // Error code (e.g., "0001")
+	Message string            `json:"message"`          // Detailed error message
+	Fields  map[string]string `json:"fields,omitempty"` // Field-specific validation errors
 }
 
-// formatAPIError function that transforms the JSON error into an error type with customized formatting
+// formatAPIError transforms API error JSON into a formatted error message.
+//
+// This function:
+// 1. Unmarshals JSON error response
+// 2. Formats error with code, title, and message
+// 3. Adds field-specific errors if present
+// 4. Returns formatted error for display
+//
+// Parameters:
+//   - jsonData: JSON error response from API
+//
+// Returns:
+//   - error: Formatted error message
 func formatAPIError(jsonData []byte) error {
 	var apiError APIError
 
@@ -42,6 +59,20 @@ func formatAPIError(jsonData []byte) error {
 	return errors.New(formattedError)
 }
 
+// checkResponse validates HTTP response status code and formats errors.
+//
+// This function:
+// 1. Checks if response status matches expected status
+// 2. Handles 401 Unauthorized with specific message
+// 3. Reads and formats API error for other status codes
+// 4. Returns nil if status matches expected
+//
+// Parameters:
+//   - resp: HTTP response to validate
+//   - statusCode: Expected HTTP status code
+//
+// Returns:
+//   - error: nil if status matches, formatted error otherwise
 func checkResponse(resp *http.Response, statusCode int) error {
 	if resp.StatusCode != statusCode {
 		if resp.StatusCode == http.StatusUnauthorized {
@@ -60,7 +91,24 @@ func checkResponse(resp *http.Response, statusCode int) error {
 	return nil
 }
 
-// BuildPaginatedURL builds a URL with pagination parameters and common filters
+// BuildPaginatedURL constructs a URL with pagination and filter query parameters.
+//
+// This function builds URLs for list operations with support for:
+//   - Pagination: limit and page parameters
+//   - Sorting: sort_order parameter (asc/desc)
+//   - Date filtering: start_date and end_date parameters
+//
+// Parameters:
+//   - baseURL: Base API endpoint URL
+//   - limit: Maximum number of items per page
+//   - page: Page number (1-indexed)
+//   - sortOrder: Sort direction ("asc" or "desc")
+//   - startDate: Start date filter (YYYY-MM-DD)
+//   - endDate: End date filter (YYYY-MM-DD)
+//
+// Returns:
+//   - string: Complete URL with query parameters
+//   - error: URL parsing error
 func BuildPaginatedURL(baseURL string, limit, page int, sortOrder, startDate, endDate string) (string, error) {
 	reqURL, err := url.Parse(baseURL)
 	if err != nil {

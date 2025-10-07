@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// CountAssets returns the total count of assets for a specific ledger in an organization
+// CountAssets returns the total count of active assets for a ledger.
+//
+// Counts total assets in PostgreSQL for the given organization and ledger. Excludes soft-deleted assets.
+// Used for X-Total-Count header and pagination metadata.
+//
+// Returns: Total count of active assets, or error if query fails
+// OpenTelemetry: Creates span "query.count_assets"
 func (uc *UseCase) CountAssets(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

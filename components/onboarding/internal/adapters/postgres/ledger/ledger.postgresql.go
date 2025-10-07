@@ -1,3 +1,5 @@
+// Package ledger provides PostgreSQL repository implementation for Ledger entities.
+// This file contains the repository implementation for CRUD operations on ledgers.
 package ledger
 
 import (
@@ -24,8 +26,18 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to ledger entities.
-// It defines methods for creating, finding, updating, and deleting ledgers in the database.
+// Repository provides an interface for ledger entity persistence operations.
+//
+// This interface defines all data access methods for the Ledger entity, following the
+// Repository pattern. Ledgers are top-level containers within organizations that group
+// assets, accounts, and transactions.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Name uniqueness validation
+//   - Batch operations (ListByIDs)
+//   - Soft delete support
+//   - Pagination and counting
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
@@ -230,7 +242,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+			logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
@@ -325,7 +337,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+			logger.Errorf("Failed to scan row: %v", err)
 
 			return nil, err
 		}
@@ -492,7 +504,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 	ctx, span := tracer.Start(ctx, "postgres.count_ledgers")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

@@ -1,3 +1,6 @@
+// Package configure implements CLI commands for configure management.
+// This file contains the configure_test command implementation.
+
 package configure
 
 import (

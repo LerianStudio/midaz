@@ -1,8 +1,9 @@
+// Package bootstrap handles initialization and configuration of the transaction service.
+// This file contains the service configuration and initialization logic.
 package bootstrap
 
 import (
 	"fmt"
-
 	"strings"
 	"time"
 

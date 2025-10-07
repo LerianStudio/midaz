@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,47 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetOrganizationByID fetch a new organization from the repository
+// GetOrganizationByID retrieves a single organization by ID with metadata.
+//
+// This method implements the get organization query use case, which:
+// 1. Fetches the organization from PostgreSQL by ID
+// 2. Fetches associated metadata from MongoDB
+// 3. Merges metadata into the organization object
+// 4. Returns the enriched organization
+//
+// Query Features:
+//   - Retrieves single entity by UUID
+//   - Automatically enriches with metadata
+//   - Excludes soft-deleted organizations
+//
+// Behavior:
+//   - Returns error if organization not found
+//   - Metadata is optional (organization returned even if metadata fetch fails)
+//   - Soft-deleted organizations are not returned
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - id: UUID of the organization to retrieve
+//
+// Returns:
+//   - *mmodel.Organization: Organization with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrOrganizationIDNotFound: Organization doesn't exist or is deleted
+//   - Database errors: Connection failures
+//
+// Example:
+//
+//	organization, err := useCase.GetOrganizationByID(ctx, orgID)
+//	if err != nil {
+//	    return nil, err
+//	}
+//	// Returns organization with metadata
+//
+// OpenTelemetry:
+//   - Creates span "query.get_organization_by_id"
+//   - Records errors as span events
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

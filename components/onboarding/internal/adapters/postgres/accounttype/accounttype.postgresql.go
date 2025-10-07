@@ -1,3 +1,5 @@
+// Package accounttype provides PostgreSQL repository implementation for AccountType entities.
+// This file contains the repository implementation for CRUD operations on account types.
 package accounttype
 
 import (
@@ -25,7 +27,17 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to account type entities.
+// Repository provides an interface for account type entity persistence operations.
+//
+// This interface defines all data access methods for the AccountType entity. Account types
+// classify accounts for accounting validation and reporting (e.g., asset, liability, equity).
+//
+// The interface supports:
+//   - CRUD operations (Create, FindByID, Update, Delete)
+//   - Key-based lookup (FindByKey for validation)
+//   - Cursor-based pagination (FindAll)
+//   - Batch operations (ListByIDs)
+//   - Soft delete support
 //
 //go:generate mockgen --destination=accounttype.postgresql_mock.go --package=accounttype . Repository
 type Repository interface {

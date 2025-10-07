@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -17,6 +20,23 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetAllBalances retrieves a paginated list of balances with metadata.
+//
+// Fetches balances from PostgreSQL with cursor pagination, then enriches with MongoDB metadata.
+// Returns empty array if no balances found.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (cursor pagination, sorting, date range)
+//
+// Returns:
+//   - []*mmodel.Balance: Array of balances with metadata
+//   - libHTTP.CursorPagination: Pagination cursor info
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_balances"
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -77,6 +97,22 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	return balance, cur, nil
 }
 
+// GetAllBalancesByAlias retrieves all balances for an account by alias.
+//
+// Fetches all balance entries (default + additional) for an account identified by alias.
+// Does NOT enrich with metadata (performance optimization).
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - alias: Account alias to lookup
+//
+// Returns:
+//   - []*mmodel.Balance: Array of balances (without metadata)
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_balances_by_alias"
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -15,7 +18,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllAssets fetch all Asset from the repository
+// GetAllAssets retrieves a paginated list of assets with metadata.
+//
+// Fetches assets from PostgreSQL with pagination, then enriches with MongoDB metadata.
+// Returns empty array if no assets found (not an error). Excludes soft-deleted assets.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters (pagination, sorting, date range)
+//
+// Returns:
+//   - []*mmodel.Asset: Array of assets with metadata
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_assets"
 func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

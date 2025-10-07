@@ -1,3 +1,6 @@
+// Package command implements write operations (commands) for the transaction service.
+// This file contains command implementation.
+
 package command
 
 import (
@@ -7,6 +10,31 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
+// UpdateMetadata updates metadata for an entity using merge semantics.
+//
+// This method implements RFC 7396 JSON Merge Patch for metadata updates:
+// 1. Fetches existing metadata from MongoDB
+// 2. Merges new metadata with existing (new values override)
+// 3. Null values in new metadata delete fields
+// 4. Updates metadata in MongoDB
+// 5. Returns merged metadata
+//
+// Merge Behavior:
+//   - If metadata is nil: Replaces with empty map (clears all metadata)
+//   - If metadata is empty map: Preserves existing metadata
+//   - If metadata has values: Merges with existing
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - entityName: Type of entity (e.g., "Transaction", "Operation")
+//   - entityID: UUID of the entity
+//   - metadata: New metadata to merge
+//
+// Returns:
+//   - map[string]any: Merged metadata
+//   - error: Database error if fetch or update fails
+//
+// OpenTelemetry: Creates span "command.update_metadata"
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

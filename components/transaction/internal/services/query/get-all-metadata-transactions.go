@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the transaction service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -18,7 +21,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataTransactions fetch all Transactions from the repository
+// GetAllMetadataTransactions retrieves transactions filtered by metadata criteria.
+//
+// Metadata-first query: Searches MongoDB for matching metadata, then fetches transactions
+// from PostgreSQL. Returns only transactions that match metadata filters.
+//
+// Query flow: MongoDB → PostgreSQL (filter by metadata first)
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - filter: Query parameters with metadata filters
+//
+// Returns:
+//   - []*transaction.Transaction: Array of transactions with operations and metadata
+//   - libHTTP.CursorPagination: Pagination cursor info
+//   - error: Business error if query fails
+//
+// OpenTelemetry: Creates span "query.get_all_metadata_transactions"
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -99,7 +120,19 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	return trans, cur, nil
 }
 
-// enrichTransactionsWithOperationMetadata fetches operation metadata in bulk and assigns it to operations
+// enrichTransactionsWithOperationMetadata fetches and merges operation metadata in batch.
+//
+// Helper function that batch-fetches operation metadata from MongoDB and merges it into
+// operation objects. Optimizes by fetching all operation metadata in one query.
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - trans: Array of transactions with operations to enrich
+//
+// Returns:
+//   - error: nil on success, error if metadata fetch fails
+//
+// OpenTelemetry: Creates span "query.get_all_metadata_transactions_enrich_operations"
 func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, trans []*transaction.Transaction) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

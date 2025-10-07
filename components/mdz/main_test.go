@@ -1,3 +1,7 @@
+// Package main contains integration tests for the MDZ CLI application.
+//
+// This test file validates the main command execution, help system, and
+// error handling for invalid commands.
 package main
 
 import (
@@ -12,15 +16,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// readCloserBuffer is a wrapper around bytes.Buffer that implements io.ReadCloser
+// readCloserBuffer is a test helper that wraps bytes.Buffer to implement io.ReadCloser.
 type readCloserBuffer struct {
 	*bytes.Buffer
 }
 
+// Close implements io.ReadCloser (no-op for testing).
 func (r *readCloserBuffer) Close() error {
 	return nil
 }
 
+// newReadCloserBuffer creates a new readCloserBuffer for testing.
 func newReadCloserBuffer() *readCloserBuffer {
 	return &readCloserBuffer{&bytes.Buffer{}}
 }

@@ -1,3 +1,5 @@
+// Package mmodel defines domain models for the Midaz platform.
+// This file contains OperationRoute-related models for accounting rules.
 package mmodel
 
 import (

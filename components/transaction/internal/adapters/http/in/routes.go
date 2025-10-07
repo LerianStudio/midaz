@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains the HTTP router configuration and route definitions.
 package in
 
 import (
@@ -15,10 +17,49 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const midazName = "midaz"
-const routingName = "routing"
+const (
+	// midazName is the service name for authorization checks.
+	midazName = "midaz"
+	// routingName is the service name for routing-related authorization.
+	routingName = "routing"
+)
 
-// NewRouter register NewRouter routes to the Server.
+// NewRouter creates and configures the Fiber HTTP router for the transaction service.
+//
+// This function sets up the complete HTTP routing configuration including:
+//   - Fiber app with custom error handler
+//   - OpenTelemetry middleware for distributed tracing
+//   - CORS middleware for cross-origin requests
+//   - HTTP logging middleware
+//   - All RESTful API routes for transactions, operations, balances, routing
+//   - Authentication middleware for all routes
+//   - UUID path parameter validation
+//   - Request body validation and decoding
+//   - Health and version endpoints
+//   - Swagger documentation endpoint
+//
+// Route Organization:
+//   - Transactions: Multiple creation methods (DSL, JSON, inflow, outflow, annotation)
+//   - Transaction actions: commit, cancel, revert
+//   - Operations: Account-based operation queries
+//   - Asset Rates: Currency conversion rates
+//   - Balances: Account balance management
+//   - Operation Routes: Account selection rules for routing
+//   - Transaction Routes: Complete transaction routing definitions
+//
+// Parameters:
+//   - lg: Logger instance
+//   - tl: OpenTelemetry telemetry instance
+//   - auth: Authentication client for JWT validation
+//   - th: Transaction handler
+//   - oh: Operation handler
+//   - ah: Asset rate handler
+//   - bh: Balance handler
+//   - orh: Operation route handler
+//   - trh: Transaction route handler
+//
+// Returns:
+//   - *fiber.App: Configured Fiber application ready to serve HTTP requests
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -61,7 +102,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", auth.Authorize(midazName, "asset-rates", "get"), http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)
 
-	//Balance
+	// Balance
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "patch"), http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", auth.Authorize(midazName, "balances", "delete"), http.ParseUUIDPathParameters("balance"), bh.DeleteBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", auth.Authorize(midazName, "balances", "get"), http.ParseUUIDPathParameters("balance"), bh.GetAllBalances)

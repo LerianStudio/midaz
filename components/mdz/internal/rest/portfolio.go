@@ -1,3 +1,5 @@
+// Package rest provides REST API client implementations for the MDZ CLI.
+// This file contains portfolio-related REST operations.
 package rest
 
 import (
@@ -11,10 +13,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// portfolio implements the Portfolio repository interface via REST API.
 type portfolio struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new portfolio via REST API.
 func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {

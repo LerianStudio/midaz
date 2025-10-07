@@ -1,3 +1,6 @@
+// Package ledger implements CLI commands for ledger management.
+// This file contains the update command implementation.
+
 package ledger
 
 import (

@@ -1,3 +1,5 @@
+// Package in provides HTTP handlers for incoming requests to the transaction service.
+// This file contains balance-related HTTP handlers.
 package in
 
 import (
@@ -14,7 +16,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// BalanceHandler struct contains a cqrs use case for managing balances.
+// BalanceHandler handles HTTP requests for balance operations.
+//
+// This handler provides balance management endpoints using the CQRS pattern.
 type BalanceHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase

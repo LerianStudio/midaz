@@ -1,3 +1,6 @@
+// Package query implements read operations (queries) for the onboarding service.
+// This file contains query implementation.
+
 package query
 
 import (
@@ -14,7 +17,29 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetByID get an Asset from the repository by given id.
+// GetAssetByID retrieves a single asset by ID with metadata.
+//
+// This method implements the get asset query use case, which:
+// 1. Fetches the asset from PostgreSQL by ID
+// 2. Fetches associated metadata from MongoDB
+// 3. Merges metadata into the asset object
+// 4. Returns the enriched asset
+//
+// Parameters:
+//   - ctx: Context for tracing, logging, and cancellation
+//   - organizationID: UUID of the organization
+//   - ledgerID: UUID of the ledger
+//   - id: UUID of the asset to retrieve
+//
+// Returns:
+//   - *mmodel.Asset: Asset with metadata
+//   - error: Business error if not found or query fails
+//
+// Possible Errors:
+//   - ErrAssetIDNotFound: Asset doesn't exist or is deleted
+//
+// OpenTelemetry:
+//   - Creates span "query.get_asset_by_id"
 func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

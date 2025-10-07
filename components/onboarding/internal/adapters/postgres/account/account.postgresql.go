@@ -1,3 +1,5 @@
+// Package account provides PostgreSQL repository implementation for Account entities.
+// This file contains the repository implementation for CRUD operations on accounts.
 package account
 
 import (
@@ -24,8 +26,20 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to account entities.
-// It defines methods for creating, retrieving, updating, and deleting accounts in the database.
+// Repository provides an interface for account entity persistence operations.
+//
+// This interface defines all data access methods for the Account entity, following the
+// Repository pattern. It abstracts PostgreSQL-specific implementation details from the
+// business logic layer.
+//
+// The interface supports:
+//   - CRUD operations (Create, Find, Update, Delete)
+//   - Batch operations (ListByIDs, ListByAlias)
+//   - Alias validation and uniqueness checks
+//   - Soft delete support (includes FindWithDeleted)
+//   - Pagination and counting
+//
+// All methods return business errors (not database errors) for consistent error handling.
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
@@ -978,7 +992,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
 	db, err := r.connection.GetDB()
 	if err != nil {

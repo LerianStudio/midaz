@@ -1,3 +1,8 @@
+// Package operationroute provides the repository implementation for operation route entity persistence.
+//
+// This package implements the Repository pattern for the OperationRoute entity, providing
+// PostgreSQL-based data access. Operation routes define account selection rules for
+// automated transaction routing (e.g., match accounts by alias or account type).
 package operationroute
 
 import (
@@ -10,7 +15,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// OperationRoutePostgreSQLModel represents the database model for operation routes
+// OperationRoutePostgreSQLModel represents the PostgreSQL database model for operation routes.
+//
+// This model stores account selection rules with:
+//   - Operation type (source or destination)
+//   - Account matching rules (by alias or account_type)
+//   - Validation criteria (valid_if)
+//   - Soft delete support
 type OperationRoutePostgreSQLModel struct {
 	ID                 uuid.UUID      `db:"id"`
 	OrganizationID     uuid.UUID      `db:"organization_id"`
@@ -26,7 +37,13 @@ type OperationRoutePostgreSQLModel struct {
 	DeletedAt          sql.NullTime   `db:"deleted_at"`
 }
 
-// ToEntity converts the database model to a domain model
+// ToEntity converts a PostgreSQL model to a domain OperationRoute entity.
+//
+// Transforms database representation to business logic representation,
+// handling account rule composition and DeletedAt conversion.
+//
+// Returns:
+//   - *mmodel.OperationRoute: Domain model with all fields populated
 func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 	if m == nil {
 		return nil

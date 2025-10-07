@@ -1,3 +1,6 @@
+// Package utils implements CLI commands for utils management.
+// This file contains the utils_test command implementation.
+
 package utils
 
 import (
