@@ -45,7 +45,7 @@ type Config struct {
     MongoURI, MongoDBHost, MongoDBName, MongoDBUser, MongoDBPassword string
 
     // RabbitMQ
-    RabbitMQHost, RabbitMQUser, RabbitMQPass, RabbitMQExchange string
+    RabbitMQHost, RabbitMQDefaultUser, RabbitMQDefaultPass, RabbitMQExchange string
 
     // Redis
     RedisHost, RedisPassword string

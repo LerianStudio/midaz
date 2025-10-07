@@ -29,7 +29,7 @@ import (
 // define exchange rates between different assets for multi-currency transactions.
 //
 // The interface supports:
-//   - Create and Update operations (upsert pattern)
+//   - Create and Update operations (separate methods, not upsert)
 //   - Currency pair lookup (FindByCurrencyPair)
 //   - External ID lookup (FindByExternalID)
 //   - Batch queries by asset codes (FindAllByAssetCodes)

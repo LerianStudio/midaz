@@ -28,7 +28,7 @@ import (
 //
 // Business Rules:
 //   - External accounts cannot be updated (type "external")
-//   - Only provided fields are updated (partial updates supported)
+//   - This performs a full update. Fields omitted from the input will be overwritten with their zero value (e.g., an empty string for Name), clearing existing data.
 //   - Account type cannot be changed (immutable, enforced at HTTP layer)
 //   - Asset code cannot be changed (immutable, enforced at HTTP layer)
 //   - Alias cannot be changed (immutable, enforced at HTTP layer)
@@ -36,7 +36,7 @@ import (
 //   - Status can be updated
 //
 // Update Behavior:
-//   - Empty strings in input are treated as "clear the field"
+//   - All fields from input are set, including zero values (empty strings, nil pointers)
 //   - Nil pointers in input mean "don't update this field"
 //   - Metadata is merged with existing metadata (RFC 7396)
 //

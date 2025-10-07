@@ -189,8 +189,8 @@ make install-local
 ### From Release
 
 ```bash
-# Download binary from GitHub releases
-curl -L https://github.com/LerianStudio/midaz/releases/download/v3.x.x/mdz-<os>-<arch> -o mdz
+# Download binary from GitHub releases (latest version)
+curl -L https://github.com/LerianStudio/midaz/releases/latest/download/mdz-<os>-<arch> -o mdz
 chmod +x mdz
 sudo mv mdz /usr/local/bin/
 ```

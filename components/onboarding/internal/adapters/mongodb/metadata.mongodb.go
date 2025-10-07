@@ -56,7 +56,7 @@ type Repository interface {
 
 	// Update modifies metadata for an entity using upsert semantics.
 	// Creates the document if it doesn't exist (upsert: true).
-	// Merges provided metadata with existing metadata.
+	// Replaces the entire metadata map for an entity. Any merging logic must be handled by the caller.
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 
 	// Delete removes metadata for an entity.

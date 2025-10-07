@@ -234,7 +234,7 @@ account, err := useCase.GetAccountByID(ctx, orgID, ledgerID, nil, accountID)
 Retrieve paginated collections:
 
 ```go
-func (uc *UseCase) List{Entities}(ctx context.Context, ..., filter QueryFilter) (*mmodel.{Entities}, error)
+func (uc *UseCase) List{Entities}(ctx context.Context, ..., filter QueryFilter) (*mmodel.{Entities}, int, error)
 ```
 
 **Steps:**
@@ -243,7 +243,7 @@ func (uc *UseCase) List{Entities}(ctx context.Context, ..., filter QueryFilter) 
 2. Fetch entities from PostgreSQL with pagination
 3. Fetch metadata for all entities
 4. Merge metadata into entities
-5. Return paginated collection
+5. Return paginated collection with total count
 
 **Example:**
 
@@ -253,7 +253,8 @@ filter := QueryFilter{
     Page:      1,
     SortOrder: "desc",
 }
-accounts, err := useCase.ListAccounts(ctx, orgID, ledgerID, filter)
+accounts, total, err := useCase.ListAccounts(ctx, orgID, ledgerID, filter)
+// total is used for X-Total-Count header in HTTP responses
 ```
 
 ## Error Handling
