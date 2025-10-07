@@ -120,12 +120,12 @@ internal/
 2. HTTP Handler (adapters/http/in)
    ↓
 3. Command Use Case (services/command)
+   ├→ Check idempotency (Redis) ⚠️ MUST BE FIRST
    ├→ Parse DSL or validate JSON
    ├→ Fetch balances (PostgreSQL)
    ├→ Validate transaction (lib-commons)
    ├→ Create transaction (PostgreSQL)
    ├→ Create metadata (MongoDB)
-   ├→ Check idempotency (Redis)
    ├→ Execute transaction (sync or async)
    │  ├→ Update balances (PostgreSQL)
    │  ├→ Create operations (PostgreSQL)

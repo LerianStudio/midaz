@@ -419,7 +419,11 @@ func processTransactionDSL(dslContent string) error {
 
     // Parse to struct
     result := transaction.Parse(dslContent)
-    tx := result.(libTransaction.Transaction)
+    tx, ok := result.(libTransaction.Transaction)
+    if !ok {
+        // Handle parse failure - returned unexpected type
+        return constant.ErrInvalidScriptFormat
+    }
 
     // Process transaction
     return service.CreateTransaction(tx)

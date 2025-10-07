@@ -45,6 +45,12 @@ func Format(commands ...string) string {
 //
 // Returns:
 //   - error: Error if file cannot be read or JSON is invalid
+//
+// TODO: CRITICAL - Bug in pointer handling: Line 65 passes &request (pointer to interface)
+// and UnmarshalJSONFromReader takes &object again, resulting in **any being passed to
+// json.Unmarshal. This causes silent failure - data unmarshals to temp variable, not the
+// caller's struct. Fix: Pass request by value (remove &), and remove & in UnmarshalJSONFromReader.
+// See PR#1394 kodus-ai review for details.
 func FlagFileUnmarshalJSON(path string, request any) error {
 	var (
 		file *os.File

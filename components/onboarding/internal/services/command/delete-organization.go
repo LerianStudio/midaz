@@ -37,7 +37,7 @@ import (
 // Business Rules:
 //   - Organization must exist
 //   - Organization must not have active child entities (enforced by constraints)
-//   - Soft delete is idempotent (deleting already deleted org returns error)
+//   - Soft delete is NOT idempotent (deleting already deleted org returns error)
 //
 // Parameters:
 //   - ctx: Context for tracing, logging, and cancellation

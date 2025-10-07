@@ -16,6 +16,10 @@ import (
 )
 
 // Package-level variables for managing the OAuth callback server lifecycle.
+// TODO: CRITICAL - Race condition: These package-level variables create a deadlock risk when
+// browserLogin is called concurrently. One execution can overwrite another's context/cancel,
+// causing the first to hang indefinitely. Solution: Use local context in browserLogin and pass
+// cancel via closure to callbackHandler. See PR#1394 kodus-ai review for details.
 var (
 	srvCallBackCtx    context.Context
 	srvCallBackCancel context.CancelFunc

@@ -19,7 +19,8 @@ import (
 //
 // Fetches balances from PostgreSQL with cursor pagination, then enriches with MongoDB metadata.
 // Returns empty array if no balances found.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// If balance data exists in Redis cache, it updates the Available, OnHold, and Version fields
+// from the cached values (other fields come from PostgreSQL).
 //
 // Parameters:
 //   - ctx: Context for tracing, logging, and cancellation
@@ -90,7 +91,8 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 //
 // Fetches all balance entries (default + additional) for an account identified by alias.
 // Does NOT enrich with metadata (performance optimization).
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// If balance data exists in Redis cache, it updates the Available, OnHold, and Version fields
+// from the cached values (other fields come from PostgreSQL).
 //
 // Parameters:
 //   - ctx: Context for tracing, logging, and cancellation

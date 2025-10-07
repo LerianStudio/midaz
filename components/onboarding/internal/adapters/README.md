@@ -157,8 +157,13 @@ func (m *EntityPostgreSQLModel) ToEntity() *mmodel.Entity {
 
 // From Domain Model
 func (m *EntityPostgreSQLModel) FromEntity(entity *mmodel.Entity) {
+    id := entity.ID
+    if id == "" { // Generate UUID only for new entities
+        id = libCommons.GenerateUUIDv7().String()
+    }
+
     *m = EntityPostgreSQLModel{
-        ID:                libCommons.GenerateUUIDv7().String(),
+        ID:                id,
         Name:              entity.Name,
         Status:            entity.Status.Code,
         StatusDescription: entity.Status.Description,
@@ -267,14 +272,25 @@ org := &mmodel.Organization{
 
 // Repository creates in PostgreSQL
 createdOrg, err := orgRepo.Create(ctx, org)
+if err != nil {
+    return nil, err // handle PostgreSQL creation error
+}
 
 // Metadata created in MongoDB
+// NOTE: This is a dual-write pattern with potential consistency issues.
+// If MongoDB write fails, consider compensating action or use saga/outbox pattern.
 metadata := map[string]any{"industry": "Technology"}
 err = metadataRepo.Create(ctx, "organization", &mongodb.Metadata{
     EntityID:   createdOrg.ID,
     EntityName: "Organization",
     Data:       metadata,
 })
+if err != nil {
+    // TODO: Implement compensating action to delete PostgreSQL record
+    // or use transactional outbox pattern to ensure eventual consistency
+    // e.g., orgRepo.Delete(ctx, createdOrg.ID)
+    return nil, fmt.Errorf("metadata creation failed: %w", err)
+}
 ```
 
 ### Querying with Metadata
@@ -319,15 +335,33 @@ WHERE deleted_at IS NULL
 
 ### 3. Use Transactions When Needed
 
-For operations spanning multiple tables, use database transactions:
+For operations spanning multiple tables, use database transactions with proper error handling:
 
 ```go
 tx, err := db.BeginTx(ctx, nil)
-defer tx.Rollback()
+if err != nil {
+    return err
+}
+
+// Defer rollback only if commit hasn't been called
+// This pattern ensures rollback is only attempted on errors or panics
+defer func() {
+    if p := recover(); p != nil {
+        tx.Rollback()
+        panic(p) // re-panic after rollback
+    } else if err != nil {
+        tx.Rollback() // error occurred, rollback
+    }
+}()
 
 // Multiple operations...
+// On failure, set err and return
 
-tx.Commit()
+// On success, commit the transaction
+err = tx.Commit()
+if err != nil {
+    return err
+}
 ```
 
 ### 4. Metadata Separation

@@ -187,21 +187,16 @@ The `components` directory contains the main services and applications that make
 
 ```bash
 # Start infrastructure (PostgreSQL, MongoDB, RabbitMQ, Redis)
-cd components/infra
-make up
+(cd components/infra && make up)
 
 # Start onboarding service
-cd components/onboarding
-make run
+(cd components/onboarding && make run)
 
 # Start transaction service
-cd components/transaction
-make run
+(cd components/transaction && make run)
 
 # Start console
-cd components/console
-npm install
-npm run dev
+(cd components/console && npm install && npm run dev)
 ```
 
 ### Running Tests

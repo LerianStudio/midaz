@@ -26,7 +26,7 @@ import (
 // Business Rules:
 //   - Portfolio must exist and not be already deleted
 //   - Portfolio should not have active accounts referencing it
-//   - Soft delete is idempotent (deleting already deleted portfolio returns error)
+//   - Soft delete is NOT idempotent (deleting already deleted portfolio returns error)
 //
 // Soft Deletion:
 //   - Sets DeletedAt timestamp to current time

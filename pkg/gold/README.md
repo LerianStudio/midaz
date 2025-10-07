@@ -99,7 +99,7 @@ gold/
 **Format:**
 
 - Asset code (e.g., USD, BTC)
-- Amount | Scale (e.g., 1000 | 1000 means $10.00 with 2 decimal places)
+- Amount | Scale (e.g., 1000 | 100 means $10.00 with 2 decimal places)
 - Source accounts (where money comes from)
 - Distribute accounts (where money goes to)
 
@@ -193,7 +193,7 @@ $variable_name              # Variable (for templates)
 
 ```lisp
 (from @usd_account :amount USD 100 | 100
-  (rate ext-rate-id USD -> BTC 0.000025 | 1000000))
+  (rate ext-rate-id USD -> BTC 25 | 1000000))
 ```
 
 **Format:**
@@ -256,7 +256,7 @@ $variable_name              # Variable (for templates)
       (from @usd_account :amount USD 1000 | 100))
     (distribute
       (to @btc_account :amount BTC 25000000 | 100000000
-        (rate rate-123 USD -> BTC 0.000025 | 1000000)))))
+        (rate rate-123 USD -> BTC 25 | 1000000)))))
 ```
 
 #### Pending Transaction
@@ -549,7 +549,7 @@ Define exchange rates within transactions:
 
 ```lisp
 (from @usd_account :amount USD 1000 | 100
-  (rate rate-id-123 USD -> BTC 0.000025 | 1000000))
+  (rate rate-id-123 USD -> BTC 25 | 1000000))
 ```
 
 **Format:**
