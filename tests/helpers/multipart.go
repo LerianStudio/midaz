@@ -14,9 +14,9 @@ import (
 func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, headers map[string]string, fields map[string]string, files map[string]struct {
 	Field, Filename string
 	Content         []byte
-},
-) (int, []byte, http.Header, error) {
+}) (int, []byte, http.Header, error) {
 	var buf bytes.Buffer
+
 	mw := multipart.NewWriter(&buf)
 
 	for k, v := range fields {
@@ -28,6 +28,7 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 		if err != nil {
 			return 0, nil, nil, err
 		}
+
 		if _, err = io.Copy(fw, bytes.NewReader(f.Content)); err != nil {
 			return 0, nil, nil, err
 		}
@@ -40,12 +41,14 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 	if headers == nil {
 		headers = map[string]string{}
 	}
+
 	headers["Content-Type"] = mw.FormDataContentType()
 
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, &buf)
 	if err != nil {
 		return 0, nil, nil, err
 	}
+
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -55,10 +58,12 @@ func (c *HTTPClient) RequestMultipart(ctx context.Context, method, path string, 
 		return 0, nil, nil, err
 	}
 	defer resp.Body.Close()
+
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, nil, resp.Header, err
 	}
+
 	return resp.StatusCode, b, resp.Header, nil
 }
 
@@ -70,5 +75,6 @@ func (c *HTTPClient) PostDSL(ctx context.Context, path string, headers map[strin
 	}{
 		"dsl": {Field: "dsl", Filename: "test.gold", Content: []byte(dsl)},
 	}
+
 	return c.RequestMultipart(ctx, http.MethodPost, path, headers, nil, files)
 }

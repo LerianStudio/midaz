@@ -40,10 +40,13 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 //
 // This interface defines Redis operations used by the transaction service for
 // caching, locking, queue management, and idempotency tracking.
+//
+//go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
+	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
 	AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
@@ -149,6 +152,59 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	logger.Infof("value : %v", val)
 
 	return val, nil
+}
+
+// MGet retrieves multiple values from redis.
+func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.mget")
+	defer span.End()
+
+	if len(keys) == 0 {
+		libOpentelemetry.HandleSpanEvent(&span, "mget called with empty keys")
+
+		return map[string]string{}, nil
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis: %v", err)
+
+		return nil, err
+	}
+
+	res, err := rds.MGet(ctx, keys...).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
+
+		logger.Errorf("Failed to mget on redis: %v", err)
+
+		return nil, err
+	}
+
+	out := make(map[string]string, len(keys))
+
+	for i, v := range res {
+		if v == nil {
+			continue
+		}
+
+		switch vv := v.(type) {
+		case string:
+			out[keys[i]] = vv
+		case []byte:
+			out[keys[i]] = string(vv)
+		default:
+			out[keys[i]] = fmt.Sprint(v)
+		}
+	}
+
+	logger.Infof("mget retrieved %d/%d values", len(out), len(keys))
+
+	return out, nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {

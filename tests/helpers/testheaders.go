@@ -18,5 +18,6 @@ func AuthHeaders(requestID string) map[string]string {
 	} else {
 		hdr["Authorization"] = "Bearer test"
 	}
+
 	return hdr
 }

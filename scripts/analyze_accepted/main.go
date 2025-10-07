@@ -66,19 +66,23 @@ func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (floa
 		return 0, err
 	}
 	var cur float64
+
 	for _, it := range body.Items {
 		if it.AssetCode == asset {
 			switch v := it.Available.(type) {
 			case string:
-				fmt.Sscan(v, &cur)
+				_, _ = fmt.Sscan(v, &cur)
 			case float64:
 				cur = v
 			default:
-				b, _ := json.Marshal(v)
-				fmt.Sscan(string(b), &cur)
+				b, err := json.Marshal(v)
+				if err == nil {
+					_, _ = fmt.Sscan(string(b), &cur)
+				}
 			}
 		}
 	}
+
 	return cur, nil
 }
 
@@ -89,6 +93,7 @@ func main() {
 	transURL := flag.String("trans", getenv("TRANSACTION_URL", "http://localhost:3001"), "transaction base URL")
 	auth := flag.String("auth", getenv("TEST_AUTH_HEADER", ""), "Authorization header value")
 	flag.Parse()
+
 	if *acceptedPath == "" || *logPath == "" || *outPath == "" {
 		fmt.Fprintf(os.Stderr, "usage: analyze_accepted -accepted <file> -log <file> -out <file> [-trans URL] [-auth TOKEN]\n")
 		os.Exit(2)
@@ -99,16 +104,19 @@ func main() {
 		panic(err)
 	}
 	defer accFile.Close()
+
 	logBytes, err := os.ReadFile(*logPath)
 	if err != nil {
 		panic(err)
 	}
+
 	logStr := string(logBytes)
 
 	type entry struct {
 		kind, id string
 		tx       tx
 	}
+
 	var entries []entry
 	sc := bufio.NewScanner(accFile)
 	for sc.Scan() {
@@ -145,8 +153,9 @@ func main() {
 			if op.AccountAlias == "" || strings.HasPrefix(op.AccountAlias, "@external/") {
 				continue
 			}
+
 			var after float64
-			fmt.Sscan(op.BalanceAfter.Available, &after)
+			_, _ = fmt.Sscan(op.BalanceAfter.Available, &after)
 			k := aliasKey{Org: e.tx.OrganizationID, Ledger: e.tx.LedgerID, Alias: op.AccountAlias, Asset: op.AssetCode}
 			if v, ok := maxAfter[k]; !ok || after > v {
 				maxAfter[k] = after

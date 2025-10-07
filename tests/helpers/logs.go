@@ -4,6 +4,7 @@ package helpers
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -12,10 +13,12 @@ import (
 // Intended for use within tests; paths are relative to the package CWD (e.g., tests/chaos).
 func StartLogCapture(containers []string, testName string) func() {
 	since := time.Now().Format(time.RFC3339)
+	safeName := strings.ReplaceAll(testName, "/", "_")
+
 	return func() {
 		for _, c := range containers {
 			log, _ := DockerLogsSince(c, since, 0)
-			_ = WriteTextFile(fmt.Sprintf("reports/logs/%s_%s.log", c, testName), fmt.Sprintf("--- %s logs since %s\n%s", c, since, log))
+			_ = WriteTextFile(fmt.Sprintf("reports/logs/%s_%s.log", c, safeName), fmt.Sprintf("--- %s logs since %s\n%s", c, since, log))
 		}
 	}
 }

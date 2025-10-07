@@ -5,10 +5,13 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -34,8 +37,6 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	ctx, span := tracer.Start(ctx, "query.get_balance_by_id")
 	defer span.End()
 
-	logger.Infof("Trying to get balance")
-
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on repo by id", err)
@@ -45,18 +46,34 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		return nil, err
 	}
 
-	if balance != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), balanceID.String())
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb balance", err)
+	if balance == nil {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-			logger.Errorf("Error get metadata on mongodb balance: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
 
-			return nil, err
-		}
+		logger.Warnf("Balance not found")
 
-		if metadata != nil {
-			balance.Metadata = metadata.Data
+		return nil, err
+	}
+
+	// Overlay amounts from Redis cache when available to ensure freshest values
+	internalKey := libCommons.BalanceInternalKey(organizationID.String(), ledgerID.String(), balance.Alias+"#"+balance.Key)
+
+	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
+	if rerr != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache value on redis", rerr)
+
+		logger.Warnf("Failed to get balance cache value on redis: %v", rerr)
+	}
+
+	if value != "" {
+		cached := mmodel.BalanceRedis{}
+		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
+			logger.Warnf("Error unmarshalling balance cache value: %v", uerr)
+		} else {
+			balance.Available = cached.Available
+			balance.OnHold = cached.OnHold
+			balance.Version = cached.Version
 		}
 	}
 
