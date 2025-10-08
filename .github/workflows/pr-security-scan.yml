@@ -26,6 +26,5 @@ jobs:
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets:
-      manage_token: ${{ secrets.MANAGE_TOKEN }}
       docker_username: ${{ secrets.DOCKER_USERNAME }}
       docker_password: ${{ secrets.DOCKER_PASSWORD }}
