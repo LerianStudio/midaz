@@ -19,6 +19,7 @@ import {
 } from '@/lib/http/server/decorators'
 import type { SegmentSearchEntity } from '@/core/domain/entities/segment-entity'
 import { BaseController } from '@/lib/http/server/base-controller'
+import { NextResponse } from 'next/server'
 
 const CreateSchema = z.object({
   name: segment.name
@@ -109,10 +110,12 @@ export class SegmentController extends BaseController {
     @Param('ledgerId') ledgerId: string,
     @Param('segmentId') segmentId: string
   ) {
-    return await this.deleteSegmentUseCase.execute(
+    await this.deleteSegmentUseCase.execute(
       organizationId,
       ledgerId,
       segmentId!
     )
+
+    return NextResponse.json({}, { status: 200 })
   }
 }
