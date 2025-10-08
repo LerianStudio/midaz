@@ -252,7 +252,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	script := redis.NewScript(addSubLua)
 
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	transactionKey := utils.TransactionInternalKey(transactionID.String())
 
 	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
 	if err != nil {
