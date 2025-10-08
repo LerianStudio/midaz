@@ -18,10 +18,14 @@ jobs:
   security-scan:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/pr-security-scan.yml@main
     with:
-      runner_type: "ubuntu-latest"
+      runner_type: "firmino-lxc-runners"
       filter_paths: |-
         components/onboarding
         components/transaction
         components/console
       path_level: "2"
       dockerhub_org: "lerianstudio"
+    secrets:
+      manage_token: ${{ secrets.MANAGE_TOKEN }}
+      docker_username: ${{ secrets.DOCKER_USERNAME }}
+      docker_password: ${{ secrets.DOCKER_PASSWORD }}
