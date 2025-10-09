@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
@@ -220,7 +221,7 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 
 // RemoveTransactionFromRedisQueue func that remove transaction from redis queue
 func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
-	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID)
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
 	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
 		logger.Warnf("err to remove message on redis: %s", err.Error())
@@ -232,7 +233,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 // SendTransactionToRedisQueue func that send transaction to redis queue
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, parserDSL libTransaction.Transaction, validate *libTransaction.Responses, transactionStatus string, transactionDate time.Time) {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	queue := mmodel.TransactionRedisQueue{
 		HeaderID:          reqId,
