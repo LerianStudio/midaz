@@ -39,7 +39,7 @@ const initialValues = {
 
 const FormSchema = z.object({
   name: segment.name,
-  metadata: segment.metadata
+  metadata: segment.metadata.optional().default({})
 })
 
 type FormData = z.infer<typeof FormSchema>
@@ -63,6 +63,10 @@ export const SegmentsSheet = ({
       onSuccess?.()
       form.reset()
       onOpenChange?.(false)
+    },
+    onError: (error) => {
+      console.error('Failed to create segment:', error)
+      // The error will be handled by the mutation error state
     }
   })
 
@@ -73,6 +77,10 @@ export const SegmentsSheet = ({
     onSuccess: () => {
       onSuccess?.()
       onOpenChange?.(false)
+    },
+    onError: (error) => {
+      console.error('Failed to update segment:', error)
+      // The error will be handled by the mutation error state
     }
   })
 
@@ -92,7 +100,10 @@ export const SegmentsSheet = ({
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
-      <SheetContent>
+      <SheetContent
+        data-testid="segment-sheet"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         {mode === 'create' && (
           <SheetHeader>
             <SheetTitle>

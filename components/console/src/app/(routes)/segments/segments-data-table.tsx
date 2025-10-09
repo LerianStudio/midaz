@@ -63,12 +63,19 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
       <TableCell className="w-0" align="center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="h-[34px] w-[34px] p-2" variant="secondary">
+            <Button
+              className="h-[34px] w-[34px] p-2"
+              variant="secondary"
+              data-testid="actions"
+            >
               <MoreVertical size={16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => handleEdit(segment.original)}>
+            <DropdownMenuItem
+              onClick={() => handleEdit(segment.original)}
+              data-testid="edit"
+            >
               {intl.formatMessage({
                 id: `common.details`,
                 defaultMessage: 'Details'
@@ -82,6 +89,7 @@ const SegmentRow: React.FC<SegmentRowProps> = ({
                   segment.original.name || ''
                 )
               }
+              data-testid="delete"
             >
               {intl.formatMessage({
                 id: `common.delete`,
@@ -127,7 +135,7 @@ export const SegmentsDataTable: React.FC<SegmentsTableProps> = (props) => {
           </EmptyResource>
         ) : (
           <TableContainer>
-            <Table>
+            <Table data-testid="segments-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>
