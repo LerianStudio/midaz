@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
@@ -251,7 +252,7 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 
 	script := redis.NewScript(addSubLua)
 
-	transactionKey := libCommons.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey}, args).Result()
 	if err != nil {
