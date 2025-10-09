@@ -1,3 +1,27 @@
+## [v3.4.0-beta.19] - 2025-10-09
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.18...v3.4.0-beta.19)
+Contributors: Augusto Alvarenga, Clara Tersi, lerian-studio
+
+### 🐛 Bug Fixes
+- Improved transaction key generation by ensuring `organizationID` and `ledgerID` are included, resolving potential data integrity issues and ensuring accurate transaction tracking.
+- Corrected cache key pattern, enhancing cache hit rates and improving application responsiveness.
+- Removed a debug flag from the environment configuration to prevent unintended exposure of debug information in production environments, enhancing security.
+- Fixed a typo in `MIDAZ_CONSOLE_BASE_PATH` within configuration files, preventing configuration errors and ensuring consistent application behavior.
+
+### ⚡ Performance
+- Streamlined the transaction key generation process, reducing computational overhead and improving system efficiency.
+
+### 🔄 Changes
+- Updated environment configuration for the Midaz Console base path to ensure correct setup and reduce potential deployment errors.
+
+### 📚 Documentation
+- Updated documentation alongside configuration changes to help users avoid common setup pitfalls and ensure a smooth deployment process.
+
+### 🔧 Maintenance
+- Updated the CHANGELOG to accurately reflect recent changes, supporting transparency and user awareness of system evolution.
+
+
 ## [v3.4.0-beta.18] - 2025-10-07
 
 [Compare changes](https://github.com/LerianStudio/midaz/compare/v3.4.0-beta.17...v3.4.0-beta.18)
