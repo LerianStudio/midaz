@@ -6,14 +6,15 @@ export type CardButtonProps = {
   title: string
   subtitle: string
   onClick?: () => void
-}
+} & React.HTMLAttributes<HTMLDivElement>
 
 export const CardButton = ({
   icon,
   warning,
   title,
   subtitle,
-  onClick
+  onClick,
+  ...props
 }: CardButtonProps) => {
   const intl = useIntl()
 
@@ -21,6 +22,7 @@ export const CardButton = ({
     <div
       className="group hover:border-accent hover:bg-accent flex w-80 cursor-pointer flex-col gap-8 rounded-[8px] border border-zinc-200 bg-white p-6 transition-colors"
       onClick={onClick}
+      {...props}
     >
       <div className="flex flex-row justify-between text-zinc-400 transition-colors group-hover:text-zinc-800">
         {icon}

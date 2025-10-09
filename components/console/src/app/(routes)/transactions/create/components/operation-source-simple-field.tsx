@@ -13,6 +13,7 @@ export type OperationSourceSimpleFieldProps = {
   onRemove?: (alias: string) => void
   control: Control<TransactionFormSchema>
   expand?: boolean
+  'data-testid'?: string
 }
 
 export const OperationSourceSimpleField = ({
@@ -22,6 +23,7 @@ export const OperationSourceSimpleField = ({
   onRemove,
   control,
   expand,
+  'data-testid': dataTestId,
   ...props
 }: OperationSourceSimpleFieldProps) => {
   const { accounts, addBalance } = useTransactionForm()
@@ -47,7 +49,11 @@ export const OperationSourceSimpleField = ({
         />
       )}
       {values.length === 0 && (
-        <AccountSearchField onSelect={onSubmit} {...props} />
+        <AccountSearchField
+          onSelect={onSubmit}
+          data-testid={dataTestId}
+          {...props}
+        />
       )}
     </>
   )

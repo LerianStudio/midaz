@@ -1,10 +1,11 @@
+name: midaz-test
+
 services:
   console:
-    container_name: midaz-console
+    container_name: midaz-console-test
     build:
       context: ../..
       dockerfile: components/console/Dockerfile.test
-    restart: always
     ports:
       - '${MIDAZ_CONSOLE_PORT}:${MIDAZ_CONSOLE_PORT}'
     env_file:
@@ -21,29 +22,10 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - console-network
-      - transaction-network
-      - plugin-auth-network
-      - infra-network
-      - ledger-network
-      - proxy-network
+      - midaz-test-network
 
 networks:
-  console-network:
-    name: console-network
+  midaz-test-network:
+    name: midaz-test-network
     driver: bridge
-  transaction-network:
-    name: transaction-network
-    driver: bridge
-  ledger-network:
-    name: ledger-network
-    driver: bridge
-  plugin-auth-network:
-    name: plugin-auth-network
-    driver: bridge
-  infra-network:
-    name: infra-network
-    driver: bridge
-  proxy-network:
-    name: proxy-network
-    driver: bridge
+    external: true

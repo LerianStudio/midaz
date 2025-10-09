@@ -31,7 +31,7 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 10 * 1000 // 10 seconds for actions,
   },
-  
+
   projects: [
     {
       name: 'chromium',
@@ -47,14 +47,16 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] }
     }
-  ],
+  ]
 
-  webServer: {
-    command: 'npm run dev',
-    port: parseInt(CONSOLE_PORT, 10),
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000, // 2 minutes
-    stdout: 'pipe',
-    stderr: 'pipe'
-  }
+  // webServer is disabled when testing against the Docker container
+  // If you need to run tests against a local dev server, uncomment this:
+  // webServer: {
+  //   command: 'npm run dev',
+  //   port: parseInt(CONSOLE_PORT, 10),
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120 * 1000, // 2 minutes
+  //   stdout: 'pipe',
+  //   stderr: 'pipe'
+  // }
 })

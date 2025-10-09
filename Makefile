@@ -115,7 +115,9 @@ help:
 	@echo ""
 	@echo "Service Commands:"
 	@echo "  make up                           - Start all services with Docker Compose"
+	@echo "  make up-test                      - Start all test services with Docker Compose"
 	@echo "  make down                         - Stop all services with Docker Compose"
+	@echo "  make down-test                    - Stop all test services with Docker Compose"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
 	@echo "  make restart                      - Restart all containers"
@@ -141,6 +143,11 @@ help:
 	@echo "  make newman                      - Run complete API workflow tests with Newman"
 	@echo "  make newman-install              - Install Newman CLI and reporters globally"
 	@echo "  make newman-env-check            - Verify environment file exists"
+	@echo ""
+	@echo ""
+	@echo "Database Commands:"
+	@echo "  make db-seed                     - Seed the test database with fixtures"
+	@echo "  make db-reset                    - Reset the test database (clean + seed)"
 	@echo ""
 	@echo ""
 
@@ -359,6 +366,19 @@ up:
 	done
 	@echo "[ok] All services started successfully"
 
+.PHONY: up-test
+up-test:
+	$(call print_title,"Starting all test services with Docker Compose")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.test.yml" ]; then \
+			echo "Starting test services in $$dir..."; \
+			(cd $$dir && $(MAKE) up-test) || exit 1; \
+		fi; \
+	done
+	@echo "[ok] All test services started successfully ✔️"
+
 .PHONY: down
 down:
 	$(call print_title,"Stopping all services with Docker Compose")
@@ -372,6 +392,20 @@ down:
 		fi; \
 	done
 	@echo "[ok] All services stopped successfully"
+
+.PHONY: down-test
+down-test:
+	$(call print_title,"Stopping all test services with Docker Compose")
+	@for dir in $(COMPONENTS); do \
+		component_name=$$(basename $$dir); \
+		if [ -f "$$dir/docker-compose.test.yml" ]; then \
+			echo "Stopping test services in component: $$component_name"; \
+			(cd $$dir && $(MAKE) down-test) || exit 1; \
+		else \
+			echo "No docker-compose.test.yml found in $$component_name, skipping"; \
+		fi; \
+	done
+	@echo "[ok] All test services stopped successfully ✔️"
 
 .PHONY: start
 start:
@@ -564,3 +598,23 @@ dev-setup:
 		echo ""; \
 	done
 	@echo "[ok] Development environment set up successfully for all components"
+
+#-------------------------------------------------------
+# Database Commands
+#-------------------------------------------------------
+
+.PHONY: db-seed db-reset
+
+# Seed the test database with fixtures
+db-seed:
+	$(call print_title,"Seeding test database with fixtures")
+	@echo "Running database seed script..."
+	@cd $(CONSOLE_DIR) && npm run db:seed
+	@echo "[ok] Database seeded successfully ✔️"
+
+# Reset the test database (clean + seed)
+db-reset:
+	$(call print_title,"Resetting test database")
+	@echo "Cleaning and reseeding database..."
+	@cd $(CONSOLE_DIR) && npm run db:reset
+	@echo "[ok] Database reset successfully ✔️"

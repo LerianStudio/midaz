@@ -151,7 +151,10 @@ export const TransactionReview = () => {
       </h6>
 
       <div className="flex flex-col gap-6">
-        <h1 className="py-9 text-4xl font-bold text-zinc-700">
+        <h1
+          className="py-9 text-4xl font-bold text-zinc-700"
+          data-testid="transaction-review-title"
+        >
           {intl.formatMessage({
             id: 'transactions.create.review.title',
             defaultMessage: 'Review and Submit Transaction'
@@ -335,6 +338,7 @@ export const TransactionReview = () => {
             loading={loading && sendAnother}
             disabled={loading && !sendAnother}
             onClick={handleSubmitAnother}
+            data-testid="transaction-submit-another-button"
           >
             {intl.formatMessage({
               id: 'transactions.create.another.button',
@@ -347,6 +351,7 @@ export const TransactionReview = () => {
             loading={loading && !sendAnother}
             disabled={loading && sendAnother}
             onClick={handleSubmit}
+            data-testid="transaction-submit-button"
           >
             {intl.formatMessage({
               id: 'transactions.create.button',
