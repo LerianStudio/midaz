@@ -2,6 +2,8 @@ package utils
 
 import (
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const beginningKey = "{"
@@ -30,16 +32,16 @@ func GenericInternalKey(name, contextName, organizationID, ledgerID, key string)
 
 // TransactionInternalKey returns a key with the following format to be used on redis cluster:
 // "transaction:{contextName}:organizationID:ledgerID:key"
-func TransactionInternalKey(organizationID, ledgerID, key string) string {
-	transaction := GenericInternalKey("transaction", "transactions", organizationID, ledgerID, key)
+func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
+	transaction := GenericInternalKey("transaction", "transactions", organizationID.String(), ledgerID.String(), key)
 
 	return transaction
 }
 
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
 // "balance:{contextName}:organizationID:ledgerID:key"
-func BalanceInternalKey(organizationID, ledgerID, key string) string {
-	balance := GenericInternalKey("balance", "transactions", organizationID, ledgerID, key)
+func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
+	balance := GenericInternalKey("balance", "transactions", organizationID.String(), ledgerID.String(), key)
 
 	return balance
 }
