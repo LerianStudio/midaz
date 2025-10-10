@@ -31,7 +31,9 @@
     "lhci": "lhci autorun",
     "test:lighthouse": "npx wait-on http://localhost:8081 --timeout 120000 --interval 5000 && npm run lhci",
     "format:check": "prettier --check .",
-    "build:test": "cross-env NODE_ENV=test next build"
+    "build:test": "cross-env NODE_ENV=test next build",
+    "db:seed": "tsx ./tests/setup/setup-database.ts",
+    "db:reset": "tsx ./tests/setup/cleanup-database.ts --restart"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "^1.3.1",

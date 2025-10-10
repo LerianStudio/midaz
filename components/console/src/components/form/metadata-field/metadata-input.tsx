@@ -57,6 +57,7 @@ export const MetadataInput = ({
             })}
             className="h-9"
             readOnly={readOnly}
+            data-testid="metadata-key-input"
           />
         </div>
         <div className="flex flex-1 flex-col gap-2">
@@ -76,6 +77,7 @@ export const MetadataInput = ({
             })}
             className="h-9"
             readOnly={readOnly}
+            data-testid="metadata-value-input"
           />
         </div>
       </div>
@@ -85,6 +87,7 @@ export const MetadataInput = ({
           className="bg-shadcn-600 disabled:bg-shadcn-200 h-9 w-9 self-end rounded-full"
           onClick={handleAddMetadata}
           disabled={!currentMetadata.key || !currentMetadata.value}
+          data-testid="metadata-add-button"
         >
           <Plus size={16} className={cn('shrink-0')} />
         </Button>

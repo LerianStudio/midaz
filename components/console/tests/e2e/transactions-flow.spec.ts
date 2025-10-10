@@ -1,290 +1,332 @@
 import { test, expect } from '@playwright/test'
-import { navigateToTransactions } from '../utils/navigate-to-transactions'
-
-test.beforeEach(async ({ page }) => {
-  await navigateToTransactions(page)
-})
+import {
+  fillSimpleTransaction,
+  fillComplexTransaction
+} from '../utils/transactions'
+import {
+  SIMPLE_TRANSACTION_FORM_DATA,
+  COMPLEX_TRANSACTION_FORM_DATA
+} from '../fixtures/transactions'
 
 test.describe('Transactions Management - E2E Tests', () => {
-  test.describe('Transaction Creation', () => {
-    test('should open transaction creation modal', async ({ page }) => {
+  test.describe('Navigate to Transactions from the Home', () => {
+    test('should navigate to transactions page from sidebar', async ({
+      page
+    }) => {
+      // Start at home page
+      await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+      // Click on Transactions in the sidebar using text selector
+      await page.getByRole('link', { name: /transactions/i }).click()
+
+      // Wait for navigation
+      await page.waitForURL(/\/transactions/, { timeout: 10000 })
+
+      // Verify we're on the transactions page
+      await expect(page.getByTestId('title')).toBeVisible({ timeout: 15000 })
+
+      // Verify new transaction button is present
+      await expect(page.getByTestId('new-transaction')).toBeVisible()
+    })
+  })
+
+  test.describe('Tests for List Transactions', () => {
+    test.beforeEach(async ({ page }) => {
+      // Navigate to transactions page before each test
+      await page.goto('/transactions', { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(2000) // Wait for data to load
+    })
+
+    test('should display transactions table with correct columns', async ({
+      page
+    }) => {
+      // Wait for table to appear (environment is pre-seeded)
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      // Verify all required table columns
+      await expect(
+        page.getByRole('columnheader', { name: /^data$/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /^id$/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /source/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /destination/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /status/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /value/i })
+      ).toBeVisible()
+      await expect(
+        page.getByRole('columnheader', { name: /actions/i })
+      ).toBeVisible()
+    })
+
+    test('should display transaction rows with correct data', async ({
+      page
+    }) => {
+      // Wait for table to appear (environment is pre-seeded)
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      // Verify transaction rows exist
+      const transactionRows = page.getByTestId('transaction-row')
+      const rowCount = await transactionRows.count()
+      expect(rowCount).toBeGreaterThan(0)
+
+      // Verify first row has all expected cells
+      const firstRow = transactionRows.first()
+      const cells = firstRow.locator('td')
+      const cellCount = await cells.count()
+
+      // Should have 7 columns: Date, ID, Source, Destination, Status, Value, Actions
+      expect(cellCount).toBe(7)
+    })
+
+    test('should display transaction status badge', async ({ page }) => {
+      // Wait for table to appear (environment is pre-seeded)
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      const firstRow = page.getByTestId('transaction-row').first()
+      await firstRow.waitFor({ state: 'visible', timeout: 5000 })
+
+      // Status badge should be visible (can be Approved or Canceled)
+      const badge = firstRow.locator('[class*="badge"]').first()
+      await expect(badge).toBeVisible()
+    })
+
+    test('should open actions dropdown menu', async ({ page }) => {
+      // Wait for table to appear (environment is pre-seeded)
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      const actionsButton = page.getByTestId('actions').first()
+      await actionsButton.waitFor({ state: 'visible', timeout: 5000 })
+      await actionsButton.click()
+
+      // Verify "See details" option appears
+      await expect(
+        page.getByRole('menuitem', { name: /see details/i })
+      ).toBeVisible()
+    })
+
+    test('should display pagination controls', async ({ page }) => {
+      // Wait for table to appear (environment is pre-seeded)
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      // Verify showing count text is visible
+      await expect(page.getByText(/showing.*transaction/i)).toBeVisible()
+    })
+  })
+
+  test.describe('Create Transaction', () => {
+    test.beforeEach(async ({ page }) => {
+      // Navigate to transactions page before each test
+      await page.goto('/transactions', { waitUntil: 'domcontentloaded' })
+      await page
+        .getByTestId('transactions-table')
+        .waitFor({ state: 'visible', timeout: 10000 })
+    })
+
+    test('should open transaction mode selection modal', async ({ page }) => {
+      // Click the "New Transaction" button
+      await page.getByTestId('new-transaction').click()
+
+      // Verify modal is visible
+      await expect(page.getByTestId('transaction-mode-modal')).toBeVisible()
+
+      // Verify modal title
+      await expect(
+        page.getByRole('heading', { name: /new transaction/i })
+      ).toBeVisible()
+
+      // Verify mode selection description
+      await expect(
+        page.getByText(/select the type of transaction you want to create/i)
+      ).toBeVisible()
+    })
+
+    test('should display both Simple and Advanced mode options', async ({
+      page
+    }) => {
+      await page.getByTestId('new-transaction').click()
+
+      // Wait for modal and its content to be visible
+      await page
+        .getByTestId('transaction-mode-modal')
+        .waitFor({ state: 'visible', timeout: 10000 })
+
+      // Wait for Simple mode button to appear
+      const simpleModeButton = page.getByTestId('simple-mode')
+      await simpleModeButton.waitFor({ state: 'visible', timeout: 5000 })
+      await expect(simpleModeButton).toContainText(/simple 1:1/i)
+
+      // Verify Advanced mode button
+      const advancedModeButton = page.getByTestId('advanced-mode')
+      await expect(advancedModeButton).toBeVisible()
+      await expect(advancedModeButton).toContainText(/complex n:n/i)
+    })
+
+    test('should navigate to Simple transaction form when selected', async ({
+      page
+    }) => {
       await page.getByTestId('new-transaction').click()
       await expect(page.getByTestId('transaction-mode-modal')).toBeVisible()
-    })
 
-    test('should select transaction mode', async ({ page }) => {
-      await test.step('Open transaction mode modal', async () => {
-        await page.getByTestId('new-transaction').click()
-        await expect(page.getByTestId('transaction-mode-modal')).toBeVisible()
-      })
+      // Click Simple mode
+      await page.getByTestId('simple-mode').click()
 
-      await test.step('Select simple mode', async () => {
-        const simpleModeButton = page.getByTestId('simple-mode')
-        if (await simpleModeButton.isVisible()) {
-          await simpleModeButton.click()
-        }
+      // Wait for navigation to create page
+      await page.waitForURL(/\/transactions\/create/, { timeout: 5000 })
+
+      // Verify we're on the create page
+      await expect(page.getByTestId('transaction-form-title')).toBeVisible({
+        timeout: 10000
       })
     })
 
-    test('should create simple transaction', async ({ page }) => {
-      await test.step('Navigate to transaction creation', async () => {
-        await page.getByTestId('new-transaction').click()
-        const simpleModeButton = page.getByTestId('simple-mode')
-        if (await simpleModeButton.isVisible()) {
-          await simpleModeButton.click()
-        }
-      })
-
-      await test.step('Fill transaction form', async () => {
-        await page.locator('input[name="asset"]').fill('USD')
-        await page.locator('input[name="value"]').fill('100.00')
-        await page.locator('input[name="description"]').fill('Test Transaction')
-
-        await page
-          .locator('input[name="source[0].accountAlias"]')
-          .fill('account-source')
-        await page
-          .locator('input[name="destination[0].accountAlias"]')
-          .fill('account-dest')
-      })
-
-      await test.step('Submit transaction', async () => {
-        await page.getByRole('button', { name: 'Create Transaction' }).click()
-        await expect(page.getByTestId('success-toast')).toBeVisible()
-      })
-    })
-
-    test('should create transaction with metadata', async ({ page }) => {
-      await test.step('Navigate to transaction creation', async () => {
-        await page.getByTestId('new-transaction').click()
-        const simpleModeButton = page.getByTestId('simple-mode')
-        if (await simpleModeButton.isVisible()) {
-          await simpleModeButton.click()
-        }
-      })
-
-      await test.step('Fill transaction form with metadata', async () => {
-        await page.locator('input[name="asset"]').fill('USD')
-        await page.locator('input[name="value"]').fill('250.00')
-
-        await page.locator('#metadata').click()
-        await page.locator('#key').fill('category')
-        await page.locator('#value').fill('expense')
-        await page.getByRole('button', { name: 'Add' }).first().click()
-
-        await page
-          .locator('input[name="source[0].accountAlias"]')
-          .fill('wallet-001')
-        await page
-          .locator('input[name="destination[0].accountAlias"]')
-          .fill('expense-001')
-      })
-
-      await test.step('Submit transaction', async () => {
-        await page.getByRole('button', { name: 'Create Transaction' }).click()
-        await expect(page.getByTestId('success-toast')).toBeVisible()
-      })
-    })
-  })
-
-  test.describe('Transaction Listing', () => {
-    test('should list transactions', async ({ page }) => {
-      await expect(page.getByTestId('transactions-table')).toBeVisible()
-    })
-
-    test('should navigate between pages', async ({ page }) => {
-      const nextButton = page.getByTestId('next-page')
-      const prevButton = page.getByTestId('prev-page')
-
-      if (await nextButton.isVisible()) {
-        const isEnabled = await nextButton.isEnabled()
-        if (isEnabled) {
-          await nextButton.click()
-          await page.waitForLoadState('networkidle')
-          await expect(prevButton).toBeEnabled()
-        }
-      }
-    })
-
-    test('should view transaction details', async ({ page }) => {
-      await test.step('Click on a transaction row', async () => {
-        const firstRow = page.getByTestId('transaction-row').first()
-        if (await firstRow.isVisible()) {
-          await firstRow.click()
-          await expect(page.getByTestId('transaction-details')).toBeVisible()
-        }
-      })
-    })
-  })
-
-  test.describe('Validation Scenarios', () => {
-    test('should validate required asset field', async ({ page }) => {
+    test('should fill and submit Simple transaction form', async ({ page }) => {
+      // Open modal and select Simple mode
       await page.getByTestId('new-transaction').click()
-      const simpleModeButton = page.getByTestId('simple-mode')
-      if (await simpleModeButton.isVisible()) {
-        await simpleModeButton.click()
-      }
-
-      await page.locator('input[name="value"]').fill('100.00')
-      await page.getByRole('button', { name: 'Create Transaction' }).click()
-
-      await expect(page.getByText(/asset.*required/i)).toBeVisible()
-    })
-
-    test('should validate required value field', async ({ page }) => {
-      await page.getByTestId('new-transaction').click()
-      const simpleModeButton = page.getByTestId('simple-mode')
-      if (await simpleModeButton.isVisible()) {
-        await simpleModeButton.click()
-      }
-
-      await page.locator('input[name="asset"]').fill('USD')
-      await page.getByRole('button', { name: 'Create Transaction' }).click()
-
-      await expect(page.getByText(/value.*required/i)).toBeVisible()
-    })
-
-    test('should validate source account', async ({ page }) => {
-      await page.getByTestId('new-transaction').click()
-      const simpleModeButton = page.getByTestId('simple-mode')
-      if (await simpleModeButton.isVisible()) {
-        await simpleModeButton.click()
-      }
-
-      await page.locator('input[name="asset"]').fill('USD')
-      await page.locator('input[name="value"]').fill('100.00')
       await page
-        .locator('input[name="destination[0].accountAlias"]')
-        .fill('account-dest')
-      await page.getByRole('button', { name: 'Create Transaction' }).click()
+        .getByTestId('transaction-mode-modal')
+        .waitFor({ state: 'visible', timeout: 10000 })
+      await page.getByTestId('simple-mode').click()
 
-      await expect(page.getByText(/source.*required/i)).toBeVisible()
+      // Wait for form to load
+      await page.waitForURL(/\/transactions\/create/, { timeout: 5000 })
+      await expect(page.getByTestId('transaction-form-title')).toBeVisible({
+        timeout: 10000
+      })
+
+      // Fill the simple transaction form
+      await fillSimpleTransaction(
+        page,
+        SIMPLE_TRANSACTION_FORM_DATA.E2E_BRL_DEPOSIT
+      )
+
+      // Click the Review button
+      await page.getByTestId('transaction-review-button').click()
+
+      // Verify we're on the review step (same route, different view)
+      await expect(page.getByTestId('transaction-review-title')).toBeVisible({
+        timeout: 10000
+      })
+
+      // Take screenshot of review page
+      await page.screenshot({ path: 'test-transaction-review.png' })
+
+      // Submit the transaction
+      await page.getByTestId('transaction-submit-button').click()
+
+      // Wait for redirect to transaction detail page (contains UUID in URL)
+      await page.waitForURL(/\/transactions\/[a-f0-9-]{36}/, { timeout: 15000 })
+
+      // Verify we're on the transaction detail page
+      await expect(page).toHaveURL(/\/transactions\/[a-f0-9-]{36}/)
     })
 
-    test('should validate destination account', async ({ page }) => {
+    test('should fill and submit Simple transaction form with metadata', async ({
+      page
+    }) => {
+      // Open modal and select Simple mode
       await page.getByTestId('new-transaction').click()
-      const simpleModeButton = page.getByTestId('simple-mode')
-      if (await simpleModeButton.isVisible()) {
-        await simpleModeButton.click()
-      }
-
-      await page.locator('input[name="asset"]').fill('USD')
-      await page.locator('input[name="value"]').fill('100.00')
       await page
-        .locator('input[name="source[0].accountAlias"]')
-        .fill('account-source')
-      await page.getByRole('button', { name: 'Create Transaction' }).click()
+        .getByTestId('transaction-mode-modal')
+        .waitFor({ state: 'visible', timeout: 10000 })
+      await page.getByTestId('simple-mode').click()
 
-      await expect(page.getByText(/destination.*required/i)).toBeVisible()
+      // Wait for form to load
+      await page.waitForURL(/\/transactions\/create/, { timeout: 5000 })
+      await expect(page.getByTestId('transaction-form-title')).toBeVisible({
+        timeout: 10000
+      })
+
+      // Fill the simple transaction form with metadata
+      await fillSimpleTransaction(
+        page,
+        SIMPLE_TRANSACTION_FORM_DATA.E2E_BRL_DEPOSIT_WITH_METADATA
+      )
+
+      // Click the Review button
+      await page.getByTestId('transaction-review-button').click()
+
+      // Verify we're on the review step
+      await expect(page.getByTestId('transaction-review-title')).toBeVisible({
+        timeout: 10000
+      })
+
+      // Take screenshot of review page with metadata
+      await page.screenshot({
+        path: 'test-transaction-review-with-metadata.png'
+      })
+
+      // Submit the transaction
+      await page.getByTestId('transaction-submit-button').click()
+
+      // Wait for redirect to transaction detail page
+      await page.waitForURL(/\/transactions\/[a-f0-9-]{36}/, { timeout: 15000 })
+
+      // Verify we're on the transaction detail page
+      await expect(page).toHaveURL(/\/transactions\/[a-f0-9-]{36}/)
     })
 
-    test('should validate value format', async ({ page }) => {
+    test('should fill and submit Complex transaction form', async ({
+      page
+    }) => {
+      // Open modal and select Complex mode
       await page.getByTestId('new-transaction').click()
-      const simpleModeButton = page.getByTestId('simple-mode')
-      if (await simpleModeButton.isVisible()) {
-        await simpleModeButton.click()
-      }
+      await page
+        .getByTestId('transaction-mode-modal')
+        .waitFor({ state: 'visible', timeout: 10000 })
+      await page.getByTestId('advanced-mode').click()
 
-      await page.locator('input[name="asset"]').fill('USD')
-      await page.locator('input[name="value"]').fill('invalid-amount')
-      await page.getByRole('button', { name: 'Create Transaction' }).click()
-
-      const errorVisible = await page.getByText(/value.*invalid/i).isVisible()
-      if (errorVisible) {
-        await expect(page.getByText(/value.*invalid/i)).toBeVisible()
-      }
-    })
-  })
-
-  test.describe('Complex Workflows', () => {
-    test('should create multi-account transaction', async ({ page }) => {
-      await test.step('Navigate to transaction creation', async () => {
-        await page.getByTestId('new-transaction').click()
-        const advancedModeButton = page.getByTestId('advanced-mode')
-        if (await advancedModeButton.isVisible()) {
-          await advancedModeButton.click()
-        }
+      // Wait for form to load
+      await page.waitForURL(/\/transactions\/create/, { timeout: 5000 })
+      await expect(page.getByTestId('transaction-form-title')).toBeVisible({
+        timeout: 10000
       })
 
-      await test.step('Add multiple source accounts', async () => {
-        await page.locator('input[name="asset"]').fill('USD')
-        await page.locator('input[name="value"]').fill('500.00')
+      // Fill the complex transaction form
+      await fillComplexTransaction(
+        page,
+        COMPLEX_TRANSACTION_FORM_DATA.E2E_MULTI_ACCOUNT
+      )
 
-        const addSourceButton = page.getByTestId('add-source-account')
-        if (await addSourceButton.isVisible()) {
-          await addSourceButton.click()
-        }
+      // Click the Review button
+      await page.getByTestId('transaction-review-button').click()
+
+      // Verify we're on the review step
+      await expect(page.getByTestId('transaction-review-title')).toBeVisible({
+        timeout: 10000
       })
-    })
 
-    test('should filter transactions by date', async ({ page }) => {
-      const dateFilterButton = page.getByTestId('date-filter')
-      if (await dateFilterButton.isVisible()) {
-        await dateFilterButton.click()
+      // Take screenshot of review page
+      await page.screenshot({
+        path: 'test-complex-transaction-review.png'
+      })
 
-        const startDateInput = page.locator('input[name="startDate"]')
-        const endDateInput = page.locator('input[name="endDate"]')
+      // Submit the transaction
+      await page.getByTestId('transaction-submit-button').click()
 
-        if (await startDateInput.isVisible()) {
-          await startDateInput.fill('2024-01-01')
-          await endDateInput.fill('2024-12-31')
-          await page.getByRole('button', { name: 'Apply' }).click()
-          await page.waitForLoadState('networkidle')
-        }
-      }
-    })
+      // Wait for redirect to transaction detail page
+      await page.waitForURL(/\/transactions\/[a-f0-9-]{36}/, { timeout: 15000 })
 
-    test('should filter transactions by status', async ({ page }) => {
-      const statusFilterButton = page.getByTestId('status-filter')
-      if (await statusFilterButton.isVisible()) {
-        await statusFilterButton.click()
-
-        const pendingOption = page.getByTestId('status-pending')
-        if (await pendingOption.isVisible()) {
-          await pendingOption.click()
-          await page.waitForLoadState('networkidle')
-        }
-      }
-    })
-
-    test('should export transactions', async ({ page }) => {
-      const exportButton = page.getByTestId('export-transactions')
-      if (await exportButton.isVisible()) {
-        await exportButton.click()
-
-        const downloadStarted = await Promise.race([
-          page.waitForEvent('download', { timeout: 5000 }).then(() => true),
-          page.waitForTimeout(5000).then(() => false)
-        ])
-
-        if (downloadStarted) {
-          expect(downloadStarted).toBe(true)
-        }
-      }
-    })
-  })
-
-  test.describe('Transaction Details', () => {
-    test('should view full transaction details', async ({ page }) => {
-      const firstTransaction = page.getByTestId('transaction-row').first()
-      if (await firstTransaction.isVisible()) {
-        await firstTransaction.click()
-
-        await expect(page.getByTestId('transaction-id')).toBeVisible()
-        await expect(page.getByTestId('transaction-amount')).toBeVisible()
-        await expect(page.getByTestId('transaction-status')).toBeVisible()
-        await expect(page.getByTestId('transaction-date')).toBeVisible()
-      }
-    })
-
-    test('should view transaction source and destination', async ({ page }) => {
-      const firstTransaction = page.getByTestId('transaction-row').first()
-      if (await firstTransaction.isVisible()) {
-        await firstTransaction.click()
-
-        await expect(page.getByTestId('source-account')).toBeVisible()
-        await expect(page.getByTestId('destination-account')).toBeVisible()
-      }
+      // Verify we're on the transaction detail page
+      await expect(page).toHaveURL(/\/transactions\/[a-f0-9-]{36}/)
     })
   })
 })

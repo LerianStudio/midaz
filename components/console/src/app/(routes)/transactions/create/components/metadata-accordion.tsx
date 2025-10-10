@@ -31,7 +31,7 @@ export const MetadataAccordion = ({
         })}
       </h6>
 
-      <PaperCollapsible className="mb-32">
+      <PaperCollapsible className="mb-32" data-testid="metadata-accordion">
         <PaperCollapsibleBanner className="flex items-center justify-between">
           <p className="text-shadcn-400 text-xs italic">
             {intl.formatMessage(

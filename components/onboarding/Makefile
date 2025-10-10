@@ -191,6 +191,12 @@ up:
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: up-test
+up-test:
+	$(call title1,"Starting test services in detached mode")
+	@$(DOCKER_CMD) -f docker-compose.test.yml up $(c) -d
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Test services started successfully$(GREEN) ✔️$(NC)"
+
 .PHONY: start
 start:
 	$(call title1,"Starting existing containers")
@@ -206,6 +212,16 @@ down:
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
 	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: down-test
+down-test:
+	$(call title1,"Stopping and removing test containers|networks|volumes")
+	@if [ -f "docker-compose.test.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.test.yml down $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.test.yml file found. Skipping down-test command.$(NC)"; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Test services stopped successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: stop
 stop:

@@ -1,0 +1,22 @@
+name: midaz-test
+
+services:
+  transaction:
+    container_name: midaz-transaction-test
+    build:
+      context: ../../
+      dockerfile: ./components/transaction/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - midaz-test-network
+
+networks:
+  midaz-test-network:
+    name: midaz-test-network
+    driver: bridge
+    external: true

@@ -1,0 +1,171 @@
+name: 'midaz-test'
+
+services:
+  midaz-mongodb:
+    container_name: midaz-mongodb-test
+    image: mongo:latest
+    env_file:
+      - .env
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: root
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - ${MONGO_PORT}:${MONGO_PORT}
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
+    volumes:
+      - ./mongo/mongo-keyfile:/data/mongo-keyfile
+      - midaz-mongodb-data-test:/data/db
+    networks:
+      - midaz-test-network
+
+  midaz-mongodb-init:
+    container_name: midaz-mongodb-init-test
+    env_file:
+      - .env
+    image: mongo:latest
+    depends_on:
+      - midaz-mongodb
+    volumes:
+      - ./mongo/mongo.sh:/data/mongo.sh
+    entrypoint: [ "sh", "-c", "chmod +x /data/mongo.sh && sh /data/mongo.sh" ]
+    networks:
+      - midaz-test-network
+
+  midaz-valkey:
+    container_name: midaz-valkey-test
+    image: valkey/valkey:latest
+    env_file:
+      - .env
+    environment:
+      - REDIS_USER=${REDIS_USER}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command:
+      [
+        "redis-server",
+        "--requirepass", "${REDIS_PASSWORD}",
+        "--port", "${REDIS_PORT}",
+        "--lua-time-limit", "3000",
+        "--stop-writes-on-bgsave-error", "no",
+        "--appendonly", "yes",
+        "--appendfsync", "everysec"
+      ]
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+    volumes:
+      - midaz-redis-data-test:/data
+    networks:
+      - midaz-test-network
+
+  midaz-postgres-primary:
+    container_name: midaz-postgres-primary-test
+    image: postgres:latest
+    user: ${USER_EXECUTE_COMMAND}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+    environment:
+      PGPORT: ${DB_PORT}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: |
+      postgres
+      -c wal_level=logical
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby_feedback=on
+      -c max_connections=${MAX_CONNECTIONS}
+      -c shared_buffers=${SHARED_BUFFERS}
+    volumes:
+      - midaz-postgres-data-test:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - midaz-test-network
+
+  midaz-postgres-replica:
+    container_name: midaz-postgres-replica-test
+    image: postgres:latest
+    ports:
+      - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      PGPORT: ${DB_REPLICA_PORT}
+      PGUSER: ${REPLICATION_USER}
+      PGPASSWORD: ${REPLICATION_PASSWORD}
+    command: |
+      bash -c "
+      chown -R postgres:postgres /var/lib/postgresql/data
+      if [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
+        gosu postgres bash -c 'rm -rf /var/lib/postgresql/data/* /var/lib/postgresql/data/.[!.]* 2>/dev/null || true'
+        until gosu postgres pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary-test --port=${DB_PORT}
+        do
+          echo 'Waiting for midaz-postgres-primary to connect...'
+          sleep 1s
+        done
+
+        echo 'Backup done..., starting midaz-postgres-replica...'
+        chmod 0700 /var/lib/postgresql/data
+
+        # Ensure the port is set to use for the replica
+        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+
+        # Define database max conn
+        sed -i 's/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf
+
+        # Define database shared buffers
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf
+      fi
+      exec gosu postgres postgres
+      "
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -p ${DB_REPLICA_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      midaz-postgres-primary:
+        condition: service_healthy
+    volumes:
+      - midaz-postgres-replica-data-test:/var/lib/postgresql/data
+    networks:
+      - midaz-test-network
+
+  midaz-rabbitmq:
+    image: rabbitmq:4.1.3-management-alpine
+    container_name: midaz-rabbitmq-test
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
+      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
+    volumes:
+      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
+      - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+      - midaz-test-network
+
+volumes:
+  midaz-postgres-data-test:
+  midaz-postgres-replica-data-test:
+  midaz-redis-data-test:
+  midaz-mongodb-data-test:
+
+networks:
+  midaz-test-network:
+    name: midaz-test-network
+    driver: bridge
